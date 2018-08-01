@@ -42,8 +42,8 @@ def register(app: web.Application) -> None:
 	app.router.add_route('OPTIONS', '/NotRST.srf', handle_not_rst)
 	app.router.add_post('/NotRST.srf', handle_not_rst)
 	app.router.add_post('/RST.srf', handle_rst)
-	app.router.add_post('/RST2', handle_rst)
-	app.router.add_post('/RST2.srf', handle_rst)
+	# app.router.add_post('/RST2', handle_rst)
+	app.router.add_post('/RST2.srf', lambda req: handle_rst(req, rst2 = True))
 	
 	# MSN 8.1.0178
 	app.router.add_post('/abservice/SharingService.asmx', handle_abservice)
@@ -471,7 +471,7 @@ def _find_element(xml: Any, query: str) -> Any:
 		thing = bool(thing)
 	return thing
 
-async def handle_msgrconfig(req):
+async def handle_msgrconfig(req: web.Request) -> web.Response:
 	msgr_config = _get_msgr_config()
 	return web.HTTPOk(content_type = 'text/xml', text = msgr_config)
 
@@ -482,12 +482,12 @@ def _get_msgr_config() -> str:
 		config = fh.read()
 	return envelope.format(MsgrConfig = config)
 
-async def handle_nexus(req):
+async def handle_nexus(req: web.Request) -> web.Response:
 	return web.HTTPOk(headers = {
 		'PassportURLs': 'DALogin=https://{}{}'.format(settings.LOGIN_HOST, LOGIN_PATH),
 	})
 
-async def handle_login(req):
+async def handle_login(req: web.Request) -> web.Response:
 	tmp = _extract_pp_credentials(req.headers.get('Authorization'))
 	if tmp is None:
 		token = None
@@ -502,7 +502,7 @@ async def handle_login(req):
 		'Authentication-Info': '{}da-status=success,from-PP=\'{}\''.format(PP, token),
 	})
 
-async def handle_not_rst(req):
+async def handle_not_rst(req: web.Request) -> web.Response:
 	if req.method == 'OPTIONS':
 		return web.HTTPOk(headers = {
 			'Access-Control-Allow-Origin': '*',
@@ -524,14 +524,14 @@ async def handle_not_rst(req):
 		headers['X-Token'] = token
 	return web.HTTPOk(headers = headers)
 
-async def handle_rst(req):
+async def handle_rst(req: web.Request, rst2: bool = False) -> web.Response:
 	from lxml.objectify import fromstring as parse_xml
 	
 	body = await req.read()
 	root = parse_xml(body)
 	
 	email = _find_element(root, 'Username')
-	pwd = _find_element(root, 'Password')
+	pwd = str(_find_element(root, 'Password'))
 
 	if email is None or pwd is None:
 		raise web.HTTPBadRequest()
@@ -545,6 +545,8 @@ async def handle_rst(req):
 	
 	if token is not None and uuid is not None:
 		tomorrowz = (now + timedelta(days = 1)).isoformat()[0:19] + 'Z'
+		time_5mz = (now + timedelta(minutes = 5)).isoformat()[0:19] + 'Z'
+		
 		# load PUID and CID, assume them to be the same for our purposes
 		cid = _cid_format(uuid)
 		
@@ -558,7 +560,7 @@ async def handle_rst(req):
 		domains = root.findall('.//{*}Address')
 		domains.pop(0) # ignore Passport token request
 		
-		tmpl = req.app['jinja_env'].get_template('msn:RST/RST.token.xml')
+		tmpl = req.app['jinja_env'].get_template(('msn:RST/RST2.token.xml' if rst2 else 'msn:RST/RST.token.xml'))
 		# collect tokens for requested domains
 		tokenxmls = [tmpl.render(
 			i = i + 1,
@@ -568,10 +570,22 @@ async def handle_rst(req):
 			pptoken1 = token,
 		) for i, domain in enumerate(domains)]
 		
-		tmpl = req.app['jinja_env'].get_template('msn:RST/RST.xml')
+		tmpl = req.app['jinja_env'].get_template(('msn:RST/RST2.xml' if rst2 else 'msn:RST/RST.xml'))
 		return web.HTTPOk(
 			content_type = 'text/xml',
-			text = tmpl.render(
+			text = (tmpl.render(
+				puidhex = cid.upper(),
+				time_5mz = time_5mz,
+				timez = timez,
+				tomorrowz = tomorrowz,
+				cid = cid,
+				email = email,
+				firstname = "John",
+				lastname = "Doe",
+				ip = host,
+				pptoken1 = token,
+				tokenxml = Markup(''.join(tokenxmls)),
+			) if rst2 else tmpl.render(
 				puidhex = cid.upper(),
 				timez = timez,
 				tomorrowz = tomorrowz,
@@ -582,7 +596,7 @@ async def handle_rst(req):
 				ip = host,
 				pptoken1 = token,
 				tokenxml = Markup(''.join(tokenxmls)),
-			),
+			)),
 		)
 	
 	return render(req, 'msn:RST/RST.error.xml', {
@@ -592,7 +606,7 @@ async def handle_rst(req):
 def _get_storage_path(uuid: str) -> str:
 	return 'storage/dp/{}/{}'.format(uuid[0:1], uuid[0:2])
 
-def handle_create_document(req: web.Request, action: Any, user: models.User, cid: str, token: str, timestamp: int) -> web.Request:
+def handle_create_document(req: web.Request, action: Any, user: models.User, cid: str, token: str, timestamp: int) -> web.Response:
 	from PIL import Image
 	
 	# get image data
@@ -650,7 +664,7 @@ async def handle_usertile(req: web.Request, small: bool = False) -> web.Response
 	except FileNotFoundError:
 		raise web.HTTPNotFound()
 
-async def handle_debug(req):
+async def handle_debug(req: web.Request) -> web.Response:
 	return render(req, 'msn:debug.html')
 
 def _extract_pp_credentials(auth_str: str) -> Optional[Tuple[str, str]]:
