@@ -42,7 +42,7 @@ class BackendEventHandler(event.BackendEventHandler):
 			bs.me_contact_add(uuid, Lst.FL, name = "Test 1")
 			bs.me_contact_add(uuid, Lst.AL, name = "Test 1")
 	
-	def on_presence_notification(self, contact: Contact, old_substatus: Substatus) -> None:
+	def on_presence_notification(self, user: User, old_substatus: Substatus, on_contact_add: bool) -> None:
 		pass
 	
 	def on_chat_invite(self, chat: Chat, inviter: User, *, invite_msg: Optional[str] = None) -> None:
@@ -53,6 +53,9 @@ class BackendEventHandler(event.BackendEventHandler):
 		pass
 	
 	def on_contact_request_denied(self, user: User, message: Optional[str]) -> None:
+		pass
+	
+	def ymsg_on_p2p_msg_request(self, user_from: User, yahoo_data: Dict[str, Any]) -> None:
 		pass
 	
 	def on_login_elsewhere(self, option: LoginOption) -> None:

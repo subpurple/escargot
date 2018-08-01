@@ -128,6 +128,16 @@ class TextWithData:
 		self.text = text
 		self.yahoo_utf8 = yahoo_utf8
 
+class YahooAlias:
+	__slots__ = ('alias_yid', 'is_activated')
+	
+	alias_yid: str
+	is_activated: bool
+	
+	def __init__(self, alias_yid: str, is_activated: bool) -> None:
+		self.alias_yid = alias_yid
+		self.is_activated = is_activated
+
 class OIMMetadata:
 	__slots__ = ('run_id', 'oim_num', 'from_member_name', 'from_member_friendly', 'to_member_name', 'last_oim_sent', 'oim_content_length')
 	
@@ -235,3 +245,4 @@ class Service:
 class LoginOption(Enum):
 	BootOthers = object()
 	NotifyOthers = object()
+	Duplicate = object()

@@ -29,7 +29,7 @@ class BackendEventHandler(event.BackendEventHandler):
 		self.bs.me_update({ 'substatus': Substatus.Online })
 		print("Bot active:", self.bs.user.status.name)
 	
-	def on_presence_notification(self, contact: Contact, old_substatus: Substatus) -> None:
+	def on_presence_notification(self, user: User, old_substatus: Substatus, on_contact_add: bool) -> None:
 		pass
 	
 	def on_chat_invite(self, chat: Chat, inviter: User, *, invite_msg: Optional[str] = None) -> None:

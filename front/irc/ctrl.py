@@ -191,8 +191,8 @@ class BackendEventHandler(event.BackendEventHandler):
 	def on_maintenance_boot(self) -> None:
 		pass
 	
-	def on_presence_notification(self, contact: Contact, old_substatus: Substatus) -> None:
-		self.ctrl.send_reply('NOTICE', ":{} is now {}".format(contact.head.email, contact.status.substatus))
+	def on_presence_notification(self, user: User, old_substatus: Substatus, on_contact_add: bool) -> None:
+		self.ctrl.send_reply('NOTICE', ":{} is now {}".format(user.head.email, user.status.substatus))
 	
 	def on_chat_invite(self, chat: Chat, inviter: User, *, invite_msg: Optional[str] = None) -> None:
 		self.ctrl.send_reply('INVITE', self.bs.user.email, chat.ids['irc'], source = inviter.email)

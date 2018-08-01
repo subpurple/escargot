@@ -1,10 +1,11 @@
 from typing import Dict, Optional, List, Tuple
 from datetime import datetime
 
-from util.hash import hasher, hasher_md5, hasher_md5crypt
+from util.hash import hasher, hasher_md5, hasher_md5crypt, gen_salt
+from util import misc
 
-from .db import Session, User as DBUser, OIM as DBOIM, YahooOIM as DBYahooOIM
-from .models import User, Contact, UserStatus, UserDetail, Group, OIMMetadata, YahooOIM, MessageData
+from .db import Session, User as DBUser, OIM as DBOIM, YahooOIM as DBYahooOIM, YahooAlias as DBYahooAlias
+from .models import User, Contact, UserStatus, UserDetail, Group, OIMMetadata, YahooOIM, YahooAlias, MessageData
 
 class UserService:
 	_cache_by_uuid: Dict[str, Optional[User]]
@@ -69,6 +70,13 @@ class UserService:
 			if dbuser is None: return None
 			status = UserStatus(dbuser.name, dbuser.message)
 			return User(dbuser.uuid, dbuser.email, dbuser.verified, status, dbuser.date_created)
+	
+	def check_user_front_type(self, uuid: str, front_type: str) -> bool:
+		with Session() as sess:
+			dbuser = sess.query(DBUser).filter(DBUser.uuid == uuid).one_or_none()
+			if dbuser is not None:
+				if 'ymsg' in dbuser._front_data: return True
+			return False
 	
 	def get_detail(self, uuid: str) -> Optional[UserDetail]:
 		with Session() as sess:
@@ -141,7 +149,7 @@ class UserService:
 	
 	def yahoo_get_oim_message_by_recipient(self, recipient_id: str) -> List[YahooOIM]:
 		with Session() as sess:
-			query = sess.query(DBYahooOIM).filter(DBYahooOIM.recipient_id == recipient_id)
+			query = sess.query(DBYahooOIM).filter(DBYahooOIM.recipient_id_primary == recipient_id)
 			tmp_oims = []
 			for oim in query:
 				tmp_oims.append(
@@ -152,29 +160,57 @@ class UserService:
 				sess.delete(oim)
 		return tmp_oims
 	
-	def yahoo_save_oim(self, message: str, utf8_kv: Optional[bool], from_id: str, recipient_id: str, sent: datetime) -> None:
+	def yahoo_save_oim(self, message: str, utf8_kv: Optional[bool], from_id: str, recipient_id: str, recipient_id_primary: str, sent: datetime) -> None:
 		with Session() as sess:
-			dbyahoooim = DBYahooOIM(from_id = from_id, recipient_id = recipient_id)
-			dbyahoooim.sent = sent
-			dbyahoooim.message = message
-			dbyahoooim.utf8_kv = utf8_kv
+			dbyahoooim = DBYahooOIM(
+				from_id = from_id, recipient_id = recipient_id, recipient_id_primary = recipient_id_primary, sent = sent,
+				message = message, utf8_kv = utf8_kv,
+			)
 			sess.add(dbyahoooim)
 	
-	# TODO: Get these two functions working.
-	
-	def yahoo_get_aliases(self, uuid: str) -> Optional[List[str]]:
+	def yahoo_get_aliases(self, uuid: str) -> List[YahooAlias]:
 		with Session() as sess:
-			dbuser = sess.query(DBUser).filter(DBUser.uuid == uuid).one_or_none()
-			if dbuser is None: return None
-			return dbuser.get_front_data('ymsg', 'aliases')
+			aliases = sess.query(DBYahooAlias).filter(DBYahooAlias.owner_uuid == uuid)
+			tmp_aliases = [
+				YahooAlias(
+					alias.yid_alias, alias.is_activated,
+				)
+				for alias in aliases
+			]
+			return tmp_aliases
 	
 	def yahoo_add_alias(self, uuid: str, alias: str) -> None:
 		with Session() as sess:
-			dbuser = sess.query(DBUser).filter(DBUser.uuid == uuid).one_or_none()
-			alias_list = dbuser.get_front_data('ymsg', 'aliases')
-			if alias not in alias_list: alias_list.append(alias)
-			dbuser.set_front_data('ymsg', 'aliases', alias_list)
-			sess.add(dbuser)
+			dbyahooalias = DBYahooAlias(owner_uuid = uuid)
+			dbyahooalias.yid_alias = alias
+			sess.add(dbyahooalias)
+			
+			yahooalias_user = DBUser(
+				uuid = misc.gen_uuid(), email = alias + '@yahoo.com', verified = False,
+				name = alias, message = '',
+				password = hasher.encode(gen_salt(length = 32)), settings = {}, groups = {}, contacts = {}, _front_data = {},
+			)
+			sess.add(yahooalias_user)
+	
+	def yahoo_set_alias_activated_status(self, alias: str, activated: bool) -> None:
+		with Session() as sess:
+			dbyahooalias = sess.query(DBYahooAlias).filter(DBYahooAlias.yid_alias == alias).one_or_none()
+			if dbyahooalias is not None:
+				dbyahooalias.is_activated = activated
+				sess.add(dbyahooalias)
+	
+	def yahoo_check_alias_existence(self, alias: str) -> bool:
+		with Session() as sess:
+			query = sess.query(DBYahooAlias).filter(DBYahooAlias.yid_alias == alias).one_or_none()
+			if query is not None: return True
+		return False
+	
+	def yahoo_delete_alias(self, uuid: str, alias: str) -> bool:
+		with Session() as sess:
+			alias_entry = sess.query(DBYahooAlias).filter(DBYahooAlias.owner_uuid == uuid, DBYahooAlias.yid_alias == alias).one_or_none()
+			if alias_entry is None: return False
+			sess.delete(alias_entry)
+		return True
 	
 	def save_batch(self, to_save: List[Tuple[User, UserDetail]]) -> None:
 		with Session() as sess:

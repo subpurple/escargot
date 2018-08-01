@@ -621,9 +621,24 @@ class BackendEventHandler(event.BackendEventHandler):
 	def on_maintenance_boot(self) -> None:
 		self.on_close(maintenance = True)
 	
-	def on_presence_notification(self, contact: Contact, old_substatus: Substatus) -> None:
-		for m in build_presence_notif(None, contact, self.ctrl.dialect, self.ctrl.backend):
-			self.ctrl.send_reply(*m)
+	def on_presence_notification(self, user: User, old_substatus: Substatus, on_contact_add: bool) -> None:
+		bs = self.ctrl.bs
+		assert bs is not None
+		user_me = bs.user
+		
+		detail_other = self.ctrl.backend._load_detail(user)
+		assert detail_other is not None
+		ctc_me = detail_other.contacts.get(user_me.uuid)
+		if ctc_me is None and ctc_me.head is user_me:
+			detail = user_me.detail
+			assert detail is not None
+			ctc = detail.contacts.get(user.uuid)
+			# This shouldn't be `None`, since every contact should have
+			# an `RL` contact on the other users' list (at the very least).
+			if ctc is None or not ctc.lists & Lst.FL: return
+			for m in build_presence_notif(None, ctc, self.ctrl.dialect, self.ctrl.backend):
+				self.ctrl.send_reply(*m)
+			return
 	
 	def on_chat_invite(self, chat: Chat, inviter: User, *, invite_msg: Optional[str] = None) -> None:
 		extra = () # type: Tuple[Any, ...]

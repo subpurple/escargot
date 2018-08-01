@@ -36,7 +36,7 @@ class Backend:
 	_chats_by_id: Dict[Tuple[str, str], 'Chat']
 	_user_by_uuid: Dict[str, User]
 	_worklist_sync_db: Dict[User, UserDetail]
-	_worklist_notify: Dict[str, Tuple['BackendSession', Substatus]]
+	_worklist_notify: Dict[str, Tuple['BackendSession', Substatus, bool]]
 	_runners: List[Runner]
 	_dev: Optional[Any]
 	
@@ -100,8 +100,7 @@ class Backend:
 		# User is offline, send notifications
 		user.status.substatus = Substatus.Offline
 		self._sync_contact_statuses(user)
-		user.detail = None
-		self._notify_contacts(sess, old_substatus = old_substatus)
+		self._notify_contacts(sess, for_logout = True, old_substatus = old_substatus)
 	
 	def login(self, uuid: str, client: Client, evt: event.BackendEventHandler, option: LoginOption) -> Optional['BackendSession']:
 		user = self._load_user_record(uuid)
@@ -161,11 +160,11 @@ class Backend:
 			if ctc_rev is None: continue
 			ctc_rev.compute_visible_status(ctc.head)
 	
-	def _notify_contacts(self, bs: 'BackendSession', *, old_substatus: Substatus) -> None:
+	def _notify_contacts(self, bs: 'BackendSession', *, for_logout: bool = False, old_substatus: Substatus, on_contact_add = False) -> None:
 		uuid = bs.user.uuid
 		if uuid in self._worklist_notify:
 			return
-		self._worklist_notify[uuid] = (bs, old_substatus)
+		self._worklist_notify[uuid] = (bs, old_substatus, on_contact_add, for_logout)
 	
 	def _mark_modified(self, user: User, *, detail: Optional[UserDetail] = None) -> None:
 		ud = user.detail or detail
@@ -241,19 +240,11 @@ class Backend:
 		while True:
 			await asyncio.sleep(0.2)
 			try:
-				for bs, old_substatus in worklist.values():
+				for bs, old_substatus, on_contact_add, for_logout in worklist.values():
 					user = bs.user
-					detail = self._load_detail(user)
-					for ctc in detail.contacts.values():
-						for bs_other in self._sc.get_sessions_by_user(ctc.head):
-							detail_other = bs_other.user.detail
-							if detail_other is None: continue
-							ctc_me = detail_other.contacts.get(user.uuid)
-							# This shouldn't be `None`, since every contact should have
-							# an `RL` contact on the other users' list (at the very least).
-							if ctc_me is None: continue
-							if not ctc_me.lists & Lst.FL: continue
-							bs_other.evt.on_presence_notification(ctc_me, old_substatus)
+					for bs_other in self._sc.iter_sessions():
+						bs_other.evt.on_presence_notification(user, old_substatus, on_contact_add)
+					if for_logout: user.detail = None
 			except:
 				traceback.print_exc()
 			worklist.clear()
@@ -266,11 +257,11 @@ class Session(metaclass = ABCMeta):
 	def __init__(self) -> None:
 		self.closed = False
 	
-	def close(self) -> None:
+	def close(self, **kwargs) -> None:
 		if self.closed:
 			return
 		self.closed = True
-		self._on_close()
+		self._on_close(**kwargs)
 	
 	@abstractmethod
 	def _on_close(self) -> None: pass
@@ -292,8 +283,8 @@ class BackendSession(Session):
 		self.evt = evt
 		self.front_data = {}
 	
-	def _on_close(self) -> None:
-		self.evt.on_close()
+	def _on_close(self, **kwargs) -> None:
+		if not kwargs.get('passthrough'): self.evt.on_close()
 		self.backend.on_leave(self)
 	
 	def me_update(self, fields: Dict[str, Any]) -> None:
@@ -400,7 +391,7 @@ class BackendSession(Session):
 				raise error.ContactNotOnList()
 		self.backend._mark_modified(user)
 	
-	def me_contact_add(self, contact_uuid: str, lst: Lst, *, name: Optional[str] = None, message: Optional[TextWithData] = None, needs_notify: bool = False) -> Tuple[Contact, User]:
+	def me_contact_add(self, contact_uuid: str, lst: Lst, *, name: Optional[str] = None, message: Optional[TextWithData] = None, send_notif_on_AL: bool = False, needs_notify: bool = False) -> Tuple[Contact, User]:
 		backend = self.backend
 		ctc_head = backend._load_user_record(contact_uuid)
 		if ctc_head is None:
@@ -411,14 +402,14 @@ class BackendSession(Session):
 			# FL needs a matching RL on the contact
 			ctc_me = self._add_to_list(ctc_head, user, Lst.RL, user.status.name)
 			# If other user hasn't already allowed/blocked me, notify them that I added them to my list.
-			if not ctc_me.lists & (Lst.AL | Lst.BL):
+			if not ctc_me.lists & (Lst.AL | Lst.BL) or ((ctc_me.lists & Lst.AL) and send_notif_on_AL):
 				# `ctc_head` was added to `user`'s RL
 				for sess_added in backend._sc.get_sessions_by_user(ctc_head):
 					if sess_added is self: continue
 					sess_added.evt.on_added_me(user, message = message)
 		if needs_notify:
-			self.evt.on_presence_notification(ctc, old_substatus = Substatus.Offline)
-			backend._notify_contacts(self, old_substatus = Substatus.Offline)
+			self.evt.on_presence_notification(ctc_head, old_substatus = Substatus.Offline, on_contact_add = True)
+			backend._notify_contacts(self, old_substatus = Substatus.Offline, on_contact_add = True)
 		return ctc, ctc_head
 	
 	def me_contact_edit(self, contact_uuid: str, *, is_messenger_user: Optional[bool] = None) -> None:
@@ -622,12 +613,12 @@ class Chat:
 			if cs_other is cs and cs.origin is 'yahoo': continue
 			cs_other.evt.on_participant_joined(cs)
 	
-	def on_leave(self, sess: 'ChatSession') -> None:
+	def on_leave(self, sess: 'ChatSession', keep_future: bool = False) -> None:
 		su = self._users_by_sess.pop(sess, None)
 		if su is None: return
 		# TODO: If it goes down to only 1 connected user,
 		# the chat and remaining session(s) should be automatically closed.
-		if not self._users_by_sess:
+		if not self._users_by_sess and not keep_future:
 			for scope_id in self.ids.items():
 				del self.backend._chats_by_id[scope_id]
 			return
@@ -653,20 +644,11 @@ class ChatSession(Session):
 		self.bs = bs
 		self.evt = evt
 	
-	def _on_close(self) -> None:
-		self.evt.on_close()
-		self.chat.on_leave(self)
+	def _on_close(self, **kwargs) -> None:
+		self.evt.on_close((kwargs.get('keep_future') if kwargs.get('keep_future') is not None else False))
+		self.chat.on_leave(self, keep_future = (kwargs.get('keep_future') if kwargs.get('keep_future') is not None else False))
 	
-	def invite(self, invitee_uuid: str, *, invite_msg: Optional[str] = None) -> None:
-		detail = self.user.detail
-		assert detail is not None
-		ctc = detail.contacts.get(invitee_uuid)
-		if ctc is None:
-			if self.user.uuid != invitee_uuid: raise error.ContactDoesNotExist()
-			invitee = self.user
-		else:
-			if ctc.status.is_offlineish(): raise error.ContactNotOnline()
-			invitee = ctc.head
+	def invite(self, invitee: User, *, invite_msg: Optional[str] = None) -> None:
 		ctc_sessions = self.bs.backend.util_get_sessions_by_user(invitee)
 		for ctc_sess in ctc_sessions:
 			ctc_sess.evt.on_chat_invite(self.chat, self.user, invite_msg = invite_msg or '')

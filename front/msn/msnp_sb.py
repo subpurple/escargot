@@ -119,7 +119,21 @@ class MSNPCtrlSB(MSNPCtrl):
 		
 		chat = cs.chat
 		try:
-			cs.invite(invitee_uuid)
+			bs = self.bs
+			assert bs is not None
+			user = bs.user
+			detail = user.detail
+			assert detail is not None
+			
+			ctc = detail.contacts.get(invitee_uuid)
+			if ctc is None:
+				if self.user.uuid != invitee_uuid: raise error.ContactDoesNotExist()
+				invitee = self.user
+			else:
+				if ctc.status.is_offlineish(): raise error.ContactNotOnline()
+				invitee = ctc.head
+			
+			cs.invite(invitee)
 		except Exception as ex:
 			self.send_reply(Err.GetCodeForException(ex), trid)
 		else:
