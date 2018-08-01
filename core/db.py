@@ -13,18 +13,10 @@ import settings
 class Base(declarative_base()): # type: ignore
 	__abstract__ = True
 
-# `user.type != TYPE_ESCARGOT` means logging in is done via
-# a third-party service (e.g. Windows Live for TYPE_LIVE).
-# Not currently implemented, so all accounts are TYPE_ESCARGOT.
-TYPE_ESCARGOT = 1
-TYPE_LIVE = 2
-TYPE_YAHOO = 3
-
 class User(Base):
 	__tablename__ = 't_user'
 	
 	id = sa.Column(sa.Integer, nullable = False, primary_key = True)
-	type = sa.Column(sa.Integer, nullable = False, default = TYPE_ESCARGOT)
 	date_created = sa.Column(sa.DateTime, nullable = True, default = datetime.utcnow)
 	date_login = sa.Column(sa.DateTime, nullable = True)
 	uuid = sa.Column(sa.String, nullable = False, unique = True)
@@ -58,6 +50,14 @@ class User(Base):
 		if not fd: return None
 		return fd.get(key)
 
+class YahooAlias(Base):
+	__tablename__ = 't_yahoo_alias'
+	
+	id = sa.Column(sa.Integer, nullable = False, primary_key = True)
+	yid_alias = sa.Column(sa.String, nullable = False)
+	owner_uuid = sa.Column(sa.String, nullable = False)
+	is_activated = sa.Column(sa.Boolean, nullable = False, default = True)
+
 def _simplify_json_data(data: Any) -> Any:
 	if isinstance(data, dict):
 		d = {}
@@ -90,6 +90,7 @@ class YahooOIM(Base):
 	id = sa.Column(sa.Integer, nullable = False, primary_key = True)
 	from_id = sa.Column(sa.String, nullable = False)
 	recipient_id = sa.Column(sa.String, nullable = False)
+	recipient_id_primary = sa.Column(sa.String, nullable = False)
 	sent = sa.Column(sa.DateTime, nullable = False)
 	message = sa.Column(sa.String, nullable = False)
 	utf8_kv = sa.Column(sa.Boolean, nullable = True)
