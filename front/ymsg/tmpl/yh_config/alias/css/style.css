@@ -7,7 +7,6 @@
 	margin-right: 1em;
 	font-size: 1.3em;
 	text-align: center;
-	display: none;
 }
 
 .alias-cmd-board .spacer-title {
@@ -17,7 +16,7 @@
 
 .alias-cmd-board .desc-info {
 	position: relative;
-	top: 1em;
+	margin-top: 1em;
 }
 
 .alias-cmd-board .spacer {
@@ -28,24 +27,29 @@
 
 .alias-cmd-board .list {
 	position: relative;
-	top: 3em;
+	margin-top: 3em;
+}
+
+.alias-cmd-board .element {
+	position: relative;
+	margin-bottom: 3.5em;
 }
 
 .alias-cmd-board .element .alias {
 	position: absolute;
 	margin-left: 2em;
-	top: 0.6em;
+	margin-top: 0.6em;
 }
 
 .alias-cmd-board .element .actions {
 	position: absolute;
 	right: 3em;
-	top: 0.6em;
+	margin-top: 0.6em;
 }
 
 .alias-cmd-board .new-cmd {
 	position: relative;
-	top: 7em;
+	margin-top: 7em;
 }
 
 .alias-cmd-board .new-alias-dialog {

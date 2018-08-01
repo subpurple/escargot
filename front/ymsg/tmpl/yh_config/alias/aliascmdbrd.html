@@ -2,7 +2,7 @@
 	<head>
 		<title>Escargot - Manage Identities</title>
 		<link rel="stylesheet" href="alias/css/style.css" type="text/css">
-		<script language="JavaScript">
+		<script>
 			function ToggleNewAliasDialog(isOn) {
 				if (isOn) {
 					document.getElementById('new-alias-dialog').style.display = 'block';
@@ -41,51 +41,27 @@
 					xh = new ActiveXObject('Microsoft.XMLHTTP');
 				}
 				
+				xh.open('POST', 'alias/cgi/delete_alias', true);
+				
 				xh.onreadystatechange = function () {
-					if (this.readyState == 4 && this.status == 200) {
-						parentNode = document.getElementById('alias-list');
-						childNode = document.getElementById('alias-list-element-' + alias);
-						parentNode.removeChild(childNode);
-						alert('You have successfully deleted the alias "' + alias + '"!');
+					if (this.readyState == 4) {
+						if (this.status == 200) {
+							window.location.reload(true);
+						} else if (this.status == 500) {
+							alert('An error has occured while trying to remove the alias "' + alias + '".');
+						}
 					}
 				};
 				
 				//now open request to deletion service
-				xh.open('POST', 'alias/cgi/delete_alias', true);
+				//TODO: `POST` to deletion service doesn't seem to do anything. Look into this later.
 				xh.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-				xh.send('Y={{ y_cookie }}&T={{ t_cookie }}&alias=' + alias);
-			}
-			
-			function InitPage() {
-				var qs = window.location.href.substr(window.location.href.indexOf('?') + 1);
-				
-				var isNewAliasSucceed = qs.indexOf('.succeed=');
-				if (isNewAliasSucceed != -1) {
-					document.getElementById('alias-notif-register-success').style.display = 'block';
-				}
-				
-				var anyErrors = qs.indexOf('.err=');
-				if (anyErrors != -1) {
-					reason_end = qs.indexOf('&', anyErrors + 5);
-					if (reason_end != -1) {
-						reason_end += 1;
-					} else {
-						reason_end = qs.length;
-					}
-					reason = qs.slice(anyErrors + 5, reason_end);
-					alert(reason);
-					if (reason == 'taken') {
-						document.getElementById('alias-error-taken').style.display = 'block';
-					}
-				}
+				xh.send('id={{ main_yid }}&alias=' + alias);
 			}
 		</script>
 	</head>
 	<body>
 		<img src="alias/img/escargot_alt_logo_blue.png" width="150" height="40">
-		<!-- Notifications -->
-		<div class="alias-cmd-message alias-register-success" id="alias-notif-register-success"><p>Success! The alias you have registered is now yours.</p></div>
-		<div class="alias-cmd-message error-taken" id="alias-error-taken"><p>The alias you tried to register has already been taken.</p></div>
 		
 		<div class="alias-cmd-board">
 			<h1>Manage your Yahoo! Messenger aliases</h1>
@@ -101,8 +77,6 @@
 					<p>Enter in your new alias in the text box below.</p>
 					<p>You can only add numbers, letters (uppercase and lowercase), periods, and underscores to your alias, and you cannot take an alias that has already been taken as another alias or Yahoo! ID.</p>
 					<form name="aliasCreate" action="alias/cgi/create_alias" onsubmit="return VerifyAliasFormFields()" method="post">
-						<input type="hidden" name="Y" value="{{ y_cookie }}">
-						<input type="hidden" name="T" value="{{ t_cookie }}">
 						<input type="hidden" name="id" value="{{ main_yid }}">
 						<input type="text" name="alias_new">
 						<input type="submit" value="Create Alias">
@@ -111,8 +85,5 @@
 				<a href="javascript:void(0);" onclick="ToggleNewAliasDialog(true)" class="alias-cmd-board new-button" id="new-alias-button">New...</a>
 			</div>
 		</div>
-		<script language="JavaScript">
-			InitPage();
-		</script>
 	</body>
 	</html>

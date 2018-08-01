@@ -2,7 +2,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from aiohttp import web
 import asyncio
 from markupsafe import Markup
-from urllib.parse import unquote, unquote_plus
+from urllib.parse import unquote, unquote_plus, quote
 import os
 import datetime
 import shutil
@@ -158,23 +158,46 @@ async def handle_yahoo_alias_create(req: web.Request) -> web.Response:
 	backend = req.app['backend']
 	params = _parse_urlencoded(body)
 	
-	(id, bs) = _parse_cookies(req, backend, y = params['Y'], t = params['T'])
+	(id, bs) = _parse_cookies(req, backend)
 	
 	if id != params['id'] or bs is None:
 		raise web.HTTPInternalServerError
 	
 	for bs_other in bs.backend._sc.iter_sessions():
-		alias_list = backend.user_service.yahoo_get_aliases(bs_other.user.uuid) or []
-		if params['alias_new'] == yahoo_id(bs_other.user.email) or params['alias_new'] in alias_list:
-			return _redir_with_auth_cookies('/config/edit_identity?.done=http://messenger.yahoo.com/&.l=' + params['id'] + '&.err=taken', params['Y'], params['T'], backend)
+		if params['alias_new'] == yahoo_id(bs_other.user.email) or backend.user_service.yahoo_check_alias_existence(params['alias_new']):
+			return render(req, 'ymsg:yh_config/alias/aliascmdbrd.dialog.html', {
+				'title_msg': 'Alias Taken!',
+				'msg': 'Alias "' + params['alias_new'] + '" has already been registered.',
+				'yid': params['id'],
+			})
 	
 	backend.user_service.yahoo_add_alias(bs.user.uuid, params['alias_new'])
-	# TODO: RN, we send an `IDActivate` to the client when an alias is created. Is this the appropriate action?
 	bs.evt.ymsg_on_notify_alias_activate(params['alias_new'])
 	
-	return _redir_with_auth_cookies('/config/edit_identity?.done=http://messenger.yahoo.com/&.l=' + params['id'] + '&.succeed=', params['Y'], params['T'], backend)
+	return render(req, 'ymsg:yh_config/alias/aliascmdbrd.dialog.html', {
+		'title_msg': 'Alias Registered!',
+		'msg': 'Success! The alias "' + params['alias_new'] + '" is now registered!',
+		'yid': params['id'],
+	})
 
 async def handle_yahoo_alias_delete(req: web.Request) -> web.Response:
+	body = await req.read()
+	
+	backend = req.app['backend']
+	params = _parse_urlencoded(body)
+	
+	(id, bs) = _parse_cookies(req, backend)
+	
+	if id != params['id'] or bs is None:
+		raise web.HTTPInternalServerError
+	
+	alias_delete = backend.user_service.yahoo_delete_alias(bs.user.uuid, params['alias'])
+	
+	if not alias_delete:
+		raise web.HTTPInternalServerError
+	
+	bs.evt.ymsg_on_notify_alias_delete(params['alias'])
+	
 	return web.HTTPOk()
 
 def _parse_urlencoded(body: bytes) -> Dict[str, Any]:
@@ -239,11 +262,11 @@ async def handle_ft_http(req: web.Request) -> web.Response:
 	
 	yahoo_id_sender = ymsg_data.get('0') or ''
 	(yahoo_id, bs) = _parse_cookies(req, backend, yahoo_id_sender)
-	if bs is None or (yahoo_id != yahoo_id_sender or not yahoo_id_to_uuid(None, backend, yahoo_id)):
+	if bs is None or (yahoo_id != yahoo_id_sender or not yahoo_id_to_uuid(backend, yahoo_id)):
 		raise web.HTTPInternalServerError
 	
 	yahoo_id_recipient = ymsg_data.get('5') or ''
-	recipient_uuid = yahoo_id_to_uuid(bs, backend, yahoo_id_recipient)
+	recipient_uuid = yahoo_id_to_uuid(backend, yahoo_id_recipient)
 	if recipient_uuid is None:
 		raise web.HTTPInternalServerError
 	
