@@ -18,6 +18,7 @@ class YMSGService(IntEnum):
 	IsBack = 0x04
 	Message = 0x06
 	IDActivate = 0x07
+	IDDeactivate = 0x08
 	UserStat = 0x0A
 	ContactNew = 0x0F
 	AddIgnore = 0x11
@@ -234,24 +235,28 @@ def yahoo_id(email: str) -> str:
 	else:
 		return email
 
-def yahoo_id_to_uuid(bs: Optional[BackendSession], backend: Backend, yahoo_id: str) -> Optional[str]:
+def yahoo_id_to_uuid(backend: Backend, yahoo_id: str) -> Optional[str]:
 	email = None # type: Optional[str]
+	uuid = None # type: Optional[str]
 	
 	if '@' in yahoo_id:
-		email = yahoo_id
-	elif '@yahoo.' in yahoo_id:
-		return None
-	elif bs:
-		detail = bs.user.detail
-		assert detail is not None
-		pre = yahoo_id + '@yahoo.'
-		for ctc in detail.contacts.values():
-			if ctc.head.email.startswith(pre):
-				email = ctc.head.email
-				break
+		if '@yahoo.' not in yahoo_id:
+			email = yahoo_id
+		else:
+			return None
 	
 	if email is None:
-		# Assume that it's an "@yahoo.com" address
-		email = yahoo_id + '@yahoo.com'
+		# Assume that it's an "@yahoo" address (this includes aliases)
+		uuid = _assume_yahoo_id_address(yahoo_id, backend)
 	
-	return backend.util_get_uuid_from_email(email)
+	return (uuid or backend.util_get_uuid_from_email(email))
+
+def _assume_yahoo_id_address(yahoo_id: str, backend: Backend) -> Optional[str]:
+	yahoo_address_tlds = ['com', 'co.uk', 'in', 'co.jp', 'fr']
+	uuid = None
+	
+	for yahoo_tld in yahoo_address_tlds:
+		uuid = backend.util_get_uuid_from_email(yahoo_id + '@yahoo.' + yahoo_tld)
+		if uuid is not None: break
+	
+	return uuid
