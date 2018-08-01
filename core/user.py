@@ -75,7 +75,7 @@ class UserService:
 		with Session() as sess:
 			dbuser = sess.query(DBUser).filter(DBUser.uuid == uuid).one_or_none()
 			if dbuser is not None:
-				if 'ymsg' in dbuser._front_data: return True
+				if front_type in dbuser._front_data: return True
 			return False
 	
 	def get_detail(self, uuid: str) -> Optional[UserDetail]:
