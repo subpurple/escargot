@@ -45,7 +45,7 @@ class YMSGCtrlBase(metaclass = ABCMeta):
 	
 	def receive_event(self, pkt: bytes) -> None:
 		for y in self.decoder.data_received(pkt):
-			self.logger.info('>>>', y[0], y[3], y[4], y[5])
+			self.logger.info('>>>', 'YMSG' + str(y[1]), y[0], y[3], y[4], y[5])
 			
 			try:
 				# check version and vendorId
@@ -144,12 +144,7 @@ def _decode_ymsg(data: bytes) -> DecodedYMSG:
 	assert len(data) >= 20
 	header = data[4:20]
 	payload = data[20:]
-	if header[0] == b'\x00':
-		struct_fmt = '!xB'
-	else:
-		struct_fmt = '!Bx'
-	
-	struct_fmt += 'HHHII'
+	struct_fmt = ('!xB' if header[0] == b'\x00' else '!Bx') + 'HHHII'
 	(version, vendor_id, pkt_len, service, status, session_id) = struct.unpack(struct_fmt, header)
 	assert len(payload) == pkt_len
 	parts = payload.split(SEP)
