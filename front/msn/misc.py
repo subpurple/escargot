@@ -19,27 +19,35 @@ def build_presence_notif(trid: Optional[str], ctc: Contact, dialect: int, backen
 	if dialect >= 14:
 		networkid = 1
 	
+	ctc_sess_list = backend.util_get_sessions_by_user(head)
+	if len(ctc_sess_list) > 0:
+		ctc_sess = ctc_sess_list[len(ctc_sess_list) - 1]
+		assert ctc_sess is not None
+	
 	if is_offlineish:
 		if dialect >= 18:
-			yield ('FLN', '{}:{}'.format(networkid, head.email))
+			yield ('FLN', encode_email_networkid(head.email, networkid), encode_capabilities_capabilitiesex(ctc_sess.front_data.get('msn_capabilities') or 0, ctc_sess.front_data.get('msn_capabilitiesex') or 0))
 		else:
-			yield ('FLN', head.email, networkid)
+			reply = ('FLN', head.email)
+			if dialect >= 14: reply += (networkid,)
+			yield reply
 		return
 	
 	if trid: frst = ('ILN', trid) # type: Tuple[Any, ...]
 	else: frst = ('NLN',)
 	rst = []
-	ctc_sess = first_in_iterable(backend.util_get_sessions_by_user(head))
 	assert ctc_sess is not None
 	
-	if dialect >= 8:
+	if 8 <= dialect <= 15:
 		rst.append(ctc_sess.front_data.get('msn_capabilities') or 0)
+	elif dialect >= 16:
+		rst.append(encode_capabilities_capabilitiesex(ctc_sess.front_data.get('msn_capabilities') or 0, ctc_sess.front_data.get('msn_capabilitiesex') or 0))
 	if dialect >= 9:
 		rst.append(encode_msnobj(ctc_sess.front_data.get('msn_msnobj') or '<msnobj/>'))
 	
 	msn_status = MSNStatus.FromSubstatus(status.substatus)
 	
-	if dialect >= 18:
+	if dialect >= 16:
 		yield (*frst, msn_status.name, encode_email_networkid(head.email, networkid), status.name, *rst)
 	else:
 		yield (*frst, msn_status.name, head.email, networkid, status.name, *rst)
@@ -47,11 +55,11 @@ def build_presence_notif(trid: Optional[str], ctc: Contact, dialect: int, backen
 	if dialect < 11:
 		return
 	
-	ubx_payload = '<Data><PSM>{}</PSM><CurrentMedia>{}</CurrentMedia></Data>'.format(
-		status.message or '', status.media or ''
+	ubx_payload = '<Data><PSM>{}</PSM><CurrentMedia>{}</CurrentMedia>{}</Data>'.format(
+		status.message or '', status.media or '', extend_ubx_payload(dialect, backend, ctc_sess, head)
 	).encode('utf-8')
 	
-	if dialect >= 18:
+	if dialect >= 16:
 		yield ('UBX', encode_email_networkid(head.email, networkid), ubx_payload)
 	elif dialect >= 11:
 		yield ('UBX', head.email, networkid, ubx_payload)
@@ -62,6 +70,28 @@ def encode_email_networkid(email: str, networkid: Optional[int]) -> str:
 def encode_msnobj(msnobj: Optional[str]) -> Optional[str]:
 	if msnobj is None: return None
 	return quote(msnobj, safe = '')
+
+def encode_capabilities_capabilitiesex(capabilities: int, capabilitiesex: int) -> str:
+	return '{}:{}'.format(capabilities, capabilitiesex)
+
+def decode_capabilities_capabilitiesex(capabilities_encoded: str) -> Optional[Tuple[int, int]]:
+	return (capabilities_encoded.split(':', 1) if capabilities_encoded.find(':') > 0 else None)
+
+def extend_ubx_payload(dialect: int, backend: Backend, ctc_sess: 'BackendSession', head: User) -> str:
+	response = ''
+	
+	pop_id_ctc = ctc_sess.front_data.get('msn_pop_id')
+	if dialect >= 13 and pop_id_ctc is not None: response += '<MachineGuid>{}</MachineGuid>'.format('{' + pop_id_ctc + '}')
+	
+	if dialect >= 18:
+		# TODO: Get `DDP` (Dynamic Display Pic?) feature implemented
+		response += '<DDP></DDP>'
+		if pop_id_ctc is not None:
+			response += EPDATA_PAYLOAD.format(mguid = '{' + pop_id_ctc + '}', capabilities = encode_capabilities_capabilitiesex(ctc_sess.front_data.get('msn_capabilities') or 0, ctc_sess.front_data.get('msn_capabilitiesex') or 0))
+			for ctc_sess_other in backend.util_get_sessions_by_user(head):
+				if ctc_sess_other.front_data.get('msn_pop_id') == pop_id_ctc: continue
+				response += EPDATA_PAYLOAD.format(mguid = '{' + ctc_sess_other.front_data.get('msn_pop_id') + '}', capabilities = encode_capabilities_capabilitiesex(ctc_sess_other.front_data.get('msn_capabilities') or 0, ctc_sess_other.front_data.get('msn_capabilitiesex') or 0))
+	return response
 
 def gen_mail_data(user: User, backend: Backend, *, oim_uuid: Optional[str] = None, just_sent: bool = False, on_ns: bool = True, e_node: bool = True, q_node: bool = True) -> str:
 	md_m_pl = ''
@@ -103,6 +133,8 @@ M_MAIL_DATA_PAYLOAD = '''<M><T>11</T><S>6</S>{rt}<RS>0</RS><SZ>{oimsz}</SZ><E>{f
 RT_M_MAIL_DATA_PAYLOAD = '''<RT>{senttime}</RT>'''
 
 SU_M_MAIL_DATA_PAYLOAD = '''<SU> </SU>'''
+
+EPDATA_PAYLOAD = '<EndpointData id="{mguid}"><Capabilities>{capabilities}</Capabilities></EndpointData>'
 
 class MSNStatus(Enum):
 	FLN = object()

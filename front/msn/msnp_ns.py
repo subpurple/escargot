@@ -1,8 +1,9 @@
 from typing import Tuple, Any, Optional, List
 from datetime import datetime
 from lxml.objectify import fromstring as parse_xml
+import re
 
-from util.misc import Logger
+from util.misc import Logger, gen_uuid
 
 from core import event
 from core.backend import Backend, BackendSession, Chat
@@ -10,7 +11,7 @@ from core.models import Substatus, Lst, User, Contact, TextWithData, LoginOption
 from core.client import Client
 
 from .msnp import MSNPCtrl
-from .misc import build_presence_notif, encode_msnobj, gen_mail_data, Err, MSNStatus
+from .misc import build_presence_notif, encode_msnobj, decode_capabilities_capabilitiesex, gen_mail_data, Err, MSNStatus
 
 MSNP_DIALECTS = ['MSNP{}'.format(d) for d in (
 	# Actually supported
@@ -136,10 +137,23 @@ class MSNPCtrlNS(MSNPCtrl):
 					token = token[2:22]
 				usr_email = self.usr_email
 				assert usr_email is not None
-				uuid = backend.auth_service.pop_token('nb/login', token)
+				uuid = backend.auth_service.get_token('nb/login', token)
 				if uuid is not None:
+					machineguid = None # type: Optional[str]
+					
+					if dialect >= 16:
+						# Only check the # of args since people could connect from either patched `msidcrl40.dll` or vanilla `msidcrl40.dll`
+						if 2 <= len(args) >= 3:
+							machineguid = (args[2] if len(args) >= 3 else args[1])
+					
+						if machineguid is None or not re.match(r'^\{[A-Fa-f0-9]{8,8}-([A-Fa-f0-9]{4,4}-){3,3}[A-Fa-f0-9]{12,12}\}', machineguid):
+							self.send_reply(Err.AuthFail, trid)
+					
 					option = (LoginOption.BootOthers if dialect < 18 else LoginOption.NotifyOthers)
 					self.bs = backend.login(uuid, self.client, BackendEventHandler(self), option)
+					if dialect >= 16:
+						self.bs.front_data['msn_pop_id'] = machineguid[1:-1]
+					
 				self._util_usr_final(trid, token)
 				return
 		
@@ -194,7 +208,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		
 		msg1 = _encode_payload(PAYLOAD_MSG_1,
 			time = int(now.timestamp()), high = high, low = low,
-			token = token, ip = ip, port = port,
+			token = token, ip = ip, port = port, mpop = (0 if dialect < 18 else 1),
 		)
 		self.send_reply('MSG', 'Hotmail', 'Hotmail', msg1)
 		
@@ -281,8 +295,17 @@ class MSNPCtrlNS(MSNPCtrl):
 	def _m_uux(self, trid: str, data: bytes) -> None:
 		bs = self.bs
 		assert bs is not None
+		dialect = self.dialect
 		
 		elm = parse_xml(data.decode('utf-8'))
+		
+		ed = elm.find('EndpointData')
+		if ed:
+			capabilities = str(ed.find('Capabilities'))
+			capabilities_lst = decode_capabilities_capabilitiesex(capabilities)
+			if capabilities_lst:
+				bs.front_data['msn_capabilities'] = capabilities_lst[0] or 0
+				bs.front_data['msn_capabilitiesex'] = capabilities_lst[1] or 0
 		
 		psm = elm.find('PSM')
 		cm = elm.find('CurrentMedia')
@@ -292,7 +315,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		})
 		
 		mg = elm.find('MachineGuid')
-		if mg:
+		if mg and (13 <= dialect <= 15):
 			bs.front_data['msn_pop_id'] = str(mg)[1:-1]
 		
 		self.send_reply('UUX', trid, 0)
@@ -485,18 +508,34 @@ class MSNPCtrlNS(MSNPCtrl):
 		bs.me_update({ 'blp': value })
 		self.send_reply('BLP', trid, self._ser(), value)
 	
-	def _m_chg(self, trid: str, sts_name: str, capabilities: Optional[int] = None, msnobj: Optional[str] = None) -> None:
+	def _m_chg(self, trid: str, sts_name: str, capabilities: Optional[str] = None, msnobj: Optional[str] = None) -> None:
 		#>>> CHG 120 BSY 1073791020 <msnobj .../>
+		dialect = self.dialect
 		bs = self.bs
 		assert bs is not None
 		
-		capabilities = capabilities or 0
+		capabilities_msn_ex = None # type: Optional[int]
+		
+		if dialect >= 18:
+			capabilities_msn, capabilities_msn_ex = capabilities.split(':', 1)
+		else:
+			try:
+				capabilities_msn = int(capabilities)
+			except ValueError:
+				return
+		
+		bs.front_data['msn_capabilities'] = capabilities_msn or 0
+		bs.front_data['msn_capabilitiesex'] = capabilities_msn_ex or 0
 		bs.me_update({
 			'substatus': MSNStatus.ToSubstatus(getattr(MSNStatus, sts_name)),
 		})
-		bs.front_data['msn_capabilities'] = capabilities
 		bs.front_data['msn_msnobj'] = msnobj
-		self.send_reply('CHG', trid, sts_name, capabilities, encode_msnobj(msnobj))
+		
+		extra = () # type: Tuple[Any, ...]
+		if dialect < 18:
+			extra = (encode_msnobj(msnobj),)
+		
+		self.send_reply('CHG', trid, sts_name, capabilities, *extra)
 		
 		# Send ILNs (and system messages, if any)
 		if self.iln_sent:
@@ -629,7 +668,7 @@ class BackendEventHandler(event.BackendEventHandler):
 		detail_other = self.ctrl.backend._load_detail(user)
 		assert detail_other is not None
 		ctc_me = detail_other.contacts.get(user_me.uuid)
-		if ctc_me is None and ctc_me.head is user_me:
+		if ctc_me is not None and ctc_me.head is user_me:
 			detail = user_me.detail
 			assert detail is not None
 			ctc = detail.contacts.get(user.uuid)
@@ -684,12 +723,15 @@ class BackendEventHandler(event.BackendEventHandler):
 	def on_login_elsewhere(self, option: LoginOption) -> None:
 		if option is LoginOption.BootOthers:
 			self.ctrl.send_reply('OUT', 'OTH')
+		elif option is LoginOption.NotifyOthers:
+			if not self.ctrl.dialect >= 16:
+				self.ctrl.send_reply('OUT', 'OTH')
 		else:
 			# TODO: What do?
 			pass
 	
-	def on_close(self, **kwargs) -> None:
-		self.ctrl.close(**kwargs)
+	def on_close(self) -> None:
+		self.ctrl.close()
 
 def _encode_payload(tmpl: str, **kwargs: Any) -> bytes:
 	return tmpl.format(**kwargs).replace('\n', '\r\n').encode('utf-8')
@@ -731,7 +773,7 @@ sid: 507
 ClientIP: {ip}
 ClientPort: {port}
 ABCHMigrated: 1
-MPOPEnabled: 1
+MPOPEnabled: {mpop}
 
 '''
 

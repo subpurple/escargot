@@ -92,8 +92,8 @@ class Backend:
 		user = sess.user
 		old_substatus = user.status.substatus
 		self._stats.on_logout()
-		self._sc.remove_session(sess)
-		if self._sc.get_sessions_by_user(user):
+		user_sess_list = self._sc.get_sessions_by_user(user).remove(sess)
+		if user_sess_list:
 			# There are still other people logged in as this user,
 			# so don't send offline notifications.
 			return
@@ -107,7 +107,7 @@ class Backend:
 		if user is None: return None
 		self.user_service.update_date_login(uuid)
 		
-		bs_others = list(self._sc.get_sessions_by_user(user))
+		bs_others = self._sc.get_sessions_by_user(user)
 		for bs_other in bs_others:
 			try:
 				bs_other.evt.on_login_elsewhere(option)
@@ -181,7 +181,7 @@ class Backend:
 	def util_get_sess_by_token(self, token: str) -> Optional['BackendSession']:
 		return self._sc.get_nc_by_token(token)
 	
-	def util_get_sessions_by_user(self, user: User) -> Iterable['BackendSession']:
+	def util_get_sessions_by_user(self, user: User) -> List['BackendSession']:
 		return self._sc.get_sessions_by_user(user)
 	
 	def dev_connect(self, obj: object) -> None:
@@ -244,7 +244,9 @@ class Backend:
 					user = bs.user
 					for bs_other in self._sc.iter_sessions():
 						bs_other.evt.on_presence_notification(user, old_substatus, on_contact_add)
-					if for_logout: user.detail = None
+					if for_logout:
+						self._sc.remove_session(bs)
+						if not self._sc.get_sessions_by_user(user): user.detail = None
 			except:
 				traceback.print_exc()
 			worklist.clear()
@@ -531,20 +533,20 @@ class _SessionCollection:
 	__slots__ = ('_sessions', '_sessions_by_user', '_sess_by_token', '_tokens_by_sess')
 	
 	_sessions: Set[BackendSession]
-	_sessions_by_user: Dict[User, Set[BackendSession]]
+	_sessions_by_user: Dict[User, List[BackendSession]]
 	_sess_by_token: Dict[str, BackendSession]
 	_tokens_by_sess: Dict[BackendSession, Set[str]]
 	
 	def __init__(self) -> None:
 		self._sessions = set()
-		self._sessions_by_user = defaultdict(set)
+		self._sessions_by_user = defaultdict(list)
 		self._sess_by_token = {}
 		self._tokens_by_sess = defaultdict(set)
 	
-	def get_sessions_by_user(self, user: User) -> Iterable[BackendSession]:
+	def get_sessions_by_user(self, user: User) -> List[BackendSession]:
 		if user not in self._sessions_by_user:
-			return EMPTY_SET
-		return self._sessions_by_user[user]
+			return []
+		return self._sessions_by_user[user].copy()
 	
 	def iter_sessions(self) -> Iterable[BackendSession]:
 		yield from self._sessions
@@ -559,7 +561,7 @@ class _SessionCollection:
 	
 	def add_session(self, sess: BackendSession) -> None:
 		if sess.user:
-			self._sessions_by_user[sess.user].add(sess)
+			self._sessions_by_user[sess.user].append(sess)
 		self._sessions.add(sess)
 	
 	def remove_session(self, sess: BackendSession) -> None:
@@ -569,7 +571,7 @@ class _SessionCollection:
 				self._sess_by_token.pop(token, None)
 		self._sessions.discard(sess)
 		if sess.user in self._sessions_by_user:
-			self._sessions_by_user[sess.user].discard(sess)
+			self._sessions_by_user[sess.user].remove(sess)
 
 class Chat:
 	__slots__ = ('ids', 'backend', 'front_data', '_users_by_sess', '_stats')
@@ -595,15 +597,15 @@ class Chat:
 		self.ids[scope] = id
 		self.backend._chats_by_id[(scope, id)] = self
 	
-	def join(self, origin: str, bs: BackendSession, evt: event.ChatEventHandler) -> 'ChatSession':
+	def join(self, origin: str, bs: BackendSession, evt: event.ChatEventHandler, pop_id: Optional[str] = None) -> 'ChatSession':
 		cs = ChatSession(origin, bs, self, evt)
 		cs.evt.cs = cs
-		self._users_by_sess[cs] = cs.user
+		self._users_by_sess[cs] = (cs.user, pop_id)
 		cs.evt.on_open()
 		return cs
 	
-	def add_session(self, sess: 'ChatSession') -> None:
-		self._users_by_sess[sess] = sess.user
+	def add_session(self, sess: 'ChatSession', pop_id: Optional[str] = None) -> None:
+		self._users_by_sess[sess] = (sess.user, pop_id)
 	
 	def get_roster(self) -> Iterable['ChatSession']:
 		return self._users_by_sess.keys()
@@ -645,13 +647,25 @@ class ChatSession(Session):
 		self.evt = evt
 	
 	def _on_close(self, **kwargs) -> None:
-		self.evt.on_close((kwargs.get('keep_future') if kwargs.get('keep_future') is not None else False))
-		self.chat.on_leave(self, keep_future = (kwargs.get('keep_future') if kwargs.get('keep_future') is not None else False))
+		self.evt.on_close(kwargs.get('keep_future') if kwargs.get('keep_future') is not None else False)
+		self.chat.on_leave(self, keep_future = kwargs.get('keep_future') if kwargs.get('keep_future') is not None else False)
 	
 	def invite(self, invitee: User, *, invite_msg: Optional[str] = None) -> None:
+		session_already_invited = False # type: bool
+		already_invited_sessions = [] # type: List[BackendSession]
+		
 		ctc_sessions = self.bs.backend.util_get_sessions_by_user(invitee)
 		for ctc_sess in ctc_sessions:
+			session_already_invited = False
+			for cs_other in self.chat.get_roster():
+				if cs_other.bs is ctc_sess:
+					session_already_invited = True
+					already_invited_sessions.append(ctc_sess)
+					break
+			if session_already_invited: continue
 			ctc_sess.evt.on_chat_invite(self.chat, self.user, invite_msg = invite_msg or '')
+		
+		if len(ctc_sessions) == len(already_invited_sessions): raise error.ContactAlreadyOnList()
 	
 	def send_message_to_everyone(self, data: MessageData) -> None:
 		stats = self.chat._stats

@@ -536,11 +536,12 @@ async def handle_rst(req: web.Request, rst2: bool = False) -> web.Response:
 	if email is None or pwd is None:
 		raise web.HTTPBadRequest()
 	
-	token = _login(req, email, pwd)
-	now = datetime.utcnow()
+	backend: Backend = req.app['backend']
+	
+	token = _login(req, email, pwd, lifetime = 86400)
+	now = datetime.utcfromtimestamp(backend.auth_service.get_token_expiry('nb/login', token) - 86400)
 	timez = now.isoformat()[0:19] + 'Z'
 	
-	backend: Backend = req.app['backend']
 	uuid = backend.util_get_uuid_from_email(email)
 	
 	if token is not None and uuid is not None:
@@ -680,11 +681,11 @@ def _extract_pp_credentials(auth_str: str) -> Optional[Tuple[str, str]]:
 	pwd = auth['pwd']
 	return email, pwd
 
-def _login(req, email: str, pwd: str) -> Optional[str]:
+def _login(req, email: str, pwd: str, lifetime: int = 30) -> Optional[str]:
 	backend: Backend = req.app['backend']
 	uuid = backend.user_service.login(email, pwd)
 	if uuid is None: return None
-	return backend.auth_service.create_token('nb/login', uuid)
+	return backend.auth_service.create_token('nb/login', uuid, lifetime = lifetime)
 
 def _date_format(d: Optional[datetime]) -> Optional[str]:
 	if d is None: return None

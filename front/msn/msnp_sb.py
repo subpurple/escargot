@@ -4,7 +4,7 @@ from util.misc import Logger
 from core.models import User, MessageData, MessageType
 from core.backend import Backend, BackendSession, ChatSession, Chat
 from core import event, error
-from .misc import Err
+from .misc import Err, encode_capabilities_capabilitiesex
 from .msnp import MSNPCtrl
 
 class MSNPCtrlSB(MSNPCtrl):
@@ -29,8 +29,8 @@ class MSNPCtrlSB(MSNPCtrl):
 	# State = Auth
 	
 	def _m_usr(self, trid: str, arg: str, token: str) -> None:
-		#>>> USR trid email@example.com token (MSNP < 18)
-		#>>> USR trid email@example.com;{00000000-0000-0000-0000-000000000000} token (MSNP >= 18)
+		#>>> USR trid email@example.com token (MSNP < 16)
+		#>>> USR trid email@example.com;{00000000-0000-0000-0000-000000000000} token (MSNP >= 16)
 		(email, pop_id) = _decode_email_pop(arg)
 		
 		data = self.backend.auth_service.pop_token('sb/xfr', token) # type: Optional[Tuple[BackendSession, int]]
@@ -38,12 +38,12 @@ class MSNPCtrlSB(MSNPCtrl):
 			self.send_reply(Err.AuthFail, trid)
 			return
 		bs, dialect = data
-		if bs.user.email != email:
+		if bs.user.email != email or (dialect >= 16 and bs.front_data.get('msn_pop_id') != pop_id[1:-1]):
 			self.send_reply(Err.AuthFail, trid)
 			return
 		chat = self.backend.chat_create()
 		
-		cs = chat.join('msn', bs, ChatEventHandler(self))
+		cs = chat.join('msn', bs, ChatEventHandler(self), pop_id = pop_id)
 		self.dialect = dialect
 		self.bs = bs
 		self.cs = cs
@@ -52,18 +52,18 @@ class MSNPCtrlSB(MSNPCtrl):
 	def _m_ans(self, trid: str, arg: str, token: str, sessid: str) -> None:
 		#>>> ANS trid email@example.com token sessionid (MSNP < 18)
 		#>>> ANS trid email@example.com;{00000000-0000-0000-0000-000000000000} token sessionid (MSNP >= 18)
-		(email, _) = _decode_email_pop(arg)
+		(email, pop_id) = _decode_email_pop(arg)
 		
 		data = self.backend.auth_service.pop_token('sb/cal', token) # type: Optional[Tuple[BackendSession, int, Chat]]
 		if data is None:
 			self.send_reply(Err.AuthFail, trid)
 			return
 		(bs, dialect, chat) = data
-		if bs.user.email != email:
+		if bs.user.email != email or (dialect >= 16 and bs.front_data.get('msn_pop_id') != pop_id[1:-1]):
 			self.send_reply(Err.AuthFail, trid)
 			return
 		
-		cs = chat.join('msn', bs, ChatEventHandler(self))
+		cs = chat.join('msn', bs, ChatEventHandler(self), pop_id = pop_id)
 		self.dialect = dialect
 		self.bs = bs
 		self.cs = cs
@@ -72,7 +72,23 @@ class MSNPCtrlSB(MSNPCtrl):
 		
 		roster_chatsessions = list(chat.get_roster()) # type: List[ChatSession]
 		
-		if dialect < 18:
+		if dialect >= 16:
+			tmp = [] # type: List[Tuple[ChatSession, Optional[str]]]
+			for other_cs in roster_chatsessions:
+				pop_id = other_cs.bs.front_data.get('msn_pop_id')
+				tmp.append((other_cs, pop_id))
+			l = len(tmp)
+			for i, (other_cs, pop_id) in enumerate(tmp):
+				other_user = other_cs.user
+				if dialect >= 18:
+					capabilities = encode_capabilities_capabilitiesex(other_cs.bs.front_data.get('msn_capabilities') or 0, other_cs.bs.front_data.get('msn_capabilitiesex') or 0)
+				else:
+					capabilities = other_cs.bs.front_data.get('msn_capabilities') or 0
+				email = other_user.email
+				if pop_id:
+					email = '{};{}'.format(email, '{' + pop_id + '}')
+				self.send_reply('IRO', trid, i + 1, l, email, other_user.status.name, capabilities)
+		else:
 			roster_one_per_user = [] # type: List[ChatSession]
 			seen_users = { self.cs.user } # type: Set[User]
 			for other_cs in roster_chatsessions:
@@ -87,21 +103,6 @@ class MSNPCtrlSB(MSNPCtrl):
 				if dialect >= 13:
 					extra = (other_cs.bs.front_data.get('msn_capabilities') or 0,)
 				self.send_reply('IRO', trid, i + 1, l, other_user.email, other_user.status.name, *extra)
-		else:
-			tmp = [] # type: List[Tuple[ChatSession, Optional[str]]]
-			for other_cs in roster_chatsessions:
-				tmp.append((other_cs, None))
-				pop_id = other_cs.bs.front_data.get('msn_pop_id')
-				if pop_id:
-					tmp.append((other_cs, pop_id))
-			l = len(tmp)
-			for i, (other_cs, pop_id) in enumerate(tmp):
-				other_user = other_cs.user
-				capabilities = other_cs.bs.front_data.get('msn_capabilities') or 0
-				email = other_user.email
-				if pop_id:
-					email = '{};{}'.format(email, pop_id)
-				self.send_reply('IRO', trid, i + 1, l, other_user.email, other_user.status.name, capabilities)
 		
 		self.send_reply('ANS', trid, 'OK')
 	
@@ -169,22 +170,29 @@ class ChatEventHandler(event.ChatEventHandler):
 		assert bs is not None
 		cs = self.cs
 		
-		if ctrl.dialect >= 13:
-			extra = (bs.front_data.get('msn_capabilities') or 0,) # type: Tuple[Any, ...]
+		if ctrl.dialect < 18:
+			extra = (cs_other.bs.front_data.get('msn_capabilities') or 0,) # type: Tuple[Any, ...]
+		elif ctrl.dialect >= 18:
+			extra = (encode_capabilities_capabilitiesex(cs_other.bs.front_data.get('msn_capabilities') or 0, cs_other.bs.front_data.get('msn_capabilitiesex') or 0),)
 		else:
 			extra = ()
 		user = cs_other.user
-		if ctrl.dialect >= 18 and cs is not cs_other:
-			pop_id = bs.front_data.get('msn_pop_id')
-			if pop_id is not None:
-				assert isinstance(pop_id, int)
-				ctrl.send_reply('JOI', '{};{}'.format(user.email, pop_id), user.status.name, *extra)
+		if ctrl.dialect >= 16 and cs is not cs_other:
+			pop_id_other = cs_other.bs.front_data.get('msn_pop_id')
+			if pop_id_other is not None:
+				assert isinstance(pop_id_other, str)
+				ctrl.send_reply('JOI', '{};{}'.format(user.email, '{' + pop_id_other + '}'), user.status.name, *extra)
+				return
 		ctrl.send_reply('JOI', user.email, user.status.name, *extra)
 	
 	def on_participant_left(self, cs_other: ChatSession) -> None:
-		# TODO: What about PoP?
-		# Just sending "BYE" seems to imply ALL PoPs of that email left.
-		self.ctrl.send_reply('BYE', cs_other.user.email)
+		ctrl = self.ctrl
+		pop_id_other = cs_other.bs.front_data.get('msn_pop_id')
+		if pop_id_other is not None and ctrl.dialect >= 16:
+			email = '{};{}'.format(cs_other.user.email, '{' + pop_id_other + '}')
+		else:
+			email = cs_other.user.email
+		self.ctrl.send_reply('BYE', email)
 	
 	def on_invite_declined(self, invited_user: User, *, message: Optional[str] = None) -> None:
 		pass
@@ -192,7 +200,7 @@ class ChatEventHandler(event.ChatEventHandler):
 	def on_message(self, data: MessageData) -> None:
 		self.ctrl.send_reply('MSG', data.sender.email, data.sender.status.name, messagedata_to_msnp(data))
 	
-	def on_close(self):
+	def on_close(self, *args):
 		self.ctrl.close()
 
 def messagedata_from_msnp(sender: User, data: bytes) -> MessageData:

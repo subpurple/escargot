@@ -15,6 +15,8 @@ def register(loop: asyncio.AbstractEventLoop, backend: Backend) -> None:
 	assert uuid is not None
 	bs = backend.login(uuid, CLIENT, BackendEventHandler(loop), LoginOption.BootOthers)
 	assert bs is not None
+	bs.front_data['msn_capabilities'] = 131104
+	bs.front_data['msn_capabilitiesex'] = 0
 
 class BackendEventHandler(event.BackendEventHandler):
 	__slots__ = ('loop', 'bs')
