@@ -23,11 +23,28 @@
 
 ## MSN
 
-- for MSN <= 7.5, use a **patched** install, and in your `HOSTS` add `127.0.0.1 m1.escargot.log1p.xyz`
-- for WLM, use a 8.1.0178 **clean** install, replace [msidcrl40.dll](https://storage.googleapis.com/escargot-storage-1/public/msidcrl.dll), and in your `HOSTS` add:
+- for 4.7.2009 and 4.7.3001, use a **clean** install, and in your `HOSTS` add:
 	```
 	127.0.0.1 m1.escargot.log1p.xyz
 	127.0.0.1 messenger.hotmail.com
+	127.0.0.1 gateway.messenger.hotmail.com
+	127.0.0.1 nexus.passport.com
+	```
+- for 5.0 - 7.5, use a **patched** install, and in your `HOSTS` add `127.0.0.1 m1.escargot.log1p.xyz`
+- for WLM:
+	- 8.1.0178 and 8.5.1302: use a **patched** install, replace [msidcrl40.dll](http://storage.log1p.xyz/msidcrl.dll), and in your `HOSTS` add:
+	```
+	127.0.0.1 m1.escargot.log1p.xyz
+	127.0.0.1 ebyrdromegactcsmsn.log1p.xyz
+	127.0.0.1 etkrdrstmsn.log1p.xyz
+	127.0.0.1 eowsmsgrmsn.log1p.xyz
+	127.0.0.1 ersih.log1p.xyz
+	```
+	- 14.0.8117.0416: use a **clean** install, install the [Windows Live Communications Platform](http://messenger.jonathankay.com/redir/w3qfe2update/contacts.asp), and in your `HOSTS` add:
+	```
+	127.0.0.1 m1.escargot.log1p.xyz
+	127.0.0.1 messenger.hotmail.com
+	127.0.0.1 login.live.com
 	127.0.0.1 gateway.messenger.hotmail.com
 	127.0.0.1 byrdr.omega.contacts.msn.com
 	127.0.0.1 config.messenger.msn.com
@@ -35,10 +52,11 @@
 	127.0.0.1 ows.messenger.msn.com
 	127.0.0.1 rsi.hotmail.com
 	```
+	(Note about the `127.0.0.1 login.live.com` entry: **BE SURE TO REMOVE IT OR COMMENT IT OUT AFTER TESTING OR ELSE YOU WON'T BE ABLE TO LOG ON TO ANY OFFICIAL MICROSOFT SERVICES!!**)
 
 ## Yahoo!
 
-- for version 5.5, use a **clean** install (specifically, of [build 1244](http://www.oldversion.com/windows/yahoo-messenger-5-5-0-1244)) and patch the following registry values:
+- for version 5.5, use a **clean** install and patch the following registry values:
 	- `HKEY_CURRENT_USER\SOFTWARE\Yahoo\Pager\IPLookup` -> `127.0.0.1,127.0.0.1`
 	- `HKEY_CURRENT_USER\SOFTWARE\Yahoo\Pager\socket server` -> `localhost`
 	- `HKEY_CURRENT_USER\SOFTWARE\Yahoo\Pager\FileTransfer\Server Name` -> `localhost`
