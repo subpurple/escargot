@@ -579,7 +579,7 @@ class Chat:
 	ids: Dict[str, str]
 	backend: Backend
 	front_data: Dict[str, Any]
-	_users_by_sess: Dict['ChatSession', User]
+	_users_by_sess: Dict['ChatSession', Tuple[User, str]]
 	_stats: Any
 	
 	def __init__(self, backend: Backend, stats: Any) -> None:
@@ -612,7 +612,7 @@ class Chat:
 	
 	def send_participant_joined(self, cs: 'ChatSession') -> None:
 		for cs_other in self.get_roster():
-			if cs_other is cs and cs.origin is 'yahoo': continue
+			if cs_other is cs: continue
 			cs_other.evt.on_participant_joined(cs)
 	
 	def on_leave(self, sess: 'ChatSession', keep_future: bool = False) -> None:

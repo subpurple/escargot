@@ -134,7 +134,7 @@ RT_M_MAIL_DATA_PAYLOAD = '''<RT>{senttime}</RT>'''
 
 SU_M_MAIL_DATA_PAYLOAD = '''<SU> </SU>'''
 
-EPDATA_PAYLOAD = '<EndpointData id="{mguid}"><Capabilities>{capabilities}</Capabilities></EndpointData>'
+EPDATA_PAYLOAD = '''<EndpointData id="{mguid}"><Capabilities>{capabilities}</Capabilities></EndpointData>'''
 
 class MSNStatus(Enum):
 	FLN = object()

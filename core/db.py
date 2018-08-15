@@ -31,7 +31,7 @@ class User(Base):
 	
 	# Data specific to front-ends; e.g. different types of password hashes
 	# E.g. front_data = { 'msn': { ... }, 'ymsg': { ... }, ... }
-	_front_data = sa.Column(JSONType, name = 'front_data', nullable = False)
+	_front_data = sa.Column(JSONType, name = 'front_data', nullable = False, default = {})
 	
 	def set_front_data(self, frontend: str, key: str, value: Any) -> None:
 		fd = self._front_data or {}

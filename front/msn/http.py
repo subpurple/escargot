@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from pytz import timezone
 from urllib.parse import unquote
 import lxml
+import re
 import secrets
 import base64
 import os
@@ -35,6 +36,8 @@ def register(app: web.Application) -> None:
 	app.router.add_get(LOGIN_PATH, handle_login)
 	
 	# MSN >= 6
+	app.router.add_get('/etc/MsgrConfig', handle_msgrconfig)
+	app.router.add_post('/etc/MsgrConfig', handle_msgrconfig)
 	app.router.add_get('/Config/MsgrConfig.asmx', handle_msgrconfig)
 	app.router.add_post('/Config/MsgrConfig.asmx', handle_msgrconfig)
 	
@@ -42,7 +45,6 @@ def register(app: web.Application) -> None:
 	app.router.add_route('OPTIONS', '/NotRST.srf', handle_not_rst)
 	app.router.add_post('/NotRST.srf', handle_not_rst)
 	app.router.add_post('/RST.srf', handle_rst)
-	# app.router.add_post('/RST2', handle_rst)
 	app.router.add_post('/RST2.srf', lambda req: handle_rst(req, rst2 = True))
 	
 	# MSN 8.1.0178
@@ -415,6 +417,7 @@ async def _preprocess_soap(req: web.Request) -> Tuple[Any, Any, Optional[Backend
 	
 	header = _find_element(root, 'Header')
 	action = _find_element(root, 'Body/*[1]')
+	if settings.DEBUG and settings.DEBUG_MSNP: print('Action: {}'.format(_get_tag_localname(action)))
 	
 	return header, action, backend_sess, token
 
@@ -438,6 +441,7 @@ async def _preprocess_soap_rsi(req: web.Request) -> Tuple[Any, Any, Optional[Bac
 	
 	header = _find_element(root, 'Header')
 	action = _find_element(root, 'Body/*[1]')
+	if settings.DEBUG and settings.DEBUG_MSNP: print('Action: {}'.format(_get_tag_localname(action)))
 	
 	return header, action, bs, token
 
@@ -472,15 +476,42 @@ def _find_element(xml: Any, query: str) -> Any:
 	return thing
 
 async def handle_msgrconfig(req: web.Request) -> web.Response:
-	msgr_config = _get_msgr_config()
+	msgr_config = _get_msgr_config(req)
+	if msgr_config == 'INVALID_VER':
+		return web.Response(status = 500)
 	return web.HTTPOk(content_type = 'text/xml', text = msgr_config)
 
-def _get_msgr_config() -> str:
-	with open(TMPL_DIR + '/MsgrConfigEnvelope.xml') as fh:
-		envelope = fh.read()
-	with open(TMPL_DIR + '/MsgrConfig.xml') as fh:
-		config = fh.read()
-	return envelope.format(MsgrConfig = config)
+def _get_msgr_config(req: web.Request) -> str:
+	query = req.query
+	result = None # type: Optional[str]
+	
+	if query.get('ver') is not None:
+		if re.match(r'[^\d\.]', query.get('ver')):
+			return 'INVALID_VER'
+		
+		config_ver = query.get('ver').split('.', 4)
+		if 5 <= int(config_ver[0]) <= 7:
+			with open(TMPL_DIR + '/MsgrConfig.msn.envelope.xml') as fh:
+				envelope = fh.read()
+			with open(TMPL_DIR + '/MsgrConfig.msn.xml') as fh:
+				config = fh.read()
+			with open(TMPL_DIR + '/MsgrConfig.tabs.xml') as fh:
+				config_tabs = fh.read()
+			result = envelope.format(MsgrConfig = config.format(tabs = config_tabs))
+		elif int(config_ver[0]) == 8:
+			with open(TMPL_DIR + '/MsgrConfig.wlm.8.xml') as fh:
+				config = fh.read()
+			with open(TMPL_DIR + '/MsgrConfig.tabs.xml') as fh:
+				config_tabs = fh.read()
+			result = config.format(tabs = config_tabs)
+		elif int(config_ver[0]) >= 14:
+			with open(TMPL_DIR + '/MsgrConfig.wlm.14.xml') as fh:
+				config = fh.read()
+			with open(TMPL_DIR + '/MsgrConfig.tabs.xml') as fh:
+				config_tabs = fh.read()
+			result = config.format(tabs = config_tabs)
+	
+	return result or ''
 
 async def handle_nexus(req: web.Request) -> web.Response:
 	return web.HTTPOk(headers = {

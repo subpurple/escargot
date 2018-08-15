@@ -73,6 +73,8 @@ class MSNPCtrlSB(MSNPCtrl):
 		roster_chatsessions = list(chat.get_roster()) # type: List[ChatSession]
 		
 		if dialect >= 16:
+			# TODO: Messaging doesn't seem to work in WLM 2009, whether `IRO` and `MSG` contain the email handle combined with the
+			# MPoP GUID or not.
 			tmp = [] # type: List[Tuple[ChatSession, Optional[str]]]
 			for other_cs in roster_chatsessions:
 				pop_id = other_cs.bs.front_data.get('msn_pop_id')
@@ -128,14 +130,21 @@ class MSNPCtrlSB(MSNPCtrl):
 			
 			ctc = detail.contacts.get(invitee_uuid)
 			if ctc is None:
-				if self.user.uuid != invitee_uuid: raise error.ContactDoesNotExist()
-				invitee = self.user
+				if user.uuid != invitee_uuid: raise error.ContactDoesNotExist()
+				invitee = user
 			else:
 				if ctc.status.is_offlineish(): raise error.ContactNotOnline()
 				invitee = ctc.head
 			
 			cs.invite(invitee)
 		except Exception as ex:
+			# WLM 2009 sends a `CAL` with the invitee being the owner when a SB session is first initiated. If there are no other
+			# PoPs of the owner, send a `JOI` for now to fool the client.
+			# TODO: Find better way to check for exception to determine if fake `JOI` should be sent, as checking if `ex` is `error.ContactAlreadyOnList()` doesn't work.
+			if Err.GetCodeForException(ex) == Err.PrincipalOnList and invitee_email == self.bs.user.email and self.dialect >= 18:
+				self.send_reply('CAL', trid, 'RINGING', chat.ids['main'])
+				cs.evt.on_participant_joined(cs)
+				return
 			self.send_reply(Err.GetCodeForException(ex), trid)
 		else:
 			self.send_reply('CAL', trid, 'RINGING', chat.ids['main'])
@@ -177,12 +186,6 @@ class ChatEventHandler(event.ChatEventHandler):
 		else:
 			extra = ()
 		user = cs_other.user
-		if ctrl.dialect >= 16 and cs is not cs_other:
-			pop_id_other = cs_other.bs.front_data.get('msn_pop_id')
-			if pop_id_other is not None:
-				assert isinstance(pop_id_other, str)
-				ctrl.send_reply('JOI', '{};{}'.format(user.email, '{' + pop_id_other + '}'), user.status.name, *extra)
-				return
 		ctrl.send_reply('JOI', user.email, user.status.name, *extra)
 	
 	def on_participant_left(self, cs_other: ChatSession) -> None:
@@ -237,7 +240,7 @@ def messagedata_from_msnp(sender: User, data: bytes) -> MessageData:
 def messagedata_to_msnp(data: MessageData) -> bytes:
 	if 'msnp' not in data.front_cache:
 		if data.type is MessageType.Typing:
-			s = 'MIME-Version: 1.0\r\nContent-Type: text/x-msmsgscontrol\r\nTypingUser: {}\r\n\r\n\r\n'.format(data.sender.email)
+			s = F'MIME-Version: 1.0\r\nContent-Type: text/x-msmsgscontrol\r\nTypingUser: {data.sender.email}\r\n\r\n\r\n'
 		elif data.type is MessageType.Chat:
 			s = 'MIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n' + (data.text or '')
 		else:

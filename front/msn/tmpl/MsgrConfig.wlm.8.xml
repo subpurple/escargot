@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<MsgrConfig>
+	<Simple>
+		<Config><ExpiresInDays>0</ExpiresInDays></Config>
+		<DisablePhoneDialer>0</DisablePhoneDialer>
+		<GetItemVersionForUnknown>false</GetItemVersionForUnknown>
+		<Logitech>
+			<PremiumAVConfigServer>http://escargot.pokeacer.xyz/config/stunlocate.sxml</PremiumAVConfigServer>
+			<PreRollEnabled>0</PreRollEnabled>
+			<WebcamConfigServer>http://escargot.pokeacer.xyz/config/stunlocate.sxml</WebcamConfigServer>
+		</Logitech>
+		<MinFlashPlayer BuildNumber="28" MajorVersion="9" MinorVersion="0"/>
+		<Relay>
+			<Enabled>0</Enabled>
+			<MaxCallLength>0</MaxCallLength>
+		</Relay>
+		<TrustedDomains>
+			<domain name="wink.messengergeek.com"/>
+			<domain name="messengergeek.com"/>
+			<domain name="escargot.log1p.xyz"/>
+		</TrustedDomains>
+		<ErrorResponseTable>
+			<Feature type="0" name="Login">
+				<Entry hr="0x80072EE7" action="3"/>
+				<Entry hr="0x81000306" action="3"/>
+				<Entry hr="0x80072EFD" action="3"/>
+				<Entry hr="0x81000362" action="3"/>
+				<Entry hr="0x8100030E" action="3"/>
+				<Entry hr="0x80072745" action="3"/>
+				<Entry hr="0x800701F7" action="3"/>
+				<Entry hr="0x80072EFF" action="3"/>
+				<Entry hr="0x81000363" action="3"/>
+				<Entry hr="0x81000395" action="3"/>
+				<Entry hr="0x800B0001" action="3"/>
+				<Entry hr="0x81000323" action="3"/>
+				<Entry hr="0x80072F19" action="3"/>
+				<Entry hr="0x800701F8" action="3"/>
+				<Entry hr="0x80072746" action="3"/>
+				<Entry hr="0x800701F6" action="3"/>
+				<Entry hr="0x81000377" action="3"/>
+				<Entry hr="0x81000314" action="3"/>
+				<Entry hr="0x81000378" action="3"/>
+				<Entry hr="0x80072EFF" action="3"/>
+				<Entry hr="0x80070190" action="3"/>
+				<Entry hr="0x80070197" action="3"/>
+				<Entry hr="0x80048820" action="3"/>
+				<Entry hr="0x80048829" action="3"/>
+				<Entry hr="0x80048834" action="3"/>
+				<Entry hr="0x80048852" action="3"/>
+				<Entry hr="0x8004886a" action="3"/>
+				<Entry hr="0x8004886b" action="3"/>
+			</Feature>
+			<Feature type="2" name="MapFile">
+				<Entry hr="0x810003F0" action="3"/>
+				<Entry hr="0x810003F1" action="3"/>
+				<Entry hr="0x810003F2" action="3"/>
+				<Entry hr="0x810003F3" action="3"/>
+				<Entry hr="0x810003F4" action="3"/>
+				<Entry hr="0x810003F5" action="3"/>
+				<Entry hr="0x810003F6" action="3"/>
+				<Entry hr="0x810003F7" action="3"/>
+			</Feature>
+			<Feature type="3" name="P2P">
+				<Entry hr="0x82000012" action="3"/>
+				<Entry hr="0x82000013" action="3"/>
+				<Entry hr="0x82000016" action="3"/>
+				<Entry hr="0x82000017" action="3"/>
+				<Entry hr="0x82000018" action="3"/>
+				<Entry hr="0x82000019" action="3"/>
+			</Feature>
+		</ErrorResponseTable>
+	</Simple>
+	<TabConfig>
+		<msntabdata>
+{tabs}
+		</msntabdata>
+		<msntabsettings>
+			<oemdisplaylimit>1</oemdisplaylimit><oemtotallimit>1</oemtotallimit>
+		</msntabsettings>
+		<AbchCfg>
+			<abchconfig><url>http://ebyrdrctcsmsn.log1p.xyz/abservice/abservice.asmx</url></abchconfig>
+		</AbchCfg>
+	</TabConfig>
+	<LocalizedConfig Market="en-US">
+		<Contacts>
+			<ABPendingRequests>
+				<url>http://spaces.live.com/PendingRequests.aspx?mkt=en-us&amp;partner=Messenger</url>
+				<siteid>73625</siteid>
+				<height>672</height>
+				<width>808</width>
+			</ABPendingRequests>
+			<BuddysSocialNetwork>
+				<url>http://spaces.live.com/NetworkExplorer.aspx?mkt=en-us&amp;partner=Messenger&amp;cid=%1</url>
+				<siteid>73625</siteid>
+				<height>674</height>
+				<width>808</width>
+			</BuddysSocialNetwork>
+			<EditMyLiveContactProfile>
+				<url>http://spaces.live.com/profile.aspx?action=edit&amp;mode=activecontacts&amp;mkt=en-us&amp;partner=Messenger</url>
+				<siteid>73625</siteid>
+			</EditMyLiveContactProfile>
+			<EditMyProfile>
+				<url>http://spaces.live.com/profile.aspx?action=edit&amp;partner=Messenger&amp;mkt=en-us</url>
+				<siteid>73625</siteid>
+			</EditMyProfile>
+			<Profile>
+				<url>http://spaces.live.com/Profile.aspx?partner=Messenger&amp;mkt=en-us&amp;mem=%ls</url>
+				<urlcid>http://spaces.live.com/Profile.aspx?partner=Messenger&amp;mkt=en-us&amp;cid=%ls</urlcid>
+				<siteid>73625</siteid>
+			</Profile>
+			<SocialNetwork>
+				<url>http://spaces.live.com/NetworkSetup.aspx?mkt=en-us&amp;partner=Messenger</url>
+				<siteid>73625</siteid>
+				<height>674</height>
+				<width>808</width>
+			</SocialNetwork>
+			<ViewMapEnabled>false</ViewMapEnabled>
+		</Contacts>
+		<ContactCard>
+			<AddToMySpaceSiteId>73625</AddToMySpaceSiteId>
+			<AddToMySpaceUrl>http://spaces.live.com/?addblogEntry=true&amp;mkt=en-us</AddToMySpaceUrl>
+			<ContactCardDisabled>false</ContactCardDisabled>
+			<CreateSpaceSiteId>73625</CreateSpaceSiteId>
+			<CreateSpaceUrl>http://escargotspaces.com/register</CreateSpaceUrl>
+			<GetItemVerUrl>http://storage.msn.com/storageservice/schematizedstore.asmx</GetItemVerUrl>
+			<GetXmlFeedUrl>http://services.spaces.msn.com/contactcard/contactcardservice.asmx</GetXmlFeedUrl>
+			<GetXmlFeedRpsUrl>http://cc.services.spaces.live.com/contactcard/contactcardservice.asmx</GetxmlFeedRpsUrl>
+			<GetXmlFeedRpsCidUrl>http://cid-%1!16.16I64X!.cc.services.spaces.live.com/contactcard/contactcardservice.asmx</GetXmlFeedRpsCidUrl>
+			<MySpaceSiteId>73625</MySpaceSiteId>
+			<MySpaceUrl>http://escargotspaces.com</MySpaceUrl>
+			<SpaceBaseSiteId>73625</SpaceBaseSiteId>
+			<SpaceBaseUrl>http://escargotspaces.com</SpaceBaseUrl>
+			<SpaceIntegrationEnabled>true</SpaceIntegrationEnabled>
+		</ContactCard>
+		<FlashUpgradeURL>http://messenger.msn.com/flash/?mkt=pt-br&amp;version=$VERSION$</FlashUpgradeURL>
+		<GLinkMarket v="en_us"/>
+		<MSNSearch>
+			<ImagesURL>https://duckduckgo.com/?q=$QUERY$&amp;ia=images</ImagesURL>
+			<NewsURL>https://duckduckgo.com/?q=$QUERY$+news&amp;ia=news</NewsURL>
+			<SearchURL>https://duckduckgo.com/?q=$QUERY$&amp;ia=web</SearchURL>
+			<SharedSearchURL>https://duckduckgo.com/?q=$QUERY$&amp;ia=web</SharedSearchURL>
+			<SharedSearchURL2>https://duckduckgo.com/?q=$QUERY$&amp;ia=web</SharedSearchURL2>
+		</MSNSearch>
+		<MsnTodayConfig>
+			<MsnTodaySiteID>6528</MsnTodaySiteID>
+			<MsnTodayURL>https://escargot.log1p.xyz/etc/escargot-today</MsnTodayURL>
+			<Flags>2</Flags>
+		</MsnTodayConfig>
+		<OneCare Enabled="0"/>
+		<PSTNOut Hidden="1"/>
+		<PublicFederated><YahooNetwork Enabled="true" OfflineIM="true"/></PublicFederated>
+		<ReportAbuse><ReportAbuseSID/><ReportAbuseURL>https://escargot.log1p.xyz/report-abuse</ReportAbuseURL></ReportAbuse>
+		<RL>
+			<ViewProfileURL>https://escargot.pokeacer.xyz/dir/</ViewProfileURL>
+		</RL>
+		<SDrive Enabled="true"/>
+		<TermsOfUse><TermsOfUseSID>956</TermsOfUseSID><TermsOfUseURL>https://escargot.log1p.xyz/etc/tos</TermsOfUseURL></TermsOfUse>
+		<VoiceClip Hidden="0"/>
+		<VoiceVideo>
+			<DisableSipProxyInviteTest>0</DisableSipProxyInviteTest>
+			<DisableSipProxyCapability>1</DisableSipProxyCapability>
+			<DisableSipProxyInvite>1</DisableSipProxyInvite>
+			<DisableSipProxyCapability2>0</DisableSipProxyCapability2>
+			<DisableSipProxyInvite2>1</DisableSipProxyInvite2>
+		</VoiceVideo>
+	</LocalizedConfig>
+</MsgrConfig>

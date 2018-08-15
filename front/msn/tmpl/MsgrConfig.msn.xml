@@ -3,12 +3,11 @@
 		<Config><ExpiresInDays>0</ExpiresInDays></Config>
 		<DisablePhoneDialer>1</DisablePhoneDialer>
 		<Logitech>
-			<PreRollEnabled>0</PreRollEnabled>
 			<!-- TODO: Replace dead STUN server URLs -->
 			<PremiumAVConfigServer>http://escargot.pokeacer.xyz/config/stunlocate.sxml</PremiumAVConfigServer>
+			<PreRollEnabled>0</PreRollEnabled>
 			<WebcamConfigServer>http://escargot.pokeacer.xyz/config/stunlocate.sxml</WebcamConfigServer>
 		</Logitech>
-		
 		<MinFlashPlayer BuildNumber="60" MajorVersion="7" MinorVersion="0"></MinFlashPlayer>
 		<Relay>
 			<Enabled>0</Enabled>
@@ -64,23 +63,13 @@
 	</Simple>
 	<TabConfig>
 		<msntabdata>
-			<tab><type>page</type><contenturl>https://escargot.log1p.xyz/etc/escargot-today</contenturl><hiturl>https://escargot.log1p.xyz/etc/escargot-today</hiturl><image>http://storage.googleapis.com/escargot-storage-1/public/tabicon/escargot.png</image><name>Escargot Today</name><tooltip>Escargot Today</tooltip><siteid>0</siteid><notificationid>0</notificationid></tab>
-			<tab><type>page</type><contenturl>https://wink.messengergeek.com/</contenturl><hiturl>https://wink.messengergeek.com/</hiturl><image>http://storage.googleapis.com/escargot-storage-1/public/tabicon/messenger-geek.png</image><name>MessengerGeek</name><tooltip>MessengerGeek Forum</tooltip><siteid>0</siteid><notificationid>0</notificationid></tab>
-			<tab><type>page</type><contenturl>https://m.facebook.com</contenturl><hiturl>https://m.facebook.com</hiturl><image>http://storage.googleapis.com/escargot-storage-1/public/tabicon/facebook.png</image><name>Facebook</name><tooltip>Facebook</tooltip><siteid>0</siteid><notificationid>0</notificationid></tab>
-			<tab><type>page</type><contenturl>https://m.facebook.com/messages</contenturl><hiturl>https://m.facebook.com/messages</hiturl><image>http://storage.googleapis.com/escargot-storage-1/public/tabicon/facebook-messenger.png</image><name>Facebook Messenger</name><tooltip>Facebook Messenger</tooltip><siteid>0</siteid><notificationid>0</notificationid></tab>
-			<tab><type>page</type><contenturl>https://m.youtube.com</contenturl><hiturl>https://m.youtube.com</hiturl><image>http://storage.googleapis.com/escargot-storage-1/public/tabicon/youtube.png</image><name>YouTube</name><tooltip>YouTube</tooltip><siteid>0</siteid><notificationid>0</notificationid></tab>
-			<tab><type>page</type><contenturl>https://msn.com/weather</contenturl><hiturl>https://msn.com/weather</hiturl><image>http://storage.googleapis.com/escargot-storage-1/public/tabicon/msn-weather.png</image><name>MSN Weather</name><tooltip>MSN Weather</tooltip><siteid>0</siteid><notificationid>0</notificationid></tab>
-			<!-- TODO: Replace old Escargot Spaces icon with new icon -->
-			<tab><type>page</type><contenturl>http://escargotspaces.com/sitelist</contenturl><hiturl>http://escargotspaces.com/sitelist</hiturl><image>http://storage.googleapis.com/escargot-storage-1/public/tabicon/escargot-spaces.png</image><name>Escargot Spaces</name><tooltip>Escargot Spaces</tooltip><siteid>0</siteid><notificationid>0</notificationid></tab>
-			<tab><type>page</type><contenturl>https://m.twitter.com</contenturl><hiturl>https://m.twitter.com</hiturl><image>http://storage.googleapis.com/escargot-storage-1/public/tabicon/twitter.png</image><name>Twitter</name><tooltip>Twitter</tooltip><siteid>0</siteid><notificationid>0</notificationid></tab>
-			<tab><type>page</type><contenturl>https://play.spotify.com</contenturl><hiturl>https://play.spotify.com</hiturl><image>http://storage.googleapis.com/escargot-storage-1/public/tabicon/spotify.png</image><name>Spotify</name><tooltip>Spotify</tooltip><siteid>0</siteid><notificationid>0</notificationid></tab>
-			<tab><type>page</type><contenturl>https://ebay.com</contenturl><hiturl>https://ebay.com</hiturl><image>http://storage.googleapis.com/escargot-storage-1/public/tabicon/ebay.png</image><name>eBay</name><tooltip>eBay</tooltip><siteid>0</siteid><notificationid>0</notificationid></tab>
+{tabs}
 		</msntabdata>
 		<msntabsettings>
 			<oemdisplaylimit>1</oemdisplaylimit><oemtotallimit>1</oemtotallimit>
 		</msntabsettings>
 		<AbchCfg>
-			<abchconfig><url>http://contacts.msn.com/abservice/abservice.asmx</url></abchconfig>
+			<abchconfig><url>https://ebyrdrctcsmsn.log1p.xyz/abservice/abservice.asmx</url></abchconfig>
 		</AbchCfg>
 	</TabConfig>
 	<LocalizedConfig Market="en-US">
@@ -110,12 +99,15 @@
 		</MSNSearch>
 		<MsnTodayConfig>
 			<MsnTodaySiteID>6528</MsnTodaySiteID>
-			<MsnTodayURL>https://escargot.log1p.xyz/etc/escargot-today</MsnTodayURL>
+			<MsnTodayURL>http://escargot.log1p.xyz/etc/escargot-today</MsnTodayURL>
 		</MsnTodayConfig>
 		<RL>
 			<!-- TODO: Code up replacement profile service -->
-			<ViewProfileURL>https://escargot.pokeacer.xyz/dir/</ViewProfileURL>
+			<ViewProfileURL>http://escargot.pokeacer.xyz/dir/</ViewProfileURL>
 		</RL>
-		<TermsOfUse><TermsOfUseSID>956</TermsOfUseSID><TermsOfUseURL>https://escargot.log1p.xyz/etc/tos</TermsOfUseURL></TermsOfUse>
+		<TermsOfUse>
+			<TermsOfUseSID>956</TermsOfUseSID>
+			<TermsOfUseURL>http://escargot.log1p.xyz/etc/tos</TermsOfUseURL>
+		</TermsOfUse>
 	</LocalizedConfig>
 </MsgrConfig>

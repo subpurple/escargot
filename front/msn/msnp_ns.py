@@ -4,6 +4,7 @@ from lxml.objectify import fromstring as parse_xml
 import re
 
 from util.misc import Logger, gen_uuid
+import settings
 
 from core import event
 from core.backend import Backend, BackendSession, Chat
@@ -137,7 +138,8 @@ class MSNPCtrlNS(MSNPCtrl):
 					token = token[2:22]
 				usr_email = self.usr_email
 				assert usr_email is not None
-				uuid = backend.auth_service.get_token('nb/login', token)
+				if settings.DEBUG and settings.DEBUG_MSNP: print(F"Token: {token}")
+				uuid = (backend.auth_service.pop_token('nb/login', token) if authtype == 'TWN' else backend.auth_service.get_token('nb/login', token))
 				if uuid is not None:
 					machineguid = None # type: Optional[str]
 					
@@ -146,12 +148,12 @@ class MSNPCtrlNS(MSNPCtrl):
 						if 2 <= len(args) >= 3:
 							machineguid = (args[2] if len(args) >= 3 else args[1])
 					
-						if machineguid is None or not re.match(r'^\{[A-Fa-f0-9]{8,8}-([A-Fa-f0-9]{4,4}-){3,3}[A-Fa-f0-9]{12,12}\}', machineguid):
+						if not re.match(r'^\{[A-Fa-f0-9]{8,8}-([A-Fa-f0-9]{4,4}-){3,3}[A-Fa-f0-9]{12,12}\}', machineguid):
 							self.send_reply(Err.AuthFail, trid)
 					
-					option = (LoginOption.BootOthers if dialect < 18 else LoginOption.NotifyOthers)
+					option = (LoginOption.BootOthers if dialect < 18 or (dialect >= 18 and machineguid is None) else LoginOption.NotifyOthers)
 					self.bs = backend.login(uuid, self.client, BackendEventHandler(self), option)
-					if dialect >= 16:
+					if dialect >= 16 and machineguid is not None:
 						self.bs.front_data['msn_pop_id'] = machineguid[1:-1]
 					
 				self._util_usr_final(trid, token)
@@ -313,10 +315,6 @@ class MSNPCtrlNS(MSNPCtrl):
 			'message': str(psm) if psm else '',
 			'media': str(cm) if cm else None,
 		})
-		
-		mg = elm.find('MachineGuid')
-		if mg and (13 <= dialect <= 15):
-			bs.front_data['msn_pop_id'] = str(mg)[1:-1]
 		
 		self.send_reply('UUX', trid, 0)
 	
