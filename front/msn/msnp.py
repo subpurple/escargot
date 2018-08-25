@@ -26,6 +26,9 @@ class MSNPCtrl(metaclass = ABCMeta):
 		self.closed = False
 		self.transport = None
 	
+	@abstractmethod
+	def on_connect(self) -> None: pass
+	
 	def data_received(self, transport: asyncio.BaseTransport, data: bytes) -> None:
 		self.peername = transport.get_extra_info('peername')
 		for m in self.reader.data_received(data):

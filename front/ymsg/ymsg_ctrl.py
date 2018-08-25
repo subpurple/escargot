@@ -45,7 +45,7 @@ class YMSGCtrlBase(metaclass = ABCMeta):
 	
 	def receive_event(self, pkt: bytes) -> None:
 		for y in self.decoder.data_received(pkt):
-			self.logger.info('>>>', 'YMSG' + str(y[1]), y[0], y[3], y[4], y[5])
+			_truncated_log(self.logger, '>>>', y, 'INCOMING')
 			
 			try:
 				# check version and vendorId
@@ -92,7 +92,7 @@ class YMSGEncoder:
 		# version number and vendor id are replaced with 0x00000000
 		w(b'\x00\x00\x00\x00')
 		
-		self._logger.info('<<<', service, status, session_id, kvs)
+		_truncated_log(self._logger, '<<<', (service, 0, 0, status, session_id, kvs), 'OUTGOING')
 		
 		payload_list = []
 		if kvs is not None:
@@ -138,6 +138,18 @@ class YMSGDecoder:
 			print("ERR _ymsg_read", self._data)
 			raise
 		return y
+
+def _truncated_log(logger: Logger, pre: str, y: DecodedYMSG, transport_type: str) -> None:
+	if y[0] in (YMSGService.List,YMSGService.PeerToPeer,YMSGService.P2PFileXfer,YMSGService.Message,YMSGService.ConfInvite,YMSGService.ConfAddInvite,YMSGService.ConfMsg,YMSGService.Passthrough2,YMSGService.SkinName) or (y[0] in (YMSGService.FriendAdd,YMSGService.ContactDeny) and y[5].get('14') not in (None,'')) or (y[0] is YMSGService.ContactNew and y[3] in (YMSGStatus.NotAtHome,YMSGStatus.OnVacation) and y[5].get('14') not in (None,'')) or (y[0] is YMSGService.AuthResp and y[5].get('59') is not None):
+		if transport_type == 'INCOMING':
+			logger.info(pre, 'YMSG' + str(y[1]), y[0], y[3], y[4])
+		elif transport_type == 'OUTGOING':
+			logger.info(pre, y[0], y[3], y[4])
+	else:
+		if transport_type == 'INCOMING':
+			logger.info(pre, 'YMSG' + str(y[1]), y[0], y[3], y[4], y[5])
+		elif transport_type == 'OUTGOING':
+			logger.info(pre, y[0], y[3], y[4], y[5])
 
 def _decode_ymsg(data: bytes) -> DecodedYMSG:
 	assert data[:4] == PRE

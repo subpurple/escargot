@@ -132,6 +132,7 @@ async def handle_abservice(req: web.Request) -> web.Response:
 			return render(req, 'msn:abservice/ABContactAddResponse.xml', {
 				'cachekey': cachekey,
 				'host': settings.LOGIN_HOST,
+				'contact_uuid': contact_uuid,
 			})
 		if action_str == 'ABContactDelete':
 			contact_uuid = _find_element(action, 'contactId')

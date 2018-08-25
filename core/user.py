@@ -199,7 +199,7 @@ class UserService:
 				dbyahooalias.is_activated = activated
 				sess.add(dbyahooalias)
 	
-	def yahoo_check_alias_existence(self, alias: str) -> bool:
+	def yahoo_check_alias(self, alias: str) -> bool:
 		with Session() as sess:
 			query = sess.query(DBYahooAlias).filter(DBYahooAlias.yid_alias == alias).one_or_none()
 			if query is not None: return True
@@ -212,12 +212,12 @@ class UserService:
 			sess.delete(alias_entry)
 		return True
 	
-	def save_batch(self, to_save: List[Tuple[User, UserDetail]]) -> None:
+	def save_batch(self, to_save: List[Tuple[User, UserDetail, bool]]) -> None:
 		with Session() as sess:
-			for user, detail in to_save:
+			for user, detail, message_temp in to_save:
 				dbuser = sess.query(DBUser).filter(DBUser.uuid == user.uuid).one()
 				dbuser.name = user.status.name
-				dbuser.message = user.status.message
+				if not message_temp: dbuser.message = user.status.message
 				dbuser.settings = detail.settings
 				dbuser.groups = [{
 					'id': g.id, 'name': g.name,

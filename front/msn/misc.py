@@ -197,6 +197,7 @@ class Err:
 	InternalServerError = 500
 	CommandDisabled = 502
 	AuthFail = 911
+	NotAllowedWhileHDN = 913
 	
 	@classmethod
 	def GetCodeForException(cls, exc: Exception) -> int:
@@ -218,6 +219,8 @@ class Err:
 			return cls.PrincipalNotOnline
 		if isinstance(exc, error.AuthFail):
 			return cls.AuthFail
+		if isinstance(exc, error.NotAllowedWhileHDN):
+			return cls.NotAllowedWhileHDN
 		raise ValueError("Exception not convertible to MSNP error") from exc
 
 class NetworkID:

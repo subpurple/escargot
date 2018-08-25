@@ -36,6 +36,7 @@ class ListenerMSNP(asyncio.Protocol):
 		assert isinstance(transport, asyncio.WriteTransport)
 		self.transport = transport
 		self.logger.log_connect()
+		self.controller.on_connect()
 	
 	def connection_lost(self, exc: Exception) -> None:
 		self.controller.close(hard = True)

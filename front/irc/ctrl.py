@@ -231,7 +231,7 @@ class ChatEventHandler(event.ChatEventHandler):
 	def on_participant_joined(self, cs_other: ChatSession) -> None:
 		self.ctrl.send_reply('JOIN', self.cs.chat.ids['irc'], source = cs_other.user.email)
 	
-	def on_participant_left(self, cs_other: ChatSession) -> None:
+	def on_participant_left(self, cs_other: ChatSession, idle: bool = False) -> None:
 		self.ctrl.send_reply('PART', self.cs.chat.ids['irc'], source = cs_other.user.email)
 	
 	def on_invite_declined(self, invited_user: User, *, message: Optional[str] = None) -> None:

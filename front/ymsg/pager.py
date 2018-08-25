@@ -27,7 +27,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 	
 	backend: Backend
 	dialect: int
-	yahoo_id: str
+	yahoo_id: Optional[str]
 	sess_id: int
 	challenge: Optional[str]
 	t_cookie_token: Optional[str]
@@ -40,13 +40,12 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		super().__init__(logger)
 		self.backend = backend
 		self.dialect = 0
-		self.yahoo_id = ''
+		self.yahoo_id = None
 		self.sess_id = 0
 		self.challenge = None
 		self.t_cookie_token = None
 		self.bs = None
 		self.activated_alias_bses = {}
-		
 		self.chat_sessions = {}
 		self.client = Client('yahoo', '?', via)
 	
@@ -83,7 +82,6 @@ class YMSGCtrlPager(YMSGCtrlBase):
 			return
 		
 		if self.yahoo_id in PRE_SESSION_ID:
-			self.send_reply(YMSGService.LogOff, YMSGStatus.Available, 0, None)
 			self.close()
 			return
 		self.sess_id = secrets.randbelow(4294967294) + 1
@@ -105,6 +103,9 @@ class YMSGCtrlPager(YMSGCtrlBase):
 	
 	def _y_0054(self, *args) -> None:
 		# SERVICE_AUTHRESP (0x54); verify response strings for successful authentication
+		
+		y = None
+		t = None
 		
 		status = args[2]
 		if status is YMSGStatus.WebLogin:
@@ -128,12 +129,21 @@ class YMSGCtrlPager(YMSGCtrlBase):
 			if uuid is None:
 				is_resp_correct = False
 			else:
-				bs = self.backend.login(uuid, self.client, BackendEventHandler(self.backend.loop, self), LoginOption.BootOthers)
+				# NOTE: Yahoo! Messenger *can* specify the `Y` and `T` cookies in this packet after multiple logins as long as it isn't
+				# terminated. Verify and store cookies if needed.
+				
+				if '59' in args[4]:
+					if len(args[4].getall('59')) != 2:
+						self.send_reply(YMSGService.LogOff, YMSGStatus.Available, 0, None)
+					y, t = args[4].getall('59')
+					if self.backend.auth_service.get_token('ymsg/cookie', y[2:]) is None and self.backend.auth_service.get_token('ymsg/cookie', t[2:]) is None: 
+						self.send_reply(YMSGService.LogOff, YMSGStatus.Available, 0, None)
+				bs = self.backend.login(uuid, self.client, BackendEventHandler(self.backend.loop, self), LoginOption.BootOthers, message_temp = True)
 				if bs is None:
 					is_resp_correct = False
 				else:
 					self.bs = bs
-					self._util_authresp_final(status)
+					self._util_authresp_final(status, cached_y = y, cached_t = t)
 		
 		if not is_resp_correct:
 			self.send_reply(YMSGService.AuthResp, YMSGStatus.LoginError, self.sess_id, MultiDict([
@@ -146,9 +156,10 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		if self.backend.user_service.check_user_front_type(uuid, 'ymsg'): return True
 		return False
 	
-	def _util_authresp_final(self, status: YMSGStatus) -> None:
+	def _util_authresp_final(self, status: YMSGStatus, cached_y: Optional[str] = None, cached_t: Optional[str] = None) -> None:
 		bs = self.bs
 		assert bs is not None
+		user = bs.user
 		
 		self.t_cookie_token = AuthService.GenTokenStr()
 		
@@ -159,7 +170,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		
 		self._get_oims(self.yahoo_id)
 		
-		self._update_buddy_list(after_login = True)
+		self._update_buddy_list(cached_y = cached_y, cached_t = cached_t, after_login = True)
 		
 		if self.dialect >= 10:
 			self.send_reply(YMSGService.PingConfiguration, YMSGStatus.Available, self.sess_id, MultiDict([
@@ -230,6 +241,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		utf8 = args[4].get('97')
 		
 		group = None
+		action_group_move = False
 		
 		add_request_response = MultiDict([
 			('1', self.yahoo_id),
@@ -277,32 +289,29 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		
 		if group is None:
 			group = bs.me_group_add(buddy_group)
-			action_group_move = False
-		else:
-			action_group_move = True
 		
 		ctc_head = self.backend._load_user_record(contact_uuid)
 		assert ctc_head is not None
 		
-		if not ctc_head.status.is_offlineish():
-			contact_struct = MultiDict([
-				('0', self.yahoo_id),
-			])
-			add_contact_status_to_data(contact_struct, ctc_head.status, ctc_head)
-		else:
-			contact_struct = None
-		
-		self.send_reply(YMSGService.ContactNew, YMSGStatus.BRB, self.sess_id, contact_struct)
-		
-		if not contact or not contact.lists & Lst.FL:
+		if not contact or (not contact.lists & Lst.FL and not contact.lists & Lst.BL):
+			if not ctc_head.status.is_offlineish():
+				contact_struct = MultiDict([
+					('0', self.yahoo_id),
+				])
+				add_contact_status_to_data(contact_struct, ctc_head.status, ctc_head)
+			else:
+				contact_struct = None
+			
+			self.send_reply(YMSGService.ContactNew, YMSGStatus.BRB, self.sess_id, contact_struct)
+			
 			add_request_response.add('66', 0)
 			self.send_reply(YMSGService.FriendAdd, YMSGStatus.BRB, self.sess_id, add_request_response)
 			
 			contact = bs.me_contact_add(ctc_head.uuid, Lst.FL, message = (TextWithData(message, utf8) if message is not None else None), send_notif_on_AL = True, needs_notify = True)[0]
 		try:
-			if action_group_move:
-				for grp_id in contact.groups.copy():
-					bs.me_group_contact_remove(grp_id, contact_uuid)
+			if len(contact.groups) >= 1: action_group_move = True
+			for grp_id in contact.groups.copy():
+				bs.me_group_contact_remove(grp_id, contact_uuid)
 			
 			bs.me_group_contact_add(group.id, contact_uuid)
 			
@@ -460,7 +469,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		
 		p2p_to_id = args[4].get('5')
 		contact_uuid = yahoo_id_to_uuid(self.backend, p2p_to_id)
-		if contact_uuid is None or args[4].get('49') != 'PEERTOPEER':
+		if contact_uuid is None:
 			return
 		
 		bs = (self.bs if yid not in self.activated_alias_bses else self.activated_alias_bses[yid])
@@ -717,7 +726,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 			chat.send_participant_joined(cs)
 		return cs
 	
-	def _update_buddy_list(self, after_login: bool = False) -> None:
+	def _update_buddy_list(self, cached_y: Optional[str] = None, cached_t: Optional[str] = None, after_login: bool = False) -> None:
 		bs = self.bs
 		assert bs is not None
 		user = bs.user
@@ -751,29 +760,36 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		
 		id_list = [self.yahoo_id]
 		aliases = self.backend.user_service.yahoo_get_aliases(user.uuid)
-		for alias in aliases: id_list.append(alias.alias_yid)
+		for alias in aliases: id_list.append(alias.yid)
 		
-		(y_cookie, t_cookie, cookie_expiry) = self._refresh_cookies()
-		
-		self.send_reply(YMSGService.List, YMSGStatus.Available, self.sess_id, MultiDict([
+		list_reply_kvs = MultiDict([
 			('87', ''.join(contact_group_list)),
 			('88', ','.join(ignore_list)),
 			('89', ','.join(id_list)),
-			('59', '{}\t{}; expires={}; path=/; domain=.yahoo.com'.format('Y', y_cookie, cookie_expiry)),
-			('59', '{}\t{}; expires={}; path=/; domain=.yahoo.com'.format('T', t_cookie, cookie_expiry)),
-			('59', 'C\tmg=1'),
-			('3', self.yahoo_id),
-			('90', '1'),
-			('100', '0'),
-			('101', ''),
-			('102', ''),
-			('93', '86400')
-		]))
+		])
+		
+		if cached_y is not None and cached_t is not None:
+			list_reply_kvs.add('59', cached_y)
+			list_reply_kvs.add('59', cached_t)
+		else:
+			(y_cookie, t_cookie, cookie_expiry) = self._refresh_cookies()
+			list_reply_kvs.add('59', 'Y\t{}; expires={}; path=/; domain=.yahoo.com'.format(y_cookie, cookie_expiry))
+			list_reply_kvs.add('59', 'T\t{}; expires={}; path=/; domain=.yahoo.com'.format(t_cookie, cookie_expiry))
+		
+		list_reply_kvs.add('59', 'C\tmg=1')
+		list_reply_kvs.add('3', self.yahoo_id)
+		list_reply_kvs.add('90', '1')
+		list_reply_kvs.add('100', '0')
+		list_reply_kvs.add('101', '')
+		list_reply_kvs.add('102', '')
+		list_reply_kvs.add('93', 86400)
+		
+		self.send_reply(YMSGService.List, YMSGStatus.Available, self.sess_id, list_reply_kvs)
 		
 		logon_payload = MultiDict([
 			('0', self.yahoo_id),
 			('1', self.yahoo_id),
-			('8', len(cs_fl))
+			('8', len(cs_fl)),
 		])
 		
 		for c in cs_fl:
@@ -783,13 +799,13 @@ class YMSGCtrlPager(YMSGCtrlBase):
 			for alias in aliases:
 				if alias.is_activated:
 					self.send_reply(YMSGService.IDActivate, YMSGStatus.BRB, self.sess_id, MultiDict([
-						('3', alias.alias_yid),
+						('3', alias.yid),
 					]))
 					
-					self._activate_alias(alias.alias_yid)
+					self._activate_alias(alias.yid)
 				else:
 					self.send_reply(YMSGService.IDDeactivate, YMSGStatus.BRB, self.sess_id, MultiDict([
-						('3', alias.alias_yid),
+						('3', alias.yid),
 					]))
 		
 		self.send_reply(YMSGService.LogOn, YMSGStatus.Available, self.sess_id, logon_payload)
@@ -1071,14 +1087,12 @@ class BackendEventHandler(event.BackendEventHandler):
 		for y in misc.build_http_ft_packet(self.bs, sender, url_path, upload_time, message):
 			self.ctrl.send_reply(y[0], y[1], self.sess_id, y[2])
 	
-	def ymsg_on_notify_alias_activate(self, activated_alias: str) -> None:
-		self.ctrl._update_buddy_list()
+	def ymsg_on_notify_alias_activate(self, activated_alias: str, new_alias: bool = False) -> None:
+		if new_alias: self.ctrl._update_buddy_list()
 		
 		self.ctrl._activate_alias(activated_alias)
 	
-	def ymsg_on_notify_alias_delete(self, deactivated_alias: str) -> None:
-		self.ctrl._update_buddy_list()
-		
+	def ymsg_on_notify_alias_deactivate(self, deactivated_alias: str) -> None:
 		self.ctrl._deactivate_alias(deactivated_alias)
 	
 	def on_chat_invite(self, chat: 'Chat', inviter: User, *, invite_msg: str = '') -> None:
@@ -1104,7 +1118,8 @@ class BackendEventHandler(event.BackendEventHandler):
 		
 		if message is not None:
 			contact_request_data.add('14', message.text)
-			contact_request_data.add('97', message.yahoo_utf8)
+			if message.yahoo_utf8 is not None:
+				contact_request_data.add('97', message.yahoo_utf8)
 		
 		contact_request_data.add('15', time.time())
 		

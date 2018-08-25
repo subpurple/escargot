@@ -84,7 +84,7 @@ class ChatEventHandler(metaclass = ABCMeta):
 	def on_participant_joined(self, cs_other: 'ChatSession') -> None: pass
 	
 	@abstractmethod
-	def on_participant_left(self, cs_other: 'ChatSession') -> None: pass
+	def on_participant_left(self, cs_other: 'ChatSession', idle: bool = False) -> None: pass
 	
 	@abstractmethod
 	def on_invite_declined(self, invited_user: User, *, message: str = '') -> None: pass

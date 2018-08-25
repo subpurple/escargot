@@ -47,6 +47,9 @@ class MSNPCtrlNS(MSNPCtrl):
 		if self.bs:
 			self.bs.close()
 	
+	def on_connect(self) -> None:
+		pass
+	
 	# State = Auth
 	
 	def _m_ver(self, trid: str, *args) -> None:
@@ -133,6 +136,7 @@ class MSNPCtrlNS(MSNPCtrl):
 			if stage == 'S':
 				#>>> USR trid TWN S auth_token
 				#>>> USR trid SSO S auth_token b64_response
+				#>>> USR trid SSO S auth_token b64_response machineguid (MSNP >= 16)
 				token = args[0]
 				if token[0:2] == 't=':
 					token = token[2:22]
@@ -145,7 +149,7 @@ class MSNPCtrlNS(MSNPCtrl):
 					
 					if dialect >= 16:
 						# Only check the # of args since people could connect from either patched `msidcrl40.dll` or vanilla `msidcrl40.dll`
-						if 2 <= len(args) >= 3:
+						if 2 <= len(args) <= 3:
 							machineguid = (args[2] if len(args) >= 3 else args[1])
 					
 						if not re.match(r'^\{[A-Fa-f0-9]{8,8}-([A-Fa-f0-9]{4,4}-){3,3}[A-Fa-f0-9]{12,12}\}', machineguid):
@@ -588,8 +592,11 @@ class MSNPCtrlNS(MSNPCtrl):
 			self.send_reply(Err.InvalidParameter, trid)
 			return
 		
+		if not self.iln_sent or MSNStatus.FromSubstatus(bs.user.status.substatus) is MSNStatus.HDN:
+			self.send_reply(Err.NotAllowedWhileHDN, trid)
+			return
 		dialect = self.dialect
-		token = self.backend.auth_service.create_token('sb/xfr', (bs, dialect))
+		token = self.backend.auth_service.create_token('sb/xfr', (bs, dialect), lifetime = 120)
 		extra = () # type: Tuple[Any, ...]
 		if dialect >= 13:
 			extra = ('U', 'messenger.msn.com')
@@ -684,7 +691,7 @@ class BackendEventHandler(event.BackendEventHandler):
 			extra = ('U', 'messenger.hotmail.com')
 		if dialect >= 14:
 			extra += (1,)
-		token = self.ctrl.backend.auth_service.create_token('sb/cal', (self.ctrl.bs, dialect, chat))
+		token = self.ctrl.backend.auth_service.create_token('sb/cal', (self.ctrl.bs, dialect, chat), lifetime = 120)
 		self.ctrl.send_reply('RNG', chat.ids['main'], 'm1.escargot.log1p.xyz:1864', 'CKI', token, inviter.email, inviter.status.name, *extra)
 	
 	def on_added_me(self, user: User, *, message: Optional[TextWithData] = None) -> None:

@@ -14,8 +14,8 @@ class AuthService:
 	_idxbase: int
 	
 	@classmethod
-	def GenTokenStr(cls) -> str:
-		return gen_salt(20)
+	def GenTokenStr(cls, *, trim: int = 20) -> str:
+		return gen_salt(trim)
 	
 	def __init__(self, *, time: Optional[Any] = None) -> None:
 		if time is None:
@@ -52,7 +52,7 @@ class AuthService:
 		if not td.validate(purpose, token, self._time()): return None
 		return td.data
 	
-	def get_token_expiry(self, purpose: str, token: str) -> Optional[Any]:
+	def get_token_expiry(self, purpose: str, token: str) -> Optional[int]:
 		self._remove_expired()
 		idx = self._bytoken.get(token)
 		if idx is None: return None

@@ -60,17 +60,19 @@ def _is_blocking(blocker: User, blockee: User) -> bool:
 	return (detail.settings.get('BLP', 'AL') == 'BL')
 
 class UserStatus:
-	__slots__ = ('substatus', 'name', 'message', 'media')
+	__slots__ = ('substatus', 'name', 'message', 'message_temp', 'media')
 	
 	substatus: 'Substatus'
 	name: Optional[str]
 	message: Optional[str]
+	message_temp: bool
 	media: Optional[Any]
 	
 	def __init__(self, name: Optional[str], message: Optional[str] = None) -> None:
 		self.substatus = Substatus.Offline
 		self.name = name
 		self.message = message
+		self.message_temp = False
 		self.media = None
 	
 	def is_offlineish(self) -> bool:
@@ -129,13 +131,13 @@ class TextWithData:
 		self.yahoo_utf8 = yahoo_utf8
 
 class YahooAlias:
-	__slots__ = ('alias_yid', 'is_activated')
+	__slots__ = ('yid', 'is_activated')
 	
-	alias_yid: str
+	yid: str
 	is_activated: bool
 	
-	def __init__(self, alias_yid: str, is_activated: bool) -> None:
-		self.alias_yid = alias_yid
+	def __init__(self, yid: str, is_activated: bool) -> None:
+		self.yid = yid
 		self.is_activated = is_activated
 
 class OIMMetadata:

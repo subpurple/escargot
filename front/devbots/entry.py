@@ -66,7 +66,7 @@ class ChatEventHandler(event.ChatEventHandler):
 	def on_participant_joined(self, cs_other: ChatSession) -> None:
 		pass
 	
-	def on_participant_left(self, cs_other: ChatSession) -> None:
+	def on_participant_left(self, cs_other: ChatSession, idle: bool = False) -> None:
 		pass
 	
 	def on_invite_declined(self, invited_user: User, *, message: Optional[str] = None) -> None:

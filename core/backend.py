@@ -102,7 +102,7 @@ class Backend:
 		self._sync_contact_statuses(user)
 		self._notify_contacts(sess, for_logout = True, old_substatus = old_substatus)
 	
-	def login(self, uuid: str, client: Client, evt: event.BackendEventHandler, option: LoginOption) -> Optional['BackendSession']:
+	def login(self, uuid: str, client: Client, evt: event.BackendEventHandler, option: LoginOption, *, message_temp: bool = False) -> Optional['BackendSession']:
 		user = self._load_user_record(uuid)
 		if user is None: return None
 		self.user_service.update_date_login(uuid)
@@ -114,7 +114,7 @@ class Backend:
 			except:
 				traceback.print_exc()
 		
-		bs = BackendSession(self, user, client, evt)
+		bs = BackendSession(self, user, client, evt, message_temp)
 		bs.evt.bs = bs
 		self._stats.on_login()
 		self._stats.on_user_active(user, client)
@@ -166,11 +166,11 @@ class Backend:
 			return
 		self._worklist_notify[uuid] = (bs, old_substatus, on_contact_add, for_logout)
 	
-	def _mark_modified(self, user: User, *, detail: Optional[UserDetail] = None) -> None:
+	def _mark_modified(self, user: User, message_temp: bool, *, detail: Optional[UserDetail] = None) -> None:
 		ud = user.detail or detail
 		if detail: assert ud is detail
 		assert ud is not None
-		self._worklist_sync_db[user] = ud
+		self._worklist_sync_db[user] = (ud, message_temp)
 	
 	def util_get_uuid_from_email(self, email: str) -> Optional[str]:
 		return self.user_service.get_uuid(email)
@@ -203,9 +203,9 @@ class Backend:
 			users = list(self._worklist_sync_db.keys())[:100]
 			batch = []
 			for user in users:
-				detail = self._worklist_sync_db.pop(user, None)
+				detail, message_temp = self._worklist_sync_db.pop(user, None)
 				if not detail: continue
-				batch.append((user, detail))
+				batch.append((user, detail, message_temp))
 			self.user_service.save_batch(batch)
 		except:
 			traceback.print_exc()
@@ -269,20 +269,22 @@ class Session(metaclass = ABCMeta):
 	def _on_close(self) -> None: pass
 
 class BackendSession(Session):
-	__slots__ = ('backend', 'user', 'client', 'evt', 'front_data')
+	__slots__ = ('backend', 'user', 'client', 'evt', 'message_temp', 'front_data')
 	
 	backend: Backend
 	user: User
 	client: Client
 	evt: event.BackendEventHandler
+	message_temp: bool
 	front_data: Dict[str, Any]
 	
-	def __init__(self, backend: Backend, user: User, client: Client, evt: event.BackendEventHandler) -> None:
+	def __init__(self, backend: Backend, user: User, client: Client, evt: event.BackendEventHandler, message_temp: bool) -> None:
 		super().__init__()
 		self.backend = backend
 		self.user = user
 		self.client = client
 		self.evt = evt
+		self.message_temp = message_temp
 		self.front_data = {}
 	
 	def _on_close(self, **kwargs) -> None:
@@ -317,7 +319,7 @@ class BackendSession(Session):
 		if 'gtc' in fields:
 			detail.settings['gtc'] = fields['gtc']
 		
-		self.backend._mark_modified(user)
+		self.backend._mark_modified(user, self.message_temp)
 		if needs_notify:
 			self.backend._sync_contact_statuses(user)
 			self.backend._notify_contacts(self, old_substatus = old_substatus)
@@ -330,7 +332,7 @@ class BackendSession(Session):
 		assert detail is not None
 		group = Group(_gen_group_id(detail), name, is_favorite = is_favorite)
 		detail.groups[group.id] = group
-		self.backend._mark_modified(user)
+		self.backend._mark_modified(user, self.message_temp)
 		return group
 	
 	def me_group_remove(self, group_id: str) -> None:
@@ -345,7 +347,7 @@ class BackendSession(Session):
 			raise error.GroupDoesNotExist()
 		for ctc in detail.contacts.values():
 			ctc.groups.discard(group_id)
-		self.backend._mark_modified(user)
+		self.backend._mark_modified(user, self.message_temp)
 	
 	def me_group_edit(self, group_id: str, new_name: str, *, is_favorite: Optional[bool] = None) -> None:
 		user = self.user
@@ -360,7 +362,7 @@ class BackendSession(Session):
 			g.name = new_name
 		if is_favorite is not None:
 			g.is_favorite = is_favorite
-		self.backend._mark_modified(user)
+		self.backend._mark_modified(user, self.message_temp)
 	
 	def me_group_contact_add(self, group_id: str, contact_uuid: str) -> None:
 		if group_id == '0': return
@@ -375,7 +377,7 @@ class BackendSession(Session):
 		if group_id in ctc.groups:
 			raise error.ContactAlreadyOnList()
 		ctc.groups.add(group_id)
-		self.backend._mark_modified(user)
+		self.backend._mark_modified(user, self.message_temp)
 	
 	def me_group_contact_remove(self, group_id: str, contact_uuid: str) -> None:
 		user = self.user
@@ -391,7 +393,7 @@ class BackendSession(Session):
 		except KeyError:
 			if group_id == '0':
 				raise error.ContactNotOnList()
-		self.backend._mark_modified(user)
+		self.backend._mark_modified(user, self.message_temp)
 	
 	def me_contact_add(self, contact_uuid: str, lst: Lst, *, name: Optional[str] = None, message: Optional[TextWithData] = None, send_notif_on_AL: bool = False, needs_notify: bool = False) -> Tuple[Contact, User]:
 		backend = self.backend
@@ -432,7 +434,7 @@ class BackendSession(Session):
 			updated = True
 		
 		if updated:
-			self.backend._mark_modified(user)
+			self.backend._mark_modified(user, self.message_temp)
 	
 	def me_contact_remove(self, contact_uuid: str, lst: Lst) -> None:
 		user = self.user
@@ -454,7 +456,6 @@ class BackendSession(Session):
 			raise error.UserDoesNotExist()
 		user = self.user
 		for sess_adder in self.backend._sc.get_sessions_by_user(user_adder):
-			if sess_adder is self: continue
 			sess_adder.evt.on_contact_request_denied(user, deny_message or '')
 	
 	def _add_to_list(self, user: User, ctc_head: User, lst: Lst, name: Optional[str]) -> Contact:
@@ -486,7 +487,7 @@ class BackendSession(Session):
 			updated = True
 		
 		if updated:
-			self.backend._mark_modified(user, detail = detail)
+			self.backend._mark_modified(user, self.message_temp, detail = detail)
 			self.backend._sync_contact_statuses(user)
 		
 		return ctc
@@ -508,7 +509,7 @@ class BackendSession(Session):
 			updated = True
 		
 		if updated:
-			self.backend._mark_modified(user, detail = detail)
+			self.backend._mark_modified(user, self.message_temp, detail = detail)
 			self.backend._sync_contact_statuses(user)
 	
 	def me_contact_notify_oim(self, uuid: str, oim_uuid: str) -> None:
@@ -590,7 +591,7 @@ class Chat:
 		self._users_by_sess = {}
 		self._stats = stats
 		
-		self.add_id('main', gen_uuid())
+		self.add_id('main', backend.auth_service.GenTokenStr(trim = 10))
 	
 	def add_id(self, scope: str, id: str):
 		assert id not in self.backend._chats_by_id
@@ -598,6 +599,8 @@ class Chat:
 		self.backend._chats_by_id[(scope, id)] = self
 	
 	def join(self, origin: str, bs: BackendSession, evt: event.ChatEventHandler, pop_id: Optional[str] = None) -> 'ChatSession':
+		for user in self._users_by_sess.values():
+			if bs.user is user[0]: raise error.AuthFail()
 		cs = ChatSession(origin, bs, self, evt)
 		cs.evt.cs = cs
 		self._users_by_sess[cs] = (cs.user, pop_id)
@@ -612,10 +615,10 @@ class Chat:
 	
 	def send_participant_joined(self, cs: 'ChatSession') -> None:
 		for cs_other in self.get_roster():
-			if cs_other is cs: continue
+			if cs_other is cs and cs.origin is 'yahoo': continue
 			cs_other.evt.on_participant_joined(cs)
 	
-	def on_leave(self, sess: 'ChatSession', keep_future: bool = False) -> None:
+	def on_leave(self, sess: 'ChatSession', keep_future: bool = False, idle: bool = False) -> None:
 		su = self._users_by_sess.pop(sess, None)
 		if su is None: return
 		# TODO: If it goes down to only 1 connected user,
@@ -627,15 +630,16 @@ class Chat:
 		# Notify others that `sess` has left
 		for sess1, _ in self._users_by_sess.items():
 			if sess1 is sess: continue
-			sess1.evt.on_participant_left(sess)
+			sess1.evt.on_participant_left(sess, idle = idle)
 
 class ChatSession(Session):
-	__slots__ = ('origin', 'user', 'chat', 'bs', 'evt')
+	__slots__ = ('origin', 'user', 'chat', 'bs', 'idle_mins', 'evt')
 	
 	origin: Optional[str]
 	user: User
 	chat: Chat
 	bs: BackendSession
+	idle_mins: int
 	evt: event.ChatEventHandler
 	
 	def __init__(self, origin: str, bs: BackendSession, chat: Chat, evt: event.ChatEventHandler) -> None:
@@ -644,11 +648,12 @@ class ChatSession(Session):
 		self.user = bs.user
 		self.chat = chat
 		self.bs = bs
+		self.idle_mins = 0
 		self.evt = evt
 	
 	def _on_close(self, **kwargs) -> None:
 		self.evt.on_close(kwargs.get('keep_future') if kwargs.get('keep_future') is not None else False)
-		self.chat.on_leave(self, keep_future = kwargs.get('keep_future') if kwargs.get('keep_future') is not None else False)
+		self.chat.on_leave(self, keep_future = kwargs.get('keep_future') if kwargs.get('keep_future') is not None else False, idle = kwargs.get('idle') if kwargs.get('idle') is not None else False)
 	
 	def invite(self, invitee: User, *, invite_msg: Optional[str] = None) -> None:
 		session_already_invited = False # type: bool
@@ -658,7 +663,7 @@ class ChatSession(Session):
 		for ctc_sess in ctc_sessions:
 			session_already_invited = False
 			for cs_other in self.chat.get_roster():
-				if cs_other.bs is ctc_sess:
+				if cs_other.bs is ctc_sess and self.origin is not 'yahoo':
 					session_already_invited = True
 					already_invited_sessions.append(ctc_sess)
 					break

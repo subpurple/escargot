@@ -30,3 +30,6 @@ class ContactNotOnline(ClientError):
 
 class AuthFail(ClientError):
 	pass
+
+class NotAllowedWhileHDN(ClientError):
+	pass

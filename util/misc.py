@@ -20,16 +20,18 @@ def first_in_iterable(iterable: Iterable[T]) -> Optional[T]:
 	return None
 
 class Runner(metaclass = ABCMeta):
-	__slots__ = ('host', 'port', 'ssl_context')
+	__slots__ = ('host', 'port', 'ssl_context', 'ssl_only')
 	
 	host: str
 	port: int
 	ssl_context: Optional[ssl.SSLContext]
+	ssl_only: bool
 	
-	def __init__(self, host: str, port: int, *, ssl_context: Optional[ssl.SSLContext] = None) -> None:
+	def __init__(self, host: str, port: int, *, ssl_context: Optional[ssl.SSLContext] = None, ssl_only: bool = False) -> None:
 		self.host = host
 		self.port = port
 		self.ssl_context = ssl_context
+		self.ssl_only = ssl_only
 	
 	@abstractmethod
 	def create_servers(self, loop: asyncio.AbstractEventLoop) -> List[Any]: pass
@@ -42,8 +44,8 @@ class ProtocolRunner(Runner):
 	
 	_protocol: Any
 	
-	def __init__(self, host: str, port: int, protocol, *, args: Optional[List[Any]] = None, ssl_context: Optional[ssl.SSLContext] = None) -> None:
-		super().__init__(host, port, ssl_context = ssl_context)
+	def __init__(self, host: str, port: int, protocol, *, args: Optional[List[Any]] = None, ssl_context: Optional[ssl.SSLContext] = None, ssl_only:bool = False) -> None:
+		super().__init__(host, port, ssl_context = ssl_context, ssl_only = ssl_only)
 		if args:
 			protocol = functools.partial(protocol, *args)
 		self._protocol = protocol
@@ -57,8 +59,8 @@ class AIOHTTPRunner(Runner):
 	app: Any
 	_handler: Optional[Any]
 	
-	def __init__(self, host: str, port: int, app: Any, *, ssl_context: Optional[ssl.SSLContext] = None) -> None:
-		super().__init__(host, port, ssl_context = ssl_context)
+	def __init__(self, host: str, port: int, app: Any, *, ssl_context: Optional[ssl.SSLContext] = None, ssl_only: bool = False) -> None:
+		super().__init__(host, port, ssl_context = ssl_context, ssl_only = ssl_only)
 		self.app = app
 		self._handler = None
 	
@@ -67,9 +69,11 @@ class AIOHTTPRunner(Runner):
 		self._handler = self.app.make_handler(loop = loop)
 		loop.run_until_complete(self.app.startup())
 		
-		ret = [loop.create_server(self._handler, self.host, self.port, ssl = None)]
+		ret = []
+		if not self.ssl_only:
+			ret.append(loop.create_server(self._handler, self.host, self.port, ssl = None))
 		if self.ssl_context is not None:
-			ret.append(loop.create_server(self._handler, self.host, 443, ssl = self.ssl_context))
+			ret.append(loop.create_server(self._handler, self.host, (self.port if self.ssl_only else 443), ssl = self.ssl_context))
 		return ret
 	
 	def teardown(self, loop: asyncio.AbstractEventLoop) -> None:
