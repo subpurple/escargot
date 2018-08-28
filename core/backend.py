@@ -92,8 +92,8 @@ class Backend:
 		user = sess.user
 		old_substatus = user.status.substatus
 		self._stats.on_logout()
-		user_sess_list = self._sc.get_sessions_by_user(user).remove(sess)
-		if user_sess_list:
+		user_sess_list = self._sc.get_sessions_by_user(user)
+		if len(user_sess_list) - 1 > 1:
 			# There are still other people logged in as this user,
 			# so don't send offline notifications.
 			return
@@ -314,7 +314,7 @@ class BackendSession(Session):
 			needs_notify = True
 		if 'substatus' in fields:
 			user.status.substatus = fields['substatus']
-			if old_substatus != user.status.substatus:
+			if old_substatus != user.status.substatus or fields['refresh_profile']:
 				needs_notify = True
 		if 'gtc' in fields:
 			detail.settings['gtc'] = fields['gtc']
@@ -521,14 +521,14 @@ class BackendSession(Session):
 			if sess_notify is self: continue
 			sess_notify.evt.msn_on_oim_sent(uuid)
 	
-	def me_send_uun_invitation(self, uuid: str, snm: bytes):
+	def me_send_uun_invitation(self, uuid: str, type: int, data: bytes, *, pop_id_sender: Optional[str] = None, pop_id: Optional[str] = None):
 		ctc_head = self.backend._load_user_record(uuid)
 		if ctc_head is None:
 			raise error.UserDoesNotExist()
 		
 		for sess_notify in self.backend._sc.get_sessions_by_user(ctc_head):
-			if sess_notify is self: continue
-			sess_notify.evt.msn_on_uun_sent(self.user, snm)
+			#if sess_notify is self: continue
+			sess_notify.evt.msn_on_uun_sent(self.user, type, data, pop_id_sender = pop_id_sender, pop_id = pop_id)
 
 class _SessionCollection:
 	__slots__ = ('_sessions', '_sessions_by_user', '_sess_by_token', '_tokens_by_sess')
@@ -547,7 +547,7 @@ class _SessionCollection:
 	def get_sessions_by_user(self, user: User) -> List[BackendSession]:
 		if user not in self._sessions_by_user:
 			return []
-		return self._sessions_by_user[user].copy()
+		return self._sessions_by_user[user]
 	
 	def iter_sessions(self) -> Iterable[BackendSession]:
 		yield from self._sessions

@@ -12,7 +12,7 @@ from core.models import Substatus, Lst, User, Contact, TextWithData, LoginOption
 from core.client import Client
 
 from .msnp import MSNPCtrl
-from .misc import build_presence_notif, encode_msnobj, decode_capabilities_capabilitiesex, gen_mail_data, Err, MSNStatus
+from .misc import build_presence_notif, encode_msnobj, decode_capabilities_capabilitiesex, decode_email_pop, gen_mail_data, Err, MSNStatus
 
 MSNP_DIALECTS = ['MSNP{}'.format(d) for d in (
 	# Actually supported
@@ -315,6 +315,26 @@ class MSNPCtrlNS(MSNPCtrl):
 		
 		psm = elm.find('PSM')
 		cm = elm.find('CurrentMedia')
+		ddp = elm.find('DDP')
+		if ddp:
+			bs.front_data['msn_msnobj_ddp'] = str(ddp)
+		else:
+			bs.front_data['msn_msnobj_ddp'] = None
+		sigsound = elm.find('SignatureSound')
+		if sigsound:
+			bs.front_data['msn_sigsound'] = str(sigsound)
+		else:
+			bs.front_data['msn_sigsound'] = None
+		scene = elm.find('Scene')
+		if scene:
+			bs.front_data['msn_msnobj_scene'] = str(scene)
+		else:
+			bs.front_data['msn_msnobj_scene'] = None
+		colorscheme = elm.find('ColorScheme')
+		if colorscheme:
+			bs.front_data['msn_colorscheme'] = str(colorscheme)
+		else:
+			bs.front_data['msn_colorscheme'] = None
 		bs.me_update({
 			'message': str(psm) if psm else '',
 			'media': str(cm) if cm else None,
@@ -528,13 +548,18 @@ class MSNPCtrlNS(MSNPCtrl):
 		
 		bs.front_data['msn_capabilities'] = capabilities_msn or 0
 		bs.front_data['msn_capabilitiesex'] = capabilities_msn_ex or 0
+		if msnobj is '0':
+			bs.front_data['msn_msnobj'] = None
+			bs.front_data['msn_msnobj_ddp'] = None
+		else:
+			bs.front_data['msn_msnobj'] = msnobj
 		bs.me_update({
 			'substatus': MSNStatus.ToSubstatus(getattr(MSNStatus, sts_name)),
+			'refresh_profile': True,
 		})
-		bs.front_data['msn_msnobj'] = msnobj
 		
 		extra = () # type: Tuple[Any, ...]
-		if dialect < 18:
+		if dialect >= 9:
 			extra = (encode_msnobj(msnobj),)
 		
 		self.send_reply('CHG', trid, sts_name, capabilities, *extra)
@@ -612,27 +637,40 @@ class MSNPCtrlNS(MSNPCtrl):
 		# supports the Yahoo/MSN interop)
 		self.send_reply('FQY', trid, data)
 	
-	def _m_uun(self, trid: str, email: str, arg0: str, data: bytes) -> None:
+	def _m_uun(self, trid: str, email: str, type: str, data: bytes) -> None:
 		# "Send sharing invitation or reply to invitation"
 		# https://web.archive.org/web/20130926060507/http://msnpiki.msnfanatic.com/index.php/MSNP13:Changes#UUN
 		bs = self.bs
 		assert bs is not None
 		
+		(email, pop_id) = decode_email_pop(email)
+		
 		contact_uuid = self.backend.util_get_uuid_from_email(email)
 		if contact_uuid is None:
 			return
 		try:
-			snm = parse_xml(data.decode('utf-8'))
-			opcode = snm.get('opcode')
-			
-			if opcode in ('SNM','ACK'):
-				self.send_reply('UUN', trid, 'OK')
-		except Exception:
-			# Initiating a voice call on WLM sends a `UUN` command with some integers instead of an `<SNM>` XML ('UUN <trid> <passport> 11\r\n\r\n1 1 0 134546710 144000000')
-			# Send a response in that case.
-			self.send_reply('UUN', trid, 'OK')
+			type = int(type)
+		except ValueError:
+			return
 		
-		bs.me_send_uun_invitation(contact_uuid, data)
+		if type is not None:
+			if type is 1:
+				try:
+					snm = parse_xml(data.decode('utf-8'))
+					opcode = snm.get('opcode')
+					
+					if opcode in ('SNM','ACK'):
+						self.send_reply('UUN', trid, 'OK')
+				except Exception:
+					return
+			elif type in (3,11):
+				# Initiating a voice call on WLM sends a `UUN` command with some integers instead of an `<SNM>` XML ('UUN <trid> <passport> 11\r\n\r\n1 1 0 134546710 144000000')
+				# Send a response in that case.
+				self.send_reply('UUN', trid, 'OK')
+		else:
+			return
+		
+		bs.me_send_uun_invitation(contact_uuid, type, data, pop_id_sender = bs.front_data.get('msn_pop_id'), pop_id = pop_id)
 	
 	def _ser(self) -> Optional[int]:
 		if self.dialect >= 10:
@@ -722,8 +760,20 @@ class BackendEventHandler(event.BackendEventHandler):
 	def msn_on_oim_deletion(self) -> None:
 		self.ctrl.send_reply('MSG', 'Hotmail', 'Hotmail', _encode_payload(PAYLOAD_MSG_4))
 	
-	def msn_on_uun_sent(self, sender: User, snm: bytes) -> None:
-		self.ctrl.send_reply('UBN', sender.email, 1, snm)
+	def msn_on_uun_sent(self, sender: User, type: int, data: bytes, *, pop_id_sender: Optional[str] = None, pop_id: Optional[str] = None) -> None:
+		ctrl = self.ctrl
+		bs = ctrl.bs
+		assert bs is not None
+		
+		#if pop_id is not None:
+		#	if pop_id.lower()[1:-1] != bs.front_data.get('msn_pop_id').lower(): return
+		
+		if pop_id_sender is not None and pop_id is not None and ctrl.dialect >= 16:
+			email = '{};{}'.format(sender.email, '{' + pop_id_sender + '}')
+		else:
+			email = sender.email
+		
+		self.ctrl.send_reply('UBN', email, type, data)
 	
 	def on_login_elsewhere(self, option: LoginOption) -> None:
 		if option is LoginOption.BootOthers:

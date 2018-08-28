@@ -177,10 +177,20 @@ async def handle_abservice(req: web.Request) -> web.Response:
 				'host': settings.LOGIN_HOST,
 			})
 		if action_str == 'ABGroupContactAdd':
-			group_id = str(_find_element(action, 'guid'))
-			contact_uuid = _find_element(action, 'contactId')
-			assert contact_uuid is not None
-			bs.me_group_contact_add(group_id, contact_uuid)
+			if _find_element(action, 'contactInfo'):
+				email = _find_element(action, 'passportName')
+				contact_uuid = backend.util_get_uuid_from_email(email)
+				assert contact_uuid is not None
+				bs.me_contact_add(contact_uuid, models.Lst.FL, name = email)
+				group_ids = action.findall('.//{*}groupFilter/{*}groupIds/{*}guid')
+				for group_id in group_ids:
+					bs.me_group_contact_add(str(group_id), contact_uuid)
+			else:
+				group_ids = action.findall('.//{*}groupFilter/{*}groupIds/{*}guid')
+				contact_uuid = _find_element(action, 'contactId')
+				assert contact_uuid is not None
+				for group_id in group_ids:
+					bs.me_group_contact_add(str(group_id), contact_uuid)
 			return render(req, 'msn:abservice/ABGroupContactAddResponse.xml', {
 				'cachekey': cachekey,
 				'host': settings.LOGIN_HOST,

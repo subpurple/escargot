@@ -13,6 +13,7 @@ def build_presence_notif(trid: Optional[str], ctc: Contact, dialect: int, backen
 	is_offlineish = status.is_offlineish()
 	if is_offlineish and trid is not None:
 		return
+	ctc_sess = None # type: Optional['BackendSession']
 	head = ctc.head
 	
 	networkid = None # type: Optional[int]
@@ -56,7 +57,7 @@ def build_presence_notif(trid: Optional[str], ctc: Contact, dialect: int, backen
 		return
 	
 	ubx_payload = '<Data><PSM>{}</PSM><CurrentMedia>{}</CurrentMedia>{}</Data>'.format(
-		status.message or '', status.media or '', extend_ubx_payload(dialect, backend, ctc_sess, head)
+		encode_xml(status.message) or '', encode_xml(status.media) or '', extend_ubx_payload(dialect, backend, ctc_sess, head)
 	).encode('utf-8')
 	
 	if dialect >= 16:
@@ -71,21 +72,34 @@ def encode_msnobj(msnobj: Optional[str]) -> Optional[str]:
 	if msnobj is None: return None
 	return quote(msnobj, safe = '')
 
+def encode_xml(data: Optional[str]) -> Optional[str]:
+	if data is None: return None
+	encoded = data.replace('&', '&#x26;').replace('<', '&#x3C;').replace('>', '&#x3E;').replace('=', '&#x3D;').replace('\\', '&#x5C;').replace('{', '&#x7B;').replace('}', '&#x7D;')
+	return encoded
+
 def encode_capabilities_capabilitiesex(capabilities: int, capabilitiesex: int) -> str:
 	return '{}:{}'.format(capabilities, capabilitiesex)
 
 def decode_capabilities_capabilitiesex(capabilities_encoded: str) -> Optional[Tuple[int, int]]:
 	return (capabilities_encoded.split(':', 1) if capabilities_encoded.find(':') > 0 else None)
 
+def decode_email_pop(s: str) -> Tuple[str, Optional[str]]:
+	# Split `foo@email.com;{uuid}` into (email, pop_id)
+	parts = s.split(';', 1)
+	if len(parts) < 2:
+		pop_id = None
+	else:
+		pop_id = parts[1]
+	return (parts[0], pop_id)
+
 def extend_ubx_payload(dialect: int, backend: Backend, ctc_sess: 'BackendSession', head: User) -> str:
 	response = ''
 	
 	pop_id_ctc = ctc_sess.front_data.get('msn_pop_id')
-	if dialect >= 13 and pop_id_ctc is not None: response += '<MachineGuid>{}</MachineGuid>'.format('{' + pop_id_ctc + '}')
+	if dialect >= 13 and pop_id_ctc is not None: response += F'<MachineGuid>&#x7B;{pop_id_ctc}&#x7D;</MachineGuid>'
 	
 	if dialect >= 18:
-		# TODO: Get `DDP` (Dynamic Display Pic?) feature implemented
-		response += '<DDP></DDP>'
+		response += '<DDP>{}</DDP><SignatureSound>{}</SignatureSound><Scene>{}</Scene><ColorScheme>{}</ColorScheme>'.format(encode_xml(ctc_sess.front_data.get('msn_msnobj_ddp')) or '', ctc_sess.front_data.get('msn_sigsound') or '', encode_xml(ctc_sess.front_data.get('msn_msnobj_scene')) or '', ctc_sess.front_data.get('msn_colorscheme') or '')
 		if pop_id_ctc is not None:
 			response += EPDATA_PAYLOAD.format(mguid = '{' + pop_id_ctc + '}', capabilities = encode_capabilities_capabilitiesex(ctc_sess.front_data.get('msn_capabilities') or 0, ctc_sess.front_data.get('msn_capabilitiesex') or 0))
 			for ctc_sess_other in backend.util_get_sessions_by_user(head):
@@ -108,7 +122,7 @@ def gen_mail_data(user: User, backend: Backend, *, oim_uuid: Optional[str] = Non
 			) if not just_sent else ''), oimsz = oim.oim_content_length,
 			frommember = oim.from_member_name, guid = oim.run_id, fid = ('00000000-0000-0000-0000-000000000009' if not just_sent else '.!!OIM'),
 			fromfriendly = (oim.from_member_friendly if not just_sent else _format_friendly(oim.from_member_friendly)),
-			su = (SU_M_MAIL_DATA_PAYLOAD if just_sent else ''),
+			su = ('<SU> </SU>' if just_sent else ''),
 		)
 	
 	return MAIL_DATA_PAYLOAD.format(
@@ -122,19 +136,17 @@ def _format_friendly(friendlyname: str) -> str:
 	friendly_parts[3] += ' '
 	return '?'.join(friendly_parts)
 
-MAIL_DATA_PAYLOAD = '''<MD>{e}{q}{m}</MD>'''
+MAIL_DATA_PAYLOAD = '<MD>{e}{q}{m}</MD>'
 
-E_MAIL_DATA_PAYLOAD = '''<E><I>0</I><IU>0</IU><O>0</O><OU>0</OU></E>'''
+E_MAIL_DATA_PAYLOAD = '<E><I>0</I><IU>0</IU><O>0</O><OU>0</OU></E>'
 
-Q_MAIL_DATA_PAYLOAD = '''<Q><QTM>409600</QTM><QNM>204800</QNM></Q>'''
+Q_MAIL_DATA_PAYLOAD = '<Q><QTM>409600</QTM><QNM>204800</QNM></Q>'
 
-M_MAIL_DATA_PAYLOAD = '''<M><T>11</T><S>6</S>{rt}<RS>0</RS><SZ>{oimsz}</SZ><E>{frommember}</E><I>{guid}</I><F>{fid}</F><N>{fromfriendly}</N></M>{su}'''
+M_MAIL_DATA_PAYLOAD = '<M><T>11</T><S>6</S>{rt}<RS>0</RS><SZ>{oimsz}</SZ><E>{frommember}</E><I>{guid}</I><F>{fid}</F><N>{fromfriendly}</N></M>{su}'
 
-RT_M_MAIL_DATA_PAYLOAD = '''<RT>{senttime}</RT>'''
+RT_M_MAIL_DATA_PAYLOAD = '<RT>{senttime}</RT>'
 
-SU_M_MAIL_DATA_PAYLOAD = '''<SU> </SU>'''
-
-EPDATA_PAYLOAD = '''<EndpointData id="{mguid}"><Capabilities>{capabilities}</Capabilities></EndpointData>'''
+EPDATA_PAYLOAD = '<EndpointData id="{mguid}"><Capabilities>{capabilities}</Capabilities></EndpointData>'
 
 class MSNStatus(Enum):
 	FLN = object()

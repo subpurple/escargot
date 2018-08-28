@@ -7,7 +7,7 @@ from util.misc import Logger
 from core.models import User, MessageData, MessageType
 from core.backend import Backend, BackendSession, ChatSession, Chat
 from core import event, error
-from .misc import Err, encode_capabilities_capabilitiesex
+from .misc import Err, encode_capabilities_capabilitiesex, decode_email_pop
 from .msnp import MSNPCtrl
 
 class MSNPCtrlSB(MSNPCtrl):
@@ -44,7 +44,7 @@ class MSNPCtrlSB(MSNPCtrl):
 		self.auth_sent = True
 		if None in (trid,arg,token) or len(args) > 0: self.close(hard = True)
 		
-		(email, pop_id) = _decode_email_pop(arg)
+		(email, pop_id) = decode_email_pop(arg)
 		
 		data = self.backend.auth_service.pop_token('sb/xfr', token) # type: Optional[Tuple[BackendSession, int]]
 		if data is None:
@@ -73,7 +73,7 @@ class MSNPCtrlSB(MSNPCtrl):
 		self.auth_sent = True
 		if None in (trid,arg,token,sessid) or len(args) > 0: self.close(hard = True)
 		
-		(email, pop_id) = _decode_email_pop(arg)
+		(email, pop_id) = decode_email_pop(arg)
 		
 		data = self.backend.auth_service.get_token('sb/cal', token) # type: Optional[Tuple[BackendSession, int, Chat]]
 		if data is None:
@@ -361,12 +361,3 @@ def messagedata_to_msnp(data: MessageData) -> bytes:
 			raise ValueError("unknown message type", data.type)
 		data.front_cache['msnp'] = s.encode('utf-8')
 	return data.front_cache['msnp']
-
-def _decode_email_pop(s: str) -> Tuple[str, Optional[str]]:
-	# Split `foo@email.com;{uuid}` into (email, pop_id)
-	parts = s.split(';', 1)
-	if len(parts) < 2:
-		pop_id = None
-	else:
-		pop_id = parts[1]
-	return (parts[0], pop_id)
