@@ -57,7 +57,7 @@ def build_presence_notif(trid: Optional[str], ctc: Contact, dialect: int, backen
 		return
 	
 	ubx_payload = '<Data><PSM>{}</PSM><CurrentMedia>{}</CurrentMedia>{}</Data>'.format(
-		encode_xml(status.message) or '', encode_xml(status.media) or '', extend_ubx_payload(dialect, backend, ctc_sess, head)
+		encode_xml(status.message) or '', encode_xml(status.media) or '', extend_ubx_payload(dialect, backend, ctc_sess)
 	).encode('utf-8')
 	
 	if dialect >= 16:
@@ -74,7 +74,7 @@ def encode_msnobj(msnobj: Optional[str]) -> Optional[str]:
 
 def encode_xml(data: Optional[str]) -> Optional[str]:
 	if data is None: return None
-	encoded = data.replace('&', '&#x26;').replace('<', '&#x3C;').replace('>', '&#x3E;').replace('=', '&#x3D;').replace('\\', '&#x5C;').replace('{', '&#x7B;').replace('}', '&#x7D;')
+	encoded = data.replace('&', '&#x26;').replace('<', '&#x3C;').replace('>', '&#x3E;').replace('=', '&#x3D;').replace('\\', '&#x5C;')
 	return encoded
 
 def encode_capabilities_capabilitiesex(capabilities: int, capabilitiesex: int) -> str:
@@ -92,17 +92,17 @@ def decode_email_pop(s: str) -> Tuple[str, Optional[str]]:
 		pop_id = parts[1]
 	return (parts[0], pop_id)
 
-def extend_ubx_payload(dialect: int, backend: Backend, ctc_sess: 'BackendSession', head: User) -> str:
+def extend_ubx_payload(dialect: int, backend: Backend, ctc_sess: 'BackendSession') -> str:
 	response = ''
 	
 	pop_id_ctc = ctc_sess.front_data.get('msn_pop_id')
-	if dialect >= 13 and pop_id_ctc is not None: response += F'<MachineGuid>&#x7B;{pop_id_ctc}&#x7D;</MachineGuid>'
+	if dialect >= 13 and pop_id_ctc is not None: response += '<MachineGuid>{}</MachineGuid>'.format('{' + pop_id_ctc + '}')
 	
 	if dialect >= 18:
 		response += '<DDP>{}</DDP><SignatureSound>{}</SignatureSound><Scene>{}</Scene><ColorScheme>{}</ColorScheme>'.format(encode_xml(ctc_sess.front_data.get('msn_msnobj_ddp')) or '', ctc_sess.front_data.get('msn_sigsound') or '', encode_xml(ctc_sess.front_data.get('msn_msnobj_scene')) or '', ctc_sess.front_data.get('msn_colorscheme') or '')
 		if pop_id_ctc is not None:
 			response += EPDATA_PAYLOAD.format(mguid = '{' + pop_id_ctc + '}', capabilities = encode_capabilities_capabilitiesex(ctc_sess.front_data.get('msn_capabilities') or 0, ctc_sess.front_data.get('msn_capabilitiesex') or 0))
-			for ctc_sess_other in backend.util_get_sessions_by_user(head):
+			for ctc_sess_other in backend.util_get_sessions_by_user(ctc_sess.user):
 				if ctc_sess_other.front_data.get('msn_pop_id') == pop_id_ctc: continue
 				response += EPDATA_PAYLOAD.format(mguid = '{' + ctc_sess_other.front_data.get('msn_pop_id') + '}', capabilities = encode_capabilities_capabilitiesex(ctc_sess_other.front_data.get('msn_capabilities') or 0, ctc_sess_other.front_data.get('msn_capabilitiesex') or 0))
 	return response

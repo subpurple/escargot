@@ -166,11 +166,11 @@ class Backend:
 			return
 		self._worklist_notify[uuid] = (bs, old_substatus, on_contact_add, for_logout)
 	
-	def _mark_modified(self, user: User, message_temp: bool, *, detail: Optional[UserDetail] = None) -> None:
+	def _mark_modified(self, user: User, *, retain_message: bool = False, detail: Optional[UserDetail] = None) -> None:
 		ud = user.detail or detail
 		if detail: assert ud is detail
 		assert ud is not None
-		self._worklist_sync_db[user] = (ud, message_temp)
+		self._worklist_sync_db[user] = (ud, retain_message)
 	
 	def util_get_uuid_from_email(self, email: str) -> Optional[str]:
 		return self.user_service.get_uuid(email)
@@ -203,9 +203,9 @@ class Backend:
 			users = list(self._worklist_sync_db.keys())[:100]
 			batch = []
 			for user in users:
-				detail, message_temp = self._worklist_sync_db.pop(user, None)
+				detail, retain_message = self._worklist_sync_db.pop(user, None)
 				if not detail: continue
-				batch.append((user, detail, message_temp))
+				batch.append((user, detail, retain_message))
 			self.user_service.save_batch(batch)
 		except:
 			traceback.print_exc()
@@ -301,11 +301,13 @@ class BackendSession(Session):
 		old_substatus = user.status.substatus
 		
 		if 'message' in fields:
-			user.status.message = fields['message']
-			needs_notify = True
+			if fields['message'] is not None:
+				user.status.message = fields['message']
+				needs_notify = True
 		if 'media' in fields:
-			user.status.media = fields['media']
-			needs_notify = True
+			if fields['media'] is not None:
+				user.status.media = fields['media']
+				needs_notify = True
 		if 'name' in fields:
 			user.status.name = fields['name']
 			needs_notify = True
@@ -319,7 +321,7 @@ class BackendSession(Session):
 		if 'gtc' in fields:
 			detail.settings['gtc'] = fields['gtc']
 		
-		self.backend._mark_modified(user, self.message_temp)
+		self.backend._mark_modified(user, retain_message = (True if (not self.message_temp and user.status.message is None) or self.message_temp else False))
 		if needs_notify:
 			self.backend._sync_contact_statuses(user)
 			self.backend._notify_contacts(self, old_substatus = old_substatus)
@@ -332,7 +334,7 @@ class BackendSession(Session):
 		assert detail is not None
 		group = Group(_gen_group_id(detail), name, is_favorite = is_favorite)
 		detail.groups[group.id] = group
-		self.backend._mark_modified(user, self.message_temp)
+		self.backend._mark_modified(user, retain_message = self.message_temp)
 		return group
 	
 	def me_group_remove(self, group_id: str) -> None:
@@ -347,7 +349,7 @@ class BackendSession(Session):
 			raise error.GroupDoesNotExist()
 		for ctc in detail.contacts.values():
 			ctc.groups.discard(group_id)
-		self.backend._mark_modified(user, self.message_temp)
+		self.backend._mark_modified(user, retain_message = self.message_temp)
 	
 	def me_group_edit(self, group_id: str, new_name: str, *, is_favorite: Optional[bool] = None) -> None:
 		user = self.user
@@ -362,7 +364,7 @@ class BackendSession(Session):
 			g.name = new_name
 		if is_favorite is not None:
 			g.is_favorite = is_favorite
-		self.backend._mark_modified(user, self.message_temp)
+		self.backend._mark_modified(user, retain_message = self.message_temp)
 	
 	def me_group_contact_add(self, group_id: str, contact_uuid: str) -> None:
 		if group_id == '0': return
@@ -377,7 +379,7 @@ class BackendSession(Session):
 		if group_id in ctc.groups:
 			raise error.ContactAlreadyOnList()
 		ctc.groups.add(group_id)
-		self.backend._mark_modified(user, self.message_temp)
+		self.backend._mark_modified(user, retain_message = self.message_temp)
 	
 	def me_group_contact_remove(self, group_id: str, contact_uuid: str) -> None:
 		user = self.user
@@ -393,7 +395,7 @@ class BackendSession(Session):
 		except KeyError:
 			if group_id == '0':
 				raise error.ContactNotOnList()
-		self.backend._mark_modified(user, self.message_temp)
+		self.backend._mark_modified(user, retain_message = self.message_temp)
 	
 	def me_contact_add(self, contact_uuid: str, lst: Lst, *, name: Optional[str] = None, message: Optional[TextWithData] = None, send_notif_on_AL: bool = False, needs_notify: bool = False) -> Tuple[Contact, User]:
 		backend = self.backend
@@ -434,7 +436,7 @@ class BackendSession(Session):
 			updated = True
 		
 		if updated:
-			self.backend._mark_modified(user, self.message_temp)
+			self.backend._mark_modified(user, retain_message = self.message_temp)
 	
 	def me_contact_remove(self, contact_uuid: str, lst: Lst) -> None:
 		user = self.user
@@ -487,7 +489,7 @@ class BackendSession(Session):
 			updated = True
 		
 		if updated:
-			self.backend._mark_modified(user, self.message_temp, detail = detail)
+			self.backend._mark_modified(user, retain_message = self.message_temp, detail = detail)
 			self.backend._sync_contact_statuses(user)
 		
 		return ctc
@@ -509,7 +511,7 @@ class BackendSession(Session):
 			updated = True
 		
 		if updated:
-			self.backend._mark_modified(user, self.message_temp, detail = detail)
+			self.backend._mark_modified(user, retain_message = self.message_temp, detail = detail)
 			self.backend._sync_contact_statuses(user)
 	
 	def me_contact_notify_oim(self, uuid: str, oim_uuid: str) -> None:

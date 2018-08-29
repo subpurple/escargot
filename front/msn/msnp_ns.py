@@ -1,6 +1,6 @@
 from typing import Tuple, Any, Optional, List
 from datetime import datetime
-from lxml.objectify import fromstring as parse_xml
+from lxml.etree import fromstring as parse_xml
 import re
 
 from util.misc import Logger, gen_uuid
@@ -307,7 +307,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		
 		ed = elm.find('EndpointData')
 		if ed:
-			capabilities = str(ed.find('Capabilities'))
+			capabilities = ed.find('Capabilities').text
 			capabilities_lst = decode_capabilities_capabilitiesex(capabilities)
 			if capabilities_lst:
 				bs.front_data['msn_capabilities'] = capabilities_lst[0] or 0
@@ -316,28 +316,21 @@ class MSNPCtrlNS(MSNPCtrl):
 		psm = elm.find('PSM')
 		cm = elm.find('CurrentMedia')
 		ddp = elm.find('DDP')
-		if ddp:
-			bs.front_data['msn_msnobj_ddp'] = str(ddp)
-		else:
-			bs.front_data['msn_msnobj_ddp'] = None
+		if ddp is not None:
+			bs.front_data['msn_msnobj_ddp'] = ddp.text
 		sigsound = elm.find('SignatureSound')
-		if sigsound:
-			bs.front_data['msn_sigsound'] = str(sigsound)
-		else:
-			bs.front_data['msn_sigsound'] = None
+		if sigsound is not None:
+			bs.front_data['msn_sigsound'] = sigsound.text
 		scene = elm.find('Scene')
-		if scene:
-			bs.front_data['msn_msnobj_scene'] = str(scene)
-		else:
-			bs.front_data['msn_msnobj_scene'] = None
+		if scene is not None:
+			bs.front_data['msn_msnobj_scene'] = scene.text
 		colorscheme = elm.find('ColorScheme')
-		if colorscheme:
-			bs.front_data['msn_colorscheme'] = str(colorscheme)
-		else:
-			bs.front_data['msn_colorscheme'] = None
+		if colorscheme is not None:
+			bs.front_data['msn_colorscheme'] = colorscheme.text
+		
 		bs.me_update({
-			'message': str(psm) if psm else '',
-			'media': str(cm) if cm else None,
+			'message': (psm.text if psm is not None else None),
+			'media': (cm.text if cm is not None else None),
 		})
 		
 		self.send_reply('UUX', trid, 0)

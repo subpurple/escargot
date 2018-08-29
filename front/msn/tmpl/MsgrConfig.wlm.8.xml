@@ -1,12 +1,14 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <MsgrConfig>
 	<Simple>
-		<Config><ExpiresInDays>0</ExpiresInDays></Config>
+		<Config>
+			<ExpiresInDays>0</ExpiresInDays>
+		</Config>
 		<DisablePhoneDialer>0</DisablePhoneDialer>
 		<GetItemVersionForUnknown>false</GetItemVersionForUnknown>
 		<Logitech>
-			<PremiumAVConfigServer>http://escargot.pokeacer.xyz/config/stunlocate.sxml</PremiumAVConfigServer>
 			<PreRollEnabled>0</PreRollEnabled>
+			<PremiumAVConfigServer>http://escargot.pokeacer.xyz/config/stunlocate.sxml</PremiumAVConfigServer>
 			<WebcamConfigServer>http://escargot.pokeacer.xyz/config/stunlocate.sxml</WebcamConfigServer>
 		</Logitech>
 		<MinFlashPlayer BuildNumber="28" MajorVersion="9" MinorVersion="0"/>
@@ -75,10 +77,13 @@
 {tabs}
 		</msntabdata>
 		<msntabsettings>
-			<oemdisplaylimit>1</oemdisplaylimit><oemtotallimit>1</oemtotallimit>
+			<oemdisplaylimit>1</oemdisplaylimit>
+			<oemtotallimit>1</oemtotallimit>
 		</msntabsettings>
 		<AbchCfg>
-			<abchconfig><url>http://ebyrdrctcsmsn.log1p.xyz/abservice/abservice.asmx</url></abchconfig>
+			<abchconfig>
+				<url>https://ebyrdrctcsmsn.log1p.xyz/abservice/abservice.asmx</url>
+			</abchconfig>
 		</AbchCfg>
 	</TabConfig>
 	<LocalizedConfig Market="en-US">
@@ -132,7 +137,7 @@
 			<SpaceBaseUrl>http://escargotspaces.com</SpaceBaseUrl>
 			<SpaceIntegrationEnabled>true</SpaceIntegrationEnabled>
 		</ContactCard>
-		<FlashUpgradeURL>http://messenger.msn.com/flash/?mkt=pt-br&amp;version=$VERSION$</FlashUpgradeURL>
+		<FlashUpgradeURL>http://messenger.msn.com/flash/?mkt=en-us&amp;version=$VERSION$</FlashUpgradeURL>
 		<GLinkMarket v="en_us"/>
 		<MSNSearch>
 			<ImagesURL>https://duckduckgo.com/?q=$QUERY$&amp;ia=images</ImagesURL>
@@ -148,13 +153,21 @@
 		</MsnTodayConfig>
 		<OneCare Enabled="0"/>
 		<PSTNOut Hidden="1"/>
-		<PublicFederated><YahooNetwork Enabled="true" OfflineIM="true"/></PublicFederated>
-		<ReportAbuse><ReportAbuseSID/><ReportAbuseURL>https://escargot.log1p.xyz/report-abuse</ReportAbuseURL></ReportAbuse>
+		<PublicFederated>
+			<YahooNetwork Enabled="true" OfflineIM="true"/>
+		</PublicFederated>
+		<ReportAbuse>
+			<ReportAbuseSID/>
+			<ReportAbuseURL>https://escargot.log1p.xyz/report-abuse</ReportAbuseURL>
+		</ReportAbuse>
 		<RL>
 			<ViewProfileURL>https://escargot.pokeacer.xyz/dir/</ViewProfileURL>
 		</RL>
 		<SDrive Enabled="true"/>
-		<TermsOfUse><TermsOfUseSID>956</TermsOfUseSID><TermsOfUseURL>https://escargot.log1p.xyz/etc/tos</TermsOfUseURL></TermsOfUse>
+		<TermsOfUse>
+			<TermsOfUseSID>956</TermsOfUseSID>
+			<TermsOfUseURL>https://escargot.log1p.xyz/etc/tos</TermsOfUseURL>
+		</TermsOfUse>
 		<VoiceClip Hidden="0"/>
 		<VoiceVideo>
 			<DisableSipProxyInviteTest>0</DisableSipProxyInviteTest>

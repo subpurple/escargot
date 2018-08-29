@@ -3,9 +3,8 @@
 		<Config><ExpiresInDays>0</ExpiresInDays></Config>
 		<DisablePhoneDialer>1</DisablePhoneDialer>
 		<Logitech>
-			<!-- TODO: Replace dead STUN server URLs -->
-			<PremiumAVConfigServer>http://escargot.pokeacer.xyz/config/stunlocate.sxml</PremiumAVConfigServer>
 			<PreRollEnabled>0</PreRollEnabled>
+			<PremiumAVConfigServer>http://escargot.pokeacer.xyz/config/stunlocate.sxml</PremiumAVConfigServer>
 			<WebcamConfigServer>http://escargot.pokeacer.xyz/config/stunlocate.sxml</WebcamConfigServer>
 		</Logitech>
 		<MinFlashPlayer BuildNumber="60" MajorVersion="7" MinorVersion="0"></MinFlashPlayer>
@@ -99,15 +98,14 @@
 		</MSNSearch>
 		<MsnTodayConfig>
 			<MsnTodaySiteID>6528</MsnTodaySiteID>
-			<MsnTodayURL>http://escargot.log1p.xyz/etc/escargot-today</MsnTodayURL>
+			<MsnTodayURL>https://escargot.log1p.xyz/etc/escargot-today</MsnTodayURL>
 		</MsnTodayConfig>
 		<RL>
-			<!-- TODO: Code up replacement profile service -->
-			<ViewProfileURL>http://escargot.pokeacer.xyz/dir/</ViewProfileURL>
+			<ViewProfileURL>https://escargot.pokeacer.xyz/dir/</ViewProfileURL>
 		</RL>
 		<TermsOfUse>
 			<TermsOfUseSID>956</TermsOfUseSID>
-			<TermsOfUseURL>http://escargot.log1p.xyz/etc/tos</TermsOfUseURL>
+			<TermsOfUseURL>https://escargot.log1p.xyz/etc/tos</TermsOfUseURL>
 		</TermsOfUse>
 	</LocalizedConfig>
 </MsgrConfig>

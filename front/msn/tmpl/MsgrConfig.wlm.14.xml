@@ -11,7 +11,9 @@
 	</Brands>
 	<Simple>
 		<Config><ExpiresInDays>0</ExpiresInDays></Config>
-		<P2PConfig><ObjectStore><SendDelay>1</SendDelay></ObjectStore></P2PConfig>
+		<P2PConfig>
+			<ObjectStore><SendDelay>1</SendDelay></ObjectStore>
+		</P2PConfig>
 		<DisablePhoneDialer>1</DisablePhoneDialer>
 		<GetItemVersionForUnknown>false</GetItemVersionForUnknown>
 		<Logitech>
@@ -29,11 +31,9 @@
 			<Server ZombieServerDetectDelay="900" ZombieServerDetectResumeDelay="900" ZombieServerDetectConnectDelay="900" ZombieServerDetectLongDelay="900" ZombieServerDetectDelayW4="45" ZombieServerDetectResumeDelayW4="600" ZombieServerDetectConnectDelayW4="135" ZombieServerDetectLongDelayW4="450" />
 		</Contacts>
 		<TrustedDomains>
-			<domain name="escargot.log1p.xyz" />
-			<domain name="log1p.xyz" />
 			<domain name="wink.messengergeek.com" />
 			<domain name="messengergeek.com" />
-			<domain name="escargotspaces.com" />
+			<domain name="escargot.log1p.xyz" />
 		</TrustedDomains>
 		<ErrorResponseTable>
 			<Feature type="0" name="Login">
@@ -466,7 +466,7 @@
 {tabs}
 		</msntabdata>
 		<AbchCfg>
-			<abchconfig><url>http://ebyrdrctcsmsn.log1p.xyz/abservice/abservice.asmx</url></abchconfig>
+			<abchconfig><url>https://ebyrdrctcsmsn.log1p.xyz/abservice/abservice.asmx</url></abchconfig>
 		</AbchCfg>
 	</TabConfig>
 	<LocalizedConfig Market="en-US">
@@ -612,8 +612,8 @@
 		<IntroConfig />
 		<LiveFolders UpsellMessageId="1" />
 		<MSNSearch>
-			<DesktopInstallURL>http://toolbar.msn.com/desktop/results.aspx?q=$QUERY$&amp;FORM=$FC$&amp;mkt=en-us</DesktopInstallURL>
-			<ImagesURL>http://www.bing.com/images/results.aspx?q=$QUERY$&amp;FORM=$FC$&amp;mkt=en-us</ImagesURL>
+			<DesktopInstallURL>https://duckduckgo.com/?q=$QUERY$&amp;ia=web</DesktopInstallURL>
+			<ImagesURL>https://duckduckgo.com/?q=$QUERY$&amp;ia=images</ImagesURL>
 			<InstantAccessConfig>
 				<SearchMarket>en-us</SearchMarket>
 				<SearchURL>http://api.search.live.net/xml.aspx</SearchURL>
@@ -626,14 +626,14 @@
 				<ImageVideoVersion>13</ImageVideoVersion>
 				<ImageVideoPath>http://secure.wlxrs.com/~Live.SiteContent.BloomFilter/~15.20.13/~/~/~/~/imageEN-WW.xml</ImageVideoPath>
 			</InstantAccessConfig>
-			<NearMeURL>http://www.bing.com/results.aspx?q=$QUERY$&amp;FORM=$FC$&amp;mkt=en-us</NearMeURL>
-			<NewsURL>http://www.bing.com/news/results.aspx?q=$QUERY$&amp;FORM=$FC$&amp;mkt=en-us</NewsURL>
+			<NearMeURL>https://duckduckgo.com/?q=$QUERY$&amp;ia=web</NearMeURL>
+			<NewsURL>https://duckduckgo.com/?q=$QUERY$+news&amp;ia=news</NewsURL>
 			<PeopleSearchURL>http://home.live.com/search?query=$QUERY$</PeopleSearchURL>
 			<PeopleSearchSiteID>73625</PeopleSearchSiteID>
-			<SearchKidsURL>http://www.bing.com/results.aspx?q=$QUERY$&amp;FORM=$FC$&amp;mkt=en-us</SearchKidsURL>
-			<SearchURL>http://www.bing.com/results.aspx?q=$QUERY$&amp;FORM=$FC$&amp;mkt=en-us</SearchURL>
-			<SharedSearchURL>http://www.bing.com/results.aspx?q=$QUERY$&amp;FORM=$FC$&amp;mkt=en-us</SharedSearchURL>
-			<SharedSearchURL2>http://www.bing.com/results.aspx?q=$QUERY$&amp;FORM=$FC$&amp;mkt=en-us</SharedSearchURL2>
+			<SearchKidsURL>https://duckduckgo.com/?q=$QUERY$&amp;ia=web</SearchKidsURL>
+			<SearchURL>https://duckduckgo.com/?q=$QUERY$&amp;ia=web</SearchURL>
+			<SharedSearchURL>https://duckduckgo.com/?q=$QUERY$&amp;ia=web</SharedSearchURL>
+			<SharedSearchURL2>https://duckduckgo.com/?q=$QUERY$&amp;ia=web</SharedSearchURL2>
 		</MSNSearch>
 		<MsnTodayConfig>
 			<MsnTodaySiteID>1184</MsnTodaySiteID>
@@ -648,10 +648,13 @@
 		<PremiumAV Visibility="1" />
 		<PSTNOut Hidden="0" />
 		<PublicFederated><YahooNetwork Enabled="true" OfflineIM="true" /></PublicFederated>
-		<ReportAbuse><ReportAbuseSID /><ReportAbuseURL>http://support.live.com/default.aspx?productkey=wlmessengerabuse</ReportAbuseURL><BiciReportAbuseApiUrl>https://home.live.com/handlers/ReportAbuse.mvc</BiciReportAbuseApiUrl><BiciReportAbuseApiServiceTarget>spaces.live.com</BiciReportAbuseApiServiceTarget></ReportAbuse>
-		<RL>
-			<ViewProfileURL>http://g.msn.com/5meen_us/106?%1&amp;Plcid=%2!hs!&amp;%3&amp;Country=%4!hs!&amp;BrandID=%5&amp;passport=%6</ViewProfileURL>
-		</RL>
+		<ReportAbuse>
+			<ReportAbuseSID />
+			<ReportAbuseURL>http://support.live.com/default.aspx?productkey=wlmessengerabuse</ReportAbuseURL>
+			<BiciReportAbuseApiUrl>https://home.live.com/handlers/ReportAbuse.mvc</BiciReportAbuseApiUrl>
+			<BiciReportAbuseApiServiceTarget>spaces.live.com</BiciReportAbuseApiServiceTarget>
+		</ReportAbuse>
+		<RL><ViewProfileURL>http://g.msn.com/5meen_us/106?%1&amp;Plcid=%2!hs!&amp;%3&amp;Country=%4!hs!&amp;BrandID=%5&amp;passport=%6</ViewProfileURL></RL>
 		<SDrive Enabled="true" />
 		<ServiceAwareness>
 			<FindMoreUrl>http://cid-%1!16.16I64X!.profile.live.com/Services/</FindMoreUrl>
@@ -702,7 +705,10 @@
 				<URL id="10" wave4Hidden="false" wave4Index="10">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMUNTJ</URL>
 			</slots>
 		</TabConfig>
-		<TermsOfUse><TermsOfUseSID>956</TermsOfUseSID><TermsOfUseURL>http://messenger.msn.com/Help/Terms.aspx?mkt=en-us</TermsOfUseURL></TermsOfUse>
+		<TermsOfUse>
+			<TermsOfUseSID>956</TermsOfUseSID>
+			<TermsOfUseURL>https://escargot.log1p.xyz/tos</TermsOfUseURL>
+		</TermsOfUse>
 		<VoiceClip Hidden="0" />
 		<VoiceVideo>
 			<DisableSipProxyInviteTest>0</DisableSipProxyInviteTest>

@@ -487,12 +487,16 @@ def _find_element(xml: Any, query: str) -> Any:
 	return thing
 
 async def handle_msgrconfig(req: web.Request) -> web.Response:
-	msgr_config = _get_msgr_config(req)
+	if req.method == 'POST':
+		body = await req.read()
+	else:
+		body = None
+	msgr_config = _get_msgr_config(req, body)
 	if msgr_config == 'INVALID_VER':
 		return web.Response(status = 500)
 	return web.HTTPOk(content_type = 'text/xml', text = msgr_config)
 
-def _get_msgr_config(req: web.Request) -> str:
+def _get_msgr_config(req: web.Request, body: Optional[bytes]) -> str:
 	query = req.query
 	result = None # type: Optional[str]
 	
@@ -521,6 +525,14 @@ def _get_msgr_config(req: web.Request) -> str:
 			with open(TMPL_DIR + '/MsgrConfig.tabs.xml') as fh:
 				config_tabs = fh.read()
 			result = config.format(tabs = config_tabs)
+	elif body is not None:
+		with open(TMPL_DIR + '/MsgrConfig.msn.envelope.xml') as fh:
+			envelope = fh.read()
+		with open(TMPL_DIR + '/MsgrConfig.msn.xml') as fh:
+			config = fh.read()
+		with open(TMPL_DIR + '/MsgrConfig.tabs.xml') as fh:
+			config_tabs = fh.read()
+		result = envelope.format(MsgrConfig = config.format(tabs = config_tabs))
 	
 	return result or ''
 

@@ -214,10 +214,10 @@ class UserService:
 	
 	def save_batch(self, to_save: List[Tuple[User, UserDetail, bool]]) -> None:
 		with Session() as sess:
-			for user, detail, message_temp in to_save:
+			for user, detail, retain_message in to_save:
 				dbuser = sess.query(DBUser).filter(DBUser.uuid == user.uuid).one()
 				dbuser.name = user.status.name
-				if not message_temp: dbuser.message = user.status.message
+				if not retain_message: dbuser.message = user.status.message
 				dbuser.settings = detail.settings
 				dbuser.groups = [{
 					'id': g.id, 'name': g.name,

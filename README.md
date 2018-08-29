@@ -13,7 +13,7 @@ Currently, MSNP2 through MSNP15 (with experimental MSNP16/18 support) are implem
 
 - Because of MSNP limitations, if you want to log in to MSN < 5, you have to store an MD5-encoded password (`User.front_data['msn']['pw_md5']`)
 
-- Messaging works with MSNP18. NS presence is OK, but login toasts are very hit or miss with WLM 2009. MPoP features haven't been properly tested yet, and PSMs aren't loaded with newly logged-in accounts on WLM 2009, but are retained if set in WLM 2009.
+- Messaging works with MSNP18. NS presence is OK, but login toasts are very hit or miss with WLM 2009. MPoP features haven't been properly tested yet.
 
 YMSG:
 
