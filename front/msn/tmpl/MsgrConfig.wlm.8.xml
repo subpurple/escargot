@@ -129,7 +129,7 @@
 			<CreateSpaceUrl>http://escargotspaces.com/register</CreateSpaceUrl>
 			<GetItemVerUrl>http://storage.msn.com/storageservice/schematizedstore.asmx</GetItemVerUrl>
 			<GetXmlFeedUrl>http://services.spaces.msn.com/contactcard/contactcardservice.asmx</GetXmlFeedUrl>
-			<GetXmlFeedRpsUrl>http://cc.services.spaces.live.com/contactcard/contactcardservice.asmx</GetxmlFeedRpsUrl>
+			<GetXmlFeedRpsUrl>http://cc.services.spaces.live.com/contactcard/contactcardservice.asmx</GetXmlFeedRpsUrl>
 			<GetXmlFeedRpsCidUrl>http://cid-%1!16.16I64X!.cc.services.spaces.live.com/contactcard/contactcardservice.asmx</GetXmlFeedRpsCidUrl>
 			<MySpaceSiteId>73625</MySpaceSiteId>
 			<MySpaceUrl>http://escargotspaces.com</MySpaceUrl>

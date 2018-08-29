@@ -41,10 +41,10 @@
 								<contactId>{{ contact.head.uuid }}</contactId>
 								<contactInfo>
 									<contactType>Regular</contactType>
-									<quickName>{{ contact.status.name }}</quickName>
+									<quickName>{{ contact.status.name or contact.head.email }}</quickName>
 									<passportName>{{ contact.head.email }}</passportName>
 									<IsPassportNameHidden>false</IsPassportNameHidden>
-									<displayName>{{ contact.status.name }}</displayName>
+									<displayName>{{ contact.status.name or contact.head.email }}</displayName>
 									<puid>0</puid>
 									<groupIds>
 										{% for group_id in contact.groups %}

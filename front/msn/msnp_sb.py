@@ -51,7 +51,7 @@ class MSNPCtrlSB(MSNPCtrl):
 			self.send_reply(Err.AuthFail, trid)
 			self.close(hard = True)
 		bs, dialect = data
-		if bs.user.email != email or (dialect >= 16 and bs.front_data.get('msn_pop_id') != pop_id[1:-1]):
+		if bs.user.email != email or (dialect >= 16 and pop_id is not None and 'msn_pop_id' in bs.front_data and bs.front_data.get('msn_pop_id')[0] != pop_id[1:-1] and bs.front_data.get('msn_pop_id')[1]):
 			self.send_reply(Err.AuthFail, trid)
 			self.close(hard = True)
 		chat = self.backend.chat_create()
@@ -65,7 +65,7 @@ class MSNPCtrlSB(MSNPCtrl):
 		self.cs = cs
 		# self.counter_task.cancel()
 		# self.counter_task = self.backend.loop.create_task(self._add_idle_min_to_cs())
-		self.send_reply('USR', trid, 'OK', arg, cs.user.status.name)
+		self.send_reply('USR', trid, 'OK', arg, cs.user.status.name or cs.user.email)
 	
 	def _m_ans(self, trid: Optional[str], arg: Optional[str], token: Optional[str], sessid: Optional[int], *args: Any) -> None:
 		#>>> ANS trid email@example.com token sessionid (MSNP < 18)
@@ -85,14 +85,14 @@ class MSNPCtrlSB(MSNPCtrl):
 		# 	self.close(hard = True)
 		
 		(bs, dialect, chat) = data
-		if bs.user.email != email or (dialect >= 16 and pop_id is not None and bs.front_data.get('msn_pop_id') != pop_id[1:-1]):
+		if bs.user.email != email or (dialect >= 16 and pop_id is not None and 'msn_pop_id' in bs.front_data and bs.front_data.get('msn_pop_id')[0] != pop_id[1:-1] and bs.front_data.get('msn_pop_id')[1]):
 			self.send_reply(Err.AuthFail, trid)
 			self.close(hard = True)
 		
 		if chat is None or sessid != chat.ids.get('main'): self.close(hard = True)
 		
 		try:
-			cs = chat.join('msn', bs, ChatEventHandler(self), pop_id = pop_id)
+			cs = chat.join('msn', bs, ChatEventHandler(self), pop_id = (pop_id if 'msn_pop_id' in bs.front_data and bs.front_data.get('msn_pop_id')[1] else None))
 		except Exception as ex:
 			self.send_reply(Err.GetCodeForException(ex), trid)
 		self.dialect = dialect
@@ -106,8 +106,6 @@ class MSNPCtrlSB(MSNPCtrl):
 		roster_chatsessions = list(chat.get_roster()) # type: List[ChatSession]
 		
 		if dialect >= 16:
-			# TODO: Messaging doesn't seem to work in WLM 2009, whether `IRO` and `MSG` contain the email handle combined with the
-			# MPoP GUID or not.
 			tmp = [] # type: List[Tuple[ChatSession, Optional[str]]]
 			for other_cs in roster_chatsessions:
 				if other_cs.user.email == bs.user.email: continue
@@ -193,7 +191,7 @@ class MSNPCtrlSB(MSNPCtrl):
 		
 		# self._reset_cs_idle_mins()
 		
-		cs.send_message_to_everyone(messagedata_from_msnp(cs.user, bs.front_data.get('msn_pop_id'), data))
+		cs.send_message_to_everyone(messagedata_from_msnp(cs.user, (bs.front_data.get('msn_pop_id')[0] if 'msn_pop_id' in bs.front_data and bs.front_data.get('msn_pop_id')[1] else None), data))
 		
 		# TODO: Implement ACK/NAK
 		if ack == 'U':
@@ -299,7 +297,7 @@ class ChatEventHandler(event.ChatEventHandler):
 	
 	def on_participant_left(self, cs_other: ChatSession, idle: bool = False) -> None:
 		ctrl = self.ctrl
-		pop_id_other = cs_other.bs.front_data.get('msn_pop_id')
+		pop_id_other = (cs_other.bs.front_data.get('msn_pop_id')[0] if 'msn_pop_id' in cs_other.bs.front_data and cs_other.bs.front_data.get('msn_pop_id')[1] else None)
 		if pop_id_other is not None and ctrl.dialect >= 16:
 			email = '{};{}'.format(cs_other.user.email, '{' + pop_id_other + '}')
 		else:

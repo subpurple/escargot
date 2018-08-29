@@ -57,7 +57,7 @@ def build_presence_notif(trid: Optional[str], ctc: Contact, dialect: int, backen
 		return
 	
 	ubx_payload = '<Data><PSM>{}</PSM><CurrentMedia>{}</CurrentMedia>{}</Data>'.format(
-		encode_xml(status.message) or '', encode_xml(status.media) or '', extend_ubx_payload(dialect, backend, ctc_sess)
+		(encode_xml_he(status.message, dialect) if dialect >= 13 else encode_xml_ne(status.message)) or '', (encode_xml_he(status.media, dialect) if dialect >= 13 else encode_xml_ne(status.media)) or '', extend_ubx_payload(dialect, backend, ctc_sess)
 	).encode('utf-8')
 	
 	if dialect >= 16:
@@ -72,9 +72,16 @@ def encode_msnobj(msnobj: Optional[str]) -> Optional[str]:
 	if msnobj is None: return None
 	return quote(msnobj, safe = '')
 
-def encode_xml(data: Optional[str]) -> Optional[str]:
+def encode_xml_he(data: Optional[str], dialect: int) -> Optional[str]:
 	if data is None: return None
-	encoded = data.replace('&', '&#x26;').replace('<', '&#x3C;').replace('>', '&#x3E;').replace('=', '&#x3D;').replace('\\', '&#x5C;')
+	encoded = data.replace('&', '&#x26;')
+	if dialect >= 18:
+		encoded = encoded.replace('<', '&#x3C;').replace('>', '&#x3E;').replace('=', '&#x3D;').replace('\\', '&#x5C;')
+	return encoded
+
+def encode_xml_ne(data: Optional[str]) -> Optional[str]:
+	if data is None: return None
+	encoded = data.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('\'', '&apos;').replace('"', '&quot;')
 	return encoded
 
 def encode_capabilities_capabilitiesex(capabilities: int, capabilitiesex: int) -> str:
@@ -95,16 +102,18 @@ def decode_email_pop(s: str) -> Tuple[str, Optional[str]]:
 def extend_ubx_payload(dialect: int, backend: Backend, ctc_sess: 'BackendSession') -> str:
 	response = ''
 	
-	pop_id_ctc = ctc_sess.front_data.get('msn_pop_id')
+	pop_id_ctc, is_ctc_mpop = (ctc_sess.front_data.get('msn_pop_id') if 'msn_pop_id' in ctc_sess.front_data else (None,False))
 	if dialect >= 13 and pop_id_ctc is not None: response += '<MachineGuid>{}</MachineGuid>'.format('{' + pop_id_ctc + '}')
 	
 	if dialect >= 18:
-		response += '<DDP>{}</DDP><SignatureSound>{}</SignatureSound><Scene>{}</Scene><ColorScheme>{}</ColorScheme>'.format(encode_xml(ctc_sess.front_data.get('msn_msnobj_ddp')) or '', ctc_sess.front_data.get('msn_sigsound') or '', encode_xml(ctc_sess.front_data.get('msn_msnobj_scene')) or '', ctc_sess.front_data.get('msn_colorscheme') or '')
-		if pop_id_ctc is not None:
+		response += '<DDP>{}</DDP><SignatureSound>{}</SignatureSound><Scene>{}</Scene><ColorScheme>{}</ColorScheme>'.format(
+			encode_xml_he(ctc_sess.front_data.get('msn_msnobj_ddp'), dialect) or '', encode_xml_he(ctc_sess.front_data.get('msn_sigsound'), dialect) or '', encode_xml_he(ctc_sess.front_data.get('msn_msnobj_scene'), dialect) or '', ctc_sess.front_data.get('msn_colorscheme') or '',
+		)
+		if pop_id_ctc is not None and is_ctc_mpop:
 			response += EPDATA_PAYLOAD.format(mguid = '{' + pop_id_ctc + '}', capabilities = encode_capabilities_capabilitiesex(ctc_sess.front_data.get('msn_capabilities') or 0, ctc_sess.front_data.get('msn_capabilitiesex') or 0))
 			for ctc_sess_other in backend.util_get_sessions_by_user(ctc_sess.user):
-				if ctc_sess_other.front_data.get('msn_pop_id') == pop_id_ctc: continue
-				response += EPDATA_PAYLOAD.format(mguid = '{' + ctc_sess_other.front_data.get('msn_pop_id') + '}', capabilities = encode_capabilities_capabilitiesex(ctc_sess_other.front_data.get('msn_capabilities') or 0, ctc_sess_other.front_data.get('msn_capabilitiesex') or 0))
+				if ctc_sess_other.front_data.get('msn_pop_id')[0] == pop_id_ctc: continue
+				response += EPDATA_PAYLOAD.format(mguid = '{' + ctc_sess_other.front_data.get('msn_pop_id')[0] + '}', capabilities = encode_capabilities_capabilitiesex(ctc_sess_other.front_data.get('msn_capabilities') or 0, ctc_sess_other.front_data.get('msn_capabilitiesex') or 0))
 	return response
 
 def gen_mail_data(user: User, backend: Backend, *, oim_uuid: Optional[str] = None, just_sent: bool = False, on_ns: bool = True, e_node: bool = True, q_node: bool = True) -> str:

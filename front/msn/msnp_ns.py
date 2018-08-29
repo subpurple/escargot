@@ -135,7 +135,7 @@ class MSNPCtrlNS(MSNPCtrl):
 				return
 			if stage == 'S':
 				#>>> USR trid TWN S auth_token
-				#>>> USR trid SSO S auth_token b64_response
+				#>>> USR trid SSO S auth_token b64_response (MSNP15)
 				#>>> USR trid SSO S auth_token b64_response machineguid (MSNP >= 16)
 				token = args[0]
 				if token[0:2] == 't=':
@@ -158,7 +158,7 @@ class MSNPCtrlNS(MSNPCtrl):
 					option = (LoginOption.BootOthers if dialect < 18 or (dialect >= 18 and machineguid is None) else LoginOption.NotifyOthers)
 					self.bs = backend.login(uuid, self.client, BackendEventHandler(self), option)
 					if dialect >= 16 and machineguid is not None:
-						self.bs.front_data['msn_pop_id'] = machineguid[1:-1]
+						self.bs.front_data['msn_pop_id'] = (machineguid[1:-1],  True)
 					
 				self._util_usr_final(trid, token)
 				return
@@ -248,7 +248,7 @@ class MSNPCtrlNS(MSNPCtrl):
 					cs = [c for c in contacts.values() if c.lists & lst]
 					if cs:
 						for i, c in enumerate(cs):
-							self.send_reply('LST', trid, lst.name, ser, len(cs), i + 1, c.head.email, c.status.name)
+							self.send_reply('LST', trid, lst.name, ser, len(cs), i + 1, c.head.email, c.status.name or c.head.email)
 					else:
 						self.send_reply('LST', trid, lst.name, ser, 0, 0)
 				self.send_reply('GTC', trid, ser, settings.get('GTC', 'A'))
@@ -264,7 +264,7 @@ class MSNPCtrlNS(MSNPCtrl):
 					if cs:
 						for i, c in enumerate(cs):
 							gs = ((','.join(c.groups) or '0') if lst == Lst.FL else None)
-							self.send_reply('LST', trid, lst.name, ser, i + 1, len(cs), c.head.email, c.status.name, gs)
+							self.send_reply('LST', trid, lst.name, ser, i + 1, len(cs), c.head.email, c.status.name or c.head.email, gs)
 					else:
 						self.send_reply('LST', trid, lst.name, ser, 0, 0)
 				self.send_reply('GTC', trid, ser, settings.get('GTC', 'A'))
@@ -278,7 +278,7 @@ class MSNPCtrlNS(MSNPCtrl):
 				for g in groups.values():
 					self.send_reply('LSG', g.id, g.name, 0)
 				for c in contacts.values():
-					self.send_reply('LST', c.head.email, c.status.name, c.lists, ','.join(c.groups) or '0')
+					self.send_reply('LST', c.head.email, c.status.name or c.head.email, c.lists, ','.join(c.groups) or '0')
 		else:
 			self.send_reply('SYN', trid, TIMESTAMP, TIMESTAMP, len(contacts), len(groups))
 			self.send_reply('GTC', settings.get('GTC', 'A'))
@@ -288,7 +288,7 @@ class MSNPCtrlNS(MSNPCtrl):
 			for g in groups.values():
 				self.send_reply('LSG', g.name, g.id)
 			for c in contacts.values():
-				self.send_reply('LST', 'N={}'.format(c.head.email), 'F={}'.format(c.status.name), 'C={}'.format(c.head.uuid),
+				self.send_reply('LST', 'N={}'.format(c.head.email), 'F={}'.format(c.status.name or c.head.email), 'C={}'.format(c.head.uuid),
 					c.lists, (None if dialect < 12 else 1), ','.join(c.groups)
 				)
 	
@@ -315,6 +315,9 @@ class MSNPCtrlNS(MSNPCtrl):
 		
 		psm = elm.find('PSM')
 		cm = elm.find('CurrentMedia')
+		mg = elm.find('MachineGuid')
+		if mg is not None and mg.text is not None and not 'msn_pop_id' in bs.front_data:
+			bs.front_data['msn_pop_id'] = (mg.text, False)
 		ddp = elm.find('DDP')
 		if ddp is not None:
 			bs.front_data['msn_msnobj_ddp'] = ddp.text
@@ -329,8 +332,8 @@ class MSNPCtrlNS(MSNPCtrl):
 			bs.front_data['msn_colorscheme'] = colorscheme.text
 		
 		bs.me_update({
-			'message': (psm.text if psm is not None else None),
-			'media': (cm.text if cm is not None else None),
+			'message': ((psm.text or '') if psm is not None else None),
+			'media': ((cm.text or '') if cm is not None else None),
 		})
 		
 		self.send_reply('UUX', trid, 0)
@@ -541,7 +544,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		
 		bs.front_data['msn_capabilities'] = capabilities_msn or 0
 		bs.front_data['msn_capabilitiesex'] = capabilities_msn_ex or 0
-		if msnobj is '0':
+		if msnobj in ('0',None):
 			bs.front_data['msn_msnobj'] = None
 			bs.front_data['msn_msnobj_ddp'] = None
 		else:
@@ -636,6 +639,8 @@ class MSNPCtrlNS(MSNPCtrl):
 		bs = self.bs
 		assert bs is not None
 		
+		pop_id_self = None
+		
 		(email, pop_id) = decode_email_pop(email)
 		
 		contact_uuid = self.backend.util_get_uuid_from_email(email)
@@ -663,7 +668,12 @@ class MSNPCtrlNS(MSNPCtrl):
 		else:
 			return
 		
-		bs.me_send_uun_invitation(contact_uuid, type, data, pop_id_sender = bs.front_data.get('msn_pop_id'), pop_id = pop_id)
+		if bs.front_data.get('msn_pop_id') is not None:
+			pop_id_self, is_mpop = bs.front_data.get('msn_pop_id')
+			if not is_mpop:
+				pop_id_self = None
+		
+		bs.me_send_uun_invitation(contact_uuid, type, data, pop_id_sender = pop_id_self, pop_id = pop_id)
 	
 	def _ser(self) -> Optional[int]:
 		if self.dialect >= 10:
@@ -758,8 +768,9 @@ class BackendEventHandler(event.BackendEventHandler):
 		bs = ctrl.bs
 		assert bs is not None
 		
-		#if pop_id is not None:
-		#	if pop_id.lower()[1:-1] != bs.front_data.get('msn_pop_id').lower(): return
+		#if pop_id is not None and 'msn_pop_id' in bs.front_data:
+		#	pop_id_self, is_mpop = bs.front_data.get('msn_pop_id')
+		#	if pop_id.lower()[1:-1] != pop_id_self.lower(): return
 		
 		if pop_id_sender is not None and pop_id is not None and ctrl.dialect >= 16:
 			email = '{};{}'.format(sender.email, '{' + pop_id_sender + '}')
