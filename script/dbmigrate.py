@@ -6,8 +6,9 @@ with db.Session() as sess:
 	# sess.execute('''
 	# 	ALTER TABLE t_user DROP COLUMN type
 	# ''')
-	print('''Since this revision of `dbmigrate.py` is supposed to involve deleting an unneeded column from the database table `t_user`, something the default DB engine (SQLite) doesn't support, we advise you to manually recreate the database table with the offending column unspecified.''')
-	sys.exit(-1)
+	
+	#print('''Since this revision of `dbmigrate.py` is supposed to involve deleting an unneeded column from the database table `t_user`, something the default DB engine (SQLite) doesn't support, we advise you to manually recreate the database table with the offending column unspecified.''')
+	#sys.exit(-1)
 	#sess.execute('''
 	#	ALTER TABLE t_user ADD COLUMN front_data TEXT NOT NULL DEFAULT '{}'
 	#''')

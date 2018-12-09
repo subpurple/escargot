@@ -26,7 +26,7 @@ class YMSGCtrlBase(metaclass = ABCMeta):
 	
 	def __init__(self, logger: Logger) -> None:
 		self.logger = logger
-		self.decoder = YMSGDecoder()
+		self.decoder = YMSGDecoder(logger)
 		self.encoder = YMSGEncoder(logger)
 		self.peername = ('0.0.0.0', 5050)
 		self.closed = False
@@ -34,19 +34,7 @@ class YMSGCtrlBase(metaclass = ABCMeta):
 	
 	def data_received(self, transport: asyncio.BaseTransport, data: bytes) -> None:
 		self.peername = transport.get_extra_info('peername')
-		#self.logger.info('>>>', data)
-		
-		n = find_count_PRE(data)
-		if n > 1:
-			for pack in sep_cluster(data, n):
-				self.receive_event(pack)
-		else:
-			self.receive_event(data)
-	
-	def receive_event(self, pkt: bytes) -> None:
-		for y in self.decoder.data_received(pkt):
-			_truncated_log(self.logger, '>>>', y, 'INCOMING')
-			
+		for y in self.decoder.data_received(data):
 			try:
 				# check version and vendorId
 				if y[1] > 16 or y[2] not in (0, 100):
@@ -114,30 +102,63 @@ class YMSGEncoder:
 DecodedYMSG = Tuple[YMSGService, int, int, YMSGStatus, int, KVS]
 
 class YMSGDecoder:
-	__slots__ = ('_data')
+	__slots__ = ('logger', '_data', '_i')
 	
+	logger: Logger
 	_data: bytes
+	_i: int
 	
-	def __init__(self) -> None:
+	def __init__(self, logger: Logger) -> None:
+		self.logger = logger
 		self._data = b''
+		self._i = 0
 	
 	def data_received(self, data: bytes) -> Iterable[DecodedYMSG]:
-		# TODO: Shouldn't this +=?
-		self._data = data
-		
-		y = self._ymsg_read()
-		if y is None: return
-		yield y
+		if self._data:
+			self._data += data
+		else:
+			self._data = data
+		while self._data:
+			y = self._ymsg_read()
+			if y is None: break
+			yield y
 	
 	def _ymsg_read(self) -> Optional[DecodedYMSG]:
 		try:
-			y = _decode_ymsg(self._data)
+			y, e = _try_decode_ymsg(self._data, self._i)
 		except AssertionError:
 			return None
 		except Exception:
 			print("ERR _ymsg_read", self._data)
 			raise
+		
+		self._data = self._data[e:]
+		self._i = 0
+		_truncated_log(self.logger, '>>>', y, 'INCOMING')
 		return y
+
+def _try_decode_ymsg(d: bytes, i: int) -> Tuple[DecodedYMSG, int]:
+	kvs = MultiDict()
+	
+	e = 20
+	assert len(d[i:]) >= e
+	assert d[i:i+4] == PRE
+	header = d[i+4:i+e]
+	struct_fmt = ('!xB' if header[0] == b'\x00' else '!Bx') + 'HHHII'
+	(version, vendor_id, n, service, status, session_id) = struct.unpack(struct_fmt, header)
+	assert version in YMSG_DIALECTS
+	assert e+n <= len(d[i:])
+	payload = d[e:e+n]
+	if payload:
+		assert payload[-2:] == SEP
+		parts = payload.split(SEP)
+		del parts[-1]
+		assert len(parts) % 2 == 0
+		for i in range(1, len(parts), 2):
+			key = int(parts[i-1].decode())
+			kvs.add(str(key), parts[i].decode('utf-8'))
+		e += n
+	return ((YMSGService(service), version, vendor_id, YMSGStatus(status), session_id, kvs), e)
 
 def _truncated_log(logger: Logger, pre: str, y: DecodedYMSG, transport_type: str) -> None:
 	if y[0] in (YMSGService.List,YMSGService.PeerToPeer,YMSGService.P2PFileXfer,YMSGService.Message,YMSGService.ConfInvite,YMSGService.ConfAddInvite,YMSGService.ConfMsg,YMSGService.Passthrough2,YMSGService.SkinName) or (y[0] in (YMSGService.FriendAdd,YMSGService.ContactDeny) and y[5].get('14') not in (None,'')) or (y[0] is YMSGService.ContactNew and y[3] in (YMSGStatus.NotAtHome,YMSGStatus.OnVacation) and y[5].get('14') not in (None,'')) or (y[0] is YMSGService.AuthResp and y[5].get('59') is not None):
@@ -151,44 +172,12 @@ def _truncated_log(logger: Logger, pre: str, y: DecodedYMSG, transport_type: str
 		elif transport_type == 'OUTGOING':
 			logger.info(pre, y[0], y[3], y[4], y[5])
 
-def _decode_ymsg(data: bytes) -> DecodedYMSG:
-	assert data[:4] == PRE
-	assert len(data) >= 20
-	header = data[4:20]
-	payload = data[20:]
-	struct_fmt = ('!xB' if header[0] == b'\x00' else '!Bx') + 'HHHII'
-	(version, vendor_id, pkt_len, service, status, session_id) = struct.unpack(struct_fmt, header)
-	assert len(payload) == pkt_len
-	parts = payload.split(SEP)
-	kvs = MultiDict()
-	for i in range(1, len(parts), 2):
-		kvs.add(str(parts[i-1].decode()), parts[i].decode('utf-8'))
-	return YMSGService(service), version, vendor_id, YMSGStatus(status), session_id, kvs
-
-def sep_cluster(data: bytes, length: int) -> List[bytes]:
-	pos = 0
-	cluster_pack = []
-	
-	for i in range(0, length):
-		length_post_PRE = pos + (20 + struct.unpack('!H', data[(pos + 8):(pos + 10)])[0])
-		cluster_pack.append(data[pos:length_post_PRE])
-		pos = length_post_PRE
-	
-	return cluster_pack
-
 PRE = b'YMSG'
 SEP = b'\xC0\x80'
 
-def find_count_PRE(source: bytes) -> int:
-	how_many = 0
-	pos = 0
-	
-	while True:
-		pos = source.find(PRE, pos)
-		if pos == -1:
-			break
-		how_many += 1
-		length = struct.unpack('!H', source[(pos + 8):(pos + 10)])[0]
-		pos += (20 + length)
-	
-	return how_many or -1
+YMSG_DIALECTS = [
+	# Actually supported
+	10, 9,
+	# Not actually supported
+	16, 15, 14, 13, 12, 11, 8,
+]

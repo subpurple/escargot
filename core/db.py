@@ -1,7 +1,8 @@
-from typing import Any
+from typing import Dict, List, Optional, Any
 import json
 from contextlib import contextmanager
 from datetime import datetime, timedelta
+import time
 import sqlalchemy as sa
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
@@ -20,7 +21,9 @@ class User(Base):
 	date_created = sa.Column(sa.DateTime, nullable = True, default = datetime.utcnow)
 	date_login = sa.Column(sa.DateTime, nullable = True)
 	uuid = sa.Column(sa.String, nullable = False, unique = True)
-	email = sa.Column(sa.String, nullable = False, unique = True)
+	networkid = sa.Column(sa.Integer, nullable = True)
+	email = sa.Column(sa.String, nullable = False)
+	relay = sa.Column(sa.Boolean, nullable = False, default = False)
 	verified = sa.Column(sa.Boolean, nullable = False)
 	name = sa.Column(sa.String, nullable = False)
 	message = sa.Column(sa.String, nullable = False)
@@ -28,6 +31,7 @@ class User(Base):
 	settings = sa.Column(JSONType, nullable = False)
 	groups = sa.Column(JSONType, nullable = False)
 	contacts = sa.Column(JSONType, nullable = False)
+	subscribed_ab_stores = sa.Column(JSONType, nullable = False)
 	
 	# Data specific to front-ends; e.g. different types of password hashes
 	# E.g. front_data = { 'msn': { ... }, 'ymsg': { ... }, ... }
@@ -50,13 +54,108 @@ class User(Base):
 		if not fd: return None
 		return fd.get(key)
 
-class YahooAlias(Base):
-	__tablename__ = 't_yahoo_alias'
+class ABMetadata(Base):
+	__tablename__ = 't_ab_metadata'
 	
 	id = sa.Column(sa.Integer, nullable = False, primary_key = True)
-	yid_alias = sa.Column(sa.String, nullable = False)
-	owner_uuid = sa.Column(sa.String, nullable = False)
-	is_activated = sa.Column(sa.Boolean, nullable = False, default = True)
+	ab_id = sa.Column(sa.String, nullable = False)
+	ab_type = sa.Column(sa.String, nullable = False)
+
+class ABStore(Base):
+	__tablename__ = 't_ab_store'
+	
+	id = sa.Column(sa.Integer, nullable = False, primary_key = True)
+	member_uuid = sa.Column(sa.String, nullable = False)
+	ab_id = sa.Column(sa.String, nullable = False)
+	groups = sa.Column(JSONType, nullable = False)
+	contacts = sa.Column(JSONType, nullable = False)
+
+class ABStoreContact(Base):
+	__tablename__ = 't_ab_store_contact'
+	
+	id = sa.Column(sa.Integer, nullable = False, primary_key = True)
+	contact_uuid = sa.Column(sa.String, nullable = False)
+	contact_owner_uuid = sa.Column(sa.String, nullable = False)
+	date_last_modified = sa.Column(sa.DateTime, nullable = True, default = datetime.utcnow)
+	type = sa.Column(sa.String, nullable = False)
+	email = sa.Column(sa.String, nullable = False)
+	name = sa.Column(sa.String, nullable = True)
+	groups = sa.Column(JSONType, nullable = False)
+	is_messenger_user = sa.Column(sa.Boolean, nullable = False, default = False)
+	annotations = sa.Column(JSONType, nullable = False)
+
+class ABStoreContactNetworkInfo(Base):
+	__tablename__ = 't_ab_store_contact_networkinfo'
+	
+	id = sa.Column(sa.Integer, nullable = False, primary_key = True)
+	contact_uuid = sa.Column(sa.String, nullable = False)
+	ab_id = sa.Column(sa.String, nullable = False)
+	ab_owner_uuid = sa.Column(sa.String, nullable = True)
+	date_created = sa.Column(sa.DateTime, nullable = True, default = datetime.utcnow)
+	date_last_modified = sa.Column(sa.DateTime, nullable = True)
+	domain_id = sa.Column(sa.Integer, nullable = False)
+	source_id = sa.Column(sa.String, nullable = False)
+	domain_tag = sa.Column(sa.String, nullable = False)
+	display_name = sa.Column(sa.String, nullable = False)
+	relationship_type = sa.Column(sa.Integer, nullable = False)
+	relationship_role = sa.Column(sa.Integer, nullable = False)
+	relationship_state = sa.Column(sa.Integer, nullable = False)
+	relationship_state_date = sa.Column(sa.DateTime, nullable = True)
+	invite_message = sa.Column(sa.String, nullable = True)
+
+class ABStoreGroup(Base):
+	__tablename__ = 't_ab_store_group'
+	
+	id = sa.Column(sa.Integer, nullable = False, primary_key = True)
+	group_id = sa.Column(sa.String, nullable = False)
+	group_owner_uuid = sa.Column(sa.String, nullable = False)
+	name = sa.Column(sa.String, nullable = False)
+	is_favorite = sa.Column(sa.Boolean, nullable = False, default = False)
+	date_last_modified = sa.Column(sa.DateTime, nullable = True, default = datetime.utcnow)
+
+class CircleStore(Base):
+	__tablename__ = 't_circle_store'
+	
+	id = sa.Column(sa.String, nullable = False, unique = True, primary_key = True)
+	circle_name = sa.Column(sa.String, nullable = False)
+	owner_email = sa.Column(sa.String, nullable = False)
+	owner_friendly = sa.Column(sa.String, nullable = False)
+	membership_access = sa.Column(sa.Integer, nullable = False)
+	request_membership_option = sa.Column(sa.Integer, nullable = False)
+	is_presence_enabled = sa.Column(sa.Boolean, nullable = False)
+	date_last_modified = sa.Column(sa.DateTime, nullable = False, default = datetime.now)
+	_user_memberships = sa.Column(JSONType, name = 'user_memberships', nullable = False, default = {})
+	
+	def set_user_membership(self, email: str, member_role: Optional[int], member_status: Optional[int]) -> None:
+		memberships = self._user_memberships or {}
+		if email in memberships:
+			if member_role:
+				memberships[email]['membership_role'] = member_role
+			if member_status:
+				memberships[email]['membership_status'] = member_status
+			return
+		if member_role and member_status:
+			memberships[email] = { 'membership_role': member_role, 'membership_status': member_status, }
+		self._user_memberships = _simplify_json_data(memberships)
+	
+	def get_user_membership(self, email: str) -> Optional[Dict[str, int]]:
+		memberships = self._user_memberships
+		if not memberships: return None
+		membership = memberships.get(email)
+		if not membership: return None
+		return membership
+
+class OIM(Base):
+	__tablename__ = 't_oim'
+	
+	run_id = sa.Column(sa.String, nullable = False, unique = True, primary_key = True)
+	oim_num = sa.Column(sa.Integer, nullable = False)
+	from_member_name = sa.Column(sa.String, nullable = False)
+	from_member_friendly = sa.Column(sa.String, nullable = False)
+	to_member_name = sa.Column(sa.String, nullable = False)
+	oim_sent = sa.Column(sa.DateTime, nullable = False)
+	content = sa.Column(sa.String, nullable = False)
+	is_read = sa.Column(sa.Boolean, nullable = False)
 
 def _simplify_json_data(data: Any) -> Any:
 	if isinstance(data, dict):
@@ -72,17 +171,12 @@ def _simplify_json_data(data: Any) -> Any:
 		return [_simplify_json_data(x) for x in data]
 	return data
 
-class OIM(Base):
-	__tablename__ = 't_oim'
+class YahooAlias(Base):
+	__tablename__ = 't_yahoo_alias'
 	
-	run_id = sa.Column(sa.String, nullable = False, unique = True, primary_key = True)
-	oim_num = sa.Column(sa.Integer, nullable = False)
-	from_member_name = sa.Column(sa.String, nullable = False)
-	from_member_friendly = sa.Column(sa.String, nullable = False)
-	to_member_name = sa.Column(sa.String, nullable = False)
-	oim_sent = sa.Column(sa.DateTime, nullable = False)
-	content = sa.Column(sa.String, nullable = False)
-	is_read = sa.Column(sa.Boolean, nullable = False)
+	id = sa.Column(sa.Integer, nullable = False, primary_key = True)
+	yid_alias = sa.Column(sa.String, nullable = False)
+	owner_uuid = sa.Column(sa.String, nullable = False)
 
 class YahooOIM(Base):
 	__tablename__ = 't_yahoo_oim'
@@ -103,7 +197,6 @@ class Sound(Base):
 	category = sa.Column(sa.Integer, nullable = False)
 	language = sa.Column(sa.Integer, nullable = False)
 	is_public = sa.Column(sa.Boolean, nullable = False)
-
 
 engine = sa.create_engine(settings.DB)
 session_factory = sessionmaker(bind = engine)

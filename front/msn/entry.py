@@ -46,9 +46,6 @@ class ListenerMSNP(asyncio.Protocol):
 	def data_received(self, data: bytes) -> None:
 		transport = self.transport
 		assert transport is not None
-		if self.backend.maintenance_mode:
-			transport.close()
-			return
 		# Setting `transport` to None so all data is held until the flush
 		self.controller.transport = None
 		self.controller.data_received(transport, data)

@@ -19,6 +19,15 @@ class ContactDoesNotExist(ClientError):
 class ContactAlreadyOnList(ClientError):
 	pass
 
+class NicknameExceedsLengthLimit(ClientError):
+	pass
+
+class EmptyDomainInXXL(ClientError):
+	pass
+
+class InvalidXXLPayload(ClientError):
+	pass
+
 class ContactNotOnList(ClientError):
 	pass
 

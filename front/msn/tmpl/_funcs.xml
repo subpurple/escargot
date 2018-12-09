@@ -1,0 +1,68 @@
+{%- macro contact_entry(contact, groups) -%}
+	<contactId>{{ contact.uuid }}</contactId>
+	<contactInfo>
+		{%- if contact.annotations -%}
+			<annotations>
+				{%- for name, value in contact.annotations.items() -%}
+					<Annotation>
+						<Name>{{ name }}</Name>
+						<Value>{{ value }}</Value>
+					</Annotation>
+				{%- endfor -%}
+			</annotations>
+		{%- endif -%}
+		<contactType>{{ contact.type }}</contactType>
+		<quickName>{{ contact.name or contact.email }}</quickName>
+		<passportName>{{ contact.email }}</passportName>
+		<IsPassportNameHidden>false</IsPassportNameHidden>
+		<displayName>{{ contact.name or contact.email }}</displayName>
+		<puid>0</puid>
+		{%- if contact.groups -%}
+			<groupIds>
+				{% for group_id in contact.groups %}
+					<guid>{{ group_id }}</guid>
+				{% endfor %}
+			</groupIds>
+		{%- endif -%}
+		<CID>{{ cid_format(contact.uuid, decimal = True) }}</CID>
+		<IsNotMobileVisible>false</IsNotMobileVisible>
+		<isMobileIMEnabled>false</isMobileIMEnabled>
+		<isMessengerUser>{{ bool_to_str(contact.is_messenger_user) }}</isMessengerUser>
+		<isFavorite>{{ contact_is_favorite(groups, contact) }}</isFavorite>
+		<isSmtp>false</isSmtp>
+		<hasSpace>false</hasSpace>
+		<spotWatchState>NoDevice</spotWatchState>
+		<birthdate>0001-01-01T00:00:00</birthdate>
+		<primaryEmailType>ContactEmailPersonal</primaryEmailType>
+		<PrimaryLocation>ContactLocationPersonal</PrimaryLocation>
+		<PrimaryPhone>ContactPhonePersonal</PrimaryPhone>
+		<IsPrivate>false</IsPrivate>
+		<Gender>Unspecified</Gender>
+		<TimeZone>None</TimeZone>
+	</contactInfo>
+	<propertiesChanged />
+	<fDeleted>false</fDeleted>
+	<lastChange>{{ date_format(contact.date_last_modified, Z = True) }}</lastChange>
+{%- endmacro -%}
+
+{%- macro group_entry(group) -%}
+	<Group>
+		<groupId>{{ group.id }}</groupId>
+		<groupInfo>
+			<annotations>
+				<Annotation>
+					<Name>MSN.IM.Display</Name>
+					<Value>1</Value>
+				</Annotation>
+			</annotations>
+			<groupType>c8529ce2-6ead-434d-881f-341e17db3ff8</groupType>
+			<name>{{ group.name }}</name>
+			<IsNotMobileVisible>false</IsNotMobileVisible>
+			<IsPrivate>false</IsPrivate>
+			<IsFavorite>{{ bool_to_str(group.is_favorite) }}</IsFavorite>
+		</groupInfo>
+		<propertiesChanged />
+		<fDeleted>false</fDeleted>
+		<lastChange>{{ date_format(group.date_last_modified, Z = True) }}</lastChange>
+	</Group>
+{%- endmacro -%}

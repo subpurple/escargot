@@ -3,7 +3,7 @@ import asyncio
 import random
 
 from core.client import Client
-from core.models import Substatus, Lst, Contact, User, TextWithData, MessageData, MessageType, LoginOption
+from core.models import Substatus, Lst, Contact, User, NetworkID, TextWithData, MessageData, MessageType, LoginOption
 from core.backend import Backend, BackendSession, Chat, ChatSession
 from core import event
 
@@ -11,11 +11,11 @@ CLIENT = Client('testbot', '0.1', 'direct')
 BOT_EMAIL = 'test@bot.log1p.xyz'
 
 def register(loop: asyncio.AbstractEventLoop, backend: Backend) -> None:
-	uuid = backend.util_get_uuid_from_email(BOT_EMAIL)
+	uuid = backend.util_get_uuid_from_email(BOT_EMAIL, NetworkID.ANY)
 	assert uuid is not None
-	bs = backend.login(uuid, CLIENT, BackendEventHandler(loop), LoginOption.BootOthers)
+	bs = backend.login(uuid, CLIENT, BackendEventHandler(loop), option = LoginOption.BootOthers)
 	assert bs is not None
-	bs.front_data['msn_capabilities'] = 131104
+	bs.front_data['msn_capabilities'] = 32
 	bs.front_data['msn_capabilitiesex'] = 0
 
 class BackendEventHandler(event.BackendEventHandler):
@@ -36,7 +36,7 @@ class BackendEventHandler(event.BackendEventHandler):
 		detail = bs.user.detail
 		assert detail is not None
 		
-		uuid = bs.backend.util_get_uuid_from_email('test1@example.com')
+		uuid = bs.backend.util_get_uuid_from_email('test1@example.com', NetworkID.ANY)
 		if uuid is None:
 			return
 		
@@ -44,20 +44,20 @@ class BackendEventHandler(event.BackendEventHandler):
 			bs.me_contact_add(uuid, Lst.FL, name = "Test 1")
 			bs.me_contact_add(uuid, Lst.AL, name = "Test 1")
 	
-	def on_presence_notification(self, user: User, old_substatus: Substatus, on_contact_add: bool) -> None:
+	def on_presence_notification(self, ctc_head: User, old_substatus: Substatus, on_contact_add: bool, *, trid: Optional[str] = None, update_status: bool = True, send_status_on_bl: bool = False, visible_notif: bool = True, updated_phone_info: Optional[Dict[str, Any]] = None, circle_user_bs: Optional[BackendSession] = None, circle_id: Optional[str] = None) -> None:
 		pass
 	
-	def on_chat_invite(self, chat: Chat, inviter: User, *, invite_msg: Optional[str] = None) -> None:
+	def on_chat_invite(self, chat: Chat, inviter: User, *, inviter_id: Optional[str] = None, invite_msg: str = '') -> None:
 		cs = chat.join('testbot', self.bs, ChatEventHandler(self.loop, self.bs))
 		chat.send_participant_joined(cs)
 	
-	def on_added_me(self, user: User, *, message: Optional[TextWithData] = None) -> None:
+	def on_added_me(self, user: User, *, adder_id: Optional[str] = None, message: Optional[TextWithData] = None) -> None:
 		pass
 	
-	def on_contact_request_denied(self, user: User, message: Optional[str]) -> None:
+	def on_contact_request_denied(self, user_added: User, message: Optional[str], *, contact_id: Optional[str] = None) -> None:
 		pass
 	
-	def ymsg_on_p2p_msg_request(self, user_from: User, yahoo_data: Dict[str, Any]) -> None:
+	def ymsg_on_p2p_msg_request(self, yahoo_data: Dict[str, Any]) -> None:
 		pass
 	
 	def on_login_elsewhere(self, option: LoginOption) -> None:
@@ -86,10 +86,10 @@ class ChatEventHandler(event.ChatEventHandler):
 	def on_participant_joined(self, cs_other: ChatSession) -> None:
 		pass
 	
-	def on_participant_left(self, cs_other: ChatSession, idle: bool = False) -> None:
+	def on_participant_left(self, cs_other: ChatSession, idle: bool, last_pop: bool) -> None:
 		pass
 	
-	def on_invite_declined(self, invited_user: User, *, message: Optional[str] = None) -> None:
+	def on_invite_declined(self, invited_user: User, *, invited_id: Optional[str] = None, message: str = '') -> None:
 		pass
 	
 	def on_message(self, message: MessageData) -> None:

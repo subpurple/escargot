@@ -1,14 +1,21 @@
-from typing import Optional, Tuple, Any, Iterable, ClassVar, Dict
+from typing import Optional, Tuple, Any, Iterable, List, ClassVar, Dict
 from urllib.parse import quote
-from enum import Enum
+from hashlib import md5
+import binascii
+import sys
+import struct
+from enum import Enum, IntEnum
 
 from util.misc import first_in_iterable, DefaultDict
+from typing import Optional
 
 from core import error
 from core.backend import Backend
-from core.models import User, Contact, Substatus
+from core.models import User, Contact, Lst, Substatus, NetworkID
 
-def build_presence_notif(trid: Optional[str], ctc: Contact, dialect: int, backend: Backend) -> Iterable[Tuple[Any, ...]]:
+def build_presence_notif(trid: Optional[str], ctc: Contact, dialect: int, backend: Backend, old_substatus: Substatus, *, circle_user_bs: Optional['BackendSession'] = None, circle_id: Optional[str] = None) -> Iterable[Tuple[Any, ...]]:
+	circle_owner = False
+	
 	status = ctc.status
 	is_offlineish = status.is_offlineish()
 	if is_offlineish and trid is not None:
@@ -16,42 +23,56 @@ def build_presence_notif(trid: Optional[str], ctc: Contact, dialect: int, backen
 	ctc_sess = None # type: Optional['BackendSession']
 	head = ctc.head
 	
-	networkid = None # type: Optional[int]
+	networkid = None # type: Optional[NetworkID]
 	if dialect >= 14:
-		networkid = 1
+		networkid = convert_networkid_to_msn_friendly(head.networkid)
+	
+	if head.networkid is NetworkID.CIRCLE and dialect >= 18:
+		if trid:
+			return
+		circle_id = head.email.split('@', 1)[0]
+		circle_metadata = backend.user_service.msn_get_circle_metadata(circle_id)
+		if not circle_user_bs:
+			owner_uuid = backend.util_get_uuid_from_email(circle_metadata.owner_email, NetworkID.WINDOWS_LIVE)
+			if owner_uuid is None: return
+			head = backend._load_user_record(owner_uuid)
+			networkid = head.networkid
+			circle_owner = True
+		else:
+			head = circle_user_bs.user
+			networkid = head.networkid
 	
 	ctc_sess_list = backend.util_get_sessions_by_user(head)
 	if len(ctc_sess_list) > 0:
 		ctc_sess = ctc_sess_list[len(ctc_sess_list) - 1]
 		assert ctc_sess is not None
 	
-	if is_offlineish:
+	if is_offlineish and old_substatus not in (Substatus.Offline,Substatus.Invisible):
 		if dialect >= 18:
-			yield ('FLN', encode_email_networkid(head.email, networkid), encode_capabilities_capabilitiesex(ctc_sess.front_data.get('msn_capabilities') or 0, ctc_sess.front_data.get('msn_capabilitiesex') or 0))
+			yield ('FLN', encode_email_networkid(head.email, networkid, circle_id = circle_id), ('0:0' if circle_owner else encode_capabilities_capabilitiesex(ctc_sess.front_data.get('msn_capabilities') or 0, ctc_sess.front_data.get('msn_capabilitiesex') or 0)))
 		else:
 			reply = ('FLN', head.email)
-			if dialect >= 14: reply += (networkid,)
+			if dialect >= 14: reply += ((int(networkid) if networkid else 1),)
 			yield reply
 		return
+	
+	msn_status = MSNStatus.FromSubstatus(status.substatus)
 	
 	if trid: frst = ('ILN', trid) # type: Tuple[Any, ...]
 	else: frst = ('NLN',)
 	rst = []
-	assert ctc_sess is not None
 	
 	if 8 <= dialect <= 15:
 		rst.append(ctc_sess.front_data.get('msn_capabilities') or 0)
-	elif dialect >= 16:
-		rst.append(encode_capabilities_capabilitiesex(ctc_sess.front_data.get('msn_capabilities') or 0, ctc_sess.front_data.get('msn_capabilitiesex') or 0))
+	elif dialect >= 18:
+		rst.append(('0:0' if circle_owner else encode_capabilities_capabilitiesex(ctc_sess.front_data.get('msn_capabilities') or 0, ctc_sess.front_data.get('msn_capabilitiesex') or 0)))
 	if dialect >= 9:
 		rst.append(encode_msnobj(ctc_sess.front_data.get('msn_msnobj') or '<msnobj/>'))
 	
-	msn_status = MSNStatus.FromSubstatus(status.substatus)
-	
 	if dialect >= 16:
-		yield (*frst, msn_status.name, encode_email_networkid(head.email, networkid), status.name, *rst)
+		yield (*frst, msn_status.name, encode_email_networkid(head.email, networkid, circle_id = circle_id), status.name, *rst)
 	else:
-		yield (*frst, msn_status.name, head.email, networkid, status.name, *rst)
+		yield (*frst, msn_status.name, head.email, ((int(networkid) if networkid else 1) if 14 <= dialect <= 16 else None), status.name, *rst)
 	
 	if dialect < 11:
 		return
@@ -60,13 +81,21 @@ def build_presence_notif(trid: Optional[str], ctc: Contact, dialect: int, backen
 		(encode_xml_he(status.message, dialect) if dialect >= 13 else encode_xml_ne(status.message)) or '', (encode_xml_he(status.media, dialect) if dialect >= 13 else encode_xml_ne(status.media)) or '', extend_ubx_payload(dialect, backend, ctc_sess)
 	).encode('utf-8')
 	
-	if dialect >= 16:
-		yield ('UBX', encode_email_networkid(head.email, networkid), ubx_payload)
+	if dialect >= 18:
+		yield ('UBX', encode_email_networkid(head.email, networkid, circle_id = circle_id), ubx_payload)
 	elif dialect >= 11:
-		yield ('UBX', head.email, networkid, ubx_payload)
+		yield ('UBX', head.email, ((int(networkid) if networkid else 1) if 14 <= dialect <= 16 else None), ubx_payload)
 
-def encode_email_networkid(email: str, networkid: Optional[int]) -> str:
-	return '{}:{}'.format(networkid or 1, email)
+def encode_email_networkid(email: str, networkid: Optional[NetworkID], *, circle_id: Optional[str] = None) -> str:
+	result = '{}:{}'.format((int(networkid) if networkid else 1), email)
+	if circle_id:
+		result = '{};via=9:{}@live.com'.format(result, circle_id)
+	return result
+
+def decode_email_networkid(email_networkid: str) -> Tuple[NetworkID, str]:
+	parts = email_networkid.split(':', 1)
+	networkid = NetworkID(int(parts[0]))
+	return networkid, parts[1]
 
 def encode_msnobj(msnobj: Optional[str]) -> Optional[str]:
 	if msnobj is None: return None
@@ -90,6 +119,15 @@ def encode_capabilities_capabilitiesex(capabilities: int, capabilitiesex: int) -
 def decode_capabilities_capabilitiesex(capabilities_encoded: str) -> Optional[Tuple[int, int]]:
 	return (capabilities_encoded.split(':', 1) if capabilities_encoded.find(':') > 0 else None)
 
+def cid_format(uuid: str, *, decimal: bool = False) -> str:
+	cid = (uuid[0:8] + uuid[28:36])[::-1].lower()
+	
+	if not decimal:
+		return cid
+	
+	# convert to decimal string
+	return str(int(cid, 16))
+
 def decode_email_pop(s: str) -> Tuple[str, Optional[str]]:
 	# Split `foo@email.com;{uuid}` into (email, pop_id)
 	parts = s.split(';', 1)
@@ -102,19 +140,51 @@ def decode_email_pop(s: str) -> Tuple[str, Optional[str]]:
 def extend_ubx_payload(dialect: int, backend: Backend, ctc_sess: 'BackendSession') -> str:
 	response = ''
 	
-	pop_id_ctc, is_ctc_mpop = (ctc_sess.front_data.get('msn_pop_id') if 'msn_pop_id' in ctc_sess.front_data else (None,False))
-	if dialect >= 13 and pop_id_ctc is not None: response += '<MachineGuid>{}</MachineGuid>'.format('{' + pop_id_ctc + '}')
+	ctc_machineguid = ctc_sess.front_data.get('msn_machineguid')
+	pop_id_ctc = ctc_sess.front_data.get('msn_pop_id')
+	if dialect >= 13 and ctc_machineguid: response += '<MachineGuid>{}</MachineGuid>'.format(ctc_machineguid)
 	
 	if dialect >= 18:
 		response += '<DDP>{}</DDP><SignatureSound>{}</SignatureSound><Scene>{}</Scene><ColorScheme>{}</ColorScheme>'.format(
 			encode_xml_he(ctc_sess.front_data.get('msn_msnobj_ddp'), dialect) or '', encode_xml_he(ctc_sess.front_data.get('msn_sigsound'), dialect) or '', encode_xml_he(ctc_sess.front_data.get('msn_msnobj_scene'), dialect) or '', ctc_sess.front_data.get('msn_colorscheme') or '',
 		)
-		if pop_id_ctc is not None and is_ctc_mpop:
+		if pop_id_ctc:
 			response += EPDATA_PAYLOAD.format(mguid = '{' + pop_id_ctc + '}', capabilities = encode_capabilities_capabilitiesex(ctc_sess.front_data.get('msn_capabilities') or 0, ctc_sess.front_data.get('msn_capabilitiesex') or 0))
 			for ctc_sess_other in backend.util_get_sessions_by_user(ctc_sess.user):
-				if ctc_sess_other.front_data.get('msn_pop_id')[0] == pop_id_ctc: continue
-				response += EPDATA_PAYLOAD.format(mguid = '{' + ctc_sess_other.front_data.get('msn_pop_id')[0] + '}', capabilities = encode_capabilities_capabilitiesex(ctc_sess_other.front_data.get('msn_capabilities') or 0, ctc_sess_other.front_data.get('msn_capabilitiesex') or 0))
+				if ctc_sess_other.front_data.get('msn_pop_id') == pop_id_ctc: continue
+				response += EPDATA_PAYLOAD.format(mguid = '{' + ctc_sess_other.front_data.get('msn_pop_id') + '}', capabilities = encode_capabilities_capabilitiesex(ctc_sess_other.front_data.get('msn_capabilities') or 0, ctc_sess_other.front_data.get('msn_capabilitiesex') or 0))
 	return response
+
+def is_blocking(blocker: User, blockee: User) -> bool:
+	detail = blocker.detail
+	assert detail is not None
+	contact = detail.contacts.get(blockee.uuid)
+	lists = (contact and contact.lists or 0)
+	if lists & Lst.BL: return True
+	if lists & Lst.AL: return False
+	return (blocker.settings.get('BLP', 'AL') == 'BL')
+
+def gen_signedticket_xml(user: User, backend: Backend) -> str:
+	circleticket_data = backend.user_service.msn_get_circleticket(user.uuid)
+	return '<?xml version="1.0" encoding="utf-16"?>\r\n<SignedTicket xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" ver="1" keyVer="1">\r\n  <Data>{}</Data>\r\n  <Sig>{}</Sig>\r\n</SignedTicket>'.format(
+		circleticket_data[0], circleticket_data[1],
+	)
+
+def convert_networkid_to_msn_friendly(networkid: NetworkID) -> NetworkID:
+	if networkid in (NetworkID.ANY,NetworkID.IRC):
+		return NetworkID.WINDOWS_LIVE
+	return networkid
+
+def gen_chal_response(chal: str, id: str, id_key: str, *, msnp11: bool = False) -> str:
+	key_hash = md5((chal + id_key).encode())
+	
+	if not msnp11:
+		return key_hash.hexdigest()
+	
+	if msnp11:
+		# TODO: MSNP11 challenge/response procedure
+		
+		return 'PASS'
 
 def gen_mail_data(user: User, backend: Backend, *, oim_uuid: Optional[str] = None, just_sent: bool = False, on_ns: bool = True, e_node: bool = True, q_node: bool = True) -> str:
 	md_m_pl = ''
@@ -206,22 +276,30 @@ _FromSubstatus = DefaultDict(MSNStatus.BSY, {
 
 class Err:
 	InvalidParameter = 201
+	InvalidNetworkID = 204
 	InvalidPrincipal = 205
-	InvalidUser = 207
+	DuplicateSession = 207
+	InvalidPrincipal2 = 208
 	PrincipalOnList = 215
 	PrincipalNotOnList = 216
 	PrincipalNotOnline = 217
+	AlreadyInMode = 218
 	GroupInvalid = 224
 	PrincipalNotInGroup = 225
 	GroupNameTooLong = 229
 	GroupZeroUnremovable = 230
+	XXLEmptyDomain = 240
+	XXLInvalidPayload = 241
 	InternalServerError = 500
 	CommandDisabled = 502
+	ChallengeResponseFailed = 540
+	NotExpected = 715
 	AuthFail = 911
 	NotAllowedWhileHDN = 913
+	InvalidCircleMembership = 933
 	
 	@classmethod
-	def GetCodeForException(cls, exc: Exception) -> int:
+	def GetCodeForException(cls, exc: Exception, dialect: int) -> int:
 		if isinstance(exc, error.GroupNameTooLong):
 			return cls.GroupNameTooLong
 		if isinstance(exc, error.GroupDoesNotExist):
@@ -229,13 +307,19 @@ class Err:
 		if isinstance(exc, error.CannotRemoveSpecialGroup):
 			return cls.GroupZeroUnremovable
 		if isinstance(exc, error.ContactDoesNotExist):
-			return cls.InvalidPrincipal
+			if dialect >= 10:
+				return cls.InvalidUser2
+			else:
+				return cls.InvalidUser
 		if isinstance(exc, error.ContactAlreadyOnList):
 			return cls.PrincipalOnList
 		if isinstance(exc, error.ContactNotOnList):
 			return cls.PrincipalNotOnList
 		if isinstance(exc, error.UserDoesNotExist):
-			return cls.InvalidUser
+			if dialect >= 10:
+				return cls.InvalidUser2
+			else:
+				return cls.InvalidPrincipal
 		if isinstance(exc, error.ContactNotOnline):
 			return cls.PrincipalNotOnline
 		if isinstance(exc, error.AuthFail):
@@ -243,11 +327,3 @@ class Err:
 		if isinstance(exc, error.NotAllowedWhileHDN):
 			return cls.NotAllowedWhileHDN
 		raise ValueError("Exception not convertible to MSNP error") from exc
-
-class NetworkID:
-	WINDOWS_LIVE = 0x01
-	OFFICE_COMMUNICATOR = 0x02
-	TELEPHONE = 0x04
-	MNI = 0x08 # Mobile Network Interop, used by Vodafone
-	SMTP = 0x10 # Jaguire, Japanese mobile interop
-	YAHOO = 0x20

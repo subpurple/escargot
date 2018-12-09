@@ -3,17 +3,19 @@ from aiohttp import web
 import asyncio
 from markupsafe import Markup
 from urllib.parse import unquote, unquote_plus, quote
+from pathlib import PurePath
 import os
 import datetime
 import shutil
 
 from core.backend import Backend, BackendSession
 import util.misc
-from .ymsg_ctrl import _decode_ymsg
+from .ymsg_ctrl import _try_decode_ymsg
 from .misc import YMSGService, yahoo_id_to_uuid, yahoo_id
 import time
 
 YAHOO_TMPL_DIR = 'front/ymsg/tmpl'
+_tasks_by_uuid_store = {} # type: Dict[str, asyncio.Task]
 
 def register(app: web.Application) -> None:
 	util.misc.add_to_jinja_env(app, 'ymsg', YAHOO_TMPL_DIR)
@@ -35,8 +37,7 @@ def register(app: web.Application) -> None:
 	app.router.add_route('*', '/config/reset_cookies', handle_cookies_redirect)
 	
 	# Yahoo! Messenger alias service
-	app.router.add_route('*', '/config/edit_identity', handle_yahoo_alias_service)
-	app.router.add_post('/config/alias/cgi/create_alias', handle_yahoo_alias_create)
+	app.router.add_get('/config/edit_identity', handle_yahoo_alias_service)
 	app.router.add_post('/config/alias/cgi/delete_alias', handle_yahoo_alias_delete)
 	app.router.add_static('/config/alias/img', YAHOO_TMPL_DIR + '/yh_config/alias/img')
 	app.router.add_static('/config/alias/css', YAHOO_TMPL_DIR + '/yh_config/alias/css')
@@ -47,7 +48,7 @@ def register(app: web.Application) -> None:
 	
 	# Yahoo HTTP file transfer fallback
 	app.router.add_post('/notifyft', handle_ft_http)
-	app.router.add_route('*', '/tmp/file/{file_uuid}/{filename}', handle_yahoo_filedl)
+	app.router.add_get('/tmp/file/{file_id}/{filename}', handle_yahoo_filedl)
 
 async def handle_insider_ycontent(req: web.Request) -> web.Response:
 	config_xml = []
@@ -75,6 +76,9 @@ UNUSED_QUERIES = {
 }
 
 async def handle_insider(req: web.Request) -> web.Response:
+	# For debug purposes
+	if req.host != 'insider.msg.yahoo.com': return web.NotFound()
+	
 	tmpl = req.app['jinja_env'].get_template('ymsg:Yinsider/Yinsider_content/insider_content.html')
 	
 	return render(req, 'ymsg:Yinsider/Yinsider.html', {
@@ -131,83 +135,51 @@ async def handle_yahoo_alias_service(req: web.Request) -> web.Response:
 	backend = req.app['backend']
 	query = req.query
 	
+	new_alias = None
+	errors = None
+	
 	(yahoo_id, bs) = _parse_cookies(req, backend)
 	
 	if yahoo_id != query.get('.l') or bs is None:
 		raise web.HTTPInternalServerError
 	
+	if req.method == 'POST':
+		body = await req.post()
+		
+		for bs_other in bs.backend._sc.iter_sessions():
+			if body['alias_new'] == yahoo_id(bs_other.user.email) or backend.user_service.yahoo_check_alias(body['alias_new']):
+				errors = 'Alias "' + body['alias_new'] + '" has already been registered.'
+		
+		backend.user_service.yahoo_add_alias(bs.user.uuid, body['alias_new'])
+		bs.evt.ymsg_on_notify_alias_activate(body['alias_new'])
+	
 	aliases = backend.user_service.yahoo_get_aliases(bs.user.uuid)
 	
-	if aliases is not None and len(aliases) > 0:
-		tmpl = req.app['jinja_env'].get_template('ymsg:yh_config/alias/aliascmdbrd.aliasentry.html')
-		alias_tags = [tmpl.render(alias = alias) for alias in aliases]
-	else:
-		tmpl = req.app['jinja_env'].get_template('ymsg:yh_config/alias/aliascmdbrd.noalias.html')
-		alias_tags = [tmpl.render()]
-	
 	return render(req, 'ymsg:yh_config/alias/aliascmdbrd.html', {
-		'y_cookie': req.cookies.get('Y'),
-		't_cookie': req.cookies.get('T'),
-		'alias_tags': Markup(''.join(alias_tags)),
+		'aliases': aliases,
+		'new_alias': new_alias,
+		'errors': errors,
 		'main_yid': query.get('.l'),
 	})
 
-async def handle_yahoo_alias_create(req: web.Request) -> web.Response:
-	body = await req.read()
-	
-	backend = req.app['backend']
-	params = _parse_urlencoded(body)
-	
-	(id, bs) = _parse_cookies(req, backend)
-	
-	if id != params['id'] or bs is None:
-		raise web.HTTPInternalServerError
-	
-	for bs_other in bs.backend._sc.iter_sessions():
-		if params['alias_new'] == yahoo_id(bs_other.user.email) or backend.user_service.yahoo_check_alias_existence(params['alias_new']):
-			return render(req, 'ymsg:yh_config/alias/aliascmdbrd.dialog.html', {
-				'title_msg': 'Alias Taken!',
-				'msg': 'Alias "' + params['alias_new'] + '" has already been registered.',
-				'yid': params['id'],
-			})
-	
-	backend.user_service.yahoo_add_alias(bs.user.uuid, params['alias_new'])
-	bs.evt.ymsg_on_notify_alias_activate(params['alias_new'])
-	
-	return render(req, 'ymsg:yh_config/alias/aliascmdbrd.dialog.html', {
-		'title_msg': 'Alias Registered!',
-		'msg': 'Success! The alias "' + params['alias_new'] + '" is now registered!',
-		'yid': params['id'],
-	})
-
 async def handle_yahoo_alias_delete(req: web.Request) -> web.Response:
-	body = await req.read()
+	body = await req.post()
 	
 	backend = req.app['backend']
-	params = _parse_urlencoded(body)
 	
 	(id, bs) = _parse_cookies(req, backend)
 	
 	if id != params['id'] or bs is None:
 		raise web.HTTPInternalServerError
 	
-	alias_delete = backend.user_service.yahoo_delete_alias(bs.user.uuid, params['alias'])
-	
-	if not alias_delete:
+	if not backend.user_service.yahoo_check_alias(body['alias']):
 		raise web.HTTPInternalServerError
 	
-	bs.evt.ymsg_on_notify_alias_delete(params['alias'])
+	bs.evt.ymsg_on_notify_alias_deactivate(body['alias'])
+	
+	alias_delete = backend.user_service.yahoo_delete_alias(bs.user.uuid, body['alias'])
 	
 	return web.HTTPOk()
-
-def _parse_urlencoded(body: bytes) -> Dict[str, Any]:
-	param_dict = {}
-	
-	for param in body.decode().split('&'):
-		param_two = param.split('=')
-		for i in range(1, len(param_two), 2): param_dict[param_two[i - 1]] = unquote(param_two[i])
-	
-	return param_dict
 
 def _redir_with_auth_cookies(loc: str, y: str, t: str, backend: Backend) -> web.Response:
 	resp = web.Response(status = 302, headers = {
@@ -244,7 +216,7 @@ async def handle_ft_http(req: web.Request) -> web.Response:
 	backend = req.app['backend']
 	
 	try:
-		y_ft_pkt = _decode_ymsg(raw_ymsg_data)
+		y_ft_pkt = _try_decode_ymsg(raw_ymsg_data, 0)[0]
 	except Exception:
 		raise web.HTTPInternalServerError
 	
@@ -278,7 +250,10 @@ async def handle_ft_http(req: web.Request) -> web.Response:
 	if file_path is None or len(stream) != int(file_len) or len(stream) > (2 * (1000 ** 3)):
 		raise web.HTTPInternalServerError
 	
-	filename = file_path.split('\\').pop()
+	try:
+		filename = PurePath(file_path).name
+	except:
+		raise web.HTTPInternalServerError
 	
 	path = _get_tmp_file_storage_path()
 	
@@ -296,26 +271,26 @@ async def handle_ft_http(req: web.Request) -> web.Response:
 	
 	upload_time = time.time()
 	
-	req.app.loop.create_task(_store_tmp_file_until_expiry(path))
-	
-	# Sending HTTP FT acknowledgement crahes Yahoo! Messenger, and ultimately freezes the computer. Ignore for now.
-	# bs.evt.ymsg_on_upload_file_ft(yahoo_id_recipient, message)
+	expiry_task = req.app.loop.create_task(_store_tmp_file_until_expiry(path))
+	_tasks_by_uuid_store[file_tmp_path[12:]] = expiry_task
 	
 	for bs_other in bs.backend._sc.iter_sessions():
 		if bs_other.user.uuid == recipient_uuid:
 			bs_other.evt.ymsg_on_sent_ft_http(yahoo_id_sender, file_tmp_path[12:], upload_time, message)
 	
+	# TODO: Sending HTTP FT acknowledgement crahes Yahoo! Messenger, and ultimately freezes the computer. Ignore for now.
+	bs.evt.ymsg_on_upload_file_ft(yahoo_id_recipient, message)
+	
 	raise web.HTTPOk
 
 async def _store_tmp_file_until_expiry(file_storage_path: str) -> None:
-	await asyncio.sleep(3600)
-	# When an hour passes, delete the file unless it has already been deleted from downloading it
-	if os.path.exists(file_storage_path):
-		shutil.rmtree(file_storage_path, ignore_errors = True)
+	await asyncio.sleep(86400)
+	# When a day passes, delete the file (unless it has already been deleted by the downloader handler; it will cancel the according task then)
+	shutil.rmtree(file_storage_path, ignore_errors = True)
 
 async def handle_yahoo_filedl(req: web.Request) -> web.Response:
-	file_uuid = req.match_info['file_uuid']
-	file_storage_path = _get_tmp_file_storage_path(uuid = file_uuid)
+	file_id = req.match_info['file_id']
+	file_storage_path = _get_tmp_file_storage_path(id = file_id)
 	
 	try:
 		filename = req.match_info['filename']
@@ -324,13 +299,19 @@ async def handle_yahoo_filedl(req: web.Request) -> web.Response:
 		with open(file_path, 'rb') as file:
 			file_stream = file.read()
 			file.close()
+			_tasks_by_uuid_store[file_id].cancel()
+			del _tasks_by_uuid_store[file_id]
 			shutil.rmtree(file_storage_path, ignore_errors = True)
 			return web.HTTPOk(body = file_stream)
 	except FileNotFoundError:
 		raise web.HTTPNotFound
 
-def _get_tmp_file_storage_path(uuid: Optional[str] = None) -> str:
-	return 'storage/yfs/{}'.format(util.misc.gen_uuid() if uuid is None else uuid)
+def _get_tmp_file_storage_path(id: Optional[str] = None) -> str:
+	if not id:
+		# Call `gen_uuid()` two times to make things more random =)
+		id = util.misc.gen_uuid()[0:6] + util.misc.gen_uuid()[-10:]
+	
+	return 'storage/yfs/{}'.format(id)
 
 def _parse_cookies(req: web.Request, backend: Backend, y: Optional[str] = None, t: Optional[str] = None) -> Tuple[Optional[str], Optional[BackendSession]]:
 	cookies = req.cookies

@@ -6,7 +6,7 @@ from enum import IntEnum
 from util.misc import Logger
 
 from core import event
-from core.models import Contact, Substatus, User, TextWithData, MessageData, MessageType, Substatus, LoginOption
+from core.models import Contact, Substatus, User, TextWithData, MessageData, MessageType, Substatus, LoginOption, NetworkID
 from core.backend import Backend, BackendSession, Chat, ChatSession
 from core.client import Client
 
@@ -54,9 +54,9 @@ class IRCCtrl:
 		password = self.password
 		self.password = None
 		assert password is not None
-		uuid = self.backend.user_service.login(email, password)
+		uuid = self.backend.user_service.login(email, NetworkID.IRC, password)
 		if uuid is not None:
-			bs = self.backend.login(uuid, self.client, BackendEventHandler(self), LoginOption.BootOthers)
+			bs = self.backend.login(uuid, self.client, BackendEventHandler(self), option = LoginOption.BootOthers)
 		else:
 			bs = None
 		if bs is None:
@@ -191,21 +191,21 @@ class BackendEventHandler(event.BackendEventHandler):
 	def on_maintenance_boot(self) -> None:
 		pass
 	
-	def on_presence_notification(self, user: User, old_substatus: Substatus, on_contact_add: bool) -> None:
-		self.ctrl.send_reply('NOTICE', ":{} is now {}".format(user.head.email, user.status.substatus))
+	def on_presence_notification(self, ctc_head: User, old_substatus: Substatus, on_contact_add: bool, *, trid: Optional[str] = None, update_status: bool = True, send_status_on_bl: bool = False, visible_notif: bool = True, updated_phone_info: Optional[Dict[str, Any]] = None, circle_user_bs: Optional[BackendSession] = None, circle_id: Optional[str] = None) -> None:
+		self.ctrl.send_reply('NOTICE', ":{} is now {}".format(bs_other.user.head.email, bs_other.user.status.substatus))
 	
-	def on_chat_invite(self, chat: Chat, inviter: User, *, invite_msg: Optional[str] = None) -> None:
+	def on_chat_invite(self, chat: Chat, inviter: User, *, inviter_id: Optional[str] = None, invite_msg: str = '') -> None:
 		self.ctrl.send_reply('INVITE', self.bs.user.email, chat.ids['irc'], source = inviter.email)
 	
-	def on_added_me(self, user: User, *, message: Optional[TextWithData] = None) -> None:
+	def on_added_me(self, user: User, *, adder_id: Optional[str] = None, message: Optional[TextWithData] = None) -> None:
 		self.ctrl.send_reply('NOTICE', ":{} added you to their friend list".format(user.email), source = user.email)
 		if message:
 			self.ctrl.send_reply('NOTICE', ":\"{}\"".format(message), source = user.email)
 	
-	def on_contact_request_denied(self, user: User, message: Optional[str]) -> None:
-		self.ctrl.send_reply('NOTICE', ":{} declined your friend request".format(user.email), source = user.email)
+	def on_contact_request_denied(self, user_added: User, message: Optional[str], *, contact_id: Optional[str] = None) -> None:
+		self.ctrl.send_reply('NOTICE', ":{} declined your friend request".format(user_added.email), source = user_added.email)
 		if message:
-			self.ctrl.send_reply('NOTICE', ":\"{}\"".format(message), source = user.email)
+			self.ctrl.send_reply('NOTICE', ":\"{}\"".format(message), source = user_added.email)
 	
 	def on_login_elsewhere(self, option: LoginOption) -> None:
 		if option is LoginOption.BootOthers:
@@ -225,16 +225,16 @@ class ChatEventHandler(event.ChatEventHandler):
 	def __init__(self, ctrl: IRCCtrl) -> None:
 		self.ctrl = ctrl
 	
-	def on_close(self) -> None:
+	def on_close(self, keep_future: bool, idle: bool) -> None:
 		self.ctrl.chat_sessions.pop(self.cs.chat, None)
 	
 	def on_participant_joined(self, cs_other: ChatSession) -> None:
 		self.ctrl.send_reply('JOIN', self.cs.chat.ids['irc'], source = cs_other.user.email)
 	
-	def on_participant_left(self, cs_other: ChatSession, idle: bool = False) -> None:
+	def on_participant_left(self, cs_other: ChatSession, idle: bool, last_pop: bool) -> None:
 		self.ctrl.send_reply('PART', self.cs.chat.ids['irc'], source = cs_other.user.email)
 	
-	def on_invite_declined(self, invited_user: User, *, message: Optional[str] = None) -> None:
+	def on_invite_declined(self, invited_user: User, *, invited_id: Optional[str] = None, message: str = '') -> None:
 		self.ctrl.send_reply('NOTICE', ":{} declined the invitation".format(invited_user.email), source = invited_user.email)
 		if message:
 			self.ctrl.send_reply('NOTICE', ":\"{}\"".format(message), source = invited_user.email)

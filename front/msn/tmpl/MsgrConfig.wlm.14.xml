@@ -114,7 +114,9 @@
 				<Entry hr="0x82000024" action="3" />
 				<Entry hr="0x82000026" action="3" />
 			</Feature>
-			<Feature type="5" name="VoiceVideo"><Entry hr="*" action="3" /></Feature>
+			<Feature type="5" name="VoiceVideo">
+				<Entry hr="*" action="3" />
+			</Feature>
 		</ErrorResponseTable>
 		<USBDevices>
 			<Device VID="0x045e" PID="0x0719" />

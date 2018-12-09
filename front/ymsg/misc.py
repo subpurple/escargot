@@ -7,7 +7,7 @@ import time
 from util.misc import first_in_iterable, DefaultDict
 
 from core.backend import Backend, BackendSession, Chat, ChatSession
-from core.models import User, Contact, Substatus
+from core.models import User, Lst, Contact, Substatus, NetworkID
 
 import settings
 
@@ -126,46 +126,12 @@ _FromSubstatus = DefaultDict(YMSGStatus.Bad, {
 
 EncodedYMSG = Tuple[YMSGService, YMSGStatus, Dict[str, str]]
 
-def build_notify_notif(user_from: User, bs: BackendSession, notif_dict: Dict[str, Any]) -> Iterable[EncodedYMSG]:
-	user_to = bs.user
-	
-	notif_to_dict = MultiDict([
-		('5', yahoo_id(user_to.email)),
-		('4', yahoo_id(user_from.email)),
-		('49', notif_dict.get('49')),
-		('14', notif_dict.get('14')),
-		('13', notif_dict.get('13'))
-	])
-	
-	yield (YMSGService.Notify, YMSGStatus.BRB, notif_to_dict)
-
-def build_p2p_msg_packet(user_from: User, bs: BackendSession, p2p_dict: Dict[str, Any]) -> Iterable[EncodedYMSG]:
-	user_to = bs.user
-	
-	p2p_conn_dict = MultiDict([
-		('5', yahoo_id(user_to.email)),
-		('4', yahoo_id(user_from.email)),
-	])
-	
-	if None not in (p2p_dict.get('2'),p2p_dict.get('13'),p2p_dict.get('12')):
-		p2p_conn_dict.add('2', p2p_dict.get('2'))
-		p2p_conn_dict.add('13', p2p_dict.get('13'))
-		p2p_conn_dict.add('12', p2p_dict.get('12'))
-	else:
-		return
-	
-	p2p_conn_dict.add('49', p2p_dict.get('49'))
-	if p2p_dict.get('60') is not None: p2p_conn_dict.add('60', p2p_dict.get('60'))
-	if p2p_dict.get('61') is not None: p2p_conn_dict.add('60', p2p_dict.get('61'))
-	
-	yield (YMSGService.PeerToPeer, YMSGStatus.BRB, p2p_dict)
-
-def build_ft_packet(user_from: User, bs: BackendSession, xfer_dict: Dict[str, Any]) -> Iterable[EncodedYMSG]:
+def build_ft_packet(bs: BackendSession, xfer_dict: Dict[str, Any]) -> Iterable[EncodedYMSG]:
 	user_to = bs.user
 	
 	ft_dict = MultiDict([
 		('5', yahoo_id(user_to.email)),
-		('4', yahoo_id(user_from.email))
+		('4', xfer_dict.get('4'))
 	])
 	
 	ft_type = xfer_dict.get('13')
@@ -206,57 +172,35 @@ def build_http_ft_packet(bs: BackendSession, sender: str, url_path: str, upload_
 		('20', settings.YAHOO_FT_DL_HOST + '/tmp/' + url_path),
 	]))
 
-def build_conf_invite(user_from: User, bs: BackendSession, chat: Chat, invite_msg: str) -> Iterable[EncodedYMSG]:
-	user_to = bs.user
-	conf_id = chat.ids['ymsg/conf']
-	
-	conf_invite_dict = MultiDict([
-		('1', yahoo_id(user_to.email)),
-		('57', conf_id),
-		('50', yahoo_id(user_from.email)),
-		('58', invite_msg)
-	])
-	
-	roster = list(chat.get_roster())
-	for cs in roster:
-		if cs.user.uuid == user_from.uuid: continue
-		conf_invite_dict.add('52', yahoo_id(cs.user.email))
-		conf_invite_dict.add('53', yahoo_id(cs.user.email))
-	
-	conf_invite_dict.add('13', chat.front_data.get('ymsg_voice_chat') or 0)
-	
-	yield ((YMSGService.ConfAddInvite if len(roster) > 1 else YMSGService.ConfInvite), YMSGStatus.BRB, conf_invite_dict)
+def is_blocking(blocker: User, blockee: User) -> bool:
+	detail = blocker.detail
+	assert detail is not None
+	contact = detail.contacts.get(blockee.uuid)
+	lists = (contact and contact.lists or 0)
+	if lists & Lst.BL: return True
+	return False
 
 def yahoo_id(email: str) -> str:
 	email_parts = email.split('@', 1)
 	
-	if len(email_parts) == 2 and email_parts[1].startswith('yahoo.'):
+	if len(email_parts) == 2 and email_parts[1].startswith('yahoo.com'):
 		return email_parts[0]
 	else:
 		return email
 
 def yahoo_id_to_uuid(backend: Backend, yahoo_id: str) -> Optional[str]:
 	email = None # type: Optional[str]
-	uuid = None # type: Optional[str]
+	
+	# Fun fact about foreign Yahoo! email addresses: they're just relays to the same account name but with
+	# `@yahoo.com` instead of `@yahoo.*`. The server should check the address to add an entry for the `@yahoo.com`
+	# account, then they can be identified.
 	
 	if '@' in yahoo_id:
-		if '@yahoo.' not in yahoo_id:
+		if not yahoo_id.endswith('@yahoo.com'):
 			email = yahoo_id
 		else:
 			return None
+	else:
+		email = '{}@yahoo.com'.format(yahoo_id)
 	
-	if email is None:
-		# Assume that it's an "@yahoo" address (this includes aliases)
-		uuid = _assume_yahoo_id_address(yahoo_id, backend)
-	
-	return (uuid or backend.util_get_uuid_from_email(email))
-
-def _assume_yahoo_id_address(yahoo_id: str, backend: Backend) -> Optional[str]:
-	yahoo_address_tlds = ['com', 'co.uk', 'in', 'co.jp', 'fr']
-	uuid = None
-	
-	for yahoo_tld in yahoo_address_tlds:
-		uuid = backend.util_get_uuid_from_email(yahoo_id + '@yahoo.' + yahoo_tld)
-		if uuid is not None: break
-	
-	return uuid
+	return backend.util_get_uuid_from_email(email, NetworkID.YAHOO)

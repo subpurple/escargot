@@ -1,20 +1,23 @@
 from typing import Tuple, Any, Optional, List, Set
 import time
+import re
 import secrets
 import asyncio
+from email.parser import Parser
 
-from util.misc import Logger
-from core.models import User, MessageData, MessageType
+from util.misc import Logger, first_in_iterable
+from core.models import User, MessageData, MessageType, NetworkID
 from core.backend import Backend, BackendSession, ChatSession, Chat
 from core import event, error
-from .misc import Err, encode_capabilities_capabilitiesex, decode_email_pop
+from .misc import Err, encode_capabilities_capabilitiesex, decode_email_pop, is_blocking
 from .msnp import MSNPCtrl
 
 class MSNPCtrlSB(MSNPCtrl):
-	__slots__ = ('backend', 'dialect', 'counter_task', 'auth_sent', 'bs', 'cs')
+	__slots__ = ('backend', 'dialect', 'loop', 'counter_task', 'auth_sent', 'bs', 'cs')
 	
 	backend: Backend
 	dialect: int
+	loop: Optional[asyncio.AbstractEventLoop]
 	counter_task: Optional[asyncio.Task]
 	auth_sent: bool
 	bs: Optional[BackendSession]
@@ -24,15 +27,19 @@ class MSNPCtrlSB(MSNPCtrl):
 		super().__init__(logger)
 		self.backend = backend
 		self.dialect = 0
+		self.loop = None
 		self.counter_task = None
 		self.auth_sent = False
 		self.bs = None
 		self.cs = None
 	
 	def on_connect(self) -> None:
-		self.counter_task = self.backend.loop.create_task(self._conn_auth_limit_counter())
+		self.counter_task = asyncio.ensure_future(self._conn_auth_limit_counter())
 	
 	def _on_close(self) -> None:
+		if self.counter_task is not None and not self.counter_task.cancelled():
+			self.counter_task.cancel()
+			self.counter_task = None
 		if self.cs:
 			self.cs.close()
 	
@@ -51,7 +58,7 @@ class MSNPCtrlSB(MSNPCtrl):
 			self.send_reply(Err.AuthFail, trid)
 			self.close(hard = True)
 		bs, dialect = data
-		if bs.user.email != email or (dialect >= 16 and pop_id is not None and 'msn_pop_id' in bs.front_data and bs.front_data.get('msn_pop_id')[0] != pop_id[1:-1] and bs.front_data.get('msn_pop_id')[1]):
+		if bs.user.email != email or (dialect >= 16 and pop_id is not None and bs.front_data.get('msn_pop_id') != pop_id[1:-1]):
 			self.send_reply(Err.AuthFail, trid)
 			self.close(hard = True)
 		chat = self.backend.chat_create()
@@ -59,12 +66,15 @@ class MSNPCtrlSB(MSNPCtrl):
 		try:
 			cs = chat.join('msn', bs, ChatEventHandler(self), pop_id = pop_id)
 		except Exception as ex:
-			self.send_reply(Err.GetCodeForException(ex), trid)
+			self.send_reply(Err.GetCodeForException(ex, self.dialect), trid)
 		self.dialect = dialect
 		self.bs = bs
 		self.cs = cs
-		# self.counter_task.cancel()
-		# self.counter_task = self.backend.loop.create_task(self._add_idle_min_to_cs())
+		if self.counter_task is not None and not self.counter_task.cancelled():
+			self.counter_task.cancel()
+			self.counter_task = None
+		chat._idle_counter_reset_callback = self._reset_cs_idle_mins
+		self.counter_task = asyncio.ensure_future(self._add_idle_min_to_chat())
 		self.send_reply('USR', trid, 'OK', arg, cs.user.status.name or cs.user.email)
 	
 	def _m_ans(self, trid: Optional[str], arg: Optional[str], token: Optional[str], sessid: Optional[int], *args: Any) -> None:
@@ -85,21 +95,22 @@ class MSNPCtrlSB(MSNPCtrl):
 		# 	self.close(hard = True)
 		
 		(bs, dialect, chat) = data
-		if bs.user.email != email or (dialect >= 16 and pop_id is not None and 'msn_pop_id' in bs.front_data and bs.front_data.get('msn_pop_id')[0] != pop_id[1:-1] and bs.front_data.get('msn_pop_id')[1]):
+		if bs.user.email != email or (dialect >= 16 and pop_id is not None and bs.front_data.get('msn_pop_id') != pop_id[1:-1]):
 			self.send_reply(Err.AuthFail, trid)
 			self.close(hard = True)
 		
 		if chat is None or sessid != chat.ids.get('main'): self.close(hard = True)
 		
 		try:
-			cs = chat.join('msn', bs, ChatEventHandler(self), pop_id = (pop_id if 'msn_pop_id' in bs.front_data and bs.front_data.get('msn_pop_id')[1] else None))
+			cs = chat.join('msn', bs, ChatEventHandler(self), pop_id = pop_id)
 		except Exception as ex:
 			self.send_reply(Err.GetCodeForException(ex), trid)
 		self.dialect = dialect
 		self.bs = bs
 		self.cs = cs
-		# self.counter_task.cancel()
-		# self.counter_task = self.backend.loop.create_task(self._add_idle_min_to_cs())
+		if self.counter_task and not self.counter_task.cancelled():
+			self.counter_task.cancel()
+			self.counter_task = None
 		
 		chat.send_participant_joined(cs)
 		
@@ -133,7 +144,7 @@ class MSNPCtrlSB(MSNPCtrl):
 			for i, other_cs in enumerate(roster_one_per_user):
 				other_user = other_cs.user
 				extra = () # type: Tuple[Any, ...]
-				if dialect >= 13:
+				if dialect >= 12:
 					extra = (other_cs.bs.front_data.get('msn_capabilities') or 0,)
 				self.send_reply('IRO', trid, i + 1, l, other_user.email, other_user.status.name, *extra)
 		
@@ -146,11 +157,16 @@ class MSNPCtrlSB(MSNPCtrl):
 		cs = self.cs
 		assert cs is not None
 		
-		# self._reset_cs_idle_mins()
+		if cs.chat._idle_counter_reset_callback is not None:
+			cs.chat._idle_counter_reset_callback()
 		
-		invitee_uuid = self.backend.util_get_uuid_from_email(invitee_email)
+		if not re.match(r'^[a-zA-Z0-9._\-]+@([a-zA-Z0-9\-]+\.)+[a-zA-Z]+$', invitee_email):
+			self.send_reply(Err.InvalidPrincipal2, trid)
+			return
+		
+		invitee_uuid = self.backend.util_get_uuid_from_email(invitee_email, NetworkID.WINDOWS_LIVE)
 		if invitee_uuid is None:
-			self.send_reply(Err.InvalidUser)
+			self.send_reply(Err.PrincipalNotOnline, trid)
 			return
 		
 		chat = cs.chat
@@ -161,24 +177,20 @@ class MSNPCtrlSB(MSNPCtrl):
 			detail = user.detail
 			assert detail is not None
 			
-			ctc = detail.contacts.get(invitee_uuid)
-			if ctc is None:
-				if user.uuid != invitee_uuid: raise error.ContactDoesNotExist()
-				invitee = user
-			else:
-				if ctc.status.is_offlineish(): raise error.ContactNotOnline()
-				invitee = ctc.head
+			invitee = self.backend._load_user_record(invitee_uuid)
+			if is_blocking(invitee, user) or invitee.status.is_offlineish():
+				raise error.ContactNotOnline()
 			
 			cs.invite(invitee)
 		except Exception as ex:
 			# WLM 2009 sends a `CAL` with the invitee being the owner when a SB session is first initiated. If there are no other
 			# PoPs of the owner, send a `JOI` for now to fool the client.
 			# TODO: Find better way to check for exception to determine if fake `JOI` should be sent, as checking if `ex` is `error.ContactAlreadyOnList()` doesn't work.
-			if Err.GetCodeForException(ex) == Err.PrincipalOnList and invitee_email == self.bs.user.email and self.dialect >= 18:
+			if ex is error.ContactAlreadyOnList and invitee_email == self.bs.user.email and self.dialect >= 18:
 				# self.send_reply('CAL', trid, 'RINGING', chat.ids['main'])
 				cs.evt.on_participant_joined(cs)
 				return
-			self.send_reply(Err.GetCodeForException(ex), trid)
+			self.send_reply(Err.GetCodeForException(ex, self.dialect), trid)
 		else:
 			self.send_reply('CAL', trid, 'RINGING', chat.ids['main'])
 	
@@ -189,9 +201,14 @@ class MSNPCtrlSB(MSNPCtrl):
 		cs = self.cs
 		assert cs is not None
 		
-		# self._reset_cs_idle_mins()
+		if cs.chat._idle_counter_reset_callback is not None:
+			cs.chat._idle_counter_reset_callback()
 		
-		cs.send_message_to_everyone(messagedata_from_msnp(cs.user, (bs.front_data.get('msn_pop_id')[0] if 'msn_pop_id' in bs.front_data and bs.front_data.get('msn_pop_id')[1] else None), data))
+		if len(data) > 1664:
+			self.close(hard = True)
+			return
+		
+		cs.send_message_to_everyone(messagedata_from_msnp(cs.user, bs.front_data.get('msn_pop_id'), data))
 		
 		# TODO: Implement ACK/NAK
 		if ack == 'U':
@@ -205,13 +222,14 @@ class MSNPCtrlSB(MSNPCtrl):
 	def _check_sb_idle_criteria(self) -> None:
 		more_than_2_invitees = False
 		roster_other_cs = []
+		roster_cs_pops = []
 		
-		if not self.cs.idle_mins >= 5: return
+		if not self.cs.chat.idle_mins >= 5: return
 		for cs_other in self.cs.chat.get_roster():
 			if cs_other.user is not self.cs.user:
 				roster_other_cs.append(cs_other)
-			elif cs_other.user is self.cs.user and not cs_other.idle_mins >= 5:
-				return
+			elif cs_other.user is self.cs.user and cs_other is not self.cs:
+				roster_cs_pops.append(cs_other)
 		
 		if not roster_other_cs:
 			self.close(hard = True)
@@ -224,27 +242,27 @@ class MSNPCtrlSB(MSNPCtrl):
 			else:
 				more_than_2_invitees = True
 		
-		if more_than_2_invitees and self.cs.user is self.cs.chat.get_roster()[0].user:
+		if more_than_2_invitees:
 			del second_party_pops
-			if not self.cs.idle_mins >= 15: return
-			for cs_other in self.cs.chat.get_roster():
-				if not cs_other.idle_mins >= 15: return
-			self.counter_task.cancel()
-			user_to_bye = roster_other_cs[secrets.randbelow(len(roster_other_cs))]
-			user_to_bye.evt.ctrl.counter_task.cancel()
-			user_to_bye.close(idle = True)
+			if not self.cs.chat.idle_mins >= 15: return
+			if self.counter_task is not None and not self.counter_task.cancelled():
+				self.counter_task.cancel()
+				self.counter_task = None
+			user_to_bye = roster_other_cs[secrets.randbelow(len(roster_other_cs))].user
+			user_to_bye_sessions = [sess_other for sess_other in roster_other_cs if sess_other.user.uuid == user_to_bye.uuid]
+			for sess_to_bye in user_to_bye_sessions:
+				sess_to_bye.close(idle = True, send_idle_leave = True)
 			for other_cs in roster_other_cs:
 				if other_cs is not self.cs:
-					other_cs.evt.ctrl.counter_task.cancel()
-					other_cs.close(hard = True)
-			self.cs.close(hard = True)
+					other_cs.close(idle = True, send_idle_leave = False)
+			self.cs.close(idle = True, send_idle_leave = False)
 		else:
 			for second_user_cs in second_party_pops:
-				idle_5_mins = second_user_cs.idle_mins >= 5
-				if not idle_5_mins: break
-			if idle_5_mins:
-				self.counter_task.cancel()
-				self.cs.close(idle = True)
+				for cs_pop in roster_cs_pops:
+					second_user_cs.evt.on_participant_left(cs_pop, idle = True, last_pop = False)
+				second_user_cs.evt.on_participant_left(self.cs, idle = True, last_pop = True)
+				second_user_cs.close(idle = True, send_idle_leave = True)
+			self.cs.close(idle = True, send_idle_leave = False)
 	
 	async def _conn_auth_limit_counter(self) -> None:
 		counter = 0
@@ -257,20 +275,22 @@ class MSNPCtrlSB(MSNPCtrl):
 			if not self.auth_sent:
 				self.close(hard = True)
 	
-	async def _add_idle_min_to_cs(self) -> None:
-		await asyncio.sleep(60)
-		
+	async def _add_idle_min_to_chat(self) -> None:
 		while True:
-			self.cs.idle_mins += 1
+			#TODO: SB idle counter working properly?
+			print('Original minute(s) idle:', self.cs.chat.idle_mins)
+			await asyncio.sleep(60)
+			self.cs.chat.idle_mins += 1
+			print('New minute(s) idle:', self.cs.chat.idle_mins)
 			self._check_sb_idle_criteria()
 	
 	def _reset_cs_idle_mins(self) -> None:
-		self.counter_task.cancel()
+		if self.counter_task is not None and not self.counter_task.cancelled():
+			self.counter_task.cancel()
 		
-		for cs in self.cs.chat.get_roster():
-			cs.idle_mins = 0
+		self.cs.chat.idle_mins = 0
 		
-		self.counter_task = self.backend.loop.create_task(self._add_idle_min_to_cs())
+		self.counter_task = asyncio.ensure_future(self._add_idle_min_to_chat())
 
 class ChatEventHandler(event.ChatEventHandler):
 	__slots__ = ('ctrl',)
@@ -286,7 +306,7 @@ class ChatEventHandler(event.ChatEventHandler):
 		assert bs is not None
 		cs = self.cs
 		
-		if ctrl.dialect < 18:
+		if 12 <= ctrl.dialect <= 18:
 			extra = (cs_other.bs.front_data.get('msn_capabilities') or 0,) # type: Tuple[Any, ...]
 		elif ctrl.dialect >= 18:
 			extra = (encode_capabilities_capabilitiesex(cs_other.bs.front_data.get('msn_capabilities') or 0, cs_other.bs.front_data.get('msn_capabilitiesex') or 0),)
@@ -295,9 +315,10 @@ class ChatEventHandler(event.ChatEventHandler):
 		user = cs_other.user
 		ctrl.send_reply('JOI', user.email, user.status.name, *extra)
 	
-	def on_participant_left(self, cs_other: ChatSession, idle: bool = False) -> None:
+	def on_participant_left(self, cs_other: ChatSession, idle: bool, last_pop: bool) -> None:
 		ctrl = self.ctrl
-		pop_id_other = (cs_other.bs.front_data.get('msn_pop_id')[0] if 'msn_pop_id' in cs_other.bs.front_data and cs_other.bs.front_data.get('msn_pop_id')[1] else None)
+		if not last_pop and ctrl.dialect < 16: return
+		pop_id_other = cs_other.bs.front_data.get('msn_pop_id')
 		if pop_id_other is not None and ctrl.dialect >= 16:
 			email = '{};{}'.format(cs_other.user.email, '{' + pop_id_other + '}')
 		else:
@@ -314,8 +335,8 @@ class ChatEventHandler(event.ChatEventHandler):
 	def on_message(self, data: MessageData) -> None:
 		self.ctrl.send_reply('MSG', data.sender.email, data.sender.status.name, messagedata_to_msnp(data))
 	
-	def on_close(self, *args):
-		self.ctrl.close()
+	def on_close(self, keep_future: bool, idle: bool):
+		self.ctrl.close(hard = idle)
 
 def messagedata_from_msnp(sender: User, sender_pop_id: Optional[str], data: bytes) -> MessageData:
 	# TODO: Implement these `Content-Type`s:
@@ -330,23 +351,20 @@ def messagedata_from_msnp(sender: User, sender_pop_id: Optional[str], data: byte
 	# b'MIME-Version: 1.0\r\nContent-Type: application/x-msnmsgrp2p\r\nP2P-Dest: t2h@hotmail.com\r\n\r\n\x00\x00\x00\x00Ht\xc4\n\x00\x00\x00\x00\x00\x00\x00\x00K\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00Xt\xc4\nN\x0b\xc7\nK\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
 	# etc.
 	
-	i = data.index(b'\r\n\r\n')
-	headers = data[:i].decode('utf-8')
-	body = data[i+4:]
+	message_mime = Parser().parsestr(data.decode('utf-8'))
 	
-	if 'text/x-msmsgscontrol' in headers:
+	if message_mime['Content-Type'] is 'text/x-msmsgscontrol':
 		type = MessageType.Typing
 		text = ''
-	elif 'text/plain' in headers:
+	elif message_mime['Content-Type'] is 'text/plain':
 		type = MessageType.Chat
-		text = body.decode('utf-8')
+		text = message_mime.get_payload()
 	else:
 		type = MessageType.Chat
 		text = "(Unsupported MSNP Content-Type)"
 	
 	message = MessageData(sender = sender, type = type, text = text)
 	message.front_cache['msnp'] = data
-	message.front_cache['msn_pop_id'] = sender_pop_id
 	return message
 
 def messagedata_to_msnp(data: MessageData) -> bytes:
