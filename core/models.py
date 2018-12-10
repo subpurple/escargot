@@ -54,28 +54,28 @@ class Contact:
 		self.status.media = true_status.media
 
 class ABContact:
-	__slots__ = ('type', 'uuid', 'email', 'name', 'groups', 'is_messenger_user', 'networkinfos', 'annotations', 'date_last_modified')
+	__slots__ = ('type', 'uuid', 'email', 'date_last_modified', 'name', 'groups', 'is_messenger_user', 'networkinfos', 'annotations')
 	
 	type: str
 	uuid: str
 	email: str
+	date_last_modified: datetime
 	name: Optional[str]
 	groups: Set[str]
 	is_messenger_user: bool
 	networkinfos: Dict['NetworkID', 'NetworkInfo']
 	annotations: Dict[str, Any]
-	date_last_modified: datetime
 	
 	def __init__(self, type: str, uuid: str, email: str, name: Optional[str], groups: Set[str], networkinfos: Dict['NetworkID', 'NetworkInfo'], *, is_messenger_user: Optional[bool] = None, annotations: Optional[Dict[str, Any]] = None, date_last_modified: Optional[datetime] = None) -> None:
 		self.type = type
 		self.uuid = uuid
 		self.email = email
+		self.date_last_modified = _default_if_none(date_last_modified, datetime.utcnow())
 		self.name = name
 		self.groups = groups
 		self.is_messenger_user = _default_if_none(is_messenger_user, False)
 		self.networkinfos = networkinfos
 		self.annotations = _default_if_none(annotations, {})
-		self.date_last_modified = _default_if_none(date_last_modified, datetime.utcnow())
 
 class NetworkInfo:
 	__slots__ = ('domain_id', 'source_id', 'domain_tag', 'display_name', 'relationship_info', 'invite_message', 'date_created', 'date_last_modified')
@@ -95,6 +95,7 @@ class NetworkInfo:
 		self.domain_tag = domain_tag
 		self.display_name = display_name
 		self.relationship_info = relationship_info
+		self.invite_message = invite_message
 		self.date_created = _default_if_none(date_created, datetime.utcnow())
 		self.date_last_modified = _default_if_none(date_last_modified, datetime.utcnow())
 

@@ -67,6 +67,8 @@ class ABStore(Base):
 	id = sa.Column(sa.Integer, nullable = False, primary_key = True)
 	member_uuid = sa.Column(sa.String, nullable = False)
 	ab_id = sa.Column(sa.String, nullable = False)
+	date_created = sa.Column(sa.DateTime, nullable = True, default = datetime.utcnow)
+	date_last_modified = sa.Column(sa.DateTime, nullable = True)
 	groups = sa.Column(JSONType, nullable = False)
 	contacts = sa.Column(JSONType, nullable = False)
 
@@ -92,7 +94,7 @@ class ABStoreContactNetworkInfo(Base):
 	ab_id = sa.Column(sa.String, nullable = False)
 	ab_owner_uuid = sa.Column(sa.String, nullable = True)
 	date_created = sa.Column(sa.DateTime, nullable = True, default = datetime.utcnow)
-	date_last_modified = sa.Column(sa.DateTime, nullable = True)
+	date_last_modified = sa.Column(sa.DateTime, nullable = True, default = datetime.utcnow)
 	domain_id = sa.Column(sa.Integer, nullable = False)
 	source_id = sa.Column(sa.String, nullable = False)
 	domain_tag = sa.Column(sa.String, nullable = False)

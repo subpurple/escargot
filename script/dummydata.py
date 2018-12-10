@@ -55,6 +55,7 @@ def main() -> None:
 		ab_s.groups = list(ab_s.groups.keys())
 		tables.extend(ab_s.contacts.values())
 		ab_s.contacts = list(ab_s.contacts.keys())
+		ab_s.date_last_modified = datetime.utcnow()
 		tables.append(ab_s)
 	
 	Base.metadata.create_all(engine)
@@ -118,6 +119,7 @@ def set_contacts(user: User, ab_store: ABStore, contacts_by_group: Dict[str, Lis
 			if group_name:
 				contact['groups'].append(group_id)
 				contact_abs.groups.append(group_id)
+				contact_abs.date_last_modified = datetime.utcnow()
 
 def randomish(u: User) -> int:
 	return int(u.uuid[:8], 16)

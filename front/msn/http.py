@@ -168,7 +168,7 @@ async def handle_abservice(req: web.Request) -> web.Response:
 			if ab_id not in detail.subscribed_ab_stores:
 				return web.HTTPInternalServerError()
 			
-			ab_type, ab_groups, ab_contacts = backend.user_service.get_ab_contents(ab_id, user)
+			ab_type, ab_created, ab_last_modified, ab_groups, ab_contacts = backend.user_service.get_ab_contents(ab_id, user)
 			
 			return render(req, 'msn:abservice/ABFindAllResponse.xml', {
 				'cachekey': cachekey,
@@ -181,6 +181,8 @@ async def handle_abservice(req: web.Request) -> web.Response:
 				'now': now_str,
 				'ab_id': ab_id,
 				'ab_type': ab_type,
+				'ab_last_modified': ab_last_modified,
+				'ab_created': ab_created,
 			})
 		if action_str == 'ABFindContactsPaged':
 			user = bs.user
@@ -200,7 +202,7 @@ async def handle_abservice(req: web.Request) -> web.Response:
 				backend.user_service.msn_get_circle_metadata(circle_id), backend.user_service.msn_get_circle_membership(circle_id, user.email) or {},
 			) for circle_id in detail.subscribed_ab_stores if circle_id.startswith('00000000-0000-0000-0009')]
 			
-			ab_type, ab_groups, ab_contacts = backend.user_service.get_ab_contents(ab_id, user)
+			ab_type, ab_created, ab_last_modified, ab_groups, ab_contacts = backend.user_service.get_ab_contents(ab_id, user)
 			
 			for circle_metadata, _ in circle_info:
 				if user.email == circle_metadata.owner_email:
@@ -234,6 +236,8 @@ async def handle_abservice(req: web.Request) -> web.Response:
 				'signedticket': gen_signedticket_xml(user, backend),
 				'ab_id': ab_id,
 				'ab_type': ab_type,
+				'ab_created': ab_created,
+				'ab_last_modified': ab_last_modified
 			})
 		if action_str == 'ABContactAdd':
 			user = bs.user

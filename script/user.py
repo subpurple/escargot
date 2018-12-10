@@ -61,6 +61,7 @@ def main() -> None:
 					member_uuid = user.uuid, ab_id = '00000000-0000-0000-0000-000000000000',
 					groups = [], contacts = [],
 				)
+				abstore.date_last_modified = datetime.utcnow()
 				sess.add(abstore)
 			if networkid is NetworkID.WINDOWS_LIVE:
 				ticketxml = '<?xml version="1.0" encoding="utf-16"?>\r\n<Ticket xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">\r\n  <TS>{}</TS>\r\n  <CID>{}</CID>\r\n</Ticket>'.format(

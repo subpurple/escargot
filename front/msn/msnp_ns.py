@@ -563,12 +563,12 @@ class MSNPCtrlNS(MSNPCtrl):
 							self.send_reply(Err.InvalidCircleMembership, trid)
 							return
 					try:
-						bs.me_contact_add(contact_uuid, lsts, name = email)
+						_, ctc_head = bs.me_contact_add(contact_uuid, lsts, name = email)
 					except Exception:
 						pass
 					else:
 						if lsts & Lst.FL:
-							bs.evt.on_presence_notification(user, Substatus.Offline, True, trid = trid)
+							bs.evt.on_presence_notification(ctc_head, Substatus.Offline, True, trid = trid)
 		except Exception as ex:
 			if isinstance(ex, XMLSyntaxError):
 				self.send_reply(Err.XXLInvalidPayload, trid)

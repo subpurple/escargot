@@ -1,4 +1,4 @@
-{%- from 'msn:_funcs.xml' import contact_entry, group_entry -%}
+{%- from 'msn:_funcs.xml' import contact_entry, group_entry, ab_properties -%}
 
 <?xml version="1.0" encoding="utf-8"?>
 <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
@@ -76,23 +76,7 @@
 					</Contact>
 				</contacts>
 				<ab>
-					<abId>{{ ab_id }}</abId>
-					<abInfo>
-						<ownerPuid>0</ownerPuid>
-						<OwnerCID>{{ cid_format(user.uuid, decimal = True) }}</OwnerCID>
-						<ownerEmail>{{ user.email }}</ownerEmail>
-						<fDefault>true</fDefault>
-						<joinedNamespace>false</joinedNamespace>
-						<IsBot>false</IsBot>
-						<IsParentManaged>false</IsParentManaged>
-						<SubscribeExternalPartner>false</SubscribeExternalPartner>
-						<NotifyExternalPartner>false</NotifyExternalPartner>
-						<AddressBookType>{{ ab_type }}</AddressBookType>
-					</abInfo>
-					<lastChange>{{ now }}</lastChange>
-					<DynamicItemLastChanged>0001-01-01T00:00:00</DynamicItemLastChanged>
-					<createDate>{{ now }}</createDate>
-					<propertiesChanged />
+					{{ ab_properties(ab_id, user, ab_type, ab_created, ab_last_modified, False) }}
 				</ab>
 			</ABFindAllResult>
 		</ABFindAllResponse>

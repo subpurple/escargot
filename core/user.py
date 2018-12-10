@@ -235,7 +235,7 @@ class UserService:
 			
 			return None
 	
-	def get_ab_contents(self, ab_id: str, user: User) -> Optional[Tuple[str, Dict[str, Group], Dict[str, Contact]]]:
+	def get_ab_contents(self, ab_id: str, user: User) -> Optional[Tuple[str, datetime, datetime, Dict[str, Group], Dict[str, Contact]]]:
 		with Session() as sess:
 			ab_type, dbabstore = self._get_ab_store(ab_id, uuid = user.uuid)
 			
@@ -247,14 +247,13 @@ class UserService:
 			
 			for id in dbabstore.groups:
 				grp = self.ab_get_group(ab_id, id, user)
-				print(grp)
 				if grp is None: continue
 				groups[id] = grp
 			for c_uuid in dbabstore.contacts:
 				ctc = self.ab_get_entry(ab_id, c_uuid, user)
 				if ctc is None: continue
 				contacts[c_uuid] = ctc
-			return ab_type, groups, contacts
+			return ab_type, dbabstore.date_created, dbabstore.date_last_modified, groups, contacts
 	
 	def ab_delete_entry(self, ab_id: str, ctc_uuid: str, user: User) -> None:
 		with Session() as sess:
@@ -277,6 +276,7 @@ class UserService:
 	def save_batch_ab(self, batch: Tuple[str, User, Dict[str, Any]]) -> None:
 		with Session() as sess:
 			for ab_id, user, fields in batch:
+				updated = False
 				ab_type, dbabstore = self._get_ab_store(ab_id, uuid = user.uuid)
 				
 				if dbabstore is None:
@@ -330,7 +330,8 @@ class UserService:
 							dbabstorecontactnetworkinfo.date_last_modified = datetime.utcnow()
 							networkinfo.date_last_modified = dbabstorecontactnetworkinfo.date_last_modified
 							sess.add(dbabstorecontactnetworkinfo)
-									
+					updated = True
+				
 				if 'groups' in fields:
 					for g in fields['groups']:
 						if g.id not in dbabstore.groups:
@@ -349,6 +350,9 @@ class UserService:
 							dbabstoregroup.date_last_modified = datetime.utcnow()
 						g.date_last_modified = dbabstoregroup.date_last_modified
 						sess.add(dbabstoregroup)
+					updated = True
+				
+				if updated: dbabstore.date_last_modified = datetime.utcnow()
 				sess.add(dbabstore)
 	
 	def _get_ab_store(self, ab_id: str, *, uuid: Optional[str] = None) -> Optional[Tuple[str, DBABStore]]:
@@ -484,6 +488,7 @@ class UserService:
 				member_uuid = circledbuser.uuid, ab_id = '00000000-0000-0000-0000-000000000000',
 				groups = {}, contacts = {},
 			)
+			circleuser_abstore.date_last_modified = datetime.utcnow()
 			
 			circledbabmetadata = DBABMetadata(
 				ab_id = circle_id, ab_type = 'Group',
