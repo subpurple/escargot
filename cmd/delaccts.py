@@ -1,8 +1,6 @@
-import sys
 import db
 
-def main():
-	emails = sys.argv[1:]
+def main(*emails: str) -> None:
 	if not emails:
 		print("Nothing to do.")
 		return
@@ -38,4 +36,5 @@ def _remove_from_contacts(user, uuids):
 	print("contacts", user.email)
 
 if __name__ == '__main__':
-	main()
+	import funcli
+	funcli.main()
