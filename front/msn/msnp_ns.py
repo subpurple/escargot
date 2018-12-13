@@ -173,6 +173,8 @@ class MSNPCtrlNS(MSNPCtrl):
 					# response, a side effect of using the custom `msidcrl40` DLL valtron coded up, but will notch up security if we get it
 					# implemented, either in the custom DLL or if all else fails, get the original DLL up and running).
 					extra = ('MBI_KEY_OLD', '8CLhG/xfgYZ7TyRQ/jIAWyDmd/w4R4GF2yKLS6tYrnjzi4cFag/Nr+hxsfg5zlCf')
+				if dialect >= 13:
+					self.send_reply('GCF', 0, SHIELDS_MSNP13)
 				self.send_reply('USR', trid, authtype, 'S', *extra)
 				return
 			if stage == 'S':
@@ -1335,6 +1337,15 @@ SHIELDS = '''<?xml version="1.0" encoding="utf-8" ?>
 	<shield><cli maj="7" min="0" minbld="0" maxbld="9999" deny=" " /></shield>
 	<block></block>
 </config>'''.encode('utf-8')
+SHIELDS_MSNP13 = '''<Policies>
+	<Policy type="SHIELDS">
+		<config>
+			<cli maj="7" min="0" minbld="0" maxbld="9999" deny=" " />
+		</config>
+		<block>
+		</block>
+	</Policy>
+</Policies>'''.encode('utf-8')
 TIMESTAMP = '2000-01-01T00:00:00.0-00:00'
 
 _QRY_ID_CODES = {

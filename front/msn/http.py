@@ -41,6 +41,8 @@ def register(app: web.Application) -> None:
 	app.router.add_post('/etc/MsgrConfig', handle_msgrconfig)
 	app.router.add_get('/Config/MsgrConfig.asmx', handle_msgrconfig)
 	app.router.add_post('/Config/MsgrConfig.asmx', handle_msgrconfig)
+	app.router.add_get('/config/MsgrConfig.asmx', handle_msgrconfig)
+	app.router.add_post('/config/MsgrConfig.asmx', handle_msgrconfig)
 	
 	# MSN >= 7.5
 	app.router.add_route('OPTIONS', '/NotRST.srf', handle_not_rst)
@@ -905,15 +907,46 @@ def _datetime_to_filetime(dt_time: datetime) -> str:
 def _xml_to_string(xml: Any) -> str:
 	return lxml.etree.tostring(xml, pretty_print = True).decode('utf-8')
 
+def _parse_cookies(cookie_string: Optional[str]) -> Dict[str, Any]:
+	cookie_dict = {}
+	cookie_data = None
+	
+	if not cookie_string:
+		return {}
+	
+	cookies = cookie_string.split(';')
+	
+	for cookie in cookies:
+		if not cookie: continue
+		cookie_kv = cookie.split('=', 1)
+		if len(cookie_kv) == 2:
+			cookie_data = cookie_kv[1]
+		cookie_dict[cookie_kv[0]] = cookie_data
+	
+	return cookie_dict
+
 async def _preprocess_soap(req: web.Request) -> Tuple[Any, Any, Optional[BackendSession], str]:
 	from lxml.objectify import fromstring as parse_xml
+	
+	mspauth = False
 	
 	body = await req.read()
 	root = parse_xml(body)
 	
 	token = _find_element(root, 'TicketToken')
+	if token is None:
+		token = req.cookies.get('MSPAuth')
+		if token is None:
+			token = _parse_cookies(req.headers.get('Cookie')).get('MSPAuth')
+		if token is not None:
+			mspauth = True
+	if token is None:
+		raise web.HTTPInternalServerError()
+		
 	if token[0:2] == 't=':
 		token = token[2:22]
+	elif mspauth:
+		token = token[0:20]
 	
 	backend: Backend = req.app['backend']
 	backend_sess = backend.util_get_sess_by_token(token)
