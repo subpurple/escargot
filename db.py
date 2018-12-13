@@ -28,7 +28,7 @@ class User(Base):
 	name = sa.Column(sa.String, nullable = False)
 	message = sa.Column(sa.String, nullable = False)
 	password = sa.Column(sa.String, nullable = False)
-	password_md5 = sa.Column(sa.String, nullable = False)
+	password_md5 = sa.Column(sa.String, nullable = False, server_default = '')
 	settings = sa.Column(JSONType, nullable = False)
 	groups = sa.Column(JSONType, nullable = False)
 	contacts = sa.Column(JSONType, nullable = False)

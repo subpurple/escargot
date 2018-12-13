@@ -8,3 +8,4 @@ tmp
 hosts.lnk
 storage
 front/ymsg/todo
+.mypy_cache

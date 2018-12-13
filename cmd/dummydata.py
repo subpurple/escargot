@@ -1,9 +1,12 @@
-from util.hash import hasher
-from ctrl_nb import Lst
-from db import Base, Session, User, engine
 from uuid import uuid4
 
-Base.metadata.create_all(engine)
+from util.hash import hasher
+from core.models import Lst
+from db import Session, User
+
+from cmd.dbcreate import create_dbs
+
+create_dbs()
 
 with Session() as sess:
 	sess.query(User).delete()
