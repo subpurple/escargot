@@ -21,8 +21,9 @@ def register(loop, backend, *, http_port = None, devmode = False):
 	backend.add_runner(ProtocolRunner('0.0.0.0', 1864, ListenerMSNP, args = ['SB', backend, MSNP_SB_SessState]))
 	backend.add_runner(AIOHTTPRunner(http_host, http_port, create_app(backend)))
 	if devmode:
-		from dev import autossl
-		ssl_context = autossl.create_context()
+		from devtls import DevTLS
+		devtls = DevTLS('Escargot')
+		ssl_context = devtls.create_ssl_context()
 		backend.add_runner(AIOHTTPRunner(http_host, 443, create_app(backend), ssl = ssl_context))
 
 class ListenerMSNP(asyncio.Protocol):

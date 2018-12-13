@@ -28,7 +28,7 @@
 	```
 - run `python dev`
 
-The **first time** you run `python dev`, a root certificate `DO_NOT_TRUST_DevEscargotRoot.crt` is created in `dev/cert`,
+The **first time** you run `python dev`, a root certificate `DO_NOT_TRUST_DevTLS_Escargot.crt` is created in `.devtls_cache`,
 it tells you to install it, and exits. To install (on Windows):
 
 - double click the certificate
