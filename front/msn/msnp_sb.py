@@ -178,7 +178,7 @@ class MSNPCtrlSB(MSNPCtrl):
 			assert detail is not None
 			
 			invitee = self.backend._load_user_record(invitee_uuid)
-			if is_blocking(invitee, user) or invitee.status.is_offlineish():
+			if (invitee.detail is not None and is_blocking(invitee, user)) or invitee.status.is_offlineish():
 				raise error.ContactNotOnline()
 			
 			cs.invite(invitee)

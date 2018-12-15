@@ -59,7 +59,6 @@ def main() -> None:
 				
 				abstore = ABStore(
 					member_uuid = user.uuid, ab_id = '00000000-0000-0000-0000-000000000000',
-					groups = [], contacts = [],
 				)
 				abstore.date_last_modified = datetime.utcnow()
 				sess.add(abstore)

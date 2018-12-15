@@ -13,6 +13,9 @@ from core.db import Base, Session, User, ABStore, ABStoreContact, ABStoreGroup, 
 from script.user import set_passwords
 from front.msn.misc import cid_format
 
+ab_store_contacts_by_uuid_by_uuid = {}
+ab_store_groups_by_uuid_by_uuid = {}
+
 def main() -> None:
 	U = []
 	
@@ -21,40 +24,42 @@ def main() -> None:
 		for i in range(1, 5 + 1):
 			name = "T{}{}".format(i, d)
 			user = create_user('{}@{}'.format(name.lower(), domain), '123456', name, "{} msg".format(name))
+			ab_store_contacts_by_uuid_by_uuid[user.uuid] = {}
+			ab_store_groups_by_uuid_by_uuid[user.uuid] = {}
 			abstore = create_abstore(user.uuid)
 			U.append((user, abstore))
 	
 	for i in range(5):
 		name = "Bot{}".format(i)
 		user = create_user('{}@bot.log1p.xyz'.format(name.lower()), '123456', name, "{} msg".format(name))
+		ab_store_contacts_by_uuid_by_uuid[user.uuid] = {}
+		ab_store_groups_by_uuid_by_uuid[user.uuid] = {}
 		abstore = create_abstore(user.uuid)
 		U.append((user, abstore))
 	
-	for i, (u, ab_s) in enumerate(U):
+	for i, (u, _) in enumerate(U):
 		contacts_by_group: Dict[str, List[User]] = {}
 		
 		x = randomish(u)
 		for j in range(x % 4):
 			contacts_by_group["" if j == 0 else "U{}G{}".format(i, j)] = []
 		group_names = list(contacts_by_group.keys())
-		for uc, uc_abs in U:
+		for uc, _ in U:
 			y = x ^ randomish(uc)
 			for k, group_name in enumerate(group_names):
 				z = y ^ k
 				if z % 2 < 1:
-					contacts_by_group[group_name].append((uc, uc_abs))
+					contacts_by_group[group_name].append(uc)
 		
-		set_contacts(u, ab_s, contacts_by_group)
+		set_contacts(u, contacts_by_group)
 	
 	tables = []
 	
 	for u, ab_s in U:
 		u.contacts = list(u.contacts.values())
 		tables.append(u)
-		tables.extend(ab_s.groups.values())
-		ab_s.groups = list(ab_s.groups.keys())
-		tables.extend(ab_s.contacts.values())
-		ab_s.contacts = list(ab_s.contacts.keys())
+		tables.extend(ab_store_groups_by_uuid_by_uuid[u.uuid].values())
+		tables.extend(ab_store_contacts_by_uuid_by_uuid[u.uuid].values())
 		ab_s.date_last_modified = datetime.utcnow()
 		tables.append(ab_s)
 	
@@ -87,35 +92,32 @@ def create_user(email: str, pw: str, name: str, message: str) -> User:
 def create_abstore(uuid: str) -> ABStore:
 	return ABStore(
 		member_uuid = uuid, ab_id = '00000000-0000-0000-0000-000000000000',
-		groups = {}, contacts = {},
 	)
 
 def create_abstorecontact(contact_uuid: str, uuid: str, email: str, name: str) -> ABStoreContact:
 	return ABStoreContact(
-		contact_uuid = contact_uuid, contact_owner_uuid = uuid,
+		ab_id = '00000000-0000-0000-0000-000000000000', ab_owner_uuid = uuid, contact_uuid = contact_uuid,
 		type = 'Regular', email = email, name = name, groups = [],
 		is_messenger_user = True, annotations = {},
 	)
 
 def create_abstoregroup(group_id: str, uuid: str, name: str) -> ABStoreGroup:
 	return ABStoreGroup(
-		group_id = group_id, group_owner_uuid = uuid,
+		ab_id = '00000000-0000-0000-0000-000000000000', ab_owner_uuid = uuid, group_id = group_id,
 		name = name, is_favorite = False,
 	)
 
-def set_contacts(user: User, ab_store: ABStore, contacts_by_group: Dict[str, List[User]]) -> None:
+def set_contacts(user: User, contacts_by_group: Dict[str, List[User]]) -> None:
 	user.contacts = {}
 	user.groups = []
-	ab_store.contacts = {}
-	ab_store.groups = {}
 	
 	for i, (group_name, group_users) in enumerate(contacts_by_group.items()):
 		group_id = str(i + 1)
 		if group_name:
 			user.groups.append({ 'id': group_id, 'name': group_name })
-			ab_store.groups[group_id] = create_abstoregroup(group_id, user.uuid, group_name)
-		for u, ab_s in group_users:
-			contact, contact_abs = add_contact_twosided((user, ab_store), (u, ab_s))
+			ab_store_groups_by_uuid_by_uuid[user.uuid][group_id] = create_abstoregroup(group_id, user.uuid, group_name)
+		for u in group_users:
+			contact, contact_abs = add_contact_twosided(user, u)
 			if group_name:
 				contact['groups'].append(group_id)
 				contact_abs.groups.append(group_id)
@@ -124,12 +126,12 @@ def set_contacts(user: User, ab_store: ABStore, contacts_by_group: Dict[str, Lis
 def randomish(u: User) -> int:
 	return int(u.uuid[:8], 16)
 
-def add_contact_twosided(u_abs: Tuple[User, ABStore], c_abs: Tuple[User, ABStore]) -> Tuple[Dict[str, Any], Optional[ABStoreContact]]:
-	contact, contact_abs = add_contact_onesided(u_abs[1], u_abs[0], c_abs[0], Lst.AL | Lst.FL)
-	add_contact_onesided(c_abs[1], c_abs[0], u_abs[0], Lst.RL)
+def add_contact_twosided(user: User, user_contact: User) -> Tuple[Dict[str, Any], Optional[ABStoreContact]]:
+	contact, contact_abs = add_contact_onesided(user, user_contact, Lst.AL | Lst.FL)
+	add_contact_onesided(user_contact, user, Lst.RL)
 	return contact, contact_abs
 
-def add_contact_onesided(ab_store: ABStore, user: User, user_contact: User, lst: Lst) -> Tuple[Dict[str, Any], Optional[ABStoreContact]]:
+def add_contact_onesided(user: User, user_contact: User, lst: Lst) -> Tuple[Dict[str, Any], Optional[ABStoreContact]]:
 	if user_contact.uuid not in user.contacts:
 		user.contacts[user_contact.uuid] = {
 			'uuid': user_contact.uuid, 'name': user_contact.name,
@@ -138,9 +140,9 @@ def add_contact_onesided(ab_store: ABStore, user: User, user_contact: User, lst:
 	contact = user.contacts[user_contact.uuid]
 	contact['lists'] |= lst
 	
-	if user_contact.uuid not in ab_store.contacts and lst & Lst.FL:
-		ab_store.contacts[user_contact.uuid] = create_abstorecontact(user_contact.uuid, user.uuid, user_contact.email, user_contact.name)
-	contact_abs = ab_store.contacts.get(user_contact.uuid)
+	if user_contact.uuid not in ab_store_contacts_by_uuid_by_uuid[user.uuid] and lst & Lst.FL:
+		ab_store_contacts_by_uuid_by_uuid[user.uuid][user_contact.uuid] = create_abstorecontact(user_contact.uuid, user.uuid, user_contact.email, user_contact.name)
+	contact_abs = ab_store_contacts_by_uuid_by_uuid[user.uuid].get(user_contact.uuid)
 	return contact, contact_abs
 
 if __name__ == '__main__':

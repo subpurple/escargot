@@ -69,15 +69,14 @@ class ABStore(Base):
 	ab_id = sa.Column(sa.String, nullable = False)
 	date_created = sa.Column(sa.DateTime, nullable = True, default = datetime.utcnow)
 	date_last_modified = sa.Column(sa.DateTime, nullable = True)
-	groups = sa.Column(JSONType, nullable = False)
-	contacts = sa.Column(JSONType, nullable = False)
 
 class ABStoreContact(Base):
 	__tablename__ = 't_ab_store_contact'
 	
 	id = sa.Column(sa.Integer, nullable = False, primary_key = True)
+	ab_id = sa.Column(sa.String, nullable = False)
+	ab_owner_uuid = sa.Column(sa.String, nullable = True)
 	contact_uuid = sa.Column(sa.String, nullable = False)
-	contact_owner_uuid = sa.Column(sa.String, nullable = False)
 	date_last_modified = sa.Column(sa.DateTime, nullable = True, default = datetime.utcnow)
 	type = sa.Column(sa.String, nullable = False)
 	email = sa.Column(sa.String, nullable = False)
@@ -109,8 +108,9 @@ class ABStoreGroup(Base):
 	__tablename__ = 't_ab_store_group'
 	
 	id = sa.Column(sa.Integer, nullable = False, primary_key = True)
+	ab_id = sa.Column(sa.String, nullable = False)
+	ab_owner_uuid = sa.Column(sa.String, nullable = True)
 	group_id = sa.Column(sa.String, nullable = False)
-	group_owner_uuid = sa.Column(sa.String, nullable = False)
 	name = sa.Column(sa.String, nullable = False)
 	is_favorite = sa.Column(sa.Boolean, nullable = False, default = False)
 	date_last_modified = sa.Column(sa.DateTime, nullable = True, default = datetime.utcnow)

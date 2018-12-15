@@ -163,7 +163,6 @@ class UserService:
 			if not dbabstore:
 				dbabstore = DBABStore(
 					member_uuid = user.uuid, ab_id = ab_id,
-					groups = [], contacts = [],
 				)
 				sess.add(dbabstore)
 	
@@ -173,67 +172,68 @@ class UserService:
 	
 	def delete_ab_group(self, ab_id: str, group_id: str, user: User) -> None:
 		with Session() as sess:
-			_, dbabstore = self._get_ab_store(ab_id, uuid = user.uuid)
+			ab_type, dbabstore = self._get_ab_store(ab_id, uuid = user.uuid)
 			
 			if dbabstore is None:
 				return None
 			
-			if group_id not in dbabstore.groups:
+			dbabstoregroup = sess.query(DBABStoreGroup).filter(DBABStoreGroup.group_id == group_id, DBABStoreGroup.ab_id == ab_id, DBABStoreGroup.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None))
+			
+			if dbabstoregroup is None:
 				return None
 			
-			dbabstore.groups.remove(group_id)
+			sess.delete(dbabstoregroup)
 			
-			dbabstorecontacts = sess.query(DBABStoreContact).filter(DBABStoreContact.group_owner_uuid == user.uuid)
+			dbabstorecontacts = sess.query(DBABStoreContact).filter(DBABStoreContact.ab_id == ab_id, DBABStoreContact.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None))
 			for dbabstorecontact in dbabstorecontacts:
 				dbabstorecontact.groups.remove(group_id)
 			sess.add_all(dbabstorecontacts)
 			
 			sess.add(dbabstore)
 	
-	def ab_get_entry(self, ab_id: str, ctc_uuid: str, user: User) -> Optional[ABContact]:
+	def ab_get_entry_by_uuid(self, ab_id: str, ctc_uuid: str, user: User) -> Optional[ABContact]:
 		with Session() as sess:
 			ab_type, dbabstore = self._get_ab_store(ab_id, uuid = user.uuid)
 			
-			if dbabstore is None:
+			dbabstorecontact = sess.query(DBABStoreContact).filter(DBABStoreContact.contact_uuid == ctc_uuid, DBABStoreContact.ab_id == ab_id, DBABStoreContact.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None)).one_or_none()
+			
+			if dbabstorecontact is None:
 				return None
 			
-			if ctc_uuid in dbabstore.contacts:
-				head = self.get(ctc_uuid)
-				if head is None: return None
-				dbabstorecontact = sess.query(DBABStoreContact).filter(DBABStoreContact.contact_uuid == ctc_uuid, DBABStoreContact.contact_owner_uuid == user.uuid).one_or_none()
-				if dbabstorecontact is None: return None
-				annotations = {}
-				for annotation in dbabstorecontact.annotations:
-					annotations.update(annotation)
-				dbabstorecontactnetworkinfos = sess.query(DBABStoreContactNetworkInfo).filter(DBABStoreContactNetworkInfo.contact_uuid == ctc_uuid, DBABStoreContactNetworkInfo.ab_id == ab_id, DBABStoreContactNetworkInfo.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None))
-				networkinfos = {
-					NetworkID(dbabstorecontactnetworkinfo.domain_id): NetworkInfo(
-						NetworkID(dbabstorecontactnetworkinfo.domain_id), dbabstorecontactnetworkinfo.source_id, dbabstorecontactnetworkinfo.domain_tag,
-						dbabstorecontactnetworkinfo.display_name, RelationshipInfo(
-							ABRelationshipType(dbabstorecontactnetworkinfo.relationship_type), ABRelationshipRole(dbabstorecontactnetworkinfo.relationship_role), ABRelationshipState(dbabstorecontactnetworkinfo.relationship_state), dbabstorecontactnetworkinfo.relationship_state_date,
-						),
-						invite_message = dbabstorecontactnetworkinfo.invite_message, date_created = dbabstorecontactnetworkinfo.date_created, date_last_modified = dbabstorecontactnetworkinfo.date_last_modified,
-					) for dbabstorecontactnetworkinfo in dbabstorecontactnetworkinfos}
-				return ABContact(
-					dbabstorecontact.type, ctc_uuid, dbabstorecontact.email, dbabstorecontact.name, set(dbabstorecontact.groups), networkinfos,
-					is_messenger_user = dbabstorecontact.is_messenger_user, annotations = annotations, date_last_modified = dbabstorecontact.date_last_modified,
-				)
-			
-			return None
+			return self._ab_get_entry(ab_type, dbabstorecontact)
 	
-	def ab_get_group(self, ab_id: str, group_id: str, user: User) -> Optional[ABGroup]:
+	def _ab_get_entry(self, ab_type: str, dbabstorecontact: DBABStoreContact) -> Optional[ABContact]:
 		with Session() as sess:
-			_, dbabstore = self._get_ab_store(ab_id, uuid = user.uuid)
+			head = self.get(dbabstorecontact.contact_uuid)
+			if head is None: return None
 			
-			if dbabstore is None:
+			annotations = {}
+			for annotation in dbabstorecontact.annotations:
+				annotations.update(annotation)
+			dbabstorecontactnetworkinfos = sess.query(DBABStoreContactNetworkInfo).filter(DBABStoreContactNetworkInfo.contact_uuid == dbabstorecontact.contact_uuid, DBABStoreContactNetworkInfo.ab_id == dbabstorecontact.ab_id, DBABStoreContactNetworkInfo.ab_owner_uuid == (dbabstorecontact.ab_owner_uuid if ab_type == 'Individual' else None))
+			networkinfos = {
+				NetworkID(dbabstorecontactnetworkinfo.domain_id): NetworkInfo(
+					NetworkID(dbabstorecontactnetworkinfo.domain_id), dbabstorecontactnetworkinfo.source_id, dbabstorecontactnetworkinfo.domain_tag,
+					dbabstorecontactnetworkinfo.display_name, RelationshipInfo(
+						ABRelationshipType(dbabstorecontactnetworkinfo.relationship_type), ABRelationshipRole(dbabstorecontactnetworkinfo.relationship_role), ABRelationshipState(dbabstorecontactnetworkinfo.relationship_state), dbabstorecontactnetworkinfo.relationship_state_date,
+					),
+					invite_message = dbabstorecontactnetworkinfo.invite_message, date_created = dbabstorecontactnetworkinfo.date_created, date_last_modified = dbabstorecontactnetworkinfo.date_last_modified,
+				) for dbabstorecontactnetworkinfo in dbabstorecontactnetworkinfos}
+			return ABContact(
+				dbabstorecontact.type, dbabstorecontact.contact_uuid, dbabstorecontact.email, dbabstorecontact.name, set(dbabstorecontact.groups), networkinfos,
+				is_messenger_user = dbabstorecontact.is_messenger_user, annotations = annotations, date_last_modified = dbabstorecontact.date_last_modified,
+			)
+	
+	def ab_get_group_by_id(self, ab_id, group_id: str, user: User) -> Optional[ABGroup]:
+		with Session() as sess:
+			ab_type, dbabstore = self._get_ab_store(ab_id, uuid = user.uuid)
+			
+			dbabstorecontact = sess.query(DBABStoreGroup).filter(DBABStoreGroup.group_id == group_id, DBABStoreContact.ab_id == ab_id, DBABStoreContact.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None)).one_or_none()
+			
+			if dbabstorecontact is None:
 				return None
 			
-			if group_id in dbabstore.groups:
-				dbabstoregroup = sess.query(DBABStoreGroup).filter(DBABStoreGroup.group_id == group_id, DBABStoreGroup.group_owner_uuid == user.uuid).one_or_none()
-				if dbabstoregroup is None: return None
-				return ABGroup(dbabstoregroup.group_id, dbabstoregroup.name, dbabstoregroup.is_favorite, date_last_modified = dbabstoregroup.date_last_modified)
-			
-			return None
+			return ABGroup(dbabstoregroup.group_id, dbabstoregroup.name, dbabstoregroup.is_favorite, date_last_modified = dbabstoregroup.date_last_modified)
 	
 	def get_ab_contents(self, ab_id: str, user: User) -> Optional[Tuple[str, datetime, datetime, Dict[str, Group], Dict[str, Contact]]]:
 		with Session() as sess:
@@ -245,29 +245,27 @@ class UserService:
 			groups = {}
 			contacts = {}
 			
-			for id in dbabstore.groups:
-				grp = self.ab_get_group(ab_id, id, user)
+			dbabstoregroups = sess.query(DBABStoreGroup).filter(DBABStoreGroup.ab_id == ab_id, DBABStoreGroup.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None))
+			for dbabstoregroup in dbabstoregroups:
+				grp = ABGroup(dbabstoregroup.group_id, dbabstoregroup.name, dbabstoregroup.is_favorite, date_last_modified = dbabstoregroup.date_last_modified)
 				if grp is None: continue
 				groups[id] = grp
-			for c_uuid in dbabstore.contacts:
-				ctc = self.ab_get_entry(ab_id, c_uuid, user)
+			
+			dbabstorecontacts = sess.query(DBABStoreContact).filter(DBABStoreContact.ab_id == ab_id, DBABStoreContact.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None))
+			for dbabstorecontact in dbabstorecontacts:
+				ctc = self._ab_get_entry(ab_type, dbabstorecontact)
 				if ctc is None: continue
-				contacts[c_uuid] = ctc
+				contacts[dbabstorecontact.contact_uuid] = ctc
 			return ab_type, dbabstore.date_created, dbabstore.date_last_modified, groups, contacts
 	
 	def ab_delete_entry(self, ab_id: str, ctc_uuid: str, user: User) -> None:
 		with Session() as sess:
-			_, dbabstore = self._get_ab_store(ab_id, uuid = user.uuid)
+			ab_type, dbabstore = self._get_ab_store(ab_id, uuid = user.uuid)
 			
 			if dbabstore is None:
 				return None
 			
-			if ctc_uuid not in dbabstore.contacts:
-				return None
-			
-			dbabstore.contacts.remove(ctc_uuid)
-			
-			dbabstorecontact = sess.query(DBABStoreContact).filter(DBABStoreContact.contact_uuid == ctc_uuid, DBABStoreContact.contact_owner_uuid == user.uuid).one_or_none()
+			dbabstorecontact = sess.query(DBABStoreContact).filter(DBABStoreContact.contact_uuid == ctc_uuid, DBABStoreContact.ab_id == ab_id, DBABStoreContact.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None)).one_or_none()
 			if dbabstorecontact is not None:
 				sess.delete(dbabstorecontact)
 			
@@ -282,21 +280,21 @@ class UserService:
 				if dbabstore is None:
 					return None
 				
+				# TODO: Entries aren't updated in time for MSN to retreive them (e.g., AB query call after an "ABContactAdd" call results in
+				# previous data being sent, but on relogin updated items are sent). Should another method be used for addressbook retreival?
+				
 				if 'contacts' in fields:
 					for c in fields['contacts']:
-						if c.uuid not in dbabstore.contacts:
-							contacts = dbabstore.contacts or []
-							contacts.append(c.uuid)
-							dbabstore.contacts = list(contacts)
-							
+						dbabstorecontact = sess.query(DBABStoreContact).filter(DBABStoreContact.contact_uuid == c.uuid, DBABStoreContact.ab_id == ab_id, DBABStoreContact.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None)).one_or_none()
+						if dbabstorecontact is None:
 							dbabstorecontact = DBABStoreContact(
-								contact_uuid = c.uuid, contact_owner_uuid = user.uuid,
-								type = c.type, email = c.email, name = c.name, groups = list(c.groups), is_messenger_user = c.is_messenger_user, annotations = [{
+								ab_id = ab_id, ab_owner_uuid = (user.uuid if ab_type == 'Individual' else None),
+								contact_uuid = c.uuid, type = c.type, email = c.email, name = c.name, groups = list(c.groups), is_messenger_user = c.is_messenger_user, annotations = [{
 									name: value
 								} for name, value in c.annotations.items()],
 							)
 						else:
-							dbabstorecontact = sess.query(DBABStoreContact).filter(DBABStoreContact.contact_uuid == c.uuid, DBABStoreContact.contact_owner_uuid == user.uuid).one_or_none()
+							dbabstorecontact = sess.query(DBABStoreContact).filter(DBABStoreContact.contact_uuid == c.uuid, DBABStoreContact.ab_id == ab_id, DBABStoreContact.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None)).one_or_none()
 							if dbabstorecontact is None: continue
 							dbabstorecontact.type = c.type
 							dbabstorecontact.email = c.email
@@ -334,17 +332,14 @@ class UserService:
 				
 				if 'groups' in fields:
 					for g in fields['groups']:
-						if g.id not in dbabstore.groups:
-							groups = dbabstore.groups or []
-							groups.append(g.id)
-							dbabstore.groups = list(groups)
-
+						dbabstoregroup = sess.query(DBABStoreGroup).filter(DBABStoreGroup.group_id == g.id, DBABStoreGroup.ab_id == ab_id, DBABStoreGroup.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None)).one_or_none()
+						if dbabstoregroup is None:
 							dbabstoregroup = DBABStoreGroup(
-								group_id = g.id, group_owner_uuid = user.uuid,
+								ab_id = ab_id, ab_owner_uuid = user.uuid, group_id = g.id,
 								name = g.name,
 							)
 						else:
-							dbabstoregroup = sess.query(DBABStoreGroup).filter(DBABStoreGroup.group_id == g.id, DBABStoreGroup.group_owner_uuid == user.uuid).one_or_none()
+							dbabstoregroup = sess.query(DBABStoreGroup).filter(DBABStoreGroup.group_id == g.id, DBABStoreGroup.ab_id == ab_id, DBABStoreGroup.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None)).one_or_none()
 							if dbabstoregroup is None: continue
 							dbabstoregroup.name = g.name
 							dbabstoregroup.date_last_modified = datetime.utcnow()
@@ -486,7 +481,6 @@ class UserService:
 			
 			circleuser_abstore = DBABStore(
 				member_uuid = circledbuser.uuid, ab_id = '00000000-0000-0000-0000-000000000000',
-				groups = {}, contacts = {},
 			)
 			circleuser_abstore.date_last_modified = datetime.utcnow()
 			
@@ -495,7 +489,6 @@ class UserService:
 			)
 			circledbabstore = DBABStore(
 				member_uuid = head.uuid, ab_id = circle_id,
-				groups = {}, contacts = {},
 			)
 			sess.add_all([circledbuser, circleuser_abstore, circledbabmetadata, circledbabstore])
 		return circle_id, circleuser_uuid

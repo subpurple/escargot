@@ -272,13 +272,12 @@ async def handle_abservice(req: web.Request) -> web.Response:
 				return render(req, 'msn:abservice/Fault.emailmissingdot.xml', status = 500)
 			
 			contact_uuid = backend.util_get_uuid_from_email(email, models.NetworkID.WINDOWS_LIVE)
-			print(contact_uuid)
 			if contact_uuid is None:
 				return render(req, 'msn:abservice/Fault.invaliduser.xml', {
 					'email': email,
 				}, status = 500)
 			
-			ctc_ab = backend.user_service.ab_get_entry(ab_id, contact_uuid, user)
+			ctc_ab = backend.user_service.ab_get_entry_by_uuid(ab_id, contact_uuid, user)
 			if ctc_ab:
 				return render(req, 'msn:abservice/Fault.contactalreadyexists.xml', status = 500)
 			
@@ -359,20 +358,20 @@ async def handle_abservice(req: web.Request) -> web.Response:
 				properties_changed = _find_element(contact, 'propertiesChanged')
 				if not contact_uuid or not properties_changed:
 					return web.HTTPInternalServerError()
-				properties_changed = str(properties_changed).split(' ')
+				properties_changed = str(properties_changed).strip().split(' ')
 				for i, contact_property in enumerate(properties_changed):
 					if contact_property not in _CONTACT_PROPERTIES:
 						return web.HTTPInternalServerError()
 				for contact_property in properties_changed:
 					if contact_property == 'DisplayName':
-						ctc_ab = backend.user_service.ab_get_entry(ab_id, contact_uuid, user)
+						ctc_ab = backend.user_service.ab_get_entry_by_uuid(ab_id, contact_uuid, user)
 						if not ctc_ab:
 							return web.HTTPInternalServerError()
 						property = _find_element(contact, 'displayName')
 						ctc_ab.name = property
 						contacts_to_update.append(ctc_ab)
 					if contact_property == 'IsMessengerUser':
-						ctc_ab = backend.user_service.ab_get_entry(ab_id, contact_uuid, user)
+						ctc_ab = backend.user_service.ab_get_entry_by_uuid(ab_id, contact_uuid, user)
 						if not ctc_ab:
 							return web.HTTPInternalServerError()
 						property = _find_element(contact, 'isMessengerUser')
@@ -380,7 +379,7 @@ async def handle_abservice(req: web.Request) -> web.Response:
 						contacts_to_update.append(ctc_ab)
 					if contact_property == 'Annotation':
 						if _find_element(contact_info, 'contactType') != 'Me':
-							ctc_ab = backend.user_service.ab_get_entry(ab_id, contact_uuid, user)
+							ctc_ab = backend.user_service.ab_get_entry_by_uuid(ab_id, contact_uuid, user)
 							if not ctc_ab:
 								return web.HTTPInternalServerError()
 						annotations = contact_info.findall('.//{*}annotations/{*}Annotation')
@@ -468,7 +467,7 @@ async def handle_abservice(req: web.Request) -> web.Response:
 			groups = action.findall('.//{*}groups/{*}Group')
 			for group in groups:
 				group_id = str(_find_element(group, 'groupId'))
-				g = backend.user_service.ab_get_group(ab_id, group_id, user)
+				g = backend.user_service.ab_get_group_by_id(ab_id, group_id, user)
 				if g is None:
 					return web.HTTPInternalServerError()
 				group_info = group.find('.//{*}groupInfo')
@@ -659,7 +658,7 @@ async def handle_abservice(req: web.Request) -> web.Response:
 			
 			contact_uuid = _find_element(action, 'contactId')
 			
-			ctc = backend.user_service.ab_get_entry(ab_id, contact_uuid, user)
+			ctc = backend.user_service.ab_get_entry_by_uuid_by_uuid(ab_id, contact_uuid, user)
 			
 			if ctc is None or ctc.networkinfos.get(models.NetworkID.WINDOWS_LIVE) is not None:
 				return web.HTTPInternalServerError()
@@ -684,7 +683,7 @@ async def handle_abservice(req: web.Request) -> web.Response:
 				
 				backend.user_service.mark_ab_modified(ab_id, { 'contacts': ctc }, user)
 				
-				ctc_ab_contact = backend.user_service.ab_get_entry('00000000-0000-0000-0000-000000000000', user.uuid, ctc.head)
+				ctc_ab_contact = backend.user_service.ab_get_entry_by_uuid_uuid('00000000-0000-0000-0000-000000000000', user.uuid, ctc.head)
 				if ctc_ab_contact:
 					return web.HTTPInternalServerError()
 				relationship_info_self = models.RelationshipInfo(

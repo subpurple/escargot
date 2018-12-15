@@ -308,16 +308,16 @@ class Err:
 			return cls.GroupZeroUnremovable
 		if isinstance(exc, error.ContactDoesNotExist):
 			if dialect >= 10:
-				return cls.InvalidUser2
+				return cls.InvalidPrincipal
 			else:
-				return cls.InvalidUser
+				return cls.InvalidPrincipal
 		if isinstance(exc, error.ContactAlreadyOnList):
 			return cls.PrincipalOnList
 		if isinstance(exc, error.ContactNotOnList):
 			return cls.PrincipalNotOnList
 		if isinstance(exc, error.UserDoesNotExist):
 			if dialect >= 10:
-				return cls.InvalidUser2
+				return cls.InvalidPrincipal2
 			else:
 				return cls.InvalidPrincipal
 		if isinstance(exc, error.ContactNotOnline):

@@ -549,7 +549,7 @@ class BackendSession(Session):
 		self.backend._mark_modified(user, message_temp = self.message_temp)
 		
 		if add_to_ab and '00000000-0000-0000-0000-000000000000' in detail.subscribed_ab_stores:
-			ctc_ab = self.backend.user_service.ab_get_entry('00000000-0000-0000-0000-000000000000', ctc.head.uuid, user)
+			ctc_ab = self.backend.user_service.ab_get_entry_by_uuid('00000000-0000-0000-0000-000000000000', ctc.head.uuid, user)
 			if ctc_ab is not None:
 				ctc_ab.name = new_name
 				self.backend.user_service.mark_ab_modified('00000000-0000-0000-0000-000000000000', { 'contacts': [ctc_ab] }, user)
@@ -656,7 +656,7 @@ class BackendSession(Session):
 				if lst == Lst.FL:
 					ctc.groups = set()
 					if remove_from_ab and '00000000-0000-0000-0000-000000000000' in detail.subscribed_ab_stores:
-						if self.backend.user_service.ab_get_entry('00000000-0000-0000-0000-000000000000', ctc_head.uuid, user):
+						if self.backend.user_service.ab_get_entry_by_uuid('00000000-0000-0000-0000-000000000000', ctc_head.uuid, user):
 							self.backend.user_service.ab_delete_entry('00000000-0000-0000-0000-000000000000', ctc_head.uuid, user)
 				updated = True
 		
