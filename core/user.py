@@ -168,6 +168,7 @@ class UserService:
 	
 	def mark_ab_modified(self, ab_id: str, fields: Dict[str, Any], user: User) -> None:
 		id = len(list(self._worklist_sync_ab.keys()))
+		# TODO: Block function when writing to database so that new changes can be retreived by other parts of the server.
 		self._worklist_sync_ab[id] = (ab_id, user, fields)
 	
 	def delete_ab_group(self, ab_id: str, group_id: str, user: User) -> None:
@@ -279,9 +280,6 @@ class UserService:
 				
 				if dbabstore is None:
 					return None
-				
-				# TODO: Entries aren't updated in time for MSN to retreive them (e.g., AB query call after an "ABContactAdd" call results in
-				# previous data being sent, but on relogin updated items are sent). Should another method be used for addressbook retreival?
 				
 				if 'contacts' in fields:
 					for c in fields['contacts']:
