@@ -191,10 +191,8 @@ class MSNPCtrlNS(MSNPCtrl):
 				usr_email = self.usr_email
 				assert usr_email is not None
 				if settings.DEBUG and settings.DEBUG_MSNP: print(F"Token: {token}")
-				token_data = backend.auth_service.get_token('nb/login', token)
-				if token_data is not None:
-					uuid = token_data[0]
-					
+				uuid = (backend.auth_service.get_token('nb/login', token) if dialect >= 18 else backend.auth_service.pop_token('nb/login', token))
+				if uuid is not None:
 					if dialect >= 16:
 						# Only check the # of args since people could connect from either patched `msidcrl40.dll` or vanilla `msidcrl40.dll`
 						if 2 <= len(args) <= 3:

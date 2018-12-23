@@ -17,11 +17,13 @@ class UserService:
 	loop: asyncio.AbstractEventLoop
 	_cache_by_uuid: Dict[str, Optional[User]]
 	_worklist_sync_ab: Dict[int, Tuple[str, User, Dict[str, Any]]]
+	_working_ab_sync_ids: List[int]
 	
 	def __init__(self, loop: asyncio.AbstractEventLoop) -> None:
 		self.loop = loop
 		self._cache_by_uuid = {}
 		self._worklist_sync_ab = {}
+		self._working_ab_sync_ids = []
 		
 		loop.create_task(self._worker_sync_ab())
 	
@@ -132,7 +134,8 @@ class UserService:
 			for key in keys:
 				ab_id, user, fields = self._worklist_sync_ab.pop(key, None)
 				if not ab_id: continue
-				batch.append((ab_id,user,fields))
+				self._working_ab_sync_ids.append(key)
+				batch.append((key,ab_id,user,fields))
 			self.save_batch_ab(batch)
 		except:
 			traceback.print_exc()
@@ -166,10 +169,16 @@ class UserService:
 				)
 				sess.add(dbabstore)
 	
-	def mark_ab_modified(self, ab_id: str, fields: Dict[str, Any], user: User) -> None:
+	def mark_ab_modified(self, ab_id: str, fields: Dict[str, Any], user: User) -> int:
 		id = len(list(self._worklist_sync_ab.keys()))
-		# TODO: Block function when writing to database so that new changes can be retreived by other parts of the server.
 		self._worklist_sync_ab[id] = (ab_id, user, fields)
+		return id
+	
+	async def mark_ab_modified_async(self, ab_id: str, fields: Dict[str, Any], user: User) -> None:
+		id = self.mark_ab_modified(ab_id, fields, user)
+		await asyncio.sleep(1)
+		while id in self._working_ab_sync_ids:
+			await asyncio.sleep(0.1)
 	
 	def delete_ab_group(self, ab_id: str, group_id: str, user: User) -> None:
 		with Session() as sess:
@@ -178,7 +187,7 @@ class UserService:
 			if dbabstore is None:
 				return None
 			
-			dbabstoregroup = sess.query(DBABStoreGroup).filter(DBABStoreGroup.group_id == group_id, DBABStoreGroup.ab_id == ab_id, DBABStoreGroup.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None))
+			dbabstoregroup = sess.query(DBABStoreGroup).filter(DBABStoreGroup.group_id == group_id, DBABStoreGroup.ab_id == ab_id, DBABStoreGroup.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None)).one_or_none()
 			
 			if dbabstoregroup is None:
 				return None
@@ -216,7 +225,7 @@ class UserService:
 				NetworkID(dbabstorecontactnetworkinfo.domain_id): NetworkInfo(
 					NetworkID(dbabstorecontactnetworkinfo.domain_id), dbabstorecontactnetworkinfo.source_id, dbabstorecontactnetworkinfo.domain_tag,
 					dbabstorecontactnetworkinfo.display_name, RelationshipInfo(
-						ABRelationshipType(dbabstorecontactnetworkinfo.relationship_type), ABRelationshipRole(dbabstorecontactnetworkinfo.relationship_role), ABRelationshipState(dbabstorecontactnetworkinfo.relationship_state), dbabstorecontactnetworkinfo.relationship_state_date,
+						ABRelationshipType(dbabstorecontactnetworkinfo.relationship_type), ABRelationshipRole(dbabstorecontactnetworkinfo.relationship_role), ABRelationshipState(dbabstorecontactnetworkinfo.relationship_state), relationship_state_date = dbabstorecontactnetworkinfo.relationship_state_date,
 					),
 					invite_message = dbabstorecontactnetworkinfo.invite_message, date_created = dbabstorecontactnetworkinfo.date_created, date_last_modified = dbabstorecontactnetworkinfo.date_last_modified,
 				) for dbabstorecontactnetworkinfo in dbabstorecontactnetworkinfos}
@@ -229,9 +238,9 @@ class UserService:
 		with Session() as sess:
 			ab_type, dbabstore = self._get_ab_store(ab_id, uuid = user.uuid)
 			
-			dbabstorecontact = sess.query(DBABStoreGroup).filter(DBABStoreGroup.group_id == group_id, DBABStoreContact.ab_id == ab_id, DBABStoreContact.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None)).one_or_none()
+			dbabstoregroup = sess.query(DBABStoreGroup).filter(DBABStoreGroup.group_id == group_id, DBABStoreGroup.ab_id == ab_id, DBABStoreGroup.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None)).one_or_none()
 			
-			if dbabstorecontact is None:
+			if dbabstoregroup is None:
 				return None
 			
 			return ABGroup(dbabstoregroup.group_id, dbabstoregroup.name, dbabstoregroup.is_favorite, date_last_modified = dbabstoregroup.date_last_modified)
@@ -250,7 +259,7 @@ class UserService:
 			for dbabstoregroup in dbabstoregroups:
 				grp = ABGroup(dbabstoregroup.group_id, dbabstoregroup.name, dbabstoregroup.is_favorite, date_last_modified = dbabstoregroup.date_last_modified)
 				if grp is None: continue
-				groups[id] = grp
+				groups[grp.id] = grp
 			
 			dbabstorecontacts = sess.query(DBABStoreContact).filter(DBABStoreContact.ab_id == ab_id, DBABStoreContact.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None))
 			for dbabstorecontact in dbabstorecontacts:
@@ -272,9 +281,9 @@ class UserService:
 			
 			sess.add(dbabstore)
 	
-	def save_batch_ab(self, batch: Tuple[str, User, Dict[str, Any]]) -> None:
+	def save_batch_ab(self, batch: Tuple[int, str, User, Dict[str, Any]]) -> None:
 		with Session() as sess:
-			for ab_id, user, fields in batch:
+			for id, ab_id, user, fields in batch:
 				updated = False
 				ab_type, dbabstore = self._get_ab_store(ab_id, uuid = user.uuid)
 				
@@ -333,13 +342,14 @@ class UserService:
 						dbabstoregroup = sess.query(DBABStoreGroup).filter(DBABStoreGroup.group_id == g.id, DBABStoreGroup.ab_id == ab_id, DBABStoreGroup.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None)).one_or_none()
 						if dbabstoregroup is None:
 							dbabstoregroup = DBABStoreGroup(
-								ab_id = ab_id, ab_owner_uuid = user.uuid, group_id = g.id,
+								ab_id = ab_id, ab_owner_uuid = (user.uuid if ab_type == 'Individual' else None), group_id = g.id,
 								name = g.name,
 							)
 						else:
 							dbabstoregroup = sess.query(DBABStoreGroup).filter(DBABStoreGroup.group_id == g.id, DBABStoreGroup.ab_id == ab_id, DBABStoreGroup.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None)).one_or_none()
 							if dbabstoregroup is None: continue
 							dbabstoregroup.name = g.name
+							dbabstoregroup.is_favorite = g.is_favorite
 							dbabstoregroup.date_last_modified = datetime.utcnow()
 						g.date_last_modified = dbabstoregroup.date_last_modified
 						sess.add(dbabstoregroup)
@@ -347,6 +357,7 @@ class UserService:
 				
 				if updated: dbabstore.date_last_modified = datetime.utcnow()
 				sess.add(dbabstore)
+				self._working_ab_sync_ids.remove(id)
 	
 	def _get_ab_store(self, ab_id: str, *, uuid: Optional[str] = None) -> Optional[Tuple[str, DBABStore]]:
 		with Session() as sess:

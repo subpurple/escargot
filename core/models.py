@@ -107,11 +107,11 @@ class RelationshipInfo:
 	relationship_state: 'ABRelationshipState'
 	relationship_state_date: datetime
 	
-	def __init__(self, relationship_type: 'ABRelationshipType', relationship_role: 'ABRelationshipRole', relationship_state: 'ABRelationshipState', relationship_state_date: datetime) -> None:
+	def __init__(self, relationship_type: 'ABRelationshipType', relationship_role: 'ABRelationshipRole', relationship_state: 'ABRelationshipState', relationship_state_date: Optional[datetime] = None) -> None:
 		self.relationship_type = relationship_type
 		self.relationship_role = relationship_role
 		self.relationship_state = relationship_state
-		self.relationship_state_date = relationship_state_date
+		self.relationship_state_date = _default_if_none(relationship_state_date, datetime.utcnow())
 
 class UserStatus:
 	__slots__ = ('substatus', 'name', 'message', 'message_temp', 'media')
@@ -155,15 +155,15 @@ class Group:
 		self.name = name
 
 class ABGroup:
-	__slots__ = ('uuid', 'name', 'is_favorite', 'date_last_modified')
+	__slots__ = ('id', 'name', 'is_favorite', 'date_last_modified')
 	
-	uuid: str
+	id: str
 	name: str
 	is_favorite: bool
 	date_last_modified: datetime
 	
-	def __init__(self, uuid: str, name: str, is_favorite: bool, *, date_last_modified: Optional[datetime] = None) -> None:
-		self.uuid = id
+	def __init__(self, id: str, name: str, is_favorite: bool, *, date_last_modified: Optional[datetime] = None) -> None:
+		self.id = id
 		self.name = name
 		self.is_favorite = is_favorite
 		self.date_last_modified = _default_if_none(date_last_modified, datetime.utcnow)

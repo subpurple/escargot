@@ -364,13 +364,12 @@ class BackendSession(Session):
 		detail.groups[group.id] = group
 		self.backend._mark_modified(user, message_temp = self.message_temp)
 		if add_to_ab and '00000000-0000-0000-0000-000000000000' in detail.subscribed_ab_stores:
-			group_ab = ABGroup(group.id, group.name, False)
-			self.backend.user_service.mark_ab_modified('00000000-0000-0000-0000-000000000000', { 'groups': [group_ab] }, user)
+			group_ab = backend.user_service.ab_get_group_by_id('00000000-0000-0000-0000-000000000000', group_id, user)
+			if not group_ab:
+				self.backend.user_service.mark_ab_modified('00000000-0000-0000-0000-000000000000', { 'groups': [ABGroup(group.id, group.name, False)] }, user)
 		return group
 	
 	def me_group_remove(self, group_id: str, *, remove_from_ab: bool = False) -> None:
-		updated_ab_ctcs = []
-		
 		if group_id == '0':
 			raise error.CannotRemoveSpecialGroup()
 		user = self.user
@@ -383,15 +382,11 @@ class BackendSession(Session):
 		for ctc in detail.contacts.values():
 			groups_old = ctc.groups.copy()
 			ctc.groups.discard(group_id)
-			if groups_old != ctc.groups and remove_from_ab:
-				updated_ab_ctcs.append(ABContact(
-					'Regular', ctc.head.uuid, ctc.head.email, ctc.status.name, ctc.groups, {},
-					is_messenger_user = True,
-				))
 		self.backend._mark_modified(user, message_temp = self.message_temp)
 		if remove_from_ab and '00000000-0000-0000-0000-000000000000' in detail.subscribed_ab_stores:
-			self.backend.user_service.mark_ab_modified('00000000-0000-0000-0000-000000000000', { 'contacts': updated_ab_ctcs, }, user)
-			self.backend.user_service.delete_ab_group('00000000-0000-0000-0000-000000000000', group_id, user)
+			group_ab = self.backend.user_service.ab_get_group_by_id('00000000-0000-0000-0000-000000000000', group_id, user)
+			if group_ab:
+				self.backend.user_service.delete_ab_group('00000000-0000-0000-0000-000000000000', group_id, user)
 	
 	def me_group_edit(self, group_id: str, new_name: str, *, disregard_name_limit: bool = False, add_to_ab: bool = False) -> None:
 		user = self.user
@@ -406,8 +401,10 @@ class BackendSession(Session):
 			g.name = new_name
 		self.backend._mark_modified(user, message_temp = self.message_temp)
 		if add_to_ab and '00000000-0000-0000-0000-000000000000' in detail.subscribed_ab_stores:
-			group_ab = ABGroup(g.id, g.name, False)
-			self.backend.user_service.mark_ab_modified('00000000-0000-0000-0000-000000000000', { 'groups': [group_ab], }, user)
+			group_ab = backend.user_service.ab_get_group_by_id('00000000-0000-0000-0000-000000000000', group_id, user)
+			if group_ab:
+				group_ab.name = g.name
+				self.backend.user_service.mark_ab_modified('00000000-0000-0000-0000-000000000000', { 'groups': [group_ab], }, user)
 	
 	def me_ab_group_edit(self, ab_groups: List[ABGroup]) -> None:
 		user = self.user
@@ -439,11 +436,10 @@ class BackendSession(Session):
 		ctc.groups.add(group_id)
 		self.backend._mark_modified(user, message_temp = self.message_temp)
 		if add_to_ab and '00000000-0000-0000-0000-000000000000' in detail.subscribed_ab_stores:
-			ctc_ab = ABContact(
-				'Regular', ctc.head.uuid, ctc.head.email, ctc.status.name, ctc.groups, {},
-				is_messenger_user = True,
-			)
-			self.backend.user_service.mark_ab_modified('00000000-0000-0000-0000-000000000000', { 'contacts': [ctc_ab], }, user)
+			ctc_ab = self.backend.user_service.ab_get_entry_by_uuid('00000000-0000-0000-0000-000000000000', ctc.head.uuid, user)
+			if ctc_ab:
+				ctc_ab.groups.add(group_id)
+				self.backend.user_service.mark_ab_modified('00000000-0000-0000-0000-000000000000', { 'contacts': [ctc_ab], }, user)
 	
 	def me_group_contact_remove(self, group_id: str, contact_uuid: str, *, remove_from_ab: bool = False) -> None:
 		user = self.user
@@ -461,11 +457,10 @@ class BackendSession(Session):
 				raise error.ContactNotOnList()
 		self.backend._mark_modified(user, message_temp = self.message_temp)
 		if remove_from_ab and '00000000-0000-0000-0000-000000000000' in detail.subscribed_ab_stores:
-			ctc_ab = ABContact(
-				'Regular', ctc.head.uuid, ctc.head.email, ctc.status.name, ctc.groups, {},
-				is_messenger_user = True,
-			)
-			self.backend.user_service.mark_ab_modified('00000000-0000-0000-0000-000000000000', { 'contacts': [ctc_ab], }, user)
+			ctc_ab = self.backend.user_service.ab_get_entry_by_uuid('00000000-0000-0000-0000-000000000000', ctc.head.uuid, user)
+			if ctc_ab:
+				ctc_ab.groups.remove(group_id)
+				self.backend.user_service.mark_ab_modified('00000000-0000-0000-0000-000000000000', { 'contacts': [ctc_ab], }, user)
 	
 	def me_subscribe_ab(self, ab_id: str) -> None:
 		user = self.user
