@@ -481,17 +481,17 @@ class BackendSession(Session):
 			print('Subscribing via `set_ab_subscription`')
 			backend.user_service.set_ab_subscription(head.uuid, ab_id)
 	
-	def me_contact_add(self, contact_uuid: str, lst: Lst, *, trid: Optional[str] = None, name: Optional[str] = None, message: Optional[TextWithData] = None, group_id: Optional[str] = None, adder_id: Optional[str] = None, needs_notify: bool = False) -> Tuple[Contact, User]:
+	def me_contact_add(self, contact_uuid: str, lst: Lst, *, trid: Optional[str] = None, name: Optional[str] = None, message: Optional[TextWithData] = None, group_id: Optional[str] = None, adder_id: Optional[str] = None, add_to_ab: bool = True, needs_notify: bool = False) -> Tuple[Contact, User]:
 		backend = self.backend
 		ctc_head = backend._load_user_record(contact_uuid)
 		if ctc_head is None:
 			raise error.UserDoesNotExist()
 		user = self.user
 		ctc_status = ctc_head.status.substatus
-		ctc = self._add_to_list(user, ctc_head, lst, name, group_id)
+		ctc = self._add_to_list(user, ctc_head, lst, add_to_ab, name, group_id)
 		if lst & Lst.FL:
 			# FL needs a matching RL on the contact
-			ctc_me = self._add_to_list(ctc_head, user, Lst.RL, user.email, False, None)
+			ctc_me = self._add_to_list(ctc_head, user, Lst.RL, False, user.email, None)
 			# `ctc_head` was added to `user`'s RL
 			for sess_added in backend._sc.get_sessions_by_user(ctc_head):
 				#if sess_added is self: continue
@@ -549,7 +549,7 @@ class BackendSession(Session):
 				ctc_ab.name = new_name
 				self.backend.user_service.mark_ab_modified('00000000-0000-0000-0000-000000000000', { 'contacts': [ctc_ab] }, user)
 	
-	def me_contact_remove(self, contact_uuid: str, lst: Lst, *, group_id: Optional[str] = None) -> None:
+	def me_contact_remove(self, contact_uuid: str, lst: Lst, *, remove_from_ab: bool = True, group_id: Optional[str] = None) -> None:
 		backend = self.backend
 		user = self.user
 		detail = user.detail
@@ -558,10 +558,10 @@ class BackendSession(Session):
 		if ctc is None: 
 			raise error.ContactDoesNotExist()
 		assert not lst & Lst.RL
-		self._remove_from_list(user, ctc.head, lst, group_id)
+		self._remove_from_list(user, ctc.head, lst, remove_from_ab, group_id)
 		if lst & Lst.FL:
 			# Remove matching RL
-			self._remove_from_list(ctc.head, user, Lst.RL, None)
+			self._remove_from_list(ctc.head, user, Lst.RL, False, None)
 		self.evt.on_sync_contact_statuses()
 		if lst & Lst.BL:
 			for sess_added in backend._sc.get_sessions_by_user(ctc.head):
@@ -581,7 +581,7 @@ class BackendSession(Session):
 		for sess_adder in self.backend._sc.get_sessions_by_user(user_adder):
 			sess_adder.evt.on_contact_request_denied(user, deny_message or '', adder_id = adder_id)
 	
-	def _add_to_list(self, user: User, ctc_head: User, lst: Lst, name: Optional[str], group_id: Optional[str]) -> Contact:
+	def _add_to_list(self, user: User, ctc_head: User, lst: Lst, add_to_ab: bool, name: Optional[str], group_id: Optional[str]) -> Contact:
 		# Add `ctc` to `user`'s `lst`
 		detail = self.backend._load_detail(user)
 		contacts = detail.contacts
@@ -620,7 +620,7 @@ class BackendSession(Session):
 		if updated:
 			self.backend._mark_modified(user, message_temp = self.message_temp, detail = detail)
 			self.evt.on_sync_contact_statuses()
-		if ab_updated and '00000000-0000-0000-0000-000000000000' in detail.subscribed_ab_stores:
+		if add_to_ab and ab_updated and '00000000-0000-0000-0000-000000000000' in detail.subscribed_ab_stores:
 			ctc_ab = self.backend.user_service.ab_get_entry_by_email('00000000-0000-0000-0000-000000000000', ctc_head.email, 'Regular', user)
 			if ctc_ab is None:
 				ctc_ab = ABContact(
@@ -635,7 +635,7 @@ class BackendSession(Session):
 		
 		return ctc
 	
-	def _remove_from_list(self, user: User, ctc_head: User, lst: Lst, group_id: Optional[str]) -> None:
+	def _remove_from_list(self, user: User, ctc_head: User, lst: Lst, remove_from_ab: bool, group_id: Optional[str]) -> None:
 		# Remove `ctc_head` from `user`'s `lst`
 		detail = self.backend._load_detail(user)
 		contacts = detail.contacts
@@ -655,7 +655,7 @@ class BackendSession(Session):
 				ctc.lists &= ~lst
 				if lst == Lst.FL:
 					ctc._groups = set()
-					if '00000000-0000-0000-0000-000000000000' in detail.subscribed_ab_stores:
+					if remove_from_ab and '00000000-0000-0000-0000-000000000000' in detail.subscribed_ab_stores:
 						if self.backend.user_service.ab_get_entry_by_email('00000000-0000-0000-0000-000000000000', ctc_head.email, 'Regular', user):
 							self.backend.user_service.ab_delete_entry_by_email('00000000-0000-0000-0000-000000000000', ctc_head.email, 'Regular', user)
 				updated = True

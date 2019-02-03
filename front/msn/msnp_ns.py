@@ -552,11 +552,15 @@ class MSNPCtrlNS(MSNPCtrl):
 					
 					username = c_el.get('n')
 					email = '{}@{}'.format(username, domain)
-					networkid = NetworkID(int(c_el.get('t')))
 					if circle_mode:
 						contact_uuid = backend.util_get_msn_circle_acc_uuid_from_circle_id(username)
 					else:
 						contact_uuid = backend.util_get_uuid_from_email(email)
+					
+					if not circle_mode and not self.initial_adl_sent:
+						self.initial_adl_sent = True
+					if circle_mode and (self.initial_adl_sent and not self.circle_adl_sent):
+						self.circle_adl_sent = True
 					
 					if contact_uuid is None:
 						if circle_mode:
@@ -569,10 +573,6 @@ class MSNPCtrlNS(MSNPCtrl):
 						if backend.user_service.msn_get_circle_membership(username, self.usr_email) is None:
 							self.send_reply(Err.InvalidCircleMembership, trid)
 							return
-			
-			if (NetworkID.OFFICE_COMMUNICATOR,NetworkID.TELEPHONE,NetworkID.MNI,NetworkID.SMTP,NetworkID.YAHOO) in c_nids:
-				self.send_reply(Err.InvalidUser2, trid)
-				return
 			
 			for d_el in d_els:
 				for c_el in c_els:
@@ -587,21 +587,22 @@ class MSNPCtrlNS(MSNPCtrl):
 						contact_uuid = backend.util_get_uuid_from_email(email)
 					
 					try:
-						_, ctc_head = bs.me_contact_add(contact_uuid, lsts, name = email)
+						_, ctc_head = bs.me_contact_add(contact_uuid, lsts, name = email, add_to_ab = False)
 					except Exception:
 						pass
 					
 					if lsts & Lst.FL:
 						print('Detected FL!')
-						if ctc_head is not None:
+						if contact_uuid is not None:
 							print('`ctc_head` not None')
 							if circle_mode:
 								print('Circle mode enabled')
+								ctc_head = backend._load_user_record(contact_uuid)
 								circle_metadata = backend.user_service.msn_get_circle_metadata(username)
 								print('Circle owner email:', bs.user.email)
 								print('ADL requester email:', circle_metadata.owner_email)
 								if bs.user.email == circle_metadata.owner_email:
-									circle_bs = backend.login(circle_acc, None, CircleBackendEventHandler(), only_once = True)
+									circle_bs = backend.login(contact_uuid, None, CircleBackendEventHandler(), only_once = True)
 									print('Circle `BackendSession` result:', circle_bs)
 									if circle_bs:
 										if bs.front_data.get('msn_circle_sessions') is None:
@@ -611,17 +612,13 @@ class MSNPCtrlNS(MSNPCtrl):
 										circle_bs.front_data['msn_circle_roster'] = { bs }
 										circle_bs.me_update({ 'substatus': Substatus.Online })
 								else:
-									circle_sessions = backend.util_get_sessions_by_user(circle_acc)
+									circle_sessions = backend.util_get_sessions_by_user(ctc_head)
 									if circle_sessions:
 										circle_bs = first_in_iterable(circle_sessions)
 										circle_bs.evt.msn_on_user_circle_presence(bs)
 							else:
-								bs.evt.on_presence_notification(None, ctc_head, Substatus.Offline, True, trid = trid)
-			
-			if not circle_mode and not self.initial_adl_sent:
-				self.initial_adl_sent = True
-			if circle_mode and (self.initial_adl_sent and not self.circle_adl_sent):
-				self.circle_adl_sent = True
+								if ctc_head is not None:
+									bs.evt.on_presence_notification(None, ctc_head, Substatus.Offline, True, trid = trid)
 		except Exception as ex:
 			if isinstance(ex, XMLSyntaxError):
 				self.send_reply(Err.XXLInvalidPayload, trid)
@@ -682,7 +679,7 @@ class MSNPCtrlNS(MSNPCtrl):
 				self.send_reply(Err.InvalidUser2, trid)
 				return
 			try:
-				bs.me_contact_remove(contact_uuid, lsts)
+				bs.me_contact_remove(contact_uuid, lsts, remove_from_ab = False)
 			except Exception:
 				pass
 		except Exception as ex:
@@ -870,12 +867,16 @@ class MSNPCtrlNS(MSNPCtrl):
 		else:
 			bs.front_data['msn_msnobj'] = msnobj
 		
-		if self.dialect >= 13 and not self.initial_adl_sent: return
+		if self.dialect >= 13 and not self.initial_adl_sent:
+			print('initial ADL not sent')
+			return
 		
 		bs.me_update({
 			'substatus': MSNStatus.ToSubstatus(getattr(MSNStatus, sts_name)),
 			'refresh_profile': True,
 		})
+		
+		print('print')
 		
 		extra = () # type: Tuple[Any, ...]
 		if dialect >= 9:

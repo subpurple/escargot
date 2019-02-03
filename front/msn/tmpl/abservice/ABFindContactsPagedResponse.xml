@@ -14,19 +14,25 @@
 	<soap:Body>
 		<ABFindContactsPagedResponse xmlns="http://www.msn.com/webservices/AddressBook">
 			<ABFindContactsPagedResult>
-				<Groups>
-					{% for group in user_creator_detail._groups_by_uuid.values() %}
-						{{ group_entry(group) }}
-					{% endfor %}
-				</Groups>
-				<Contacts>
-					{%- for contact in ab_contacts.values() -%}
-						<Contact>
-						{{ contact_entry(contact, user_creator_detail._groups_by_uuid) }}
-						</Contact>
-					{%- endfor -%}
-					{{ generate_me_entry(user_creator, now) }}
-				</Contacts>
+				{%- if ab_id == '00000000-0000-0000-0000-000000000000' and user_creator_detail -%}
+					{%- if user_creator_detail.groups_by_uuid -%}
+						<Groups>
+							{% for group in user_creator_detail._groups_by_uuid.values() %}
+								{{ group_entry(group) }}
+							{% endfor %}
+						</Groups>
+					{%- endif -%}
+				{%- endif -%}
+				{%- if ab_contacts -%}
+					<Contacts>
+						{%- for contact in ab_contacts.values() -%}
+							<Contact>
+							{{ contact_entry(ab_id, contact, user_creator_detail) }}
+							</Contact>
+						{%- endfor -%}
+						{{ generate_me_entry(ab_id, user_creator, now) }}
+					</Contacts>
+				{%- endif -%}
 				<CircleResult>
 					{%- if circle_info|length > 0 -%}
 						<Circles>
@@ -71,7 +77,7 @@
 						</Circles>
 					{%- endif -%}
 					<CircleTicket>
-						{{ signedticket }}
+					{{ signedticket }}
 					</CircleTicket>
 				</CircleResult>
 				<Ab>

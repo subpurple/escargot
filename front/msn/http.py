@@ -682,7 +682,7 @@ async def handle_abservice(req: web.Request) -> web.Response:
 				
 				bs.me_subscribe_ab(circle_id)
 				# Add circle relay to contact list
-				bs.me_contact_add(circle_acc_uuid, models.Lst.FL)
+				bs.me_contact_add(circle_acc_uuid, models.Lst.FL, add_to_ab = False)
 				bs.me_contact_add(circle_acc_uuid, models.Lst.AL)
 				
 				# Add self to individual AB
@@ -709,7 +709,7 @@ async def handle_abservice(req: web.Request) -> web.Response:
 						'circle_id': circle_id,
 					})
 				finally:
-					_, _, _, ab_last_modified, _, _ = backend.user_service.get_ab_contents(circle_id, user)
+					_, _, _, ab_last_modified, _ = backend.user_service.get_ab_contents(circle_id, user)
 					bs.evt.msn_on_notify_ab(cid_format(user.uuid, decimal = True), _date_format(ab_last_modified))
 					
 					#circle_bs = backend.login(backend.util_get_uuid_from_email('{}@live.com'.format(circle_id), models.NetworkID.CIRCLE), None, CircleBackendEventHandler(), only_once = True)
@@ -731,7 +731,7 @@ async def handle_abservice(req: web.Request) -> web.Response:
 			if ab_id not in detail.subscribed_ab_stores:
 				return web.HTTPInternalServerError()
 			
-			_, _, _, _, ab_groups, _ = backend.user_service.get_ab_contents(ab_id, user)
+			_, user_creator, _, _, _ = backend.user_service.get_ab_contents(ab_id, user)
 			
 			contact_uuid = backend.util_get_uuid_from_email(contact_email)
 			if contact_uuid is None:
@@ -748,8 +748,9 @@ async def handle_abservice(req: web.Request) -> web.Response:
 				'cachekey': cachekey,
 				'host': settings.LOGIN_HOST,
 				'session_id': util.misc.gen_uuid(),
+				'ab_id': ab_id,
 				'contact': ctc_ab,
-				'ab_groups': ab_groups,
+				'user_creator_detail': user_creator.detail,
 			})
 		if action_str == 'ManageWLConnection':
 			#TODO: Finish `NetworkInfo` implementation for circles
@@ -764,7 +765,7 @@ async def handle_abservice(req: web.Request) -> web.Response:
 			
 			contact_uuid = _find_element(action, 'contactId')
 			
-			_, _, _, _, ab_groups, _ = backend.user_service.get_ab_contents(ab_id, user)
+			_, user_creator, _, _, _ = backend.user_service.get_ab_contents(ab_id, user)
 			
 			ctc = backend.user_service.ab_get_entry_by_uuid(ab_id, contact_uuid, user)
 			
@@ -823,8 +824,9 @@ async def handle_abservice(req: web.Request) -> web.Response:
 				'cachekey': cachekey,
 				'host': settings.LOGIN_HOST,
 				'session_id': util.misc.gen_uuid(),
+				'ab_id': ab_id,
 				'contact': ctc,
-				'ab_groups': ab_groups,
+				'user_creator_detail': user_creator.detail,
 			})
 		if action_str in { 'UpdateDynamicItem' }:
 			# TODO: UpdateDynamicItem

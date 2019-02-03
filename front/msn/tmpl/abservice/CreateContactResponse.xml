@@ -14,7 +14,7 @@
 	<soap:Body>
 		<CreateContactResponse xmlns="http://www.msn.com/webservices/AddressBook">
 			<CreateContactResult>
-				{{ contact_entry(contact, ab_groups) }}
+				{{ contact_entry(ab_id, contact, user_creator_detail) }}
 			</CreateContactResult>
 		</CreateContactResponse>
 	</soap:Body>

@@ -374,16 +374,10 @@ class UserService:
 			if dbuser is None: return None
 			
 			if ab_id in dbuser.subscribed_ab_stores: return None
-			print('Adding AB ID to user\'s table')
 			subscribed_ab_stores = set(dbuser.subscribed_ab_stores)
 			subscribed_ab_stores.add(ab_id)
 			dbuser.subscribed_ab_stores = list(subscribed_ab_stores)
 			sess.add(dbuser)
-		with Session() as sess:
-			dbuser = sess.query(DBUser).filter(DBUser.uuid == uuid).one_or_none()
-			if dbuser is None: return None
-			
-			print(dbuser.subscribed_ab_stores)
 	
 	def msn_update_circleticket(self, uuid: str, cid: str) -> None:
 		with Session() as sess:
@@ -487,6 +481,7 @@ class UserService:
 				name = circle_name, message = '',
 				password = hasher.encode(gen_salt(length = 32)), settings = {}, subscribed_ab_stores = ['00000000-0000-0000-0000-000000000000', circle_id],
 			)
+			circledbuser.set_front_data('msn', 'circle', True)
 			
 			circledbuser_usercontact = DBUserContact(
 				user_uuid = circleuser_uuid, uuid = head.uuid,
@@ -628,9 +623,9 @@ class UserService:
 				sess.add(dbuser)
 				
 				dbusergroups = sess.query(DBUserGroup).filter(DBUserGroup.user_uuid == user.uuid)
-				for dbusergroup in dbusergroups:
-					if dbusergroup.group_id not in detail._groups_by_id:
-						sess.delete(dbusergroup)
+				for tmp in dbusergroups:
+					if tmp.group_id not in detail._groups_by_id:
+						sess.delete(tmp)
 				for g in detail._groups_by_id.values():
 					dbusergroup = sess.query(DBUserGroup).filter(DBUserGroup.user_uuid == user.uuid, DBUserGroup.group_id == g.id, DBUserGroup.group_uuid == g.uuid).one_or_none()
 					if dbusergroup is None:
@@ -644,12 +639,13 @@ class UserService:
 						dbusergroup.date_last_modified = datetime.utcnow()
 					g.date_last_modified = dbusergroup.date_last_modified
 					dbusergroups_to_add.append(dbusergroup)
-				sess.add_all(dbusergroups_to_add)
+				if dbusergroups_to_add:
+					sess.add_all(dbusergroups_to_add)
 				
 				dbusercontacts = sess.query(DBUserContact).filter(DBUserContact.user_uuid == user.uuid)
-				for dbusercontact in dbusercontacts:
-					if dbusercontact.uuid not in detail.contacts:
-						sess.delete(dbusercontact)
+				for tmp in dbusercontacts:
+					if tmp.uuid not in detail.contacts:
+						sess.delete(tmp)
 				for c in detail.contacts.values():
 					dbusercontact = sess.query(DBUserContact).filter(DBUserContact.user_uuid == user.uuid, DBUserContact.uuid == c.head.uuid).one_or_none()
 					if dbusercontact is None:
@@ -668,4 +664,5 @@ class UserService:
 							'id': group.id, 'uuid': group.uuid,
 						} for group in c._groups.copy()]
 					dbusercontacts_to_add.append(dbusercontact)
-				sess.add_all(dbusercontacts_to_add)
+				if dbusercontacts_to_add:
+					sess.add_all(dbusercontacts_to_add)

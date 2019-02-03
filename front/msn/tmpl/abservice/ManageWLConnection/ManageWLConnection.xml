@@ -14,7 +14,7 @@
 	<soap:Body>
 		<ManageWLConnectionResponse xmlns="http://www.msn.com/webservices/AddressBook">
 			<ManageWLConnectionResult>
-				{{ contact_entry(contact, ab_groups) }}
+				{{ contact_entry(ab_id, contact, user_creator_detail) }}
 			</ManageWLConnectionResult>
 		</ManageWLConnectionResponse>
 	</soap:Body>
