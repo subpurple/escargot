@@ -519,9 +519,7 @@ class MSNPCtrlNS(MSNPCtrl):
 				c_els = d_el.findall('c')
 				try:
 					c_nids = [NetworkID(int(c_el.get('t'))) for c_el in c_els]
-					print(c_nids)
 					if NetworkID.CIRCLE in c_nids:
-						print('`NetworkID.CIRCLE` found in NID list')
 						if (NetworkID.WINDOWS_LIVE,NetworkID.OFFICE_COMMUNICATOR,NetworkID.TELEPHONE,NetworkID.MNI,NetworkID.SMTP,NetworkID.YAHOO) in c_nids:
 							self.send_reply(Err.XXLInvalidPayload, trid)
 							self.close(hard = True)
@@ -592,18 +590,12 @@ class MSNPCtrlNS(MSNPCtrl):
 						pass
 					
 					if lsts & Lst.FL:
-						print('Detected FL!')
 						if contact_uuid is not None:
-							print('`ctc_head` not None')
 							if circle_mode:
-								print('Circle mode enabled')
 								ctc_head = backend._load_user_record(contact_uuid)
 								circle_metadata = backend.user_service.msn_get_circle_metadata(username)
-								print('Circle owner email:', bs.user.email)
-								print('ADL requester email:', circle_metadata.owner_email)
 								if bs.user.email == circle_metadata.owner_email:
 									circle_bs = backend.login(contact_uuid, None, CircleBackendEventHandler(), only_once = True)
-									print('Circle `BackendSession` result:', circle_bs)
 									if circle_bs:
 										if bs.front_data.get('msn_circle_sessions') is None:
 											bs.front_data['msn_circle_sessions'] = { circle_bs }
@@ -867,16 +859,12 @@ class MSNPCtrlNS(MSNPCtrl):
 		else:
 			bs.front_data['msn_msnobj'] = msnobj
 		
-		if self.dialect >= 13 and not self.initial_adl_sent:
-			print('initial ADL not sent')
-			return
+		if self.dialect >= 13 and not self.initial_adl_sent: return
 		
 		bs.me_update({
 			'substatus': MSNStatus.ToSubstatus(getattr(MSNStatus, sts_name)),
 			'refresh_profile': True,
 		})
-		
-		print('print')
 		
 		extra = () # type: Tuple[Any, ...]
 		if dialect >= 9:

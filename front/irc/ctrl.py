@@ -102,6 +102,9 @@ class IRCCtrl:
 		#self.send_numeric(RPL.ChannelModeIs, self.bs.user.email, channel, '+tnl', 200)
 		pass
 	
+	def _m_userhost(self, email: str) -> None:
+		self._reply_unsupported('USERHOST')
+	
 	def _m_who(self, channel: str) -> None:
 		assert self.bs is not None
 		cs = self._channel_to_chatsession(channel)
@@ -129,10 +132,6 @@ class IRCCtrl:
 	
 	def _m_cap(self, subcommand: str, capabilities: Optional[str] = None) -> None:
 		self._reply_unsupported('CAP')
-	
-	def _m_nick(self, nickname: str) -> None:
-		if self.bs is None: return
-		self._reply_unsupported('NICK')
 	
 	def _reply_unsupported(self, cmd: str) -> None:
 		self.send_numeric(Err.UnknownCommand, cmd, ":Not supported")

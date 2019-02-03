@@ -348,7 +348,7 @@ class BackendSession(Session):
 			updated_phone_info['MBE'] = fields['mbe']
 		if 'substatus' in fields:
 			user.status.substatus = fields['substatus']
-			if old_substatus != user.status.substatus or fields['refresh_profile']:
+			if old_substatus != user.status.substatus or fields.get('refresh_profile'):
 				needs_notify = True
 				notify_status = True
 				if 'send_notif_to_self' in fields:

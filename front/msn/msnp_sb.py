@@ -81,7 +81,9 @@ class MSNPCtrlSB(MSNPCtrl):
 		#>>> ANS trid email@example.com token sessionid (MSNP < 16)
 		#>>> ANS trid email@example.com;{00000000-0000-0000-0000-000000000000} token sessionid (MSNP >= 16)
 		self.auth_sent = True
-		if None in (trid,arg,token,sessid) or len(args) > 0: self.close(hard = True)
+		if None in (trid,arg,token,sessid) or len(args) > 0:
+			self.close(hard = True)
+			return
 		
 		(email, pop_id) = decode_email_pop(arg)
 		
@@ -93,13 +95,17 @@ class MSNPCtrlSB(MSNPCtrl):
 		self.backend.auth_service.pop_token('sb/cal', token)
 		if round(time.time() - expiry) >= 60:
 			self.close(hard = True)
+			return
 		
 		(bs, dialect, chat) = data
 		if bs.user.email != email or (dialect >= 16 and pop_id is not None and bs.front_data.get('msn_pop_id') != pop_id[1:-1]):
 			self.send_reply(Err.AuthFail, trid)
 			self.close(hard = True)
+			return
 		
-		if chat is None or sessid != chat.ids.get('main'): self.close(hard = True)
+		if chat is None or sessid != chat.ids.get('main'):
+			self.close(hard = True)
+			return
 		
 		try:
 			cs = chat.join('msn', bs, ChatEventHandler(self), pop_id = pop_id)
@@ -257,6 +263,9 @@ class MSNPCtrlSB(MSNPCtrl):
 					other_cs.close(idle = True, send_idle_leave = False)
 			self.cs.close(idle = True, send_idle_leave = False)
 		else:
+			if self.counter_task is not None:
+				self.counter_task.cancel()
+				self.counter_task = None
 			for second_user_cs in second_party_pops:
 				for cs_pop in roster_cs_pops:
 					second_user_cs.evt.on_participant_left(cs_pop, idle = True, last_pop = False)
@@ -315,7 +324,7 @@ class ChatEventHandler(event.ChatEventHandler):
 		user = cs_other.user
 		ctrl.send_reply('JOI', user.email, user.status.name, *extra)
 	
-	def on_participant_left(self, cs_other: ChatSession, *, idle: bool = False, last_pop: bool = True) -> None:
+	def on_participant_left(self, cs_other: ChatSession, idle: bool, last_pop) -> None:
 		ctrl = self.ctrl
 		if not last_pop and ctrl.dialect < 16: return
 		pop_id_other = cs_other.bs.front_data.get('msn_pop_id')

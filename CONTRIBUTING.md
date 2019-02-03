@@ -31,8 +31,9 @@
 	127.0.0.1 nexus.passport.com
 	```
 - for 5.0 - 7.5, use a **patched** install, and in your `HOSTS` add `127.0.0.1 m1.escargot.log1p.xyz`
+	- **(6.0+ only):** add `127.0.0.1 ebyrdromegactcsmsn.log1p.xyz` in your `HOSTS`
 - for WLM:
-	- 8.1.0178 and 8.5.1302: use a **patched** install, replace [msidcrl40.dll](http://storage.log1p.xyz/msidcrl.dll), and in your `HOSTS` add:
+	- 8.1.0178 and 8.5.1302: use a **patched** install, and in your `HOSTS` add:
 	```
 	127.0.0.1 m1.escargot.log1p.xyz
 	127.0.0.1 ebyrdromegactcsmsn.log1p.xyz
@@ -40,13 +41,14 @@
 	127.0.0.1 eowsmsgrmsn.log1p.xyz
 	127.0.0.1 ersih.log1p.xyz
 	```
-	- 14.0.8117.0416: use a **clean** install, install the [Windows Live Communications Platform](http://messenger.jonathankay.com/redir/w3qfe2update/contacts.asp), and in your `HOSTS` add:
+	- 14.0.8117.0416: use a **clean** install of the Messenger MSI, install the [Windows Live Communications Platform](http://messenger.jonathankay.com/redir/w3qfe2update/contacts.asp), and in your `HOSTS` add:
 	```
 	127.0.0.1 m1.escargot.log1p.xyz
 	127.0.0.1 messenger.hotmail.com
 	127.0.0.1 login.live.com
 	127.0.0.1 gateway.messenger.hotmail.com
 	127.0.0.1 byrdr.omega.contacts.msn.com
+	127.0.0.1 ebyrdromegactcsmsn.log1p.xyz
 	127.0.0.1 config.messenger.msn.com
 	127.0.0.1 tkrdr.storage.msn.com
 	127.0.0.1 ows.messenger.msn.com
