@@ -1472,6 +1472,9 @@ SHIELDS_MSNP13 = '''<Policies>
 		<block>
 		</block>
 	</Policy>
+	<Policy type="CIRCLES" checksum="9208C5655F8D96CBBD9873181E5E79BD">
+		<Policy type="CIRCLES" >     <Msgr cMember="40"/></Policy>
+	</Policy>
 </Policies>'''.encode('utf-8')
 TIMESTAMP = '2000-01-01T00:00:00.0-00:00'
 
