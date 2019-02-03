@@ -159,7 +159,7 @@ def _msnp_try_decode(d: bytes, i: int) -> Tuple[List[Any], Optional[bytes], int]
 	return m, body, e
 
 _PAYLOAD_COMMANDS = {
-	'UUX', 'MSG', 'QRY', 'ADL', 'FQY', 'RML', 'UUN', 'PUT'
+	'UUX', 'MSG', 'QRY', 'NOT', 'ADL', 'FQY', 'RML', 'UUN', 'PUT'
 }
 
 def _truncated_log(logger: Logger, pre: str, m: Sequence[Any]) -> None:

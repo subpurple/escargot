@@ -1,4 +1,4 @@
-{%- from 'msn:_funcs.xml' import contact_entry, group_entry, ab_properties -%}
+{%- from 'msn:_funcs.xml' import contact_entry, group_entry, generate_me_entry, ab_properties -%}
 
 <?xml version="1.0" encoding="utf-8"?>
 <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
@@ -15,68 +15,20 @@
 		<ABFindAllResponse xmlns="http://www.msn.com/webservices/AddressBook">
 			<ABFindAllResult>
 				<groups>
-					{% for group in ab_groups.values() %}
+					{% for group in user_creator_detail._groups_by_uuid.values() %}
 						{{ group_entry(group) }}
 					{% endfor %}
 				</groups>
 				<contacts>
 					{%- for ab_contact in ab_contacts.values() -%}
 						<Contact>
-							{{ contact_entry(ab_contact, ab_groups) }}
+						{{ contact_entry(ab_contact, user_creator_detail._groups_by_uuid) }}
 						</Contact>
 					{%- endfor -%}
-					<Contact>
-						<contactId>{{ user.uuid }}</contactId>
-						<contactInfo>
-							<annotations>
-								<Annotation>
-									<Name>MSN.IM.MBEA</Name>
-									<Value>0</Value>
-								</Annotation>
-								<Annotation>
-									<Name>MSN.IM.GTC</Name>
-									<Value>{%- if user.settings.get('GTC') == 'A' -%}1{%- elif user.settings.get('GTC') == 'N' -%}2{%- else -%}0{%- endif -%}</Value>
-								</Annotation>
-								<Annotation>
-									<Name>MSN.IM.BLP</Name>
-									<Value>{%- if user.settings.get('BLP') == 'AL' -%}1{%- elif user.settings.get('BLP') == 'BL' -%}2{%- else -%}0{%- endif -%}</Value>
-								</Annotation>
-								{%- if user.settings.get('RLP') -%}
-									<Annotation>
-										<Name>MSN.IM.RoamLiveProperties</Name>
-										<Value>{{ detail.settings.get('RLP') }}</Value>
-									</Annotation>
-								{%- endif -%}
-							</annotations>
-							<contactType>Me</contactType>
-							<quickName>{{ user.status.name or user.email }}</quickName>
-							<passportName>{{ user.email }}</passportName>
-							<IsPassportNameHidden>false</IsPassportNameHidden>
-							<displayName>{{ user.status.name or user.email }}</displayName>
-							<puid>0</puid>
-							<CID>{{ cid_format(user.uuid, decimal = True) }}</CID>
-							<IsNotMobileVisible>false</IsNotMobileVisible>
-							<isMobileIMEnabled>false</isMobileIMEnabled>
-							<isMessengerUser>false</isMessengerUser>
-							<isFavorite>false</isFavorite>
-							<isSmtp>false</isSmtp>
-							<hasSpace>false</hasSpace>
-							<spotWatchState>NoDevice</spotWatchState>
-							<birthdate>0001-01-01T00:00:00</birthdate>
-							<primaryEmailType>ContactEmailPersonal</primaryEmailType>
-							<PrimaryLocation>ContactLocationPersonal</PrimaryLocation>
-							<PrimaryPhone>ContactPhonePersonal</PrimaryPhone>
-							<IsPrivate>false</IsPrivate>
-							<Gender>Unspecified</Gender>
-							<TimeZone>None</TimeZone>
-						</contactInfo>
-						<propertiesChanged />
-						<fDeleted>false</fDeleted>
-						<lastChange>{{ now }}</lastChange>
-					</Contact>
+					{{ generate_me_entry(user_creator, now) }}
 				</contacts>
 				<ab>
-					{{ ab_properties(ab_id, user, ab_type, ab_created, ab_last_modified, False) }}
+				{{ ab_properties(ab_id, user_creator, ab_type, ab_created, ab_last_modified, False) }}
 				</ab>
 			</ABFindAllResult>
 		</ABFindAllResponse>

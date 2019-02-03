@@ -10,7 +10,7 @@ from .user import UserService
 from .auth import AuthService
 from .stats import Stats
 from .client import Client
-from .models import User, UserDetail, Group, ABGroup, Lst, NetworkID, Contact, ABContact, UserStatus, TextWithData, MessageData, Substatus, LoginOption
+from .models import User, UserDetail, Group, Lst, Contact, ABContact, UserStatus, TextWithData, MessageData, Substatus, LoginOption
 from . import error, event
 
 class Ack(IntFlag):
@@ -91,9 +91,9 @@ class Backend:
 	def on_leave(self, sess: 'BackendSession') -> None:
 		user = sess.user
 		old_substatus = user.status.substatus
+		# TODO: Don't log circle relay accounts
 		self._stats.on_logout()
-		user_sess_list = self._sc.get_sessions_by_user(user)
-		if len(user_sess_list) - 1 >= 1:
+		if len(self._sc.get_sessions_by_user(user)) - 1 >= 1:
 			# There are still other people logged in as this user,
 			# so don't send offline notifications.
 			return
@@ -160,8 +160,14 @@ class Backend:
 		assert ud is not None
 		self._worklist_sync_db[user] = (ud, message_temp)
 	
-	def util_get_uuid_from_email(self, email: str, networkid: NetworkID) -> Optional[str]:
-		return self.user_service.get_uuid(email, networkid)
+	def util_get_msn_circle_acc_uuid_from_circle_id(self, circle_id: str) -> Optional[str]:
+		return self.user_service.get_msn_circle_acc_uuid(circle_id)
+	
+	def util_msn_is_user_circle(self, uuid: str) -> Optional[bool]:
+		return self.user_service.msn_is_user_circle(uuid)
+	
+	def util_get_uuid_from_email(self, email: str) -> Optional[str]:
+		return self.user_service.get_uuid(email)
 	
 	def util_set_sess_token(self, sess: 'BackendSession', token: str) -> None:
 		self._sc.set_nc_by_token(sess, token)
@@ -230,9 +236,12 @@ class Backend:
 			try:
 				for bs, old_substatus, on_contact_add, updated_phone_info, update_status, send_notif_to_self, for_logout in worklist.values():
 					user = bs.user
+					if for_logout:
+						self._sc.remove_session(bs)
 					for bs_other in self._sc.iter_sessions():
 						if bs_other.user is user and not send_notif_to_self: continue
-						bs_other.evt.on_presence_notification(bs.user, old_substatus, on_contact_add, update_status = update_status, updated_phone_info = updated_phone_info)
+						if bs_other not in self._sc.iter_sessions(): continue
+						bs_other.evt.on_presence_notification(bs, bs.user, old_substatus, on_contact_add, update_status = update_status, updated_phone_info = updated_phone_info)
 					if for_logout:
 						if not self._sc.get_sessions_by_user(user): user.detail = None
 			except:
@@ -354,112 +363,98 @@ class BackendSession(Session):
 			self.evt.on_sync_contact_statuses()
 			self.backend._notify_contacts(self, old_substatus = old_substatus, updated_phone_info = updated_phone_info, update_status = notify_status, send_notif_to_self = send_notif_to_self)
 	
-	def me_group_add(self, name: str, *, add_to_ab: bool = False) -> Group:
+	def me_group_add(self, name: str) -> Group:
 		if len(name) > MAX_GROUP_NAME_LENGTH:
 			raise error.GroupNameTooLong()
 		user = self.user
 		detail = user.detail
 		assert detail is not None
-		group = Group(_gen_group_id(detail), name)
-		detail.groups[group.id] = group
+		groups = detail.get_groups_by_name(name)
+		if groups is not None:
+			name += str(len(groups))
+		group = Group(_gen_group_id(detail), gen_uuid(), name, False)
+		detail.insert_group(group)
 		self.backend._mark_modified(user, message_temp = self.message_temp)
-		if add_to_ab and '00000000-0000-0000-0000-000000000000' in detail.subscribed_ab_stores:
-			group_ab = backend.user_service.ab_get_group_by_id('00000000-0000-0000-0000-000000000000', group_id, user)
-			if not group_ab:
-				self.backend.user_service.mark_ab_modified('00000000-0000-0000-0000-000000000000', { 'groups': [ABGroup(group.id, group.name, False)] }, user)
 		return group
 	
-	def me_group_remove(self, group_id: str, *, remove_from_ab: bool = False) -> None:
+	def me_group_remove(self, group_id: str) -> None:
 		if group_id == '0':
 			raise error.CannotRemoveSpecialGroup()
 		user = self.user
 		detail = user.detail
 		assert detail is not None
-		try:
-			del detail.groups[group_id]
-		except KeyError:
+		group = detail.get_group_by_id(group_id)
+		if group is None:
 			raise error.GroupDoesNotExist()
+		detail.delete_group(group)
 		for ctc in detail.contacts.values():
-			groups_old = ctc.groups.copy()
-			ctc.groups.discard(group_id)
+			ctc.remove_from_group(group)
 		self.backend._mark_modified(user, message_temp = self.message_temp)
-		if remove_from_ab and '00000000-0000-0000-0000-000000000000' in detail.subscribed_ab_stores:
-			group_ab = self.backend.user_service.ab_get_group_by_id('00000000-0000-0000-0000-000000000000', group_id, user)
-			if group_ab:
-				self.backend.user_service.delete_ab_group('00000000-0000-0000-0000-000000000000', group_id, user)
+		
+		if '00000000-0000-0000-0000-000000000000' in detail.subscribed_ab_stores:
+			ctcs_to_update = []
+			
+			_, _, _, _, ctcs_ab = self.backend.user_service.get_ab_contents('00000000-0000-0000-0000-000000000000', user)
+			for ctc_ab in ctcs_ab.values():
+				if group.uuid in ctc_ab.groups:
+					ctc_ab.groups.remove(group.uuid)
+					ctcs_to_update.append(ctc_ab)
+			self.backend.user_service.mark_ab_modified('00000000-0000-0000-0000-000000000000', { 'contacts': ctcs_to_update, }, user)
 	
-	def me_group_edit(self, group_id: str, new_name: str, *, disregard_name_limit: bool = False, add_to_ab: bool = False) -> None:
+	def me_group_edit(self, group_id: str, *, new_name: Optional[str] = None, is_favorite: Optional[bool] = None, disregard_name_limit: bool = False) -> None:
 		user = self.user
 		detail = user.detail
 		assert detail is not None
-		g = detail.groups.get(group_id)
+		g = detail.get_group_by_id(group_id)
 		if g is None:
 			raise error.GroupDoesNotExist()
 		if new_name is not None:
 			if len(new_name) > MAX_GROUP_NAME_LENGTH and not disregard_name_limit:
 				raise error.GroupNameTooLong()
 			g.name = new_name
-		self.backend._mark_modified(user, message_temp = self.message_temp)
-		if add_to_ab and '00000000-0000-0000-0000-000000000000' in detail.subscribed_ab_stores:
-			group_ab = backend.user_service.ab_get_group_by_id('00000000-0000-0000-0000-000000000000', group_id, user)
-			if group_ab:
-				group_ab.name = g.name
-				self.backend.user_service.mark_ab_modified('00000000-0000-0000-0000-000000000000', { 'groups': [group_ab], }, user)
-	
-	def me_ab_group_edit(self, ab_groups: List[ABGroup]) -> None:
-		user = self.user
-		detail = user.detail
-		assert detail is not None
-		if '00000000-0000-0000-0000-000000000000' not in detail.subscribed_ab_stores:
-			# TODO: raise exception for SOAP services
-			return
-		
-		self.backend.user_service.mark_ab_modified('00000000-0000-0000-0000-000000000000', { 'groups': ab_groups, }, user)
-		for ab_group in ab_groups:
-			for group in detail.groups.values():
-				if group.id == ab_group.id and group.name != ab_group.name:
-					group.name = ab_group.name
+		if is_favorite is not None:
+			g.is_favorite = is_favorite
 		self.backend._mark_modified(user, message_temp = self.message_temp)
 	
-	def me_group_contact_add(self, group_id: str, contact_uuid: str, *, add_to_ab: bool = False) -> None:
+	def me_group_contact_add(self, group_id: str, contact_uuid: str) -> None:
 		if group_id == '0': return
 		user = self.user
 		detail = user.detail
 		assert detail is not None
-		if group_id not in detail.groups:
+		group = detail.get_group_by_id(group_id)
+		if group is None:
 			raise error.GroupDoesNotExist()
 		ctc = detail.contacts.get(contact_uuid)
 		if ctc is None:
 			raise error.ContactDoesNotExist()
-		if group_id in ctc.groups:
+		if ctc.group_in_entry(group):
 			raise error.ContactAlreadyOnList()
-		ctc.groups.add(group_id)
+		ctc.add_group_to_entry(group)
 		self.backend._mark_modified(user, message_temp = self.message_temp)
-		if add_to_ab and '00000000-0000-0000-0000-000000000000' in detail.subscribed_ab_stores:
-			ctc_ab = self.backend.user_service.ab_get_entry_by_uuid('00000000-0000-0000-0000-000000000000', ctc.head.uuid, user)
+		if '00000000-0000-0000-0000-000000000000' in detail.subscribed_ab_stores:
+			ctc_ab = self.backend.user_service.ab_get_entry_by_email('00000000-0000-0000-0000-000000000000', ctc.head.email, 'Regular', user)
 			if ctc_ab:
-				ctc_ab.groups.add(group_id)
+				ctc_ab.groups.add(group.uuid)
 				self.backend.user_service.mark_ab_modified('00000000-0000-0000-0000-000000000000', { 'contacts': [ctc_ab], }, user)
 	
-	def me_group_contact_remove(self, group_id: str, contact_uuid: str, *, remove_from_ab: bool = False) -> None:
+	def me_group_contact_remove(self, group_id: str, contact_uuid: str) -> None:
 		user = self.user
 		detail = user.detail
 		assert detail is not None
 		ctc = detail.contacts.get(contact_uuid)
 		if ctc is None:
 			raise error.ContactDoesNotExist()
-		if group_id not in detail.groups and group_id != '0':
+		group = detail.get_group_by_id(group_id)
+		if group is None and group_id != '0':
 			raise error.GroupDoesNotExist()
-		try:
-			ctc.groups.remove(group_id)
-		except KeyError:
-			if group_id == '0':
-				raise error.ContactNotOnList()
+		if group_id == '0':
+			raise error.ContactNotOnList()
+		ctc.remove_from_group(group)
 		self.backend._mark_modified(user, message_temp = self.message_temp)
-		if remove_from_ab and '00000000-0000-0000-0000-000000000000' in detail.subscribed_ab_stores:
-			ctc_ab = self.backend.user_service.ab_get_entry_by_uuid('00000000-0000-0000-0000-000000000000', ctc.head.uuid, user)
+		if '00000000-0000-0000-0000-000000000000' in detail.subscribed_ab_stores:
+			ctc_ab = self.backend.user_service.ab_get_entry_by_email('00000000-0000-0000-0000-000000000000', ctc.head.email, 'Regular', user)
 			if ctc_ab:
-				ctc_ab.groups.remove(group_id)
+				ctc_ab.groups.remove(group.uuid)
 				self.backend.user_service.mark_ab_modified('00000000-0000-0000-0000-000000000000', { 'contacts': [ctc_ab], }, user)
 	
 	def me_subscribe_ab(self, ab_id: str) -> None:
@@ -476,21 +471,24 @@ class BackendSession(Session):
 			self.backend._mark_modified(user, message_temp = self.message_temp)
 	
 	def other_subscribe_ab(self, ab_id: str, head: User) -> None:
+		backend = self.backend
+		
 		other_sess = backend.util_get_sessions_by_user(head)
 		if other_sess:
 			other_last_sess = other_sess[-1]
 			other_last_sess.me_subscribe_ab(ab_id)
 		else:
+			print('Subscribing via `set_ab_subscription`')
 			backend.user_service.set_ab_subscription(head.uuid, ab_id)
 	
-	def me_contact_add(self, contact_uuid: str, lst: Lst, *, trid: Optional[str] = None, name: Optional[str] = None, message: Optional[TextWithData] = None, group_id: Optional[str] = None, adder_id: Optional[str] = None, needs_notify: bool = False, add_to_ab: bool = False) -> Tuple[Contact, User]:
+	def me_contact_add(self, contact_uuid: str, lst: Lst, *, trid: Optional[str] = None, name: Optional[str] = None, message: Optional[TextWithData] = None, group_id: Optional[str] = None, adder_id: Optional[str] = None, needs_notify: bool = False) -> Tuple[Contact, User]:
 		backend = self.backend
 		ctc_head = backend._load_user_record(contact_uuid)
 		if ctc_head is None:
 			raise error.UserDoesNotExist()
 		user = self.user
 		ctc_status = ctc_head.status.substatus
-		ctc = self._add_to_list(user, ctc_head, lst, name, add_to_ab, group_id)
+		ctc = self._add_to_list(user, ctc_head, lst, name, group_id)
 		if lst & Lst.FL:
 			# FL needs a matching RL on the contact
 			ctc_me = self._add_to_list(ctc_head, user, Lst.RL, user.email, False, None)
@@ -501,7 +499,7 @@ class BackendSession(Session):
 		if ((lst & Lst.AL or lst & Lst.BL) and ctc.lists & Lst.RL) or needs_notify:
 			for sess_added in backend._sc.get_sessions_by_user(ctc_head):
 				if sess_added is self: continue
-				sess_added.evt.on_presence_notification(user, (ctc_status if lst & Lst.BL else Substatus.Offline), False, visible_notif = False, send_status_on_bl = True, updated_phone_info = {
+				sess_added.evt.on_presence_notification(self, user, (ctc_status if lst & Lst.BL else Substatus.Offline), False, visible_notif = False, send_status_on_bl = True, updated_phone_info = {
 					'PHH': user.settings.get('PHH'),
 					'PHW': user.settings.get('PHW'),
 					'PHM': user.settings.get('PHM'),
@@ -520,15 +518,17 @@ class BackendSession(Session):
 		self.backend.user_service.mark_ab_modified(ab_id, { 'contacts': ab_contacts }, user)
 		if ab_id == '00000000-0000-0000-0000-000000000000':
 			for ab_contact in ab_contacts:
-				ctc = detail.contacts.get(ab_contact.uuid)
+				ctc = detail.contacts.get(ab_contact.member_uuid)
 				if ctc is None: continue
-				if ctc.groups != ab_contact.groups:
-					ctc.groups = ab_contact.groups
+				for group_uuid in ab_contact.groups:
+					group = detail.get_group(group_uuid)
+					if group is not None and not ctc.group_in_entry(group):
+						ctc.add_group_to_entry(group)
 				if ctc.status.name != ab_contact.name:
 					ctc.status.name = ab_contact.name
 			self.backend._mark_modified(user, message_temp = self.message_temp)
 	
-	def me_contact_rename(self, contact_uuid: str, new_name: str, *, add_to_ab: bool = False) -> None:
+	def me_contact_rename(self, contact_uuid: str, new_name: str) -> None:
 		user = self.user
 		detail = user.detail
 		assert detail is not None
@@ -543,13 +543,13 @@ class BackendSession(Session):
 		ctc.status.name = new_name
 		self.backend._mark_modified(user, message_temp = self.message_temp)
 		
-		if add_to_ab and '00000000-0000-0000-0000-000000000000' in detail.subscribed_ab_stores:
-			ctc_ab = self.backend.user_service.ab_get_entry_by_uuid('00000000-0000-0000-0000-000000000000', ctc.head.uuid, user)
+		if '00000000-0000-0000-0000-000000000000' in detail.subscribed_ab_stores:
+			ctc_ab = self.backend.user_service.ab_get_entry_by_email('00000000-0000-0000-0000-000000000000', ctc.head.email, 'Regular', user)
 			if ctc_ab is not None:
 				ctc_ab.name = new_name
 				self.backend.user_service.mark_ab_modified('00000000-0000-0000-0000-000000000000', { 'contacts': [ctc_ab] }, user)
 	
-	def me_contact_remove(self, contact_uuid: str, lst: Lst, *, group_id: Optional[str] = None, remove_from_ab: bool = False) -> None:
+	def me_contact_remove(self, contact_uuid: str, lst: Lst, *, group_id: Optional[str] = None) -> None:
 		backend = self.backend
 		user = self.user
 		detail = user.detail
@@ -558,15 +558,15 @@ class BackendSession(Session):
 		if ctc is None: 
 			raise error.ContactDoesNotExist()
 		assert not lst & Lst.RL
-		self._remove_from_list(user, ctc.head, lst, group_id, remove_from_ab)
+		self._remove_from_list(user, ctc.head, lst, group_id)
 		if lst & Lst.FL:
 			# Remove matching RL
-			self._remove_from_list(ctc.head, user, Lst.RL, None, remove_from_ab)
+			self._remove_from_list(ctc.head, user, Lst.RL, None)
 		self.evt.on_sync_contact_statuses()
 		if lst & Lst.BL:
 			for sess_added in backend._sc.get_sessions_by_user(ctc.head):
 				if sess_added is self: continue
-				sess_added.evt.on_presence_notification(user, Substatus.Offline, False, updated_phone_info = {
+				sess_added.evt.on_presence_notification(self, user, Substatus.Offline, False, updated_phone_info = {
 					'PHH': user.settings.get('PHH'),
 					'PHW': user.settings.get('PHW'),
 					'PHM': user.settings.get('PHM'),
@@ -581,14 +581,13 @@ class BackendSession(Session):
 		for sess_adder in self.backend._sc.get_sessions_by_user(user_adder):
 			sess_adder.evt.on_contact_request_denied(user, deny_message or '', adder_id = adder_id)
 	
-	def _add_to_list(self, user: User, ctc_head: User, lst: Lst, name: Optional[str], add_to_ab: bool, group_id: Optional[str]) -> Contact:
+	def _add_to_list(self, user: User, ctc_head: User, lst: Lst, name: Optional[str], group_id: Optional[str]) -> Contact:
 		# Add `ctc` to `user`'s `lst`
 		detail = self.backend._load_detail(user)
 		contacts = detail.contacts
 		
 		updated = False
 		ab_updated = False
-		duplicate_list = False
 		
 		if ctc_head.uuid not in contacts:
 			contacts[ctc_head.uuid] = Contact(ctc_head, set(), Lst.Empty, UserStatus(name))
@@ -600,7 +599,7 @@ class BackendSession(Session):
 			updated = True
 		else:
 			if lst == Lst.FL and group_id is not None:
-				if group_id in ctc.groups:
+				if ctc.group_in_entry(group_id):
 					raise error.ContactAlreadyOnList()
 		
 		orig_name = ctc.status.name
@@ -614,23 +613,29 @@ class BackendSession(Session):
 			ab_updated = True
 			if group_id is not None:
 				try:
-					self.me_group_contact_add(group_id, ctc_head.uuid, add_to_ab = add_to_ab)
+					self.me_group_contact_add(group_id, ctc_head.uuid)
 				except Exception as ex:
 					raise ex
 		
 		if updated:
 			self.backend._mark_modified(user, message_temp = self.message_temp, detail = detail)
 			self.evt.on_sync_contact_statuses()
-		if add_to_ab and ab_updated and '00000000-0000-0000-0000-000000000000' in detail.subscribed_ab_stores:
-			ctc_ab = ABContact(
-				'Regular', ctc.head.uuid, ctc.head.email, ctc.status.name, ctc.groups, {},
-				is_messenger_user = True,
-			)
+		if ab_updated and '00000000-0000-0000-0000-000000000000' in detail.subscribed_ab_stores:
+			ctc_ab = self.backend.user_service.ab_get_entry_by_email('00000000-0000-0000-0000-000000000000', ctc_head.email, 'Regular', user)
+			if ctc_ab is None:
+				ctc_ab = ABContact(
+					'Regular', gen_uuid(), ctc.head.email, '', set(), {},
+					member_uuid = ctc_head.uuid, is_messenger_user = True,
+				)
+			ctc_ab.name = ctc.status.name
+			for group in ctc._groups:
+				if backend.user_service.ab_get_group_by_id('00000000-0000-0000-0000-000000000000', group.uuid, user) is not None:
+					ctc_ab.groups.add(group.uuid)
 			self.backend.user_service.mark_ab_modified('00000000-0000-0000-0000-000000000000', { 'contacts': [ctc_ab] }, user)
 		
 		return ctc
 	
-	def _remove_from_list(self, user: User, ctc_head: User, lst: Lst, group_id: Optional[str], remove_from_ab: bool) -> None:
+	def _remove_from_list(self, user: User, ctc_head: User, lst: Lst, group_id: Optional[str]) -> None:
 		# Remove `ctc_head` from `user`'s `lst`
 		detail = self.backend._load_detail(user)
 		contacts = detail.contacts
@@ -641,7 +646,7 @@ class BackendSession(Session):
 		if ctc.lists & lst:
 			if lst == Lst.FL and group_id is not None:
 				try:
-					self.me_group_contact_remove(group_id, ctc.head.uuid, remove_from_ab = remove_from_ab)
+					self.me_group_contact_remove(group_id, ctc.head.uuid)
 				except Exception as ex:
 					raise ex
 				updated = True
@@ -649,10 +654,10 @@ class BackendSession(Session):
 			if (lst == Lst.FL and group_id is None) or not lst & Lst.FL:
 				ctc.lists &= ~lst
 				if lst == Lst.FL:
-					ctc.groups = set()
-					if remove_from_ab and '00000000-0000-0000-0000-000000000000' in detail.subscribed_ab_stores:
-						if self.backend.user_service.ab_get_entry_by_uuid('00000000-0000-0000-0000-000000000000', ctc_head.uuid, user):
-							self.backend.user_service.ab_delete_entry('00000000-0000-0000-0000-000000000000', ctc_head.uuid, user)
+					ctc._groups = set()
+					if '00000000-0000-0000-0000-000000000000' in detail.subscribed_ab_stores:
+						if self.backend.user_service.ab_get_entry_by_email('00000000-0000-0000-0000-000000000000', ctc_head.email, 'Regular', user):
+							self.backend.user_service.ab_delete_entry_by_email('00000000-0000-0000-0000-000000000000', ctc_head.email, 'Regular', user)
 				updated = True
 		
 		if not ctc.lists:
@@ -864,7 +869,7 @@ class ChatSession(Session):
 def _gen_group_id(detail: UserDetail) -> str:
 	id = 1
 	s = str(id)
-	while s in detail.groups:
+	while s in detail._groups_by_id:
 		id += 1
 		s = str(id)
 	return s

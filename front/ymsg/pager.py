@@ -158,6 +158,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		
 		me_status_update(bs, status, send_notif_to_self = False)
 		
+		bs.front_data['ymsg'] = True
 		bs.front_data['ymsg_private_chats'] = {}
 		bs.front_data['ymsg_alias'] = False
 		
@@ -210,7 +211,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		]))
 	
 	def _y_0016(self, *args) -> None:
-		# SERVICE_PASSTHROUGH2 (0x16); collects OS version, processor, and time zone
+		# SERVICE_CLIENTHOSTSTATS (0x16); collects OS version, processor, and time zone
 		#
 		# 1: YahooId
 		# 25: unknown ('C=0[0x01]F=1,P=0,C=0,H=0,W=0,B=0,O=0,G=0[0x01]M=0,P=0,C=0,S=0,L=3,D=1,N=0,G=0,F=0,T=0')
@@ -258,7 +259,6 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		assert detail is not None
 		
 		contacts = detail.contacts
-		groups = detail.groups
 		
 		cs = list(contacts.values())
 		cs_fl = [c for c in cs if c.lists & Lst.FL and not c.lists & Lst.BL]
@@ -270,13 +270,13 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		
 		contact = contacts.get(contact_uuid)
 		if contact is not None and contact.lists & Lst.FL:
-			for grp_id in contact.groups:
-				if groups[grp_id].name == buddy_group:
+			for group in contact._groups.copy():
+				if detail._groups_by_id[group.id].name == buddy_group:
 					add_request_response.add('66', 2)
 					self.send_reply(YMSGService.FriendAdd, YMSGStatus.BRB, self.sess_id, add_request_response)
 					return
 		
-		for grp in groups.values():
+		for grp in detail._groups_by_id.values():
 			if grp.name == buddy_group:
 				group = grp
 				break
@@ -301,11 +301,11 @@ class YMSGCtrlPager(YMSGCtrlBase):
 			add_request_response.add('66', 0)
 			self.send_reply(YMSGService.FriendAdd, YMSGStatus.BRB, self.sess_id, add_request_response)
 			
-			contact = bs.me_contact_add(ctc_head.uuid, Lst.FL, message = (TextWithData(message, utf8) if message is not None else None), adder_id = yahoo_id, needs_notify = True)[0]
+			contact = bs.me_contact_add(ctc_head.uuid, Lst.FL, name = contact_yahoo_id, message = (TextWithData(message, utf8) if message is not None else None), adder_id = yahoo_id, needs_notify = True)[0]
 		try:
-			if len(contact.groups) >= 1: action_group_move = True
-			for grp_id in contact.groups.copy():
-				bs.me_group_contact_remove(grp_id, contact_uuid)
+			if len(contact._groups) >= 1: action_group_move = True
+			for group_other in contact._groups.copy():
+				bs.me_group_contact_remove(group_other.id, contact_uuid)
 			
 			bs.me_group_contact_add(group.id, contact_uuid)
 			
@@ -339,11 +339,10 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		user = bs.user
 		detail = user.detail
 		assert detail is not None
-		groups = detail.groups
 		
 		group = None
 		
-		for grp in groups.values():
+		for grp in detail._groups_by_id.values():
 			if grp.name == group_name:
 				group = grp
 		
@@ -383,11 +382,12 @@ class YMSGCtrlPager(YMSGCtrlBase):
 	def _y_0085(self, *args) -> None:
 		# SERVICE_IGNORE (0x85); add/remove someone from your ignore list
 		
+		yahoo_id = args[4].get('1')
 		ignored_yahoo_id = args[4].get('7')
 		ignore_mode = args[4].get('13')
 		
 		ignore_reply_response = MultiDict([
-			('0', self.yahoo_id),
+			('0', yahoo_id),
 			('7', ignored_yahoo_id),
 			('13', ignore_mode)
 		])
@@ -408,11 +408,12 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		if int(ignore_mode) == 1:
 			contact = contacts.get(ignored_uuid)
 			if contact is not None:
-				if not contact.groups and (contact.lists & Lst.BL):
+				if not contact._groups and (contact.lists & Lst.BL):
 					ignore_reply_response.add('66', 2)
 					self.send_reply(YMSGService.Ignore, YMSGStatus.BRB, self.sess_id, ignore_reply_response)
 					return
-			bs.me_contact_add(ignored_uuid, Lst.BL)
+			
+			bs.me_contact_add(ignored_uuid, Lst.BL, name = ignored_yahoo_id)
 		elif int(ignore_mode) == 2:
 			bs.me_contact_remove(ignored_uuid, Lst.BL)
 		
@@ -486,6 +487,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		yahoo_data = args[4]
 		yahoo_id = yahoo_data.get('1')
 		notify_type = yahoo_data.get('49') # typing, games, etc.
+		typing_flag = yahoo_data.get('13')
 		contact_yahoo_id = yahoo_data.get('5')
 		contact_uuid = yahoo_id_to_uuid(self.backend, contact_yahoo_id)
 		if contact_uuid is None:
@@ -494,7 +496,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		cs, _ = self._get_private_chat_with(yahoo_id, contact_uuid)
 		if cs is not None:
 			cs.preferred_name = yahoo_id
-			cs.send_message_to_everyone(messagedata_from_ymsg(cs.user, yahoo_data, notify_type = notify_type))
+			cs.send_message_to_everyone(messagedata_from_ymsg(cs.user, yahoo_data, notify_type = notify_type, typing_flag = typing_flag))
 	
 	def _y_0006(self, *args) -> None:
 		# SERVICE_MESSAGE (0x06); send a message to a user
@@ -758,22 +760,22 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		assert detail is not None
 		
 		contacts = detail.contacts
-		groups = detail.groups
 		
 		cs = list(contacts.values())
 		cs_fl = [c for c in cs if c.lists & Lst.FL and not c.lists & Lst.BL]
 		
 		contact_group_list = []
-		for grp in groups.values():
+		for grp in detail._groups_by_id.values():
 			contact_list = []
 			for c in cs_fl:
-				if grp.id in c.groups:
-					contact_list.append(misc.yahoo_id(c.head.email))
+				for group in c._groups.copy():
+					if group.id == grp.id:
+						contact_list.append(misc.yahoo_id(c.head.email))
 			if contact_list:
 				contact_group_list.append(grp.name + ':' + ','.join(contact_list) + '\n')
 		# Handle contacts that aren't part of any groups
 		# Since Yahoo! Messenger by design requires you to add a contact to a group, remove when code is pushed to `master` branch
-		contact_list = [misc.yahoo_id(c.head.email) for c in cs_fl if not c.groups]
+		contact_list = [misc.yahoo_id(c.head.email) for c in cs_fl if not c._groups]
 		if contact_list:
 			contact_group_list.append('(No Group):' + ','.join(contact_list) + '\n')
 		
@@ -1052,7 +1054,7 @@ class BackendEventHandler(event.BackendEventHandler):
 		self.ctrl.send_reply(YMSGService.LogOff, YMSGStatus.Available, 0, None)
 		self.on_close()
 	
-	def on_presence_notification(self, ctc_head: User, old_substatus: Substatus, on_contact_add: bool, *, trid: Optional[str] = None, update_status: bool = True, send_status_on_bl: bool = False, visible_notif: bool = True, updated_phone_info: Optional[Dict[str, Any]] = None, circle_user_bs: Optional[BackendSession] = None, circle_id: Optional[str] = None) -> None:
+	def on_presence_notification(self, bs_other: Optional[BackendSession], ctc_head: User, old_substatus: Substatus, on_contact_add: bool, *, trid: Optional[str] = None, update_status: bool = True, send_status_on_bl: bool = False, visible_notif: bool = True, updated_phone_info: Optional[Dict[str, Any]] = None, circle_user_bs: Optional[BackendSession] = None, circle_id: Optional[str] = None) -> None:
 		bs = self.bs
 		assert bs is not None
 		
@@ -1108,6 +1110,12 @@ class BackendEventHandler(event.BackendEventHandler):
 			('3', contact_id or misc.yahoo_id(user_added.email)),
 			('14', message),
 		]))
+	
+	def msn_on_notify_ab(self, owner_cid: str, ab_last_modified: str) -> None:
+		pass
+	
+	def msn_on_put_sent(self, message: 'Message', sender: User, *, pop_id_sender: Optional[str] = None, pop_id: Optional[str] = None) -> None:
+		pass
 	
 	def ymsg_on_p2p_msg_request(self, yahoo_data: Dict[str, Any]) -> None:
 		bs = self.bs
@@ -1268,12 +1276,12 @@ class ChatEventHandler(event.ChatEventHandler):
 		sender = data.sender
 		yahoo_data = messagedata_to_ymsg(data)
 		
-		if data.type is MessageType.Chat:
+		if data.type in (MessageType.Chat,MessageType.Nudge):
 			if self.cs.chat.front_data.get('ymsg_twoway_only'):
 				message_to_dict = MultiDict([
 					('5', yahoo_data.get('5') or misc.yahoo_id(bs.user.email)),
 					('4', yahoo_data.get('1') or misc.yahoo_id(sender.email)),
-					('14', yahoo_data.get('14')),
+					('14', yahoo_data.get('14') or data.text),
 				])
 				
 				if yahoo_data.get('63') is not None:
@@ -1287,24 +1295,25 @@ class ChatEventHandler(event.ChatEventHandler):
 				
 				self.ctrl.send_reply(YMSGService.Message, YMSGStatus.BRB, self.ctrl.sess_id, message_to_dict)
 			else:
-				conf_message_dict = MultiDict([
-					('1', misc.yahoo_id(bs.user.email)),
-					('57', self.cs.chat.ids['ymsg/conf']),
-					('3', yahoo_data.get('1') or misc.yahoo_id(sender.email)),
-					('14', yahoo_data.get('14')),
-				])
-				
-				if yahoo_data.get('97') is not None:
-					conf_message_dict.add('97', yahoo_data.get('97'))
-				
-				self.ctrl.send_reply(YMSGService.ConfMsg, YMSGStatus.BRB, self.ctrl.sess_id, conf_message_dict)
-		elif data.type is MessageType.Typing:
+				if data.type is not MessageType.Nudge:
+					conf_message_dict = MultiDict([
+						('1', misc.yahoo_id(bs.user.email)),
+						('57', self.cs.chat.ids['ymsg/conf']),
+						('3', yahoo_data.get('1') or misc.yahoo_id(sender.email)),
+						('14', yahoo_data.get('14') or data.text),
+					])
+					
+					if yahoo_data.get('97') is not None:
+						conf_message_dict.add('97', yahoo_data.get('97'))
+					
+					self.ctrl.send_reply(YMSGService.ConfMsg, YMSGStatus.BRB, self.ctrl.sess_id, conf_message_dict)
+		elif data.type in (MessageType.Typing,MessageType.TypingDone):
 			self.ctrl.send_reply(YMSGService.Notify, YMSGStatus.BRB, self.ctrl.sess_id, MultiDict([
 				('5', yahoo_data.get('5') or misc.yahoo_id(bs.user.email)),
 				('4', yahoo_data.get('1') or misc.yahoo_id(sender.email)),
-				('49', yahoo_data.get('49')),
-				('14', yahoo_data.get('14')),
-				('13', yahoo_data.get('13'))
+				('49', 'TYPING'),
+				('14', yahoo_data.get('14') or data.text or ' '),
+				('13', yahoo_data.get('13') or ('0' if data.type is MessageType.TypingDone else '1'))
 			]))
 	
 	def _send_when_user_joins(self, user_uuid: str, data: MessageData) -> None:
@@ -1332,13 +1341,20 @@ class ChatEventHandler(event.ChatEventHandler):
 				return True
 		return False
 
-def messagedata_from_ymsg(sender: User, data: Dict[str, Any], *, notify_type: Optional[str] = None) -> MessageData:
+def messagedata_from_ymsg(sender: User, data: Dict[str, Any], *, notify_type: Optional[str] = None, typing_flag: Optional[str] = None) -> MessageData:
 	text = data.get('14') or ''
 	
 	if notify_type is None:
-		type = MessageType.Chat
+		if text == '<ding>':
+			type = MessageType.Nudge
+			text = ''
+		else:
+			type = MessageType.Chat
 	elif notify_type == 'TYPING':
-		type = MessageType.Typing
+		if typing_flag == '0':
+			type = MessageType.TypingDone
+		else:
+			type = MessageType.Typing
 	else:
 		# TODO: other `notify_type`s
 		raise Exception("Unknown notify_type", notify_type)
@@ -1350,7 +1366,7 @@ def messagedata_from_ymsg(sender: User, data: Dict[str, Any], *, notify_type: Op
 def messagedata_to_ymsg(data: MessageData) -> Dict[str, Any]:
 	if 'ymsg' not in data.front_cache:
 		data.front_cache['ymsg'] = MultiDict([
-			('14', data.text),
+			('14', ('<ding>' if data.type is MessageType.Nudge else data.text)),
 			('63', ';0'),
 			('64', 0),
 			('97', 1),

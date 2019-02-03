@@ -2,12 +2,16 @@ import asyncio
 from typing import Any, Dict, Optional
 from aiohttp import web
 from urllib.parse import unquote
+from datetime import datetime
 import jinja2
 
 from core.backend import Backend
 import settings
 
 SYSBOARD_TMPL_DIR = 'core/tmpl/sysboard'
+SYSBOARD_PATH = '/sysboard'
+SYSBOARD_LOGIN_PATH = SYSBOARD_PATH + '/login'
+SYSBOARD_COOKIE_NAME = 'ESB'
 
 def register(loop: asyncio.AbstractEventLoop, backend: Backend, *, devmode: bool = False) -> web.Application:
 	from util.misc import AIOHTTPRunner
@@ -23,10 +27,10 @@ def register(loop: asyncio.AbstractEventLoop, backend: Backend, *, devmode: bool
 	app = create_app(loop, backend)
 	backend.add_runner(AIOHTTPRunner(sysboard_host, 52478, app, ssl_context = ssl_context, ssl_only = True))
 	
-	app.router.add_get('/sysboard/', handle_sysboard_gui)
-	app.router.add_get('/sysboard/login', handle_sysboard_login)
-	app.router.add_post('/sysboard/login', handle_sysboard_login_verify)
-	app.router.add_post('/sysboard/', handle_sysboard_action)
+	app.router.add_get(SYSBOARD_PATH, handle_sysboard_gui)
+	app.router.add_post(SYSBOARD_PATH, handle_sysboard_action)
+	app.router.add_get(SYSBOARD_LOGIN_PATH, handle_sysboard_login)
+	app.router.add_post(SYSBOARD_LOGIN_PATH, handle_sysboard_login_verify)
 	
 	return app
 
@@ -47,10 +51,10 @@ async def on_response_prepare(req, res):
 		return
 	if not settings.DEBUG_SYSBOARD:
 		return
-		
-	if req.path == '/sysboard/' and req.method == 'POST':
+	
+	if req.path == SYSBOARD_PATH and req.method == 'POST':
 		print('Pushing maintenance/system message to online users...')
-	if req.path == '/sysboard/login' and req.method == 'POST':
+	if req.path == SYSBOARD_LOGIN_PATH and req.method == 'POST':
 		print('Admin being verified...')
 
 # Sysboard HTTP entries
@@ -61,17 +65,30 @@ async def handle_sysboard_login(req: web.Request) -> web.Response:
 	if True in (backend.maintenance_mode,backend.notify_maintenance):
 		return render(req, 'unavailable.html')
 	
-	return (web.HTTPFound('/sysboard/') if _validate_session(backend) else render(req, 'login.html'))
+	return (web.HTTPFound(SYSBOARD_PATH) if _validate_session(req) else render(req, 'login.html', {
+		'error': False,
+		'sysboard_login_path': SYSBOARD_LOGIN_PATH,
+	}))
 
 async def handle_sysboard_login_verify(req: web.Request) -> web.Response:
-	password = (req.headers.get('X-Password') or '')
+	body = await req.post()
 	
-	if password == '':
+	password = body.get('password')
+	if password is None:
 		return web.HTTPInternalServerError()
 	
 	if password == settings.SYSBOARD_PASS:
-		req.app['backend'].auth_service.create_token('sysboard/token', password, lifetime = 300)
-		return web.HTTPOk()
+		sysboard_token = req.app['backend'].auth_service.create_token('sysboard/token', password, lifetime = 86400)
+		response = web.Response(status = 302, headers = {
+			'Location': SYSBOARD_PATH,
+		})
+		response.set_cookie(SYSBOARD_COOKIE_NAME, sysboard_token, path = SYSBOARD_PATH, expires = datetime.utcfromtimestamp(req.app['backend'].auth_service.get_token_expiry('sysboard/token', sysboard_token)).strftime('%a, %d %b %Y %H:%M:%S GMT'))
+		return response
+	else:
+		return render(req, 'login.html', {
+			'error': True,
+			'sysboard_login_path': SYSBOARD_LOGIN_PATH,
+		})
 
 async def handle_sysboard_gui(req: web.Request) -> web.Response:
 	backend = req.app['backend']
@@ -79,7 +96,10 @@ async def handle_sysboard_gui(req: web.Request) -> web.Response:
 	if True in (backend.maintenance_mode,backend.notify_maintenance):
 		return render(req, 'unavailable.html')
 	
-	return (render(req, 'index.html') if _validate_session(backend) else web.HTTPFound('/sysboard/login'))
+	return (render(req, 'index.html', {
+		'sysboard_login_path': SYSBOARD_LOGIN_PATH,
+		'sysboard_path': SYSBOARD_PATH,
+	}) if _validate_session(req) else web.HTTPFound(SYSBOARD_LOGIN_PATH))
 
 async def handle_sysboard_action(req: web.Request) -> web.Response:
 	body = await req.post()
@@ -88,7 +108,7 @@ async def handle_sysboard_action(req: web.Request) -> web.Response:
 	if True in (backend.maintenance_mode,backend.notify_maintenance):
 		return web.HTTPMisdirectedRequest()
 	
-	if not _validate_session(backend):
+	if not _validate_session(req):
 		return web.HTTPUnauthorized()
 	
 	system_msg = (None if body.get('sysmsg') is None else body.get('sysmsg'))
@@ -110,8 +130,15 @@ async def handle_sysboard_action(req: web.Request) -> web.Response:
 	
 	return web.HTTPOk()
 
-def _validate_session(backend: Backend) -> bool:
-	if backend.auth_service.sysboard_retreive_last_valid_token(settings.SYSBOARD_PASS) is not None:
+def _validate_session(req: web.Request) -> bool:
+	backend = req.app['backend']
+	
+	sysboard_cookie = req.cookies.get(SYSBOARD_COOKIE_NAME)
+	
+	if sysboard_cookie is None:
+		return False
+	
+	if backend.auth_service.get_token('sysboard/token', sysboard_cookie) is not None:
 		return True
 	else:
 		return False

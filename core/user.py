@@ -3,6 +3,7 @@ from datetime import datetime
 from Crypto.Hash import SHA1
 from Crypto.PublicKey import RSA
 from Crypto.Signature import pkcs1_15
+from urllib.parse import quote
 import base64
 import asyncio, traceback
 
@@ -10,8 +11,8 @@ from util.hash import hasher, hasher_md5, hasher_md5crypt, gen_salt
 from util import misc
 
 from . import error
-from .db import Session, User as DBUser, ABStore as DBABStore, ABStoreContact as DBABStoreContact, ABStoreContactNetworkInfo as DBABStoreContactNetworkInfo, ABStoreGroup as DBABStoreGroup, ABMetadata as DBABMetadata, CircleStore as DBCircleStore, OIM as DBOIM, YahooOIM as DBYahooOIM, YahooAlias as DBYahooAlias
-from .models import User, Contact, ABContact, NetworkInfo, RelationshipInfo, UserStatus, UserDetail, NetworkID, ABRelationshipType, ABRelationshipRole, ABRelationshipState, Lst, Group, ABGroup, CircleMetadata, OIMMetadata, YahooOIM, YahooAlias, MessageData
+from .db import Session, User as DBUser, UserGroup as DBUserGroup, UserContact as DBUserContact, ABStore as DBABStore, ABStoreContact as DBABStoreContact, ABStoreContactNetworkInfo as DBABStoreContactNetworkInfo, ABMetadata as DBABMetadata, CircleStore as DBCircleStore, CircleMembership as DBCircleMembership, OIM as DBOIM, YahooOIM as DBYahooOIM, YahooAlias as DBYahooAlias
+from .models import User, Contact, ContactGroupEntry, ABContact, NetworkInfo, RelationshipInfo, UserStatus, UserDetail, NetworkID, ABRelationshipType, ABRelationshipRole, ABRelationshipState, Lst, Group, CircleMetadata, CircleMembership, OIMMetadata, YahooOIM, YahooAlias, MessageData
 
 class UserService:
 	loop: asyncio.AbstractEventLoop
@@ -27,48 +28,38 @@ class UserService:
 		
 		loop.create_task(self._worker_sync_ab())
 	
-	def login(self, email: str, networkid: NetworkID, pwd: str) -> Optional[str]:
+	def login(self, email: str, pwd: str) -> Optional[str]:
 		with Session() as sess:
-			dbuser = sess.query(DBUser).filter(DBUser.email == email, DBUser.networkid == networkid).one_or_none()
-			if dbuser is None:
-				dbuser = sess.query(DBUser).filter(DBUser.email == email, DBUser.networkid == NetworkID.ANY).one_or_none()
-				if dbuser is None: return None
+			dbuser = sess.query(DBUser).filter(DBUser.email == email).one_or_none()
+			if dbuser is None: return None
 			if not hasher.verify(pwd, dbuser.password): return None
 			return dbuser.uuid
 	
 	def msn_login_md5(self, email: str, md5_hash: str) -> Optional[str]:
 		with Session() as sess:
-			dbuser = sess.query(DBUser).filter(DBUser.email == email, DBUser.networkid == NetworkID.WINDOWS_LIVE).one_or_none()
-			if dbuser is None:
-				dbuser = sess.query(DBUser).filter(DBUser.email == email, DBUser.networkid == NetworkID.ANY).one_or_none()
-				if dbuser is None: return None
+			dbuser = sess.query(DBUser).filter(DBUser.email == email).one_or_none()
+			if dbuser is None: return None
 			if not hasher_md5.verify_hash(md5_hash, dbuser.get_front_data('msn', 'pw_md5') or ''): return None
 			return dbuser.uuid
 	
 	def msn_get_md5_salt(self, email: str) -> Optional[str]:
 		with Session() as sess:
-			dbuser = sess.query(DBUser).filter(DBUser.email == email, DBUser.networkid == NetworkID.WINDOWS_LIVE).one_or_none()
-			if dbuser is None:
-				dbuser = sess.query(DBUser).filter(DBUser.email == email, DBUser.networkid == NetworkID.ANY).one_or_none()
-				if dbuser is None: return None
+			dbuser = sess.query(DBUser).filter(DBUser.email == email).one_or_none()
+			if dbuser is None: return None
 			pw_md5 = dbuser.get_front_data('msn', 'pw_md5')
 		if pw_md5 is None: return None
 		return hasher.extract_salt(pw_md5)
 	
 	def yahoo_get_md5_password(self, uuid: str) -> Optional[bytes]:
 		with Session() as sess:
-			dbuser = sess.query(DBUser).filter(DBUser.uuid == uuid, DBUser.networkid == NetworkID.YAHOO).one_or_none()
-			if dbuser is None:
-				dbuser = sess.query(DBUser).filter(DBUser.email == email, DBUser.networkid == NetworkID.ANY).one_or_none()
-				if dbuser is None: return None
+			dbuser = sess.query(DBUser).filter(DBUser.uuid == uuid).one_or_none()
+			if dbuser is None: return None
 			return hasher_md5.extract_hash(dbuser.get_front_data('ymsg', 'pw_md5_unsalted') or '')
 	
 	def yahoo_get_md5crypt_password(self, uuid: str) -> Optional[bytes]:
 		with Session() as sess:
-			dbuser = sess.query(DBUser).filter(DBUser.uuid == uuid, DBUser.networkid == NetworkID.YAHOO).one_or_none()
-			if dbuser is None:
-				dbuser = sess.query(DBUser).filter(DBUser.email == email, DBUser.networkid == NetworkID.ANY).one_or_none()
-				if dbuser is None: return None
+			dbuser = sess.query(DBUser).filter(DBUser.uuid == uuid).one_or_none()
+			if dbuser is None: return None
 			return hasher_md5crypt.extract_hash(dbuser.get_front_data('ymsg', 'pw_md5crypt') or '')
 	
 	def update_date_login(self, uuid: str) -> None:
@@ -79,16 +70,33 @@ class UserService:
 	
 	def is_user_relay(self, uuid: str) -> Optional[bool]:
 		with Session() as sess:
+			tmp = sess.query(DBUser.relay).filter(DBUser.uuid == uuid).one_or_none()
+			if tmp is None: return None
+			return tmp and tmp[0]
+	
+	def msn_is_user_circle(self, uuid: str) -> Optional[bool]:
+		with Session() as sess:
 			dbuser = sess.query(DBUser).filter(DBUser.uuid == uuid).one_or_none()
 			if dbuser is None: return None
-			return dbuser.relay
+			if dbuser.get_front_data('msn', 'circle') is True:
+				return True
+		return False
 	
-	def get_uuid(self, email: str, networkid: NetworkID) -> Optional[str]:
+	def get_uuid(self, email: str) -> Optional[str]:
 		with Session() as sess:
-			tmp = sess.query(DBUser.uuid).filter(DBUser.email == email, DBUser.networkid == networkid).one_or_none()
-			if tmp is None:
-				tmp = sess.query(DBUser.uuid).filter(DBUser.email == email, DBUser.networkid == NetworkID.ANY).one_or_none()
-			return tmp and tmp[0]
+			dbuser = sess.query(DBUser).filter(DBUser.email == email).one_or_none()
+			if dbuser is None: return None
+			if dbuser.get_front_data('msn', 'circle') is True:
+				return None
+			return dbuser.uuid
+	
+	def get_msn_circle_acc_uuid(self, circle_id: str) -> Optional[str]:
+		with Session() as sess:
+			dbuser = sess.query(DBUser).filter(DBUser.email == '{}@live.com'.format(circle_id)).one_or_none()
+			if dbuser is None: return None
+			if not dbuser.get_front_data('msn', 'circle'):
+				return None
+			return dbuser.uuid
 	
 	def get(self, uuid: str) -> Optional[User]:
 		if uuid is None: return None
@@ -101,22 +109,28 @@ class UserService:
 			dbuser = sess.query(DBUser).filter(DBUser.uuid == uuid).one_or_none()
 			if dbuser is None: return None
 			status = UserStatus(dbuser.name, dbuser.message)
-			return User(dbuser.uuid, dbuser.email, NetworkID(dbuser.networkid), dbuser.verified, status, dbuser.settings, dbuser.date_created)
+			return User(dbuser.uuid, dbuser.email, dbuser.verified, status, dbuser.settings, dbuser.date_created)
 	
 	def get_detail(self, uuid: str) -> Optional[UserDetail]:
 		with Session() as sess:
 			dbuser = sess.query(DBUser).filter(DBUser.uuid == uuid).one_or_none()
 			if dbuser is None: return None
 			detail = UserDetail(set(dbuser.subscribed_ab_stores))
-			for g in dbuser.groups:
-				grp = Group(**g)
-				detail.groups[grp.id] = grp
-			for c in dbuser.contacts:
-				ctc_head = self.get(c['uuid'])
+			groups = sess.query(DBUserGroup).filter(DBUserGroup.user_uuid == uuid)
+			for g in groups:
+				grp = Group(g.group_id, g.group_uuid, g.name, g.is_favorite, date_last_modified = g.date_last_modified)
+				detail._groups_by_id[grp.id] = grp
+				detail._groups_by_uuid[grp.uuid] = grp
+			contacts = sess.query(DBUserContact).filter(DBUserContact.user_uuid == uuid)
+			for c in contacts:
+				ctc_head = self.get(c.uuid)
 				if ctc_head is None: continue
-				status = UserStatus(c['name'], c['message'])
+				status = UserStatus(c.name, c.message)
+				ctc_groups = set([ContactGroupEntry(
+					c.uuid, group_entry['id'], group_entry['uuid'],
+				) for group_entry in c.groups])
 				ctc = Contact(
-					ctc_head, set(c['groups']), c['lists'], status,
+					ctc_head, ctc_groups, c.lists, status,
 				)
 				detail.contacts[ctc.head.uuid] = ctc
 		return detail
@@ -180,27 +194,6 @@ class UserService:
 		while id in self._working_ab_sync_ids:
 			await asyncio.sleep(0.1)
 	
-	def delete_ab_group(self, ab_id: str, group_id: str, user: User) -> None:
-		with Session() as sess:
-			ab_type, dbabstore = self._get_ab_store(ab_id, uuid = user.uuid)
-			
-			if dbabstore is None:
-				return None
-			
-			dbabstoregroup = sess.query(DBABStoreGroup).filter(DBABStoreGroup.group_id == group_id, DBABStoreGroup.ab_id == ab_id, DBABStoreGroup.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None)).one_or_none()
-			
-			if dbabstoregroup is None:
-				return None
-			
-			sess.delete(dbabstoregroup)
-			
-			dbabstorecontacts = sess.query(DBABStoreContact).filter(DBABStoreContact.ab_id == ab_id, DBABStoreContact.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None))
-			for dbabstorecontact in dbabstorecontacts:
-				dbabstorecontact.groups.remove(group_id)
-			sess.add_all(dbabstorecontacts)
-			
-			sess.add(dbabstore)
-	
 	def ab_get_entry_by_uuid(self, ab_id: str, ctc_uuid: str, user: User) -> Optional[ABContact]:
 		with Session() as sess:
 			ab_type, dbabstore = self._get_ab_store(ab_id, uuid = user.uuid)
@@ -212,10 +205,29 @@ class UserService:
 			
 			return self._ab_get_entry(ab_type, dbabstorecontact)
 	
-	def _ab_get_entry(self, ab_type: str, dbabstorecontact: DBABStoreContact) -> Optional[ABContact]:
+	def ab_get_entry_by_email(self, ab_id: str, email: str, ctc_type: str, user: User) -> Optional[ABContact]:
 		with Session() as sess:
-			head = self.get(dbabstorecontact.contact_uuid)
-			if head is None: return None
+			ab_type, dbabstore = self._get_ab_store(ab_id, uuid = user.uuid)
+			
+			dbabstorecontact = sess.query(DBABStoreContact).filter(DBABStoreContact.email == email, DBABStoreContact.type == ctc_type, DBABStoreContact.ab_id == ab_id, DBABStoreContact.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None)).one_or_none()
+			
+			if dbabstorecontact is None:
+				for ab_id, user_other, fields in self._worklist_sync_ab.values():
+					if ab_id == ab_id and user_other is user:
+						for c in fields['contacts']:
+							if c.email == email and c.type == ctc_type:
+								return c
+				return None
+			
+			return self._ab_get_entry(ab_type, dbabstorecontact)
+	
+	def _ab_get_entry(self, ab_type: str, dbabstorecontact: DBABStoreContact) -> Optional[ABContact]:
+		head = None
+		
+		with Session() as sess:
+			if dbabstorecontact.contact_member_uuid is not None:
+				head = self.get(dbabstorecontact.contact_member_uuid)
+				if head is None: return None
 			
 			annotations = {}
 			for annotation in dbabstorecontact.annotations:
@@ -231,42 +243,27 @@ class UserService:
 				) for dbabstorecontactnetworkinfo in dbabstorecontactnetworkinfos}
 			return ABContact(
 				dbabstorecontact.type, dbabstorecontact.contact_uuid, dbabstorecontact.email, dbabstorecontact.name, set(dbabstorecontact.groups), networkinfos,
-				is_messenger_user = dbabstorecontact.is_messenger_user, annotations = annotations, date_last_modified = dbabstorecontact.date_last_modified,
+				member_uuid = dbabstorecontact.contact_member_uuid, is_messenger_user = dbabstorecontact.is_messenger_user, annotations = annotations, date_last_modified = dbabstorecontact.date_last_modified,
 			)
 	
-	def ab_get_group_by_id(self, ab_id, group_id: str, user: User) -> Optional[ABGroup]:
-		with Session() as sess:
-			ab_type, dbabstore = self._get_ab_store(ab_id, uuid = user.uuid)
-			
-			dbabstoregroup = sess.query(DBABStoreGroup).filter(DBABStoreGroup.group_id == group_id, DBABStoreGroup.ab_id == ab_id, DBABStoreGroup.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None)).one_or_none()
-			
-			if dbabstoregroup is None:
-				return None
-			
-			return ABGroup(dbabstoregroup.group_id, dbabstoregroup.name, dbabstoregroup.is_favorite, date_last_modified = dbabstoregroup.date_last_modified)
-	
-	def get_ab_contents(self, ab_id: str, user: User) -> Optional[Tuple[str, datetime, datetime, Dict[str, Group], Dict[str, Contact]]]:
+	def get_ab_contents(self, ab_id: str, user: User) -> Optional[Tuple[str, User, datetime, datetime, Dict[str, Contact]]]:
 		with Session() as sess:
 			ab_type, dbabstore = self._get_ab_store(ab_id, uuid = user.uuid)
 			
 			if dbabstore is None:
 				return None
 			
-			groups = {}
-			contacts = {}
+			head = self.get(dbabstore.member_uuid)
+			if head is None: return None
 			
-			dbabstoregroups = sess.query(DBABStoreGroup).filter(DBABStoreGroup.ab_id == ab_id, DBABStoreGroup.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None))
-			for dbabstoregroup in dbabstoregroups:
-				grp = ABGroup(dbabstoregroup.group_id, dbabstoregroup.name, dbabstoregroup.is_favorite, date_last_modified = dbabstoregroup.date_last_modified)
-				if grp is None: continue
-				groups[grp.id] = grp
+			contacts = {}
 			
 			dbabstorecontacts = sess.query(DBABStoreContact).filter(DBABStoreContact.ab_id == ab_id, DBABStoreContact.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None))
 			for dbabstorecontact in dbabstorecontacts:
 				ctc = self._ab_get_entry(ab_type, dbabstorecontact)
 				if ctc is None: continue
 				contacts[dbabstorecontact.contact_uuid] = ctc
-			return ab_type, dbabstore.date_created, dbabstore.date_last_modified, groups, contacts
+			return ab_type, head, dbabstore.date_created, dbabstore.date_last_modified, contacts
 	
 	def ab_delete_entry(self, ab_id: str, ctc_uuid: str, user: User) -> None:
 		with Session() as sess:
@@ -278,8 +275,23 @@ class UserService:
 			dbabstorecontact = sess.query(DBABStoreContact).filter(DBABStoreContact.contact_uuid == ctc_uuid, DBABStoreContact.ab_id == ab_id, DBABStoreContact.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None)).one_or_none()
 			if dbabstorecontact is not None:
 				sess.delete(dbabstorecontact)
+				
+				dbabstore.date_last_modified = datetime.utcnow()
+				sess.add(dbabstore)
+	
+	def ab_delete_entry_by_email(self, ab_id: str, email: str, ctc_type: str, user: User) -> None:
+		with Session() as sess:
+			ab_type, dbabstore = self._get_ab_store(ab_id, uuid = user.uuid)
 			
-			sess.add(dbabstore)
+			if dbabstore is None:
+				return None
+			
+			dbabstorecontact = sess.query(DBABStoreContact).filter(DBABStoreContact.email == email, DBABStoreContact.type == ctc_type, DBABStoreContact.ab_id == ab_id, DBABStoreContact.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None)).one_or_none()
+			if dbabstorecontact is not None:
+				sess.delete(dbabstorecontact)
+				
+				dbabstore.date_last_modified = datetime.utcnow()
+				sess.add(dbabstore)
 	
 	def save_batch_ab(self, batch: Tuple[int, str, User, Dict[str, Any]]) -> None:
 		with Session() as sess:
@@ -296,14 +308,11 @@ class UserService:
 						if dbabstorecontact is None:
 							dbabstorecontact = DBABStoreContact(
 								ab_id = ab_id, ab_owner_uuid = (user.uuid if ab_type == 'Individual' else None),
-								contact_uuid = c.uuid, type = c.type, email = c.email, name = c.name, groups = list(c.groups), is_messenger_user = c.is_messenger_user, annotations = [{
+								contact_uuid = c.uuid, contact_member_uuid = c.member_uuid, type = c.type, email = c.email, name = c.name, groups = list(c.groups), is_messenger_user = c.is_messenger_user, annotations = [{
 									name: value
 								} for name, value in c.annotations.items()],
 							)
 						else:
-							dbabstorecontact = sess.query(DBABStoreContact).filter(DBABStoreContact.contact_uuid == c.uuid, DBABStoreContact.ab_id == ab_id, DBABStoreContact.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None)).one_or_none()
-							if dbabstorecontact is None: continue
-							dbabstorecontact.type = c.type
 							dbabstorecontact.email = c.email
 							dbabstorecontact.name = c.name
 							dbabstorecontact.groups = list(c.groups)
@@ -337,26 +346,9 @@ class UserService:
 							sess.add(dbabstorecontactnetworkinfo)
 					updated = True
 				
-				if 'groups' in fields:
-					for g in fields['groups']:
-						dbabstoregroup = sess.query(DBABStoreGroup).filter(DBABStoreGroup.group_id == g.id, DBABStoreGroup.ab_id == ab_id, DBABStoreGroup.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None)).one_or_none()
-						if dbabstoregroup is None:
-							dbabstoregroup = DBABStoreGroup(
-								ab_id = ab_id, ab_owner_uuid = (user.uuid if ab_type == 'Individual' else None), group_id = g.id,
-								name = g.name,
-							)
-						else:
-							dbabstoregroup = sess.query(DBABStoreGroup).filter(DBABStoreGroup.group_id == g.id, DBABStoreGroup.ab_id == ab_id, DBABStoreGroup.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None)).one_or_none()
-							if dbabstoregroup is None: continue
-							dbabstoregroup.name = g.name
-							dbabstoregroup.is_favorite = g.is_favorite
-							dbabstoregroup.date_last_modified = datetime.utcnow()
-						g.date_last_modified = dbabstoregroup.date_last_modified
-						sess.add(dbabstoregroup)
-					updated = True
-				
-				if updated: dbabstore.date_last_modified = datetime.utcnow()
-				sess.add(dbabstore)
+				if updated:
+					dbabstore.date_last_modified = datetime.utcnow()
+					sess.add(dbabstore)
 				self._working_ab_sync_ids.remove(id)
 	
 	def _get_ab_store(self, ab_id: str, *, uuid: Optional[str] = None) -> Optional[Tuple[str, DBABStore]]:
@@ -382,8 +374,16 @@ class UserService:
 			if dbuser is None: return None
 			
 			if ab_id in dbuser.subscribed_ab_stores: return None
-			dbuser.subscribed_ab_stores.append(ab_id)
+			print('Adding AB ID to user\'s table')
+			subscribed_ab_stores = set(dbuser.subscribed_ab_stores)
+			subscribed_ab_stores.add(ab_id)
+			dbuser.subscribed_ab_stores = list(subscribed_ab_stores)
 			sess.add(dbuser)
+		with Session() as sess:
+			dbuser = sess.query(DBUser).filter(DBUser.uuid == uuid).one_or_none()
+			if dbuser is None: return None
+			
+			print(dbuser.subscribed_ab_stores)
 	
 	def msn_update_circleticket(self, uuid: str, cid: str) -> None:
 		with Session() as sess:
@@ -398,7 +398,7 @@ class UserService:
 		if detail is None: return None
 		
 		ticketxml = '<?xml version="1.0" encoding="utf-16"?>\r\n<Ticket xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">\r\n'
-		ticketxml += ''.join(['  <Circle Id="{}" HostedDomain="live.com" />\r\n'.format(circle_id) for circle_id in detail.contacts.keys() if circle_id.startswith('00000000-0000-0000-0009')])
+		ticketxml += ''.join(['  <Circle Id="{}" HostedDomain="live.com" />\r\n'.format(circle_id) for circle_id in detail.subscribed_ab_stores if circle_id.startswith('00000000-0000-0000-0009')])
 		ticketxml += '  <TS>{}</TS>\r\n  <CID>{}</CID>\r\n</Ticket>'.format(
 			datetime.utcnow().isoformat()[0:19] + 'Z', cid,
 		)
@@ -470,22 +470,28 @@ class UserService:
 		with Session() as sess:
 			head = self.get(uuid)
 			if head is None: return None
-			dbcirclestore = sess.query(DBCircleStore).filter(DBCircleStore.circle_name).one_or_none()
-			if dbcirclestore is not None: return None
 			
-			circle_id = '00000000-0000-0000-0009-' + misc.gen_uuid()[-12:]
+			circle_id = '00000000-0000-0000-0009-{}'.format(misc.gen_uuid()[-12:])
 			dbcirclestore = DBCircleStore(
-				id = circle_id, circle_name = circle_name,
+				circle_id = circle_id, circle_name = circle_name,
 				owner_email = head.email, owner_friendly = owner_friendly, membership_access = membership_access, request_membership_option = request_membership_option, is_presence_enabled = is_presence_enabled,
-				_user_memberships = { head.email: { 'membership_role': int(ABRelationshipRole.Admin), 'membership_status': int(ABRelationshipState.Accepted) }, },
 			)
-			sess.add(dbcirclestore)
+			
+			dbcirclemembership = DBCircleMembership(
+				circle_id = circle_id, member_email = head.email, member_role = int(ABRelationshipRole.Admin), member_state = int(ABRelationshipState.Accepted),
+			)
 			
 			circleuser_uuid = misc.gen_uuid()
 			circledbuser = DBUser(
-				uuid = circleuser_uuid, networkid = NetworkID.CIRCLE, email = '{}@live.com'.format(circle_id), relay = True, verified = False,
-				name = circle_id, message = '',
-				password = hasher.encode(gen_salt(length = 32)), groups = {}, contacts = {}, settings = {}, subscribed_ab_stores = ['00000000-0000-0000-0000-000000000000'],
+				uuid = circleuser_uuid, email = '{}@live.com'.format(circle_id), relay = True, verified = False,
+				name = circle_name, message = '',
+				password = hasher.encode(gen_salt(length = 32)), settings = {}, subscribed_ab_stores = ['00000000-0000-0000-0000-000000000000', circle_id],
+			)
+			
+			circledbuser_usercontact = DBUserContact(
+				user_uuid = circleuser_uuid, uuid = head.uuid,
+				name = head.email, message = '',
+				lists = (Lst.FL | Lst.AL), groups = {},
 			)
 			
 			circleuser_abstore = DBABStore(
@@ -497,44 +503,58 @@ class UserService:
 				ab_id = circle_id, ab_type = 'Group',
 			)
 			circledbabstore = DBABStore(
-				member_uuid = head.uuid, ab_id = circle_id,
+				member_uuid = circledbuser.uuid, ab_id = circle_id,
 			)
-			sess.add_all([circledbuser, circleuser_abstore, circledbabmetadata, circledbabstore])
+			self_circledbabcontact = DBABStoreContact(
+				ab_id = circle_id, contact_uuid = misc.gen_uuid(), contact_member_uuid = head.uuid,
+				type = 'Circle', email = head.email, name = head.status.name or head.email,
+				groups = {}, is_messenger_user = True, annotations = {},
+			)
+			self_circledbabcontactnetworkinfo = DBABStoreContactNetworkInfo(
+				contact_uuid = self_circledbabcontact.contact_uuid, ab_id = circle_id,
+				domain_id = int(NetworkID.WINDOWS_LIVE), domain_tag = 'WL', source_id = head.email, display_name = head.status.name or head.email,
+				relationship_type = int(ABRelationshipType.Circle), relationship_role = int(ABRelationshipRole.Admin), relationship_state = int(ABRelationshipState.Accepted), relationship_state_date = datetime.utcnow(),
+			)
+			sess.add_all([dbcirclestore, dbcirclemembership, circledbuser,  circledbuser_usercontact, circleuser_abstore, circledbabmetadata, circledbabstore, self_circledbabcontact, self_circledbabcontactnetworkinfo])
 		return circle_id, circleuser_uuid
 	
 	def msn_get_circle_metadata(self, circle_id: str) -> Optional[CircleMetadata]:
 		with Session() as sess:
-			dbcirclestore = sess.query(DBCircleStore).filter(DBCircleStore.id == circle_id).one_or_none()
+			dbcirclestore = sess.query(DBCircleStore).filter(DBCircleStore.circle_id == circle_id).one_or_none()
 			if dbcirclestore is None: return None
 			
 			return CircleMetadata(
-				dbcirclestore.id, dbcirclestore.owner_email, dbcirclestore.owner_friendly, dbcirclestore.circle_name, dbcirclestore.date_last_modified,
+				dbcirclestore.circle_id, dbcirclestore.owner_email, dbcirclestore.owner_friendly, dbcirclestore.circle_name, dbcirclestore.date_last_modified,
 				dbcirclestore.membership_access, dbcirclestore.request_membership_option, dbcirclestore.is_presence_enabled,
 			)
 	
-	def msn_circle_set_user_membership(self, circle_id: str, email: str, member_role: Optional[ABRelationshipRole], member_status: Optional[ABRelationshipState]) -> bool:
+	def msn_circle_set_user_membership(self, circle_id: str, email: str, *, member_role: Optional[ABRelationshipRole] = None, member_state: Optional[ABRelationshipState] = None) -> bool:
 		with Session() as sess:
-			dbcirclestore = sess.query(DBCircleStore).filter(DBCircleStore.id == circle_id).one_or_none()
-			if dbcirclestore is None: return False
+			dbcirclemembership = sess.query(DBCircleMembership).filter(DBCircleMembership.circle_id == circle_id, DBCircleMembership.member_email == email).one_or_none()
 			
-			dbcirclestore.set_user_membership(email, (int(member_role) if member_role is not None else None), (int(member_status) if member_status is not None else None))
-			sess.add(dbcirclestore)
+			if dbcirclemembership is None:
+				if member_role is not None and member_state is not None:
+					dbcirclemembership = DBCircleMembership(
+						circle_id = circle_id, member_email = email, member_role = int(member_role), member_state = int(member_state),
+					)
+				else:
+					return False
+			else:
+				if member_role is not None:
+					dbcirclemembership.member_role = int(member_role)
+				if member_state is not None:
+					dbcirclemembership.member_state = int(member_state)
+			sess.add(dbcirclemembership)
 		return True
 	
-	def msn_check_circle_membership(self, circle_id: str, email: str) -> bool:
+	def msn_get_circle_membership(self, circle_id: str, email: str) -> Optional[CircleMembership]:
 		with Session() as sess:
-			dbcirclestore = sess.query(DBCircleStore).filter(DBCircleStore.id == circle_id).one_or_none()
-			if dbcirclestore is None: return False
+			dbcirclemembership = sess.query(DBCircleMembership).filter(DBCircleMembership.circle_id == circle_id, DBCircleMembership.member_email == email).one_or_none()
+			if dbcirclemembership is None: return None
 			
-			if dbcirclestore.get_user_membership(email) is None: return False
-		return True
-	
-	def msn_get_circle_membership(self, circle_id: str, email: str) -> Optional[Dict[str, int]]:
-		with Session() as sess:
-			dbcirclestore = sess.query(DBCircleStore).filter(DBCircleStore.id == circle_id).one_or_none()
-			if dbcirclestore is None: return None
-			
-			return dbcirclestore.get_user_membership(email)
+			return CircleMembership(
+				circle_id, email, ABRelationshipRole(dbcirclemembership.member_role), ABRelationshipState(dbcirclemembership.member_state),
+			)
 	
 	def yahoo_get_oim_message_by_recipient(self, recipient_id: str) -> List[YahooOIM]:
 		with Session() as sess:
@@ -575,9 +595,9 @@ class UserService:
 			sess.add(dbyahooalias)
 			
 			yahooalias_user = DBUser(
-				uuid = misc.gen_uuid(), networkid = NetworkID.YAHOO, email = alias + '@yahoo.com', relay = True, verified = False,
+				uuid = misc.gen_uuid(), email = alias + '@yahoo.com', relay = True, verified = False,
 				name = alias, message = '',
-				password = hasher.encode(gen_salt(length = 32)), groups = {}, contacts = {}, settings = {},
+				password = hasher.encode(gen_salt(length = 32)), settings = {},
 			)
 			sess.add(yahooalias_user)
 	
@@ -597,16 +617,55 @@ class UserService:
 	def save_batch(self, to_save: List[Tuple[User, UserDetail, bool]]) -> None:
 		with Session() as sess:
 			for user, detail, message_temp in to_save:
+				dbusercontacts_to_add = []
+				dbusergroups_to_add = []
+				
 				dbuser = sess.query(DBUser).filter(DBUser.uuid == user.uuid).one()
 				dbuser.name = user.status.name
 				if not message_temp: dbuser.message = user.status.message
 				dbuser.settings = user.settings
-				dbuser.groups = [{
-					'id': g.id, 'name': g.name,
-				} for g in detail.groups.values()]
-				dbuser.contacts = [{
-					'uuid': c.head.uuid, 'name': c.status.name, 'message': c.status.message,
-					'lists': c.lists, 'groups': list(c.groups),
-				} for c in detail.contacts.values()]
 				dbuser.subscribed_ab_stores = list(detail.subscribed_ab_stores)
 				sess.add(dbuser)
+				
+				dbusergroups = sess.query(DBUserGroup).filter(DBUserGroup.user_uuid == user.uuid)
+				for dbusergroup in dbusergroups:
+					if dbusergroup.group_id not in detail._groups_by_id:
+						sess.delete(dbusergroup)
+				for g in detail._groups_by_id.values():
+					dbusergroup = sess.query(DBUserGroup).filter(DBUserGroup.user_uuid == user.uuid, DBUserGroup.group_id == g.id, DBUserGroup.group_uuid == g.uuid).one_or_none()
+					if dbusergroup is None:
+						dbusergroup = DBUserGroup(
+							user_uuid = user.uuid, group_id = g.id, group_uuid = g.uuid,
+							name = g.name, is_favorite = g.is_favorite,
+						)
+					else:
+						dbusergroup.name = g.name
+						dbusergroup.is_favorite = g.is_favorite
+						dbusergroup.date_last_modified = datetime.utcnow()
+					g.date_last_modified = dbusergroup.date_last_modified
+					dbusergroups_to_add.append(dbusergroup)
+				sess.add_all(dbusergroups_to_add)
+				
+				dbusercontacts = sess.query(DBUserContact).filter(DBUserContact.user_uuid == user.uuid)
+				for dbusercontact in dbusercontacts:
+					if dbusercontact.uuid not in detail.contacts:
+						sess.delete(dbusercontact)
+				for c in detail.contacts.values():
+					dbusercontact = sess.query(DBUserContact).filter(DBUserContact.user_uuid == user.uuid, DBUserContact.uuid == c.head.uuid).one_or_none()
+					if dbusercontact is None:
+						dbusercontact = DBUserContact(
+							user_uuid = user.uuid, uuid = c.head.uuid,
+							name = c.status.name, message = c.status.message,
+							lists = c.lists, groups = [{
+								'id': group.id, 'uuid': group.uuid,
+							} for group in c._groups.copy()],
+						)
+					else:
+						dbusercontact.name = c.status.name
+						dbusercontact.message = c.status.message
+						dbusercontact.lists = c.lists
+						dbusercontact.groups = [{
+							'id': group.id, 'uuid': group.uuid,
+						} for group in c._groups.copy()]
+					dbusercontacts_to_add.append(dbusercontact)
+				sess.add_all(dbusercontacts_to_add)

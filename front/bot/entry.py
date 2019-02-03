@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Dict, Any
 import asyncio
 import random
 
@@ -11,7 +11,7 @@ CLIENT = Client('testbot', '0.1', 'direct')
 BOT_EMAIL = 'test@bot.log1p.xyz'
 
 def register(loop: asyncio.AbstractEventLoop, backend: Backend) -> None:
-	uuid = backend.util_get_uuid_from_email(BOT_EMAIL, NetworkID.ANY)
+	uuid = backend.util_get_uuid_from_email(BOT_EMAIL)
 	assert uuid is not None
 	bs = backend.login(uuid, CLIENT, BackendEventHandler(loop), option = LoginOption.BootOthers)
 	assert bs is not None
@@ -36,7 +36,7 @@ class BackendEventHandler(event.BackendEventHandler):
 		detail = bs.user.detail
 		assert detail is not None
 		
-		uuid = bs.backend.util_get_uuid_from_email('test1@example.com', NetworkID.ANY)
+		uuid = bs.backend.util_get_uuid_from_email('test1@example.com')
 		if uuid is None:
 			return
 		
@@ -44,7 +44,10 @@ class BackendEventHandler(event.BackendEventHandler):
 			bs.me_contact_add(uuid, Lst.FL, name = "Test 1")
 			bs.me_contact_add(uuid, Lst.AL, name = "Test 1")
 	
-	def on_presence_notification(self, ctc_head: User, old_substatus: Substatus, on_contact_add: bool, *, trid: Optional[str] = None, update_status: bool = True, send_status_on_bl: bool = False, visible_notif: bool = True, updated_phone_info: Optional[Dict[str, Any]] = None, circle_user_bs: Optional[BackendSession] = None, circle_id: Optional[str] = None) -> None:
+	def on_maintenance_boot(self) -> None:
+		pass
+	
+	def on_presence_notification(self, bs_other: Optional[BackendSession], ctc_head: User, old_substatus: Substatus, on_contact_add: bool, *, trid: Optional[str] = None, update_status: bool = True, send_status_on_bl: bool = False, visible_notif: bool = True, updated_phone_info: Optional[Dict[str, Any]] = None, circle_user_bs: Optional[BackendSession] = None, circle_id: Optional[str] = None) -> None:
 		pass
 	
 	def on_chat_invite(self, chat: Chat, inviter: User, *, inviter_id: Optional[str] = None, invite_msg: str = '') -> None:

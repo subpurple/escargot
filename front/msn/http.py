@@ -14,8 +14,8 @@ from aiohttp import web
 
 import settings
 from core import models, event
-from core.backend import Backend, BackendSession
-from .misc import gen_mail_data, gen_signedticket_xml, cid_format
+from core.backend import Backend, BackendSession, MAX_GROUP_NAME_LENGTH
+from .misc import gen_mail_data, gen_signedticket_xml, cid_format, CircleBackendEventHandler
 import util.misc
 
 LOGIN_PATH = '/login'
@@ -51,6 +51,7 @@ def register(app: web.Application) -> None:
 	app.router.add_post('/RST2.srf', lambda req: handle_rst(req, rst2 = True))
 	
 	# MSN 8.1.0178
+	# TODO: Use SOAP library for ABService, SharingService, and StorageService.
 	app.router.add_post('/abservice/SharingService.asmx', handle_abservice)
 	app.router.add_post('/abservice/abservice.asmx', handle_abservice)
 	app.router.add_post('/storageservice/SchematizedStore.asmx', handle_storageservice)
@@ -88,12 +89,10 @@ async def handle_abservice(req: web.Request) -> web.Response:
 				'user': user,
 				'detail': detail,
 				'lists': [models.Lst.AL, models.Lst.BL, models.Lst.RL, models.Lst.PL],
-				'NetworkID': models.NetworkID,
 				'now': now_str,
 			})
 		if action_str == 'AddMember':
 			email = None # type: Optional[str]
-			networkid = None # type: Optional[models.NetworkID]
 			
 			memberships = action.findall('.//{*}memberships/{*}Membership')
 			for membership in memberships:
@@ -105,16 +104,10 @@ async def handle_abservice(req: web.Request) -> web.Response:
 					if member_type == 'PassportMember':
 						if _find_element(member, 'Type') == 'Passport' and _find_element(member, 'State') == 'Accepted':
 							email = _find_element(member, 'PassportName')
-							networkid = models.NetworkID.WINDOWS_LIVE
 					elif member_type == 'EmailMember':
 						if _find_element(member, 'Type') == 'Email' and _find_element(member, 'State') == 'Accepted':
-							annotations = member.findall('.//{*}Annotations/{*}Annotation')
-							for annotation in annotations:
-								if str(_find_element(annotation, 'Name')) == 'MSN.IM.BuddyType':
-									nid = int(str(_find_element(annotation, 'Value'))[:-1])
-									networkid = models.NetworkID(nid)
 							email = _find_element(member, 'Email')
-					contact_uuid = backend.util_get_uuid_from_email(email, networkid)
+					contact_uuid = backend.util_get_uuid_from_email(email)
 					assert contact_uuid is not None
 					try:
 						bs.me_contact_add(contact_uuid, lst, name = email)
@@ -131,7 +124,6 @@ async def handle_abservice(req: web.Request) -> web.Response:
 			assert detail is not None
 			
 			email = None # type: Optional[str]
-			networkid = None # type: Optional[models.NetworkID]
 			
 			memberships = action.findall('.//{*}memberships/{*}Membership')
 			for membership in memberships:
@@ -143,16 +135,10 @@ async def handle_abservice(req: web.Request) -> web.Response:
 					if member_type == 'PassportMember':
 						if _find_element(member, 'Type') == 'Passport' and _find_element(member, 'State') == 'Accepted':
 							contact_uuid = _find_element(member, 'MembershipId').split('/', 1)[1]
-							networkid = models.NetworkID.WINDOWS_LIVE
 					elif member_type == 'EmailMember':
 						if _find_element(member, 'Type') == 'Email' and _find_element(member, 'State') == 'Accepted':
-							annotations = member.findall('.//{*}Annotations/{*}Annotation')
-							for annotation in annotations:
-								if str(_find_element(annotation, 'Name')) == 'MSN.IM.BuddyType':
-									nid = int(str(_find_element(annotation, 'Value'))[:-1])
-									networkid = models.NetworkID(nid)
 							email = _find_element(member, 'Email')
-							contact_uuid = backend.util_get_uuid_from_email(email, networkid)
+							contact_uuid = backend.util_get_uuid_from_email(email)
 							assert contact_uuid is not None
 					if contact_uuid not in detail.contacts:
 						return render(req, 'msn:sharing/Fault.memberdoesnotexist.xml', status = 500)
@@ -176,15 +162,14 @@ async def handle_abservice(req: web.Request) -> web.Response:
 			if ab_id not in detail.subscribed_ab_stores:
 				return web.HTTPInternalServerError()
 			
-			ab_type, ab_created, ab_last_modified, ab_groups, ab_contacts = backend.user_service.get_ab_contents(ab_id, user)
+			ab_type, user_creator, ab_created, ab_last_modified, ab_contacts = backend.user_service.get_ab_contents(ab_id, user)
 			
 			return render(req, 'msn:abservice/ABFindAllResponse.xml', {
 				'cachekey': cachekey,
 				'host': settings.LOGIN_HOST,
 				'session_id': util.misc.gen_uuid(),
-				'user': user,
-				'detail': detail,
-				'ab_groups': ab_groups,
+				'user_creator': user_creator,
+				'user_creator_detail': user_creator.detail,
 				'ab_contacts': ab_contacts,
 				'now': now_str,
 				'ab_id': ab_id,
@@ -207,35 +192,17 @@ async def handle_abservice(req: web.Request) -> web.Response:
 				return web.HTTPInternalServerError()
 			
 			circle_info = [(
-				backend.user_service.msn_get_circle_metadata(circle_id), backend.user_service.msn_get_circle_membership(circle_id, user.email) or {},
+				backend.user_service.msn_get_circle_metadata(circle_id), backend.user_service.msn_get_circle_membership(circle_id, user.email),
 			) for circle_id in detail.subscribed_ab_stores if circle_id.startswith('00000000-0000-0000-0009')]
 			
-			ab_type, ab_created, ab_last_modified, ab_groups, ab_contacts = backend.user_service.get_ab_contents(ab_id, user)
-			
-			for circle_metadata, _ in circle_info:
-				if user.email == circle_metadata.owner_email:
-					circle_bs = backend.login(backend.util_get_uuid_from_email('{}@live.com'.format(circle_metadata.circle_id), models.NetworkID.CIRCLE), None, BackendEventHandler(), only_once = True)
-					if circle_bs:
-						if bs.front_data.get('msn_circle_sessions') is None:
-							bs.front_data['msn_circle_sessions'] = { circle_bs }
-						else:
-							bs.front_data['msn_circle_sessions'].add(circle_bs)
-						circle_bs.front_data['msn_circle_roster'] = { bs }
-						circle_bs.me_update({ 'substatus': models.Substatus.Online })
-				else:
-					circle_acc = backend._load_user_record(backend.util_get_uuid_from_email('{}@live.com'.format(circle_metadata.circle_id), models.NetworkID.CIRCLE))
-					if circle_acc is None: continue
-					if backend.util_get_sessions_by_user(circle_acc):
-						circle_bs = backend.util_get_sessions_by_user(circle_acc)[0]
-						circle_bs.evt.msn_on_user_circle_presence(bs)
+			ab_type, user_creator, ab_created, ab_last_modified, ab_contacts = backend.user_service.get_ab_contents(ab_id, user)
 			
 			return render(req, 'msn:abservice/ABFindContactsPagedResponse.xml', {
 				'cachekey': cachekey,
 				'host': settings.LOGIN_HOST,
 				'session_id': util.misc.gen_uuid(),
-				'user': user,
-				'detail': detail,
-				'ab_groups': ab_groups,
+				'user_creator': user_creator,
+				'user_creator_detail': user_creator.detail,
 				'ab_contacts': ab_contacts,
 				'now': now_str,
 				'circle_info': circle_info,
@@ -245,7 +212,7 @@ async def handle_abservice(req: web.Request) -> web.Response:
 				'ab_id': ab_id,
 				'ab_type': ab_type,
 				'ab_created': ab_created,
-				'ab_last_modified': ab_last_modified
+				'ab_last_modified': ab_last_modified,
 			})
 		if action_str == 'ABContactAdd':
 			user = bs.user
@@ -277,29 +244,29 @@ async def handle_abservice(req: web.Request) -> web.Response:
 			elif '.' not in email:
 				return render(req, 'msn:abservice/Fault.emailmissingdot.xml', status = 500)
 			
-			contact_uuid = backend.util_get_uuid_from_email(email, models.NetworkID.WINDOWS_LIVE)
+			contact_uuid = backend.util_get_uuid_from_email(email)
 			if contact_uuid is None:
 				return render(req, 'msn:abservice/Fault.invaliduser.xml', {
 					'email': email,
 				}, status = 500)
 			
-			ctc_ab = backend.user_service.ab_get_entry_by_uuid(ab_id, contact_uuid, user)
-			if ctc_ab:
+			ctc_ab = backend.user_service.ab_get_entry_by_email(ab_id, email, type, user)
+			if ctc_ab is not None:
 				return render(req, 'msn:abservice/Fault.contactalreadyexists.xml', status = 500)
 			
 			if ab_id == '00000000-0000-0000-0000-000000000000':
 				ctc = detail.contacts.get(contact_uuid)
 				if ctc:
-					head = ctc.head
+					groups = set([group.uuid for group in ctc._groups.copy()])
 			if not ctc:
-				head = backend._load_user_record(contact_uuid)
+				groups = set()
 			annotations = contact.findall('.//{*}annotations/{*}Annotation')
 			if annotations:
 				annotations_dict = {_find_element(annotation, 'Name'): _find_element(annotation, 'Value') for annotation in annotations}
 			is_messenger_user = _find_element(contact, 'isMessengerUser')
 			ctc_ab = models.ABContact(
-				type, contact_uuid, email, email, (ctc.groups if ctc else set()), {},
-				is_messenger_user = is_messenger_user, annotations = annotations_dict,
+				('Regular' if type == 'LivePending' else type), util.misc.gen_uuid(), email, email, groups, {},
+				member_uuid = contact_uuid, is_messenger_user = is_messenger_user, annotations = annotations_dict,
 			)
 			await backend.user_service.mark_ab_modified_async(ab_id, { 'contacts': [ctc_ab] }, user)
 					
@@ -307,7 +274,7 @@ async def handle_abservice(req: web.Request) -> web.Response:
 				'cachekey': cachekey,
 				'host': settings.LOGIN_HOST,
 				'session_id': util.misc.gen_uuid(),
-				'contact_uuid': contact_uuid,
+				'contact_uuid': ctc_ab.uuid,
 			})
 		if action_str == 'ABContactDelete':
 			user = bs.user
@@ -396,6 +363,7 @@ async def handle_abservice(req: web.Request) -> web.Response:
 							if name not in _ANNOTATION_NAMES:
 								return web.HTTPInternalServerError()
 							value = _find_element(annotation, 'Value')
+							value = _bool_to_str(value) if isinstance(value, bool) else str(_find_element(annotation, 'Value'))
 							
 							if name == 'MSN.IM.GTC':
 								try:
@@ -444,13 +412,23 @@ async def handle_abservice(req: web.Request) -> web.Response:
 			
 			name = _find_element(action, 'name')
 			is_favorite = _find_element(action, 'IsFavorite')
+			
+			if len(name) > MAX_GROUP_NAME_LENGTH:
+				return render(req, 'msn:abservice/Fault.groupnametoolong.xml', {
+					'action_str': 'ABGroupAdd',
+				}, status = 500)
+			
+			if detail.get_groups_by_name(name) is not None:
+				return render(req, 'msn:abservice/Fault.groupalreadyexists.xml', {
+					'action_str': 'ABGroupAdd',
+				}, status = 500)
+			
 			group = bs.me_group_add(name)
-			await backend.user_service.mark_ab_modified_async(ab_id, { 'groups': [models.ABGroup(group.id, group.name, is_favorite)] }, user)
 			return render(req, 'msn:abservice/ABGroupAddResponse.xml', {
 				'cachekey': cachekey,
 				'host': settings.LOGIN_HOST,
 				'session_id': util.misc.gen_uuid(),
-				'group_id': group.id,
+				'group_id': group.uuid,
 			})
 		if action_str == 'ABGroupUpdate':
 			user = bs.user
@@ -463,16 +441,13 @@ async def handle_abservice(req: web.Request) -> web.Response:
 			else:
 				ab_id = '00000000-0000-0000-0000-000000000000'
 			
-			groups_to_update = []
-			
 			if ab_id not in detail.subscribed_ab_stores or ab_id != '00000000-0000-0000-0000-000000000000':
 				return web.HTTPInternalServerError()
 			
 			groups = action.findall('.//{*}groups/{*}Group')
 			for group in groups:
 				group_id = str(_find_element(group, 'groupId'))
-				g = backend.user_service.ab_get_group_by_id(ab_id, group_id, user)
-				if g is None:
+				if group_id not in detail._groups_by_uuid:
 					return web.HTTPInternalServerError()
 				group_info = group.find('.//{*}groupInfo')
 				properties_changed = _find_element(group, 'propertiesChanged')
@@ -485,13 +460,35 @@ async def handle_abservice(req: web.Request) -> web.Response:
 				for contact_property in properties_changed:
 					if contact_property == 'GroupName':
 						name = str(_find_element(group_info, 'name'))
-						g.name = name
+						if name is None:
+							return web.HTTPInternalServerError()
+						elif len(name) > MAX_GROUP_NAME_LENGTH:
+							return render(req, 'msn:abservice/Fault.groupnametoolong.xml', {
+								'action_str': 'ABGroupUpdate',
+							}, status = 500)
+						
+						if detail.get_groups_by_name(name) is not None:
+							return render(req, 'msn:abservice/Fault.groupalreadyexists.xml', {
+								'action_str': 'ABGroupUpdate',
+							}, status = 500)
+					is_favorite = _find_element(group_info, 'IsFavorite')
+					if is_favorite is not None:
+						if not isinstance(is_favorite, bool):
+							return web.HTTPInternalServerError()
+			for group in groups:
+				group_id = str(_find_element(group, 'groupId'))
+				g = detail.get_group_by_id(group_id)
+				group_info = group.find('.//{*}groupInfo')
+				properties_changed = _find_element(group, 'propertiesChanged')
+				properties_changed = str(properties_changed).strip().split(' ')
+				for contact_property in properties_changed:
+					if contact_property == 'GroupName':
+						name = str(_find_element(group_info, 'name'))
+						bs.me_group_edit(group_id, new_name = name)
 					# What's the `propertiesChanged` value for the favourite setting? Check for the node for now
 					is_favorite = _find_element(group_info, 'IsFavorite')
 					if is_favorite is not None:
-						g.is_favorite = is_favorite
-				groups_to_update.append(g)
-				bs.me_ab_group_edit(groups_to_update)
+						bs.me_group_edit(group_id, is_favorite = is_favorite)
 			return render(req, 'msn:abservice/ABGroupUpdateResponse.xml', {
 				'cachekey': cachekey,
 				'host': settings.LOGIN_HOST,
@@ -513,10 +510,10 @@ async def handle_abservice(req: web.Request) -> web.Response:
 			
 			group_ids = [str(group_id) for group_id in action.findall('.//{*}groupFilter/{*}groupIds/{*}guid')]
 			for group_id in group_ids:
-				if not backend.user_service.ab_get_group_by_id(ab_id, group_id, user) and group_id not in detail.groups:
+				if group_id not in detail._groups_by_uuid:
 					return web.HTTPInternalServerError()
 			for group_id in group_ids:
-				bs.me_group_remove(group_id, remove_from_ab = True)
+				bs.me_group_remove(group_id)
 			return render(req, 'msn:abservice/ABGroupDeleteResponse.xml', {
 				'cachekey': cachekey,
 				'host': settings.LOGIN_HOST,
@@ -539,7 +536,7 @@ async def handle_abservice(req: web.Request) -> web.Response:
 			group_ids = [str(group_id) for group_id in action.findall('.//{*}groupFilter/{*}groupIds/{*}guid')]
 			
 			for group_id in group_ids:
-				if not backend.user_service.ab_get_group_by_id(ab_id, group_id, user) and group_id not in detail.groups:
+				if group_id not in detail._groups_by_uuid:
 					return web.HTTPInternalServerError()
 			
 			if _find_element(action, 'contactInfo') is not None:
@@ -548,19 +545,18 @@ async def handle_abservice(req: web.Request) -> web.Response:
 					email = _find_element(action, 'email')
 					if email is None:
 						return web.HTTPInternalServerError()
-				contact_uuid = backend.util_get_uuid_from_email(email, models.NetworkID.WINDOWS_LIVE)
+				type = _find_element(action, 'contactType') or 'Regular'
+				contact_uuid = backend.util_get_uuid_from_email(email)
 				assert contact_uuid is not None
 				
 				ctc = detail.contacts.get(contact_uuid)
 				if ctc is not None and ctc.lists & models.Lst.FL:
 					for group_id in group_ids:
-						if group_id in ctc.groups:
-							return web.HTTPInternalServerError()
+						for group in ctc._groups.copy():
+							if group.uuid == group_id:
+								return web.HTTPInternalServerError()
 				
-				if ctc:
-					contact_uuid = ctc.head.uuid
-				
-				ctc_ab = backend.user_service.ab_get_entry_by_uuid(ab_id, contact_uuid, user)
+				ctc_ab = backend.user_service.ab_get_entry_by_email(ab_id, email, ('Regular' if type == 'LivePending' else type), user)
 				
 				if ctc_ab is not None:
 					for group_id in group_ids:
@@ -577,8 +573,8 @@ async def handle_abservice(req: web.Request) -> web.Response:
 				
 				if ctc_ab is None:
 					ctc_ab = models.ABContact(
-						'Regular', ctc.head.uuid, ctc.head.email, ctc.status.name, set(), {},
-						is_messenger_user = is_messenger_user,
+						('Regular' if type == 'LivePending' else type), util.misc.gen_uuid(), ctc.head.email, ctc.status.name, set(), {},
+						member_uuid = contact_uuid, is_messenger_user = is_messenger_user,
 					)
 				
 				for group_id in group_ids:
@@ -588,24 +584,30 @@ async def handle_abservice(req: web.Request) -> web.Response:
 			else:
 				contact_uuid = _find_element(action, 'contactId')
 				assert contact_uuid is not None
-				ctc = detail.contacts.get(contact_uuid)
-				if ctc is None or not ctc.lists & models.Lst.FL:
-					return web.HTTPInternalServerError()
-				else:
-					for group_id in group_ids:
-						if group_id in ctc.groups:
-							return web.HTTPInternalServerError()
-				
-				ctc_ab = backend.user_service.ab_get_entry_by_uuid(ab_id, ctc.head.uuid, user)
+				ctc_ab = backend.user_service.ab_get_entry_by_uuid(ab_id, contact_uuid, user)
 				if ctc_ab is None:
+					print('AB not found')
 					return web.HTTPInternalServerError()
 				else:
 					for group_id in group_ids:
 						if group_id in ctc_ab.groups:
 							return web.HTTPInternalServerError()
 				
+				ctc = detail.contacts.get(ctc_ab.member_uuid)
+				if ctc is None or not ctc.lists & models.Lst.FL:
+					if ctc is None:
+						print('ctc does not exist')
+					else:
+						print('ctc not on FL')
+					return web.HTTPInternalServerError()
+				else:
+					for group_id in group_ids:
+						for group in ctc._groups.copy():
+							if group.uuid == group_id:
+								return web.HTTPInternalServerError()
+				
 				for group_id in group_ids:
-					bs.me_group_contact_add(group_id, contact_uuid)
+					bs.me_group_contact_add(group_id, ctc.head.uuid)
 					ctc_ab.groups.add(group_id)
 				
 				await backend.user_service.mark_ab_modified_async(ab_id, { 'contacts': [ctc_ab] }, user)
@@ -632,20 +634,12 @@ async def handle_abservice(req: web.Request) -> web.Response:
 			group_ids = [str(group_id) for group_id in action.findall('.//{*}groupFilter/{*}groupIds/{*}guid')]
 			
 			for group_id in group_ids:
-				if not backend.user_service.ab_get_group_by_id(ab_id, group_id, user) and group_id not in detail.groups:
+				if group_id not in detail._groups_by_uuid:
 					return web.HTTPInternalServerError()
 			
 			contact_uuid = _find_element(action, 'contactId')
 			assert contact_uuid is not None
-			ctc = detail.contacts.get(contact_uuid)
-			if ctc is None or not ctc.lists & models.Lst.FL:
-				return web.HTTPInternalServerError()
-			else:
-				for group_id in group_ids:
-					if group_id not in ctc.groups:
-						return web.HTTPInternalServerError()
-			
-			ctc_ab = backend.user_service.ab_get_entry_by_uuid(ab_id, ctc.head.uuid, user)
+			ctc_ab = backend.user_service.ab_get_entry_by_uuid(ab_id, contact_uuid, user)
 			if ctc_ab is None:
 				return web.HTTPInternalServerError()
 			else:
@@ -653,8 +647,17 @@ async def handle_abservice(req: web.Request) -> web.Response:
 					if group_id not in ctc_ab.groups:
 						return web.HTTPInternalServerError()
 			
+			ctc = detail.contacts.get(ctc_ab.member_uuid)
+			if ctc is None or not ctc.lists & models.Lst.FL:
+				return web.HTTPInternalServerError()
+			else:
+				for group_id in group_ids:
+					for group in ctc._groups.copy():
+						if group.uuid == group_id:
+							return web.HTTPInternalServerError()
+			
 			for group_id in group_ids:
-				bs.me_group_contact_remove(group_id, contact_uuid)
+				bs.me_group_contact_remove(group_id, ctc.head.uuid)
 				ctc_ab.groups.remove(group_id)
 			
 			await backend.user_service.mark_ab_modified_async(ab_id, { 'contacts': [ctc_ab] }, user)
@@ -680,30 +683,43 @@ async def handle_abservice(req: web.Request) -> web.Response:
 				bs.me_subscribe_ab(circle_id)
 				# Add circle relay to contact list
 				bs.me_contact_add(circle_acc_uuid, models.Lst.FL)
-				# Add self to individual and circle AB
-				ctc_self_hidden_representative = models.ABContact(
-					'Circle', user.uuid, user.email, user.status.name or user.email, set(), {
-						models.NetworkID.WINDOWS_LIVE: models.NetworkInfo(
-							models.NetworkID.WINDOWS_LIVE, 'WL', user.email, user.status.name, models.RelationshipInfo(
-								models.ABRelationshipType.Circle, models.ABRelationshipRole.Admin, models.ABRelationshipState.Accepted
-							)
-						)
-					}, is_messenger_user = True,
-				)
-				ctc_self_circle_ab = models.ABContact(
-					'Regular', user.uuid, user.email, user.status.name or user.email, set(), {},
-					is_messenger_user = True,
-				)
-				await backend.user_service.mark_ab_modified_async(circle_id, { 'contacts': [ctc_self_circle_ab], }, user)
-				await backend.user_service.mark_ab_modified_async('00000000-0000-0000-0000-000000000000', { 'contacts': [ctc_self_hidden_representative], }, user)
+				bs.me_contact_add(circle_acc_uuid, models.Lst.AL)
+				
+				# Add self to individual AB
+				# TODO: Proper hidden representative of circle creator (does this display them in the roster?)
+				#ctc_self_hidden_representative = models.ABContact(
+				#	'Circle', util.misc.gen_uuid(), user.email, user.status.name or user.email, set(), {
+				#		models.NetworkID.WINDOWS_LIVE: models.NetworkInfo(
+				#			models.NetworkID.WINDOWS_LIVE, 'WL', user.email,
+				#			user.status.name, models.RelationshipInfo(
+				#				models.ABRelationshipType.Circle, models.ABRelationshipRole.Admin, models.ABRelationshipState.Accepted,
+				#			),
+				#		)
+				#	},
+				#	member_uuid = user.uuid, is_messenger_user = True,
+				#)
+				#await backend.user_service.mark_ab_modified_async('00000000-0000-0000-0000-000000000000', { 'contacts': [ctc_self_hidden_representative], }, user)
 				backend.user_service.msn_update_circleticket(user.uuid, cid_format(user.uuid, decimal = True))
 				
-				return render(req, 'msn:abservice/CreateCircleResponse.xml', {
-					'cachekey': cachekey,
-					'host': settings.LOGIN_HOST,
-					'session_id': util.misc.gen_uuid(),
-					'circle_id': circle_id,
-				})
+				try:
+					return render(req, 'msn:abservice/CreateCircleResponse.xml', {
+						'cachekey': cachekey,
+						'host': settings.LOGIN_HOST,
+						'session_id': util.misc.gen_uuid(),
+						'circle_id': circle_id,
+					})
+				finally:
+					_, _, _, ab_last_modified, _, _ = backend.user_service.get_ab_contents(circle_id, user)
+					bs.evt.msn_on_notify_ab(cid_format(user.uuid, decimal = True), _date_format(ab_last_modified))
+					
+					#circle_bs = backend.login(backend.util_get_uuid_from_email('{}@live.com'.format(circle_id), models.NetworkID.CIRCLE), None, CircleBackendEventHandler(), only_once = True)
+					#if circle_bs is not None:
+					#	if bs.front_data.get('msn_circle_sessions') is None:
+					#		bs.front_data['msn_circle_sessions'] = { circle_bs }
+					#	else:
+					#		bs.front_data['msn_circle_sessions'].add(circle_bs)
+					#	circle_bs.front_data['msn_circle_roster'] = { bs }
+					#	circle_bs.me_update({ 'substatus': models.Substatus.Online })
 		if action_str == 'CreateContact':
 			user = bs.user
 			detail = user.detail
@@ -715,17 +731,15 @@ async def handle_abservice(req: web.Request) -> web.Response:
 			if ab_id not in detail.subscribed_ab_stores:
 				return web.HTTPInternalServerError()
 			
-			contact_uuid = backend.util_get_uuid_from_email(contact_email, models.NetworkID.WINDOWS_LIVE)
+			_, _, _, _, ab_groups, _ = backend.user_service.get_ab_contents(ab_id, user)
+			
+			contact_uuid = backend.util_get_uuid_from_email(contact_email)
 			if contact_uuid is None:
 				return web.HTTPInternalServerError()
 			
-			if ab_id.startswith('00000000-0000-0000-0009') and _find_element(action, 'CircleId'):
-				if not backend.user_service.msn_circle_set_user_membership(ab_id, contact_email, models.ABRelationshipRole.StatePendingOutbound, models.ABRelationshipState.WaitingResponse):
-					return web.HTTPInternalServerError()
-			
 			ctc_ab = models.ABContact(
-				'LivePending', contact_uuid, contact_email, contact_email, set(), {},
-				is_messenger_user = True,
+				('Circle' if ab_id.startswith('00000000-0000-0000-0009') else 'LivePending'), util.misc.gen_uuid(), contact_email, contact_email, set(), {},
+				member_uuid = contact_uuid, is_messenger_user = True,
 			)
 			
 			await backend.user_service.mark_ab_modified_async(ab_id, { 'contacts': [ctc_ab] }, user)
@@ -734,13 +748,11 @@ async def handle_abservice(req: web.Request) -> web.Response:
 				'cachekey': cachekey,
 				'host': settings.LOGIN_HOST,
 				'session_id': util.misc.gen_uuid(),
-				'contact': ctc,
-				'ab_groups': groups,
+				'contact': ctc_ab,
+				'ab_groups': ab_groups,
 			})
 		if action_str == 'ManageWLConnection':
 			#TODO: Finish `NetworkInfo` implementation for circles
-			return web.HTTPInternalServerError()
-			
 			user = bs.user
 			detail = user.detail
 			assert detail is not None
@@ -752,6 +764,8 @@ async def handle_abservice(req: web.Request) -> web.Response:
 			
 			contact_uuid = _find_element(action, 'contactId')
 			
+			_, _, _, _, ab_groups, _ = backend.user_service.get_ab_contents(ab_id, user)
+			
 			ctc = backend.user_service.ab_get_entry_by_uuid(ab_id, contact_uuid, user)
 			
 			if ctc is None or ctc.networkinfos.get(models.NetworkID.WINDOWS_LIVE) is not None:
@@ -761,37 +775,57 @@ async def handle_abservice(req: web.Request) -> web.Response:
 				try:
 					relationship_type = models.ABRelationshipType(_find_element(action, 'relationshipType'))
 					relationship_role = models.ABRelationshipRole(_find_element(action, 'relationshipRole'))
+					wl_action = int(_find_element(action, 'action'))
 				except ValueError:
 					return web.HTTPInternalServerError()
 				
-				relationship_info = models.RelationshipInfo(
-					relationship_type, relationship_role, models.ABRelationshipState.WaitingResponse, datetime.utcnow(),
-				)
-				
-				networkinfo = models.NetworkInfo(
-					models.NetworkID.WINDOWS_LIVE, 'WL', ctc.head.email,
-					ctc.status.name, relationship_info,
-				)
-				
-				ctc.networkinfos[models.NetworkID.WINDOWS_LIVE] = networkinfo
-				
-				await backend.user_service.mark_ab_modified_async(ab_id, { 'contacts': ctc }, user)
-				
-				ctc_ab_contact = backend.user_service.ab_get_entry_by_uuid_uuid('00000000-0000-0000-0000-000000000000', user.uuid, ctc.head)
-				if ctc_ab_contact:
-					return web.HTTPInternalServerError()
-				relationship_info_self = models.RelationshipInfo(
-					relationship_type, relationship_role, models.ABRelationshipState.WaitingResponse, datetime.utcnow(),
-				)
-				ctc_ab_contact = models.ABContact(
-					('Circle' if ab_id.startswith('00000000-0000-0000-0009') else 'LivePending'), user.uuid. user.email, user.status.name or user.email, set(), {},
-					is_messenger_user = True,
-				)
-				
-				await backend.user_service.mark_ab_modified_async('00000000-0000-0000-0000-000000000000', { 'contacts': [ctc_ab_contact] }, ctc.head)
+				if relationship_type == models.ABRelationshipType.Circle:
+					if relationship_role == models.ABRelationshipRole.Member:
+						if wl_action == 1:
+							membership_set = backend.user_service.msn_circle_set_user_membership(ab_id, ctc.email, member_role = models.ABRelationshipRole.StatePendingOutbound, member_state = models.ABRelationshipState.WaitingResponse)
+							if not membership_set:
+								return web.HTTPInternalServerError()
+							
+							ctc.networkinfos[models.NetworkID.WINDOWS_LIVE] = models.NetworkInfo(
+								models.NetworkID.WINDOWS_LIVE, 'WL', ctc.email,
+								ctc.name or ctc.email, models.RelationshipInfo(
+									models.ABRelationshipType.Circle, models.ABRelationshipRole.StatePendingOutbound, models.ABRelationshipState.WaitingResponse,
+								),
+							)
+							
+							if not ctc.member_uuid:
+								return web.HTTPInternalServerError()
+							ctc_head = backend._load_user_record(ctc.member_uuid)
+							if ctc_head is None:
+								return web.HTTPInternalServerError()
+							ctc_ab_contact = backend.user_service.ab_get_entry_by_email('00000000-0000-0000-0000-000000000000', user.email, ('Circle' if ab_id.startswith('00000000-0000-0000-0009') else 'LivePending'), ctc_head)
+							if ctc_ab_contact:
+								return web.HTTPInternalServerError()
+							ctc_ab_contact = models.ABContact(
+								('Circle' if ab_id.startswith('00000000-0000-0000-0009') else 'LivePending'), util.misc.gen_uuid(), user.email, user.status.name or user.email, set(), {
+									models.NetworkID.WINDOWS_LIVE: models.NetworkInfo(
+										models.NetworkID.WINDOWS_LIVE, 'WL', user.email,
+										user.status.name, models.RelationshipInfo(
+											models.ABRelationshipType.Circle, models.ABRelationshipRole.StatePendingOutbound, models.ABRelationshipState.WaitingResponse,
+										),
+									),
+								},
+								member_uuid = user.uuid, is_messenger_user = True,
+							)
+							
+							await backend.user_service.mark_ab_modified_async(ab_id, { 'contacts': [ctc] }, user)
+							await backend.user_service.mark_ab_modified_async('00000000-0000-0000-0000-000000000000', { 'contacts': [ctc_ab_contact] }, ctc_head)
+						
+							if ab_id != '00000000-0000-0000-0000-000000000000':
+								bs.other_subscribe_ab(ab_id, ctc_head)
 			
-			if ab_id != '00000000-0000-0000-0000-000000000000':
-				bs.other_subscribe_ab(ab_id, ctc_head)
+			return render(req, 'msn:abservice/ManageWLConnection/ManageWLConnection.xml', {
+				'cachekey': cachekey,
+				'host': settings.LOGIN_HOST,
+				'session_id': util.misc.gen_uuid(),
+				'contact': ctc,
+				'ab_groups': ab_groups,
+			})
 		if action_str in { 'UpdateDynamicItem' }:
 			# TODO: UpdateDynamicItem
 			return _unknown_soap(req, header, action, expected = True)
@@ -921,7 +955,7 @@ async def handle_oim(req: web.Request) -> web.Response:
 	email = header.find('.//{*}From').get('memberName')
 	recipient = header.find('.//{*}To').get('memberName')
 	
-	recipient_uuid = backend.util_get_uuid_from_email(recipient, models.NetworkID.WINDOWS_LIVE)
+	recipient_uuid = backend.util_get_uuid_from_email(recipient)
 	
 	if email != user.email or recipient_uuid is None or not _is_on_al(recipient_uuid, detail):
 		return render(req, 'msn:oim/Fault.unavailable.xml', {
@@ -1212,7 +1246,7 @@ async def handle_rst(req: web.Request, rst2: bool = False) -> web.Response:
 	
 	token = _login(req, email, pwd, lifetime = 86400)
 	
-	uuid = backend.util_get_uuid_from_email(email, models.NetworkID.WINDOWS_LIVE)
+	uuid = backend.util_get_uuid_from_email(email)
 	
 	if token is not None and uuid is not None:
 		now = datetime.utcfromtimestamp(backend.auth_service.get_token_expiry('nb/login', token) - 86400)
@@ -1366,22 +1400,34 @@ def _extract_pp_credentials(auth_str: str) -> Optional[Tuple[str, str]]:
 
 def _login(req, email: str, pwd: str, lifetime: int = 30) -> Optional[str]:
 	backend: Backend = req.app['backend']
-	uuid = backend.user_service.login(email, models.NetworkID.WINDOWS_LIVE, pwd)
+	uuid = backend.user_service.login(email, pwd)
 	if uuid is None: return None
 	return backend.auth_service.create_token('nb/login', uuid, lifetime = lifetime)
 
-def _date_format(d: Optional[datetime], *, Z: bool = True) -> Optional[str]:
+def _date_format(d: Optional[datetime], *, timezone: Optional[str] = None, Z: bool = True) -> Optional[str]:
 	if d is None: return None
-	d_iso = d.isoformat()
-	if Z:
-		d_iso = d_iso[0:19] + 'Z'
+	if timezone:
+		d = d.astimezone(timezone)
+	if timezone:
+		d_iso = '{}.{:03.0f}'.format(
+			d.strftime('%Y-%m-%dT%H:%M:%S'), round(dt.microsecond / 1000.0),
+		)
+		offset = d.strftime('%z')
+		if re.match(r'([\+-]\d{4})$', offset):
+			d_iso += '{}:{}'.format(
+				offset[:3], offset[-2:],
+			)
+	else:
+		d_iso = '{}{}'.format(
+			d.isoformat()[0:19], ('Z' if Z else ''),
+		)
 	
 	return d_iso
 
 def _bool_to_str(b: bool) -> str:
 	return 'true' if b else 'false'
 
-def _contact_is_favorite(groups: Dict[str, models.ABGroup], ctc: models.ABContact) -> bool:
+def _contact_is_favorite(groups: Dict[str, models.Group], ctc: models.ABContact) -> bool:
 	for group_id in ctc.groups:
 		if group_id not in groups: continue
 		if groups[group_id].is_favorite: return True
@@ -1396,7 +1442,7 @@ _CONTACT_PROPERTIES = (
 _ANNOTATION_NAMES = (
 	'MSN.IM.InviteMessage', 'MSN.IM.MPOP', 'MSN.IM.BLP', 'MSN.IM.GTC', 'MSN.IM.RoamLiveProperties',
 	'MSN.IM.MBEA', 'MSN.IM.BuddyType', 'AB.NickName', 'AB.Profession', 'Live.Locale', 'Live.Profile.Expression.LastChanged',
-	'Live.Passport.Birthdate',
+	'Live.Passport.Birthdate', 'Live.Favorite.Order',
 )
 
 class GTCAnnotation(IntEnum):
@@ -1408,73 +1454,6 @@ class BLPAnnotation(IntEnum):
 	Empty = 0
 	AL = 1
 	BL = 2
-
-class BackendEventHandler(event.BackendEventHandler):
-	__slots__ = ('bs',)
-	
-	bs: BackendSession
-	
-	def __init__(self) -> None:
-		pass
-	
-	def on_system_message(self, *args: Any, **kwargs: Any) -> None:
-		pass
-	
-	def on_maintenance_boot(self) -> None:
-		pass
-	
-	def on_presence_notificationon_presence_notification(self, ctc_head: models.User, old_substatus: models.Substatus, on_contact_add: bool, *, trid: Optional[str] = None, update_status: bool = True, send_status_on_bl: bool = False, visible_notif: bool = True, updated_phone_info: Optional[Dict[str, Any]] = None, circle_user_bs: Optional[BackendSession] = None, circle_id: Optional[str] = None) -> None:
-		bs = self.bs
-		assert bs is not None
-		backend = bs.backend
-		user_me = bs.user
-		
-		if bs_other not in bs.front_data.get('msn_circle_roster'):
-			return
-		
-		detail_other = self.ctrl.backend._load_detail(user)
-		assert detail_other is not None
-		ctc_me = detail_other.contacts.get(user_me.uuid)
-		if ctc_me is not None and ctc_me.head is user_me:
-			detail = user_me.detail
-			assert detail is not None
-			ctc_other = detail.contacts.get(user.uuid)
-			# This shouldn't be `None`, since every contact should have
-			# an `RL` contact on the other users' list (at the very least).
-			if ctc_other is None or not ctc_other.lists & Lst.FL: return
-			for ctc_other in detail.contacts.values():
-				if not ctc_other.lists & Lst.FL: continue
-				for ctc_other_sess in backend.util_get_sess_by_user(ctc_other.head):
-					ctc_other_sess.evt.on_presence_notification(bs, ctc.status.substatus, False, circle_user_bs = bs_other, circle_id = bs.user.email.split('@', 1)[0])
-			return
-	
-	def on_chat_invite(self, chat: 'Chat', inviter: models.User, *, inviter_id: Optional[str] = None, invite_msg: str = '') -> None:
-		pass
-	
-	def on_added_me(self, user: models.User, *, adder_id: Optional[str] = None, message: Optional[models.TextWithData] = None) -> None:
-		pass
-	
-	def on_contact_request_denied(self, user_added: models.User, message: str, *, contact_id: Optional[str]) -> None:
-		pass
-	
-	def on_login_elsewhere(self, option: models.LoginOption) -> None:
-		pass
-	
-	def msn_on_put_sent(self, message: 'Message', sender: models.User, *, pop_id_sender: Optional[str] = None, pop_id: Optional[str] = None) -> None:
-		bs = self.bs
-		assert bs is not None
-		
-		for bs_other in bs.front_data.get('msn_circle_roster'):
-			bs_other.evt.msn_on_put_sent(message, bs.user, pop_id_sender = None, pop_id = pop_id_sender)
-	
-	def msn_on_user_circle_presence(self, bs_other: BackendSession) -> None:
-		bs = self.bs
-		assert bs is not None
-		user_me = bs.user
-		
-		if bs_other not in bs.front_data.get('msn_circle_roster'):
-			bs.front_data.get('msn_circle_roster').add(bs_other)
-			self.on_presence_notification(bs, bs.user.status.substatus, False)
 
 OIM_HEADER_PRE = '''X-Message-Info: cwRBnLifKNE8dVZlNj6AiX8142B67OTjG9BFMLMyzuui1H4Xx7m3NQ==
 Received: from OIM-SSI02.phx.gbl ([65.54.237.206]) by oim1-f1.hotmail.com with Microsoft SMTPSVC(6.0.3790.211);

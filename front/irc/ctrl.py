@@ -54,7 +54,7 @@ class IRCCtrl:
 		password = self.password
 		self.password = None
 		assert password is not None
-		uuid = self.backend.user_service.login(email, NetworkID.IRC, password)
+		uuid = self.backend.user_service.login(email, password)
 		if uuid is not None:
 			bs = self.backend.login(uuid, self.client, BackendEventHandler(self), option = LoginOption.BootOthers)
 		else:
@@ -191,8 +191,8 @@ class BackendEventHandler(event.BackendEventHandler):
 	def on_maintenance_boot(self) -> None:
 		pass
 	
-	def on_presence_notification(self, ctc_head: User, old_substatus: Substatus, on_contact_add: bool, *, trid: Optional[str] = None, update_status: bool = True, send_status_on_bl: bool = False, visible_notif: bool = True, updated_phone_info: Optional[Dict[str, Any]] = None, circle_user_bs: Optional[BackendSession] = None, circle_id: Optional[str] = None) -> None:
-		self.ctrl.send_reply('NOTICE', ":{} is now {}".format(bs_other.user.head.email, bs_other.user.status.substatus))
+	def on_presence_notification(self, bs_other: Optional[BackendSession], ctc_head: User, old_substatus: Substatus, on_contact_add: bool, *, trid: Optional[str] = None, update_status: bool = True, send_status_on_bl: bool = False, visible_notif: bool = True, updated_phone_info: Optional[Dict[str, Any]] = None, circle_user_bs: Optional[BackendSession] = None, circle_id: Optional[str] = None) -> None:
+		self.ctrl.send_reply('NOTICE', ":{} is now {}".format(ctc_head.email, ctc_head.status.substatus))
 	
 	def on_chat_invite(self, chat: Chat, inviter: User, *, inviter_id: Optional[str] = None, invite_msg: str = '') -> None:
 		self.ctrl.send_reply('INVITE', self.bs.user.email, chat.ids['irc'], source = inviter.email)
@@ -212,6 +212,9 @@ class BackendEventHandler(event.BackendEventHandler):
 			self.ctrl.send_reply('NOTICE', ":You are being booted because your account is used elsewhere.")
 		else:
 			self.ctrl.send_reply('NOTICE', ":Your account is being used elsewhere.")
+	
+	def ymsg_on_p2p_msg_request(self, yahoo_data: Dict[str, Any]) -> None:
+		pass
 	
 	def on_close(self) -> None:
 		self.ctrl.close()

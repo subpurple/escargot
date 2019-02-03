@@ -4,21 +4,19 @@ from enum import Enum, IntEnum, IntFlag
 import time
 
 class User:
-	__slots__ = ('uuid', 'email', 'networkid', 'verified', 'status', 'detail', 'settings', 'date_created')
+	__slots__ = ('uuid', 'email', 'verified', 'status', 'detail', 'settings', 'date_created')
 	
 	uuid: str
 	email: str
-	networkid: 'NetworkID'
 	verified: bool
 	status: 'UserStatus'
 	detail: Optional['UserDetail']
 	settings: Dict[str, Any]
 	date_created: datetime
 	
-	def __init__(self, uuid: str, email: str, networkid: 'NetworkID', verified: bool, status: 'UserStatus', settings: Dict[str, Any], date_created: datetime) -> None:
+	def __init__(self, uuid: str, email: str, verified: bool, status: 'UserStatus', settings: Dict[str, Any], date_created: datetime) -> None:
 		self.uuid = uuid
 		self.email = email
-		self.networkid = networkid
 		self.verified = verified
 		# `status`: true status of user
 		self.status = status
@@ -27,16 +25,16 @@ class User:
 		self.date_created = date_created
 
 class Contact:
-	__slots__ = ('head', 'groups', 'lists', 'status')
+	__slots__ = ('head', '_groups', 'lists', 'status')
 	
 	head: User
-	groups: Set[str]
+	_groups: Set['ContactGroupEntry']
 	lists: 'Lst'
 	status: 'UserStatus'
 	
-	def __init__(self, user: User, groups: Set[str], lists: 'Lst', status: 'UserStatus') -> None:
+	def __init__(self, user: User,groups: Set['ContactGroupEntry'], lists: 'Lst', status: 'UserStatus') -> None:
 		self.head = user
-		self.groups = groups
+		self._groups = groups
 		self.lists = lists
 		# `status`: status as known by the contact
 		self.status = status
@@ -52,13 +50,43 @@ class Contact:
 		self.status.name = true_status.name
 		self.status.message = true_status.message
 		self.status.media = true_status.media
+	
+	def group_in_entry(self, grp: 'Group') -> bool:
+		for group in self._groups.copy():
+			if group.id == grp.id or group.uuid == grp.uuid:
+				return True
+		return False
+	
+	def add_group_to_entry(self, grp: 'Group') -> None:
+		self._groups.add(ContactGroupEntry(
+			self.head.uuid, grp.id, grp.uuid,
+		))
+	
+	def remove_from_group(self, grp: 'Group') -> None:
+		for group in self._groups.copy():
+			if group.id == grp.id or group.uuid == grp.uuid:
+				self._groups.discard(group)
+				break
+
+class ContactGroupEntry:
+	__slots__ = ('contact_uuid', 'id', 'uuid')
+	
+	contact_uuid: str
+	id: str
+	uuid: str
+	
+	def __init__(self, contact_uuid: str, id: str, uuid: str) -> None:
+		self.contact_uuid = contact_uuid
+		self.id = id
+		self.uuid = uuid
 
 class ABContact:
-	__slots__ = ('type', 'uuid', 'email', 'date_last_modified', 'name', 'groups', 'is_messenger_user', 'networkinfos', 'annotations')
+	__slots__ = ('type', 'uuid', 'email', 'member_uuid', 'date_last_modified', 'name', 'groups', 'is_messenger_user', 'networkinfos', 'annotations')
 	
 	type: str
 	uuid: str
 	email: str
+	member_uuid: Optional[str]
 	date_last_modified: datetime
 	name: Optional[str]
 	groups: Set[str]
@@ -66,10 +94,11 @@ class ABContact:
 	networkinfos: Dict['NetworkID', 'NetworkInfo']
 	annotations: Dict[str, Any]
 	
-	def __init__(self, type: str, uuid: str, email: str, name: Optional[str], groups: Set[str], networkinfos: Dict['NetworkID', 'NetworkInfo'], *, is_messenger_user: Optional[bool] = None, annotations: Optional[Dict[str, Any]] = None, date_last_modified: Optional[datetime] = None) -> None:
+	def __init__(self, type: str, uuid: str, email: str, name: Optional[str], groups: Set[str], networkinfos: Dict['NetworkID', 'NetworkInfo'], *, member_uuid: Optional[str] = None, is_messenger_user: Optional[bool] = None, annotations: Optional[Dict[str, Any]] = None, date_last_modified: Optional[datetime] = None) -> None:
 		self.type = type
 		self.uuid = uuid
 		self.email = email
+		self.member_uuid = member_uuid
 		self.date_last_modified = _default_if_none(date_last_modified, datetime.utcnow())
 		self.name = name
 		self.groups = groups
@@ -133,37 +162,61 @@ class UserStatus:
 		return self.substatus.is_offlineish()
 
 class UserDetail:
-	__slots__ = ('subscribed_ab_stores', 'groups', 'contacts')
+	__slots__ = ('subscribed_ab_stores', '_groups_by_id', '_groups_by_uuid', 'contacts')
 	
 	subscribed_ab_stores: Set[str]
-	groups: Dict[str, 'Group']
+	_groups_by_id: Dict[str, 'Group']
+	_groups_by_uuid: Dict[str, 'Group']
 	contacts: Dict[str, 'Contact']
 	
 	def __init__(self, subscribed_ab_stores: Set[str]) -> None:
 		self.subscribed_ab_stores = subscribed_ab_stores
-		self.groups = {}
+		self._groups_by_id = {}
+		self._groups_by_uuid = {}
 		self.contacts = {}
+	
+	def insert_group(self, grp: 'Group') -> None:
+		self._groups_by_id[grp.id] = grp
+		self._groups_by_uuid[grp.uuid] = grp
+	
+	def get_group_by_id(self, id: str) -> Optional['Group']:
+		group = None
+		
+		group = self._groups_by_id.get(id)
+		if group is None:
+			group = self._groups_by_uuid.get(id)
+		
+		return group
+	
+	def get_groups_by_name(self, name: str) -> Optional[List['Group']]:
+		groups = []
+		
+		for group in self._groups_by_id.values():
+			if group.name == name or (group.name.startswith(name) and len(group.name) > len(name) and group.name[len(group.name):].isnumeric()):
+				if group not in groups: groups.append(group)
+		for group in self._groups_by_uuid.values():
+			if group.name == name or (group.name.startswith(name) and len(group.name) > len(name) and group.name[len(group.name):].isnumeric()):
+				if group not in groups: groups.append(group)
+		return groups or None
+	
+	def delete_group(self, grp: 'Group') -> None:
+		if grp.id in self._groups_by_id:
+			del self._groups_by_id[grp.id]
+		if grp.uuid in self._groups_by_uuid:
+			del self._groups_by_uuid[grp.uuid]
 
 class Group:
-	__slots__ = ('id', 'name')
+	__slots__ = ('id', 'uuid', 'name', 'is_favorite', 'date_last_modified')
 	
 	id: str
-	name: str
-	
-	def __init__(self, id: str, name: str) -> None:
-		self.id = id
-		self.name = name
-
-class ABGroup:
-	__slots__ = ('id', 'name', 'is_favorite', 'date_last_modified')
-	
-	id: str
+	uuid: str
 	name: str
 	is_favorite: bool
 	date_last_modified: datetime
 	
-	def __init__(self, id: str, name: str, is_favorite: bool, *, date_last_modified: Optional[datetime] = None) -> None:
+	def __init__(self, id: str, uuid: str, name: str, is_favorite: bool, *, date_last_modified: Optional[datetime] = None) -> None:
 		self.id = id
+		self.uuid = uuid
 		self.name = name
 		self.is_favorite = is_favorite
 		self.date_last_modified = _default_if_none(date_last_modified, datetime.utcnow)
@@ -171,7 +224,9 @@ class ABGroup:
 class MessageType(Enum):
 	Chat = object()
 	CircleXML = object()
+	Nudge = object()
 	Typing = object()
+	TypingDone = object()
 
 class MessageData:
 	__slots__ = ('sender', 'type', 'text', 'front_cache')
@@ -228,6 +283,20 @@ class CircleMetadata:
 		self.membership_access = membership_access
 		self.request_membership_option = request_membership_option
 		self.is_presence_enabled = is_presence_enabled
+
+class CircleMembership:
+	__slots__ = ('circle_id', 'email', 'role', 'state')
+	
+	circle_id: str
+	email: str
+	role: 'ABRelationshipRole'
+	state: 'ABRelationshipState'
+	
+	def __init__(self, circle_id: str, email: str, role: 'ABRelationshipRole', state: 'ABRelationshipState'):
+		self.circle_id = circle_id
+		self.email = email
+		self.role = role
+		self.state = state
 
 class OIMMetadata:
 	__slots__ = ('run_id', 'oim_num', 'from_member_name', 'from_member_friendly', 'to_member_name', 'last_oim_sent', 'oim_content_length')

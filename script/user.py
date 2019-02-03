@@ -22,47 +22,37 @@ def main() -> None:
 		'--yahoo', dest = 'support_yahoo', action = 'store_const',
 		const = True, default = False, help = "Yahoo! support"
 	)
-	parser.add_argument(
-		'--irc', dest = 'support_irc', action = 'store_const',
-		const = True, default = False, help = "IRC support"
-	)
 	args = parser.parse_args()
 	
 	email = args.email
 	pw = args.password
 	new_user = False
 	
-	if args.support_yahoo:
-		networkid = NetworkID.YAHOO
-	elif args.support_irc:
-		networkid = NetworkID.IRC
-	else:
-		networkid = NetworkID.WINDOWS_LIVE
-	
 	with Session() as sess:
-		user = sess.query(User).filter(User.email == email, User.networkid == int(networkid)).one_or_none()
+		user = sess.query(User).filter(User.email == email).one_or_none()
 		if user is None:
 			print("Creating new user...")
 			user = User(
-				uuid = misc.gen_uuid(), networkid = int(networkid), email = email, verified = False,
+				uuid = misc.gen_uuid(), email = email, verified = False,
 				name = email, message = '',
-				settings = {}, groups = {}, contacts = {},
+				settings = {},
 			)
-			if networkid is not NetworkID.IRC:
-				user.subscribed_ab_stores = ['00000000-0000-0000-0000-000000000000']
-				abmetadata = sess.query(ABMetadata).filter(ABMetadata.ab_id == '00000000-0000-0000-0000-000000000000').one_or_none()
-				if not abmetadata:
-					abmetadata = ABMetadata(
-						ab_id = '00000000-0000-0000-0000-000000000000', ab_type = 'Individual',
-					)
-					sess.add(abmetadata)
-				
-				abstore = ABStore(
-					member_uuid = user.uuid, ab_id = '00000000-0000-0000-0000-000000000000',
+			
+			user.subscribed_ab_stores = ['00000000-0000-0000-0000-000000000000']
+			abmetadata = sess.query(ABMetadata).filter(ABMetadata.ab_id == '00000000-0000-0000-0000-000000000000').one_or_none()
+			if not abmetadata:
+				abmetadata = ABMetadata(
+					ab_id = '00000000-0000-0000-0000-000000000000', ab_type = 'Individual',
 				)
-				abstore.date_last_modified = datetime.utcnow()
-				sess.add(abstore)
-			if networkid is NetworkID.WINDOWS_LIVE:
+				sess.add(abmetadata)
+			
+			abstore = ABStore(
+				member_uuid = user.uuid, ab_id = '00000000-0000-0000-0000-000000000000',
+			)
+			abstore.date_last_modified = datetime.utcnow()
+			sess.add(abstore)
+			
+			if not args.support_yahoo:
 				ticketxml = '<?xml version="1.0" encoding="utf-16"?>\r\n<Ticket xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">\r\n  <TS>{}</TS>\r\n  <CID>{}</CID>\r\n</Ticket>'.format(
 					datetime.utcnow().isoformat()[0:19] + 'Z', cid_format(user.uuid, decimal = True)
 				).encode('utf-8')

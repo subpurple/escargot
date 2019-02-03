@@ -12,10 +12,10 @@
 		</ServiceHeader>
 	</soap:Header>
 	<soap:Body>
-		<CreateContactResponse xmlns="http://www.msn.com/webservices/AddressBook">
-			<CreateContactResult>
+		<ManageWLConnectionResponse xmlns="http://www.msn.com/webservices/AddressBook">
+			<ManageWLConnectionResult>
 				{{ contact_entry(contact, ab_groups) }}
-			</CreateContactResult>
-		</CreateContactResponse>
+			</ManageWLConnectionResult>
+		</ManageWLConnectionResponse>
 	</soap:Body>
 </soap:Envelope>

@@ -28,7 +28,7 @@ class BackendEventHandler(metaclass = ABCMeta):
 		pass
 	
 	@abstractmethod
-	def on_presence_notification(self, ctc_head: User, old_substatus: Substatus, on_contact_add: bool, *, trid: Optional[str] = None, update_status: bool = True, send_status_on_bl: bool = False, visible_notif: bool = True, updated_phone_info: Optional[Dict[str, Any]] = None, circle_user_bs: Optional['BackendSession'] = None, circle_id: Optional[str] = None) -> None: pass
+	def on_presence_notification(self, bs_other: Optional['BackendSession'], ctc_head: User, old_substatus: Substatus, on_contact_add: bool, *, trid: Optional[str] = None, update_status: bool = True, send_status_on_bl: bool = False, visible_notif: bool = True, updated_phone_info: Optional[Dict[str, Any]] = None, circle_user_bs: Optional['BackendSession'] = None, circle_id: Optional[str] = None) -> None: pass
 	
 	@abstractmethod
 	def on_chat_invite(self, chat: 'Chat', inviter: User, *, inviter_id: Optional[str] = None, invite_msg: str = '') -> None: pass
@@ -40,6 +40,8 @@ class BackendEventHandler(metaclass = ABCMeta):
 	# `user` didn't accept contact request
 	@abstractmethod
 	def on_contact_request_denied(self, user_added: User, message: str, *, contact_id: Optional[str] = None) -> None: pass
+	
+	def on_sync_contact_statuses(self) -> None: pass
 	
 	@abstractmethod
 	def on_login_elsewhere(self, option: LoginOption) -> None: pass
@@ -53,6 +55,9 @@ class BackendEventHandler(metaclass = ABCMeta):
 		pass
 	
 	def msn_on_uun_sent(self, sender: User, snm: bytes) -> None:
+		pass
+	
+	def msn_on_notify_ab(self, owner_cid: str, ab_last_modified: str) -> None:
 		pass
 	
 	def msn_on_put_sent(self, message: 'Message', sender: User, *, pop_id_sender: Optional[str] = None, pop_id: Optional[str] = None) -> None:

@@ -22,14 +22,14 @@
 		
 		function pushSysMessageAsync() {
 			clearErrors();
-			ajaxObj.open('POST', '/sysboard/', true);
+			ajaxObj.open('POST', '{{ sysboard_path }}', true);
 			
 			ajaxObj.onreadystatechange = function() {
 				if (this.readyState == 4) {
 					if (this.status == 200) {
 						document.getElementsByClassName('success sys-message-pushed')[0].style.display = 'block';
 					} else if (this.status == 401) {
-						window.location.href = '/sysboard/login';
+						window.location.href = '{{ sysboard_login_path }}';
 					} else if (this.status == 421) {
 						window.location.reload(true);
 					} else if (this.status == 500) {
@@ -46,7 +46,7 @@
 		
 		function pushMtMessageAsync() {
 			clearErrors();
-			ajaxObj.open('POST', '/sysboard/', true);
+			ajaxObj.open('POST', '{{ sysboard_path }}', true);
 			
 			ajaxObj.onreadystatechange = function() {
 				if (this.readyState == 4) {
@@ -56,7 +56,7 @@
 						document.getElementById('system-msg').disabled = true;
 						document.getElementById('pushSysMessage').disabled = true;
 					} else if (this.status == 401) {
-						window.location.href = '/sysboard/login';
+						window.location.href = '{{ sysboard_login_path }}';
 					} else if (this.status == 421) {
 						window.location.reload(true);
 					} else if (this.status == 500) {

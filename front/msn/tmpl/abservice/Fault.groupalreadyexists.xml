@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+	<soap:Body>
+		<soap:Fault>
+			<faultcode>soap:Client</faultcode>
+			<faultstring>Group Already Exists </faultstring>
+			<faultactor>http://www.msn.com/webservices/AddressBook/{{ action_str }}</faultactor>
+			<detail>
+				<errorcode xmlns="http://www.msn.com/webservices/AddressBook">GroupAlreadyExists</errorcode>
+				<errorstring xmlns="http://www.msn.com/webservices/AddressBook">Group Already Exists </errorstring>
+				<machineName xmlns="http://www.msn.com/webservices/AddressBook">BAYABCHWBB131</machineName>
+				<additionalDetails>
+					<conflictObjectId>A4D21A8C-AD06-435F-8AB0-64D8B663FB91</conflictObjectId>
+				</additionalDetails>
+			</detail>
+		</soap:Fault>
+	</soap:Body>
+</soap:Envelope>

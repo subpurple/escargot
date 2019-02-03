@@ -25,7 +25,7 @@ class YMSGService(IntEnum):
 	PingConfiguration = 0x12
 	SystemMessage = 0x14
 	SkinName = 0x15
-	Passthrough2 = 0x16
+	ClientHostStats = 0x16
 	MassMessage = 0x17
 	ConfInvite = 0x18
 	ConfLogon = 0x19
@@ -50,11 +50,9 @@ class YMSGService(IntEnum):
 	GroupRename = 0x89
 	Ping = 0x8A
 	ChatJoin = 0x96
-	
-	# TODO: Figure out this `YMSGService`
-	# Happens after waiting a long time doing nothing
-	# YMSG \x0a \0\0\0\0 \x14\x00 \xa1\x00 \0\0\0\xb4 D\x8221 09\xc0\x80 t1y@yahoo.com\xc0\x80
-	Unknown_0xa1 = 0xA1
+	# `static var YES_CHAT_PING = 161;` 161 = 0xA1
+	# Yahoo! Messenger 9.0's `desktopHub` SWF seems to list a lot of YMSG service codes and field defs in its code. :p
+	ChatPing = 0xA1
 
 class YMSGStatus(IntEnum):
 	# Available/Client Request
@@ -203,4 +201,4 @@ def yahoo_id_to_uuid(backend: Backend, yahoo_id: str) -> Optional[str]:
 	else:
 		email = '{}@yahoo.com'.format(yahoo_id)
 	
-	return backend.util_get_uuid_from_email(email, NetworkID.YAHOO)
+	return backend.util_get_uuid_from_email(email)

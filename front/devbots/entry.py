@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Dict, Any
 import asyncio
 import random
 
@@ -11,7 +11,7 @@ CLIENT = Client('testbot', '0.1', 'direct')
 
 def register(loop: asyncio.AbstractEventLoop, backend: Backend) -> None:
 	for i in range(5):
-		uuid = backend.util_get_uuid_from_email('bot{}@bot.log1p.xyz'.format(i), NetworkID.ANY)
+		uuid = backend.util_get_uuid_from_email('bot{}@bot.log1p.xyz'.format(i))
 		assert uuid is not None
 		bs = backend.login(uuid, CLIENT, BackendEventHandler(loop), option = LoginOption.BootOthers)
 		assert bs is not None
@@ -31,7 +31,7 @@ class BackendEventHandler(event.BackendEventHandler):
 		self.bs.me_update({ 'substatus': Substatus.Online })
 		print("Bot active:", self.bs.user.status.name)
 	
-	def on_presence_notification(self, bs_other: BackendSession, old_substatus: Substatus, on_contact_add: bool, *, trid: Optional[str] = None, update_status: bool = True, send_status_on_bl: bool = False, visible_notif: bool = True, updated_phone_info: Optional[Dict[str, Any]] = None, circle_user_bs: Optional[BackendSession] = None, circle_id: Optional[str] = None) -> None:
+	def on_presence_notification(self, bs_other: Optional[BackendSession], ctc_head: User, old_substatus: Substatus, on_contact_add: bool, *, trid: Optional[str] = None, update_status: bool = True, send_status_on_bl: bool = False, visible_notif: bool = True, updated_phone_info: Optional[Dict[str, Any]] = None, circle_user_bs: Optional[BackendSession] = None, circle_id: Optional[str] = None) -> None:
 		pass
 	
 	def on_chat_invite(self, chat: Chat, inviter: User, *, inviter_id: Optional[str] = None, invite_msg: Optional[str] = None) -> None:
@@ -42,6 +42,9 @@ class BackendEventHandler(event.BackendEventHandler):
 		pass
 	
 	def on_contact_request_denied(self, user_added: User, message: Optional[str], *, contact_id: Optional[str] = None) -> None:
+		pass
+	
+	def ymsg_on_p2p_msg_request(self, yahoo_data: Dict[str, Any]) -> None:
 		pass
 	
 	def on_login_elsewhere(self, option: LoginOption) -> None:
@@ -73,7 +76,7 @@ class ChatEventHandler(event.ChatEventHandler):
 		pass
 	
 	def on_message(self, message: MessageData) -> None:
-		if message.type is not MessageType.Chat:
+		if message.type not in (MessageType.Chat,MessageType.Nudge):
 			return
 		
 		if self._sending:
@@ -88,10 +91,15 @@ class ChatEventHandler(event.ChatEventHandler):
 		typing_message = MessageData(sender = me, type = MessageType.Typing)
 		self.cs.send_message_to_everyone(typing_message)
 		
-		self.loop.create_task(self._send_delayed(random.uniform(0.5, 1), MessageData(
-			sender = me, type = MessageType.Chat,
-			text = "lol :p",
-		)))
+		if message.type is MessageType.Chat:
+			self.loop.create_task(self._send_delayed(random.uniform(0.5, 1), MessageData(
+				sender = me, type = MessageType.Chat,
+				text = "lol :p",
+			)))
+		elif message.type is MessageType.Nudge:
+			self.loop.create_task(self._send_delayed(random.uniform(0.5, 1), MessageData(
+				sender = me, type = MessageType.Nudge,
+			)))
 	
 	async def _send_delayed(self, delay: float, message: MessageData) -> None:
 		await asyncio.sleep(delay, loop = self.loop)

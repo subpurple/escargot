@@ -21,16 +21,13 @@ class User(Base):
 	date_created = sa.Column(sa.DateTime, nullable = True, default = datetime.utcnow)
 	date_login = sa.Column(sa.DateTime, nullable = True)
 	uuid = sa.Column(sa.String, nullable = False, unique = True)
-	networkid = sa.Column(sa.Integer, nullable = True)
 	email = sa.Column(sa.String, nullable = False)
 	relay = sa.Column(sa.Boolean, nullable = False, default = False)
 	verified = sa.Column(sa.Boolean, nullable = False)
-	name = sa.Column(sa.String, nullable = False)
+	name = sa.Column(sa.String, nullable = True)
 	message = sa.Column(sa.String, nullable = False)
 	password = sa.Column(sa.String, nullable = False)
 	settings = sa.Column(JSONType, nullable = False)
-	groups = sa.Column(JSONType, nullable = False)
-	contacts = sa.Column(JSONType, nullable = False)
 	subscribed_ab_stores = sa.Column(JSONType, nullable = False)
 	
 	# Data specific to front-ends; e.g. different types of password hashes
@@ -54,6 +51,28 @@ class User(Base):
 		if not fd: return None
 		return fd.get(key)
 
+class UserGroup(Base):
+	__tablename__ = 't_user_group'
+	
+	id = sa.Column(sa.Integer, nullable = False, primary_key = True)
+	user_uuid = sa.Column(sa.String, nullable = False)
+	group_id = sa.Column(sa.String, nullable = False)
+	group_uuid = sa.Column(sa.String, nullable = False)
+	name = sa.Column(sa.String, nullable = False)
+	is_favorite = sa.Column(sa.Boolean, nullable = False, default = False)
+	date_last_modified = sa.Column(sa.DateTime, nullable = True, default = datetime.utcnow)
+
+class UserContact(Base):
+	__tablename__ = 't_user_contact'
+	
+	id = sa.Column(sa.Integer, nullable = False, primary_key = True)
+	user_uuid = sa.Column(sa.String, nullable = False)
+	uuid = sa.Column(sa.String, nullable = False)
+	name = sa.Column(sa.String, nullable = True)
+	message = sa.Column(sa.String, nullable = True)
+	lists = sa.Column(sa.Integer, nullable = False)
+	groups = sa.Column(JSONType, nullable = False)
+
 class ABMetadata(Base):
 	__tablename__ = 't_ab_metadata'
 	
@@ -76,7 +95,10 @@ class ABStoreContact(Base):
 	id = sa.Column(sa.Integer, nullable = False, primary_key = True)
 	ab_id = sa.Column(sa.String, nullable = False)
 	ab_owner_uuid = sa.Column(sa.String, nullable = True)
+	# `contact_uuid` is a UUID that identifies the contact in the addressbook; unrelated to the UUID of the contact's account
+	# `contact_member_uuid` is the contact's account's UUID, indicating that the contact's a part of our network.
 	contact_uuid = sa.Column(sa.String, nullable = False)
+	contact_member_uuid = sa.Column(sa.String, nullable = True)
 	date_last_modified = sa.Column(sa.DateTime, nullable = True, default = datetime.utcnow)
 	type = sa.Column(sa.String, nullable = False)
 	email = sa.Column(sa.String, nullable = False)
@@ -104,21 +126,11 @@ class ABStoreContactNetworkInfo(Base):
 	relationship_state_date = sa.Column(sa.DateTime, nullable = True)
 	invite_message = sa.Column(sa.String, nullable = True)
 
-class ABStoreGroup(Base):
-	__tablename__ = 't_ab_store_group'
-	
-	id = sa.Column(sa.Integer, nullable = False, primary_key = True)
-	ab_id = sa.Column(sa.String, nullable = False)
-	ab_owner_uuid = sa.Column(sa.String, nullable = True)
-	group_id = sa.Column(sa.String, nullable = False)
-	name = sa.Column(sa.String, nullable = False)
-	is_favorite = sa.Column(sa.Boolean, nullable = False, default = False)
-	date_last_modified = sa.Column(sa.DateTime, nullable = True, default = datetime.utcnow)
-
 class CircleStore(Base):
 	__tablename__ = 't_circle_store'
 	
-	id = sa.Column(sa.String, nullable = False, unique = True, primary_key = True)
+	id = sa.Column(sa.Integer, nullable = False, primary_key = True)
+	circle_id = sa.Column(sa.String, nullable = False, unique = True)
 	circle_name = sa.Column(sa.String, nullable = False)
 	owner_email = sa.Column(sa.String, nullable = False)
 	owner_friendly = sa.Column(sa.String, nullable = False)
@@ -126,26 +138,15 @@ class CircleStore(Base):
 	request_membership_option = sa.Column(sa.Integer, nullable = False)
 	is_presence_enabled = sa.Column(sa.Boolean, nullable = False)
 	date_last_modified = sa.Column(sa.DateTime, nullable = False, default = datetime.now)
-	_user_memberships = sa.Column(JSONType, name = 'user_memberships', nullable = False, default = {})
+
+class CircleMembership(Base):
+	__tablename__ = 't_circle_membership'
 	
-	def set_user_membership(self, email: str, member_role: Optional[int], member_status: Optional[int]) -> None:
-		memberships = self._user_memberships or {}
-		if email in memberships:
-			if member_role:
-				memberships[email]['membership_role'] = member_role
-			if member_status:
-				memberships[email]['membership_status'] = member_status
-			return
-		if member_role and member_status:
-			memberships[email] = { 'membership_role': member_role, 'membership_status': member_status, }
-		self._user_memberships = _simplify_json_data(memberships)
-	
-	def get_user_membership(self, email: str) -> Optional[Dict[str, int]]:
-		memberships = self._user_memberships
-		if not memberships: return None
-		membership = memberships.get(email)
-		if not membership: return None
-		return membership
+	id = sa.Column(sa.Integer, nullable = False, primary_key = True)
+	circle_id = sa.Column(sa.String, nullable = False)
+	member_email = sa.Column(sa.String, nullable = False)
+	member_role = sa.Column(sa.Integer, nullable = False)
+	member_state = sa.Column(sa.Integer, nullable = False)
 
 class OIM(Base):
 	__tablename__ = 't_oim'

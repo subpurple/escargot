@@ -61,12 +61,6 @@ class AuthService:
 		if not td.validate(purpose, token, self._time()): return None
 		return td.expiry
 	
-	def sysboard_retreive_last_valid_token(self, password: str) -> Optional[str]:
-		self._remove_expired()
-		for td in self._ordered:
-			if td.purpose == 'sysboard/token' and td.data == password: return td.token
-		return None
-	
 	def _remove_expired(self) -> None:
 		# TODO: This seems to remove perfectly good tokens (e.g., 1-day tokens; this causes errors when the MSN
 		# frontend tries to retreive the session ID for SOAP responses). Fix ASAP.

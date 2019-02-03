@@ -77,7 +77,7 @@ UNUSED_QUERIES = {
 
 async def handle_insider(req: web.Request) -> web.Response:
 	# For debug purposes
-	if req.host != 'insider.msg.yahoo.com': return web.NotFound()
+	if req.host != 'insider.msg.yahoo.com': return web.HTTPNotFound()
 	
 	tmpl = req.app['jinja_env'].get_template('ymsg:Yinsider/Yinsider_content/insider_content.html')
 	

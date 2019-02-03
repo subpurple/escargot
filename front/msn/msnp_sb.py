@@ -6,10 +6,10 @@ import asyncio
 from email.parser import Parser
 
 from util.misc import Logger, first_in_iterable
-from core.models import User, MessageData, MessageType, NetworkID
+from core.models import User, MessageData, MessageType
 from core.backend import Backend, BackendSession, ChatSession, Chat
 from core import event, error
-from .misc import Err, encode_capabilities_capabilitiesex, decode_email_pop, is_blocking
+from .misc import Err, encode_capabilities_capabilitiesex, decode_email_pop, is_blocking, MAX_CAPABILITIES, MAX_CAPABILITIESEX
 from .msnp import MSNPCtrl
 
 class MSNPCtrlSB(MSNPCtrl):
@@ -37,7 +37,7 @@ class MSNPCtrlSB(MSNPCtrl):
 		self.counter_task = asyncio.ensure_future(self._conn_auth_limit_counter())
 	
 	def _on_close(self) -> None:
-		if self.counter_task is not None and not self.counter_task.cancelled():
+		if self.counter_task is not None:
 			self.counter_task.cancel()
 			self.counter_task = None
 		if self.cs:
@@ -78,8 +78,8 @@ class MSNPCtrlSB(MSNPCtrl):
 		self.send_reply('USR', trid, 'OK', arg, cs.user.status.name or cs.user.email)
 	
 	def _m_ans(self, trid: Optional[str], arg: Optional[str], token: Optional[str], sessid: Optional[int], *args: Any) -> None:
-		#>>> ANS trid email@example.com token sessionid (MSNP < 18)
-		#>>> ANS trid email@example.com;{00000000-0000-0000-0000-000000000000} token sessionid (MSNP >= 18)
+		#>>> ANS trid email@example.com token sessionid (MSNP < 16)
+		#>>> ANS trid email@example.com;{00000000-0000-0000-0000-000000000000} token sessionid (MSNP >= 16)
 		self.auth_sent = True
 		if None in (trid,arg,token,sessid) or len(args) > 0: self.close(hard = True)
 		
@@ -89,10 +89,10 @@ class MSNPCtrlSB(MSNPCtrl):
 		if data is None:
 			self.send_reply(Err.AuthFail, trid)
 			self.close(hard = True)
-		# expiry = self.backend.auth_service.get_token_expiry('sb/cal', token)
-		# self.backend.auth_service.pop_token('sb/cal', token)
-		# if round(expiry - time.time()) >= 60:
-		# 	self.close(hard = True)
+		expiry = self.backend.auth_service.get_token_expiry('sb/cal', token)
+		self.backend.auth_service.pop_token('sb/cal', token)
+		if round(time.time() - expiry) >= 60:
+			self.close(hard = True)
 		
 		(bs, dialect, chat) = data
 		if bs.user.email != email or (dialect >= 16 and pop_id is not None and bs.front_data.get('msn_pop_id') != pop_id[1:-1]):
@@ -127,9 +127,9 @@ class MSNPCtrlSB(MSNPCtrl):
 			for i, other_cs in enumerate(tmp):
 				other_user = other_cs.user
 				if dialect >= 18:
-					capabilities = encode_capabilities_capabilitiesex(other_cs.bs.front_data.get('msn_capabilities') or 0, other_cs.bs.front_data.get('msn_capabilitiesex') or 0)
+					capabilities = encode_capabilities_capabilitiesex(((other_cs.bs.front_data.get('msn_capabilities') or 0) if other_cs.bs.front_data.get('msn') is True else MAX_CAPABILITIES), ((other_cs.bs.front_data.get('msn_capabilitiesex') or 0) if other_cs.bs.front_data.get('msn') is True else MAX_CAPABILITIESEX))
 				else:
-					capabilities = other_cs.bs.front_data.get('msn_capabilities') or 0
+					capabilities = ((other_cs.bs.front_data.get('msn_capabilities') or 0) if other_cs.bs.front_data.get('msn') is True else MAX_CAPABILITIES)
 				
 				self.send_reply('IRO', trid, i + 1, l, other_user.email, other_user.status.name, capabilities)
 		else:
@@ -145,7 +145,7 @@ class MSNPCtrlSB(MSNPCtrl):
 				other_user = other_cs.user
 				extra = () # type: Tuple[Any, ...]
 				if dialect >= 12:
-					extra = (other_cs.bs.front_data.get('msn_capabilities') or 0,)
+					extra = (((other_cs.bs.front_data.get('msn_capabilities') or 0) if other_cs.bs.front_data.get('msn') is True else MAX_CAPABILITIES),)
 				self.send_reply('IRO', trid, i + 1, l, other_user.email, other_user.status.name, *extra)
 		
 		self.send_reply('ANS', trid, 'OK')
@@ -161,10 +161,10 @@ class MSNPCtrlSB(MSNPCtrl):
 			cs.chat._idle_counter_reset_callback()
 		
 		if not re.match(r'^[a-zA-Z0-9._\-]+@([a-zA-Z0-9\-]+\.)+[a-zA-Z]+$', invitee_email):
-			self.send_reply(Err.InvalidPrincipal2, trid)
+			self.send_reply(Err.InvalidUser2, trid)
 			return
 		
-		invitee_uuid = self.backend.util_get_uuid_from_email(invitee_email, NetworkID.WINDOWS_LIVE)
+		invitee_uuid = self.backend.util_get_uuid_from_email(invitee_email)
 		if invitee_uuid is None:
 			self.send_reply(Err.PrincipalNotOnline, trid)
 			return
@@ -178,7 +178,7 @@ class MSNPCtrlSB(MSNPCtrl):
 			assert detail is not None
 			
 			invitee = self.backend._load_user_record(invitee_uuid)
-			if (invitee.detail is not None and is_blocking(invitee, user)) or invitee.status.is_offlineish():
+			if (invitee.detail is not None and is_blocking(invitee, user) and invitee_email != self.bs.user.email) or invitee.status.is_offlineish():
 				raise error.ContactNotOnline()
 			
 			cs.invite(invitee)
@@ -186,8 +186,8 @@ class MSNPCtrlSB(MSNPCtrl):
 			# WLM 2009 sends a `CAL` with the invitee being the owner when a SB session is first initiated. If there are no other
 			# PoPs of the owner, send a `JOI` for now to fool the client.
 			# TODO: Find better way to check for exception to determine if fake `JOI` should be sent, as checking if `ex` is `error.ContactAlreadyOnList()` doesn't work.
-			if ex is error.ContactAlreadyOnList and invitee_email == self.bs.user.email and self.dialect >= 18:
-				# self.send_reply('CAL', trid, 'RINGING', chat.ids['main'])
+			if isinstance(ex, error.ContactAlreadyOnList) and invitee_email == self.bs.user.email and self.dialect >= 18:
+				self.send_reply('CAL', trid, 'RINGING', chat.ids['main'])
 				cs.evt.on_participant_joined(cs)
 				return
 			self.send_reply(Err.GetCodeForException(ex, self.dialect), trid)
@@ -245,7 +245,7 @@ class MSNPCtrlSB(MSNPCtrl):
 		if more_than_2_invitees:
 			del second_party_pops
 			if not self.cs.chat.idle_mins >= 15: return
-			if self.counter_task is not None and not self.counter_task.cancelled():
+			if self.counter_task is not None:
 				self.counter_task.cancel()
 				self.counter_task = None
 			user_to_bye = roster_other_cs[secrets.randbelow(len(roster_other_cs))].user
@@ -285,7 +285,7 @@ class MSNPCtrlSB(MSNPCtrl):
 			self._check_sb_idle_criteria()
 	
 	def _reset_cs_idle_mins(self) -> None:
-		if self.counter_task is not None and not self.counter_task.cancelled():
+		if self.counter_task is not None:
 			self.counter_task.cancel()
 		
 		self.cs.chat.idle_mins = 0
@@ -307,15 +307,15 @@ class ChatEventHandler(event.ChatEventHandler):
 		cs = self.cs
 		
 		if 12 <= ctrl.dialect <= 18:
-			extra = (cs_other.bs.front_data.get('msn_capabilities') or 0,) # type: Tuple[Any, ...]
+			extra = (((cs_other.bs.front_data.get('msn_capabilities') or 0) if cs_other.bs.front_data.get('msn') is True else MAX_CAPABILITIES),) # type: Tuple[Any, ...]
 		elif ctrl.dialect >= 18:
-			extra = (encode_capabilities_capabilitiesex(cs_other.bs.front_data.get('msn_capabilities') or 0, cs_other.bs.front_data.get('msn_capabilitiesex') or 0),)
+			extra = (encode_capabilities_capabilitiesex(((cs_other.bs.front_data.get('msn_capabilities') or 0) if cs_other.bs.front_data.get('msn') is True else MAX_CAPABILITIES), ((cs_other.bs.front_data.get('msn_capabilitiesex') or 0) if cs_other.bs.front_data.get('msn') is True else MAX_CAPABILITIES)),)
 		else:
 			extra = ()
 		user = cs_other.user
 		ctrl.send_reply('JOI', user.email, user.status.name, *extra)
 	
-	def on_participant_left(self, cs_other: ChatSession, idle: bool, last_pop: bool) -> None:
+	def on_participant_left(self, cs_other: ChatSession, *, idle: bool = False, last_pop: bool = True) -> None:
 		ctrl = self.ctrl
 		if not last_pop and ctrl.dialect < 16: return
 		pop_id_other = cs_other.bs.front_data.get('msn_pop_id')
@@ -333,7 +333,8 @@ class ChatEventHandler(event.ChatEventHandler):
 		pass
 	
 	def on_message(self, data: MessageData) -> None:
-		self.ctrl.send_reply('MSG', data.sender.email, data.sender.status.name, messagedata_to_msnp(data))
+		if data.type is not MessageType.TypingDone:
+			self.ctrl.send_reply('MSG', data.sender.email, data.sender.status.name, messagedata_to_msnp(data))
 	
 	def on_close(self, keep_future: bool, idle: bool):
 		self.ctrl.close(hard = idle)
@@ -351,17 +352,36 @@ def messagedata_from_msnp(sender: User, sender_pop_id: Optional[str], data: byte
 	# b'MIME-Version: 1.0\r\nContent-Type: application/x-msnmsgrp2p\r\nP2P-Dest: t2h@hotmail.com\r\n\r\n\x00\x00\x00\x00Ht\xc4\n\x00\x00\x00\x00\x00\x00\x00\x00K\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00Xt\xc4\nN\x0b\xc7\nK\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
 	# etc.
 	
-	message_mime = Parser().parsestr(data.decode('utf-8'))
-	
-	if message_mime['Content-Type'] is 'text/x-msmsgscontrol':
-		type = MessageType.Typing
-		text = ''
-	elif message_mime['Content-Type'] is 'text/plain':
+	try:
+		message_mime = Parser().parsestr(data.decode('utf-8'))
+		
+		if message_mime.get('Content-Type') is not None:
+			if message_mime['Content-Type'].startswith('text/x-msmsgscontrol'):
+				type = MessageType.Typing
+				text = ''
+			elif message_mime['Content-Type'].startswith('text/x-msnmsgr-datacast'):
+				payload = message_mime.get_payload()
+				id_start = payload.index('ID:')
+				id_end = payload.index('\r\n', id_start)
+				id = payload[id_start+3:id_end].strip()
+				if id is '1':
+					type = MessageType.Nudge
+					text = ''
+				else:
+					type = MessageType.Chat
+					text = "(Unsupported MSNP Content-Type)"
+			elif message_mime['Content-Type'].startswith('text/plain'):
+				type = MessageType.Chat
+				text = message_mime.get_payload()
+			else:
+				type = MessageType.Chat
+				text = "(Unsupported MSNP Content-Type)"
+		else:
+			type = MessageType.Chat
+			text = "(Unsupported MSNP Content-Type)"
+	except:
 		type = MessageType.Chat
-		text = message_mime.get_payload()
-	else:
-		type = MessageType.Chat
-		text = "(Unsupported MSNP Content-Type)"
+		text = data.decode('utf-8')
 	
 	message = MessageData(sender = sender, type = type, text = text)
 	message.front_cache['msnp'] = data
@@ -371,6 +391,8 @@ def messagedata_to_msnp(data: MessageData) -> bytes:
 	if 'msnp' not in data.front_cache:
 		if data.type is MessageType.Typing:
 			s = F'MIME-Version: 1.0\r\nContent-Type: text/x-msmsgscontrol\r\nTypingUser: {data.sender.email}\r\n\r\n\r\n'
+		elif data.type is MessageType.Nudge:
+			s = 'MIME-Version: 1.0\r\nContent-Type: text/x-msnmsgr-datacast\r\n\r\nID: 1\r\n\r\n'
 		elif data.type is MessageType.Chat:
 			s = 'MIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n' + (data.text or '')
 		else:
