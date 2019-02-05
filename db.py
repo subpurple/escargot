@@ -32,6 +32,9 @@ class User(Base):
 	settings = sa.Column(JSONType, nullable = False)
 	groups = sa.Column(JSONType, nullable = False)
 	contacts = sa.Column(JSONType, nullable = False)
+	
+	# Adding this now to simplify the transition
+	_front_data = sa.Column(JSONType, name = 'front_data', nullable = False, default = {}, server_default = '{}')
 
 class Sound(Base):
 	__tablename__ = 't_sound'
