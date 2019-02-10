@@ -107,7 +107,4 @@ class ChatEventHandler(metaclass = ABCMeta):
 	def on_invite_declined(self, invited_user: User, *, invited_id: Optional[str] = None, message: str = '') -> None: pass
 	
 	@abstractmethod
-	def on_idle_increment(self) -> None: pass
-	
-	@abstractmethod
 	def on_message(self, data: MessageData) -> None: pass

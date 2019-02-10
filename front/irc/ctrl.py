@@ -246,9 +246,6 @@ class ChatEventHandler(event.ChatEventHandler):
 		if message:
 			self.ctrl.send_reply('NOTICE', ":\"{}\"".format(message), source = invited_user.email)
 	
-	def on_idle_increment(self) -> None:
-		pass
-	
 	def on_message(self, data: MessageData) -> None:
 		if data.type is not MessageType.Chat:
 			return

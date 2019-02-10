@@ -230,10 +230,6 @@ class Group:
 		self.is_favorite = is_favorite
 		self.date_last_modified = _default_if_none(date_last_modified, datetime.utcnow)
 
-class ChatType(Enum):
-	TwoWay = object()
-	Group = object()
-
 class MessageType(Enum):
 	Chat = object()
 	#CircleXML = object()

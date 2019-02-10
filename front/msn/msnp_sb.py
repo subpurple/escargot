@@ -113,6 +113,7 @@ class MSNPCtrlSB(MSNPCtrl):
 			cs = chat.join('msn', bs, ChatEventHandler(self), pop_id = pop_id)
 		except Exception as ex:
 			self.send_reply(Err.GetCodeForException(ex, dialect), trid)
+			return
 		self.dialect = dialect
 		self.bs = bs
 		self.cs = cs
@@ -211,7 +212,7 @@ class MSNPCtrlSB(MSNPCtrl):
 			# WLM 2009 sends a `CAL` with the invitee being the owner when a SB session is first initiated. If there are no other
 			# PoPs of the owner, send a `JOI` for now to fool the client.
 			# TODO: Set flag to mark if PoPs of owner are already invited
-			if isinstance(ex, error.ContactAlreadyOnList) and invitee_email == self.bs.user.email and self.dialect >= 18:
+			if isinstance(ex, error.ContactAlreadyOnList) and invitee_email == self.bs.user.email and len(chat.get_roster_single()) == 1 and chat.get_roster_single()[0] is cs and self.dialect >= 18:
 				self.send_reply('CAL', trid, 'RINGING', chat.ids['main'])
 				cs.evt.on_participant_joined(cs, True)
 				return
@@ -304,60 +305,6 @@ class ChatEventHandler(event.ChatEventHandler):
 	
 	def on_invite_declined(self, invited_user: User, *, message: Optional[str] = None) -> None:
 		pass
-	
-	def on_idle_increment(self) -> None:
-		#TODO: Working correctly?
-		ctrl = self.ctrl
-		
-		more_than_2_invitees = False
-		roster_other_cs = []
-		roster_cs_pops = []
-		
-		if not ctrl.cs is ctrl.cs.chat.get_roster_single()[0]: return
-		if not ctrl.cs.chat.idle_mins >= 5: return
-		for cs_other in ctrl.cs.chat.get_roster():
-			if cs_other.user is not ctrl.cs.user:
-				roster_other_cs.append(cs_other)
-			if cs_other.user is ctrl.cs.user and not cs_other is not ctrl.cs:
-				roster_cs_pops.append(cs_other)
-		
-		if not roster_other_cs:
-			for cs_self_pop in roster_cs_pops:
-				cs_self_pop.close(idle = True, send_idle_leave = True)
-			ctrl.close(hard = True)
-			return
-		
-		second_party_pops = [roster_other_cs[0]] # type: List[ChatSession]
-		for cs_rest in roster_other_cs[1:]:
-			if cs_rest.user is second_party_pops[0].user:
-				second_party_pops.append(cs_rest)
-			else:
-				more_than_2_invitees = True
-		
-		if more_than_2_invitees:
-			del second_party_pops
-			if not ctrl.cs.chat.idle_mins >= 15: return
-			ctrl.cs.chat._idle_counter.cancel()
-			user_to_bye = roster_other_cs[secrets.randbelow(len(roster_other_cs))].user
-			user_to_bye_sessions = [sess_other for sess_other in roster_other_cs if sess_other.user is user_to_bye]
-			for sess_to_bye in user_to_bye_sessions:
-				roster_other_cs.remove(sess_to_bye)
-				sess_to_bye.close(idle = True, send_idle_leave = True)
-			for other_cs in roster_other_cs:
-				other_cs.close(idle = True, send_idle_leave = False)
-			for cs_pop in roster_cs_pops:
-				cs_pop.close(idle = True, send_idle_leave = True)
-			ctrl.cs.close(idle = True, send_idle_leave = False)
-		else:
-			ctrl.cs.chat._idle_counter.cancel()
-			for second_user_cs in second_party_pops:
-				for cs_pop in roster_cs_pops:
-					second_user_cs.evt.on_participant_left(cs_pop, idle = True, last_pop = False)
-				second_user_cs.evt.on_participant_left(ctrl.cs, idle = True, last_pop = True)
-				second_user_cs.close(idle = True, send_idle_leave = True)
-			for cs_pop in roster_cs_pops:
-				cs_pop.close(idle = True, send_idle_leave = True)
-			ctrl.cs.close(idle = True, send_idle_leave = False)
 	
 	def on_message(self, data: MessageData) -> None:
 		if data.type is not MessageType.TypingDone:
