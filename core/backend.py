@@ -926,6 +926,7 @@ class ChatSession(Session):
 			if cs_other.bs in already_invited_sessions: continue
 			for ctc_sess in ctc_sessions:
 				if cs_other.bs is ctc_sess and self.origin is not 'yahoo':
+					print('Inviting ctc_sess...')
 					already_invited_sessions.append(ctc_sess)
 		for ctc_sess in ctc_sessions:
 			if ctc_sess in already_invited_sessions: continue
