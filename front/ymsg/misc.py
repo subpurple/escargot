@@ -129,7 +129,7 @@ def build_ft_packet(bs: BackendSession, xfer_dict: Dict[str, Any]) -> Iterable[E
 	
 	ft_dict = MultiDict([
 		('5', yahoo_id(user_to.email)),
-		('4', xfer_dict.get('4'))
+		('4', xfer_dict.get('1'))
 	])
 	
 	ft_type = xfer_dict.get('13')
@@ -143,7 +143,7 @@ def build_ft_packet(bs: BackendSession, xfer_dict: Dict[str, Any]) -> Iterable[E
 		ft_dict.add('20', (xfer_dict.get('20') or '').replace(url_filename, quote_plus(url_filename, safe = '')))
 		ft_dict.add('53', url_filename)
 		ft_dict.add('14', xfer_dict.get('14'))
-		ft_dict.add('53', xfer_dict.get('53'))
+		ft_dict.add('54', xfer_dict.get('54'))
 	if ft_type in ('2','3'):
 		# For shared files
 		if xfer_dict.get('27') is not None: ft_dict.add('27', xfer_dict.get('27'))
@@ -151,6 +151,7 @@ def build_ft_packet(bs: BackendSession, xfer_dict: Dict[str, Any]) -> Iterable[E
 		
 		# For P2P messaging
 		if xfer_dict.get('2') is not None: ft_dict.add('2', xfer_dict.get('2'))
+		if xfer_dict.get('11') is not None: ft_dict.add('11', xfer_dict.get('11'))
 		if xfer_dict.get('12') is not None: ft_dict.add('12', xfer_dict.get('12'))
 		if xfer_dict.get('60') is not None: ft_dict.add('60', xfer_dict.get('60'))
 		if xfer_dict.get('61') is not None: ft_dict.add('61', xfer_dict.get('61'))

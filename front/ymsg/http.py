@@ -48,7 +48,7 @@ def register(app: web.Application) -> None:
 	
 	# Yahoo HTTP file transfer fallback
 	app.router.add_post('/notifyft', handle_ft_http)
-	app.router.add_get('/tmp/file/{file_id}/{filename}', handle_yahoo_filedl)
+	app.router.add_route('*', '/tmp/file/{file_id}/{filename}', handle_yahoo_filedl)
 
 async def handle_insider_ycontent(req: web.Request) -> web.Response:
 	config_xml = []
@@ -279,7 +279,7 @@ async def handle_ft_http(req: web.Request) -> web.Response:
 			bs_other.evt.ymsg_on_sent_ft_http(yahoo_id_sender, file_tmp_path[12:], upload_time, message)
 	
 	# TODO: Sending HTTP FT acknowledgement crahes Yahoo! Messenger, and ultimately freezes the computer. Ignore for now.
-	bs.evt.ymsg_on_upload_file_ft(yahoo_id_recipient, message)
+	#bs.evt.ymsg_on_upload_file_ft(yahoo_id_recipient, message)
 	
 	raise web.HTTPOk
 
@@ -290,21 +290,25 @@ async def _store_tmp_file_until_expiry(file_storage_path: str) -> None:
 
 async def handle_yahoo_filedl(req: web.Request) -> web.Response:
 	file_id = req.match_info['file_id']
-	file_storage_path = _get_tmp_file_storage_path(id = file_id)
 	
-	try:
-		filename = req.match_info['filename']
-		file_path = os.path.join(file_storage_path, unquote_plus(filename))
+	if req.method == 'HEAD':
+		return web.Response(status = 200)
+	if req.method == 'GET':
+		file_storage_path = _get_tmp_file_storage_path(id = file_id)
 		
-		with open(file_path, 'rb') as file:
-			file_stream = file.read()
-			file.close()
-			_tasks_by_uuid_store[file_id].cancel()
-			del _tasks_by_uuid_store[file_id]
-			shutil.rmtree(file_storage_path, ignore_errors = True)
-			return web.HTTPOk(body = file_stream)
-	except FileNotFoundError:
-		raise web.HTTPNotFound
+		try:
+			filename = req.match_info['filename']
+			file_path = os.path.join(file_storage_path, unquote_plus(filename))
+			
+			with open(file_path, 'rb') as file:
+				file_stream = file.read()
+				file.close()
+				_tasks_by_uuid_store[file_id].cancel()
+				del _tasks_by_uuid_store[file_id]
+				shutil.rmtree(file_storage_path, ignore_errors = True)
+				return web.HTTPOk(body = file_stream)
+		except FileNotFoundError:
+			raise web.HTTPNotFound
 
 def _get_tmp_file_storage_path(id: Optional[str] = None) -> str:
 	if not id:
