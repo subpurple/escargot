@@ -122,20 +122,8 @@
 			<ViewMapEnabled>false</ViewMapEnabled>
 		</Contacts>
 		<ContactCard>
-			<AddToMySpaceSiteId>73625</AddToMySpaceSiteId>
-			<AddToMySpaceUrl>http://spaces.live.com/?addblogEntry=true&amp;mkt=en-us</AddToMySpaceUrl>
 			<ContactCardDisabled>false</ContactCardDisabled>
-			<CreateSpaceSiteId>73625</CreateSpaceSiteId>
-			<CreateSpaceUrl>http://escargotspaces.com/register</CreateSpaceUrl>
 			<GetItemVerUrl>http://storage.msn.com/storageservice/schematizedstore.asmx</GetItemVerUrl>
-			<GetXmlFeedUrl>http://services.spaces.msn.com/contactcard/contactcardservice.asmx</GetXmlFeedUrl>
-			<GetXmlFeedRpsUrl>http://cc.services.spaces.live.com/contactcard/contactcardservice.asmx</GetXmlFeedRpsUrl>
-			<GetXmlFeedRpsCidUrl>http://cid-%1!16.16I64X!.cc.services.spaces.live.com/contactcard/contactcardservice.asmx</GetXmlFeedRpsCidUrl>
-			<MySpaceSiteId>73625</MySpaceSiteId>
-			<MySpaceUrl>http://escargotspaces.com</MySpaceUrl>
-			<SpaceBaseSiteId>73625</SpaceBaseSiteId>
-			<SpaceBaseUrl>http://escargotspaces.com</SpaceBaseUrl>
-			<SpaceIntegrationEnabled>true</SpaceIntegrationEnabled>
 		</ContactCard>
 		<FlashUpgradeURL>http://messenger.msn.com/flash/?mkt=en-us&amp;version=$VERSION$</FlashUpgradeURL>
 		<GLinkMarket v="en_us"/>

@@ -190,8 +190,11 @@ class BackendEventHandler(event.BackendEventHandler):
 	def on_maintenance_boot(self) -> None:
 		pass
 	
-	def on_presence_notification(self, bs_other: Optional[BackendSession], ctc_head: User, old_substatus: Substatus, on_contact_add: bool, *, trid: Optional[str] = None, update_status: bool = True, send_status_on_bl: bool = False, visible_notif: bool = True, updated_phone_info: Optional[Dict[str, Any]] = None, circle_user_bs: Optional[BackendSession] = None, circle_id: Optional[str] = None) -> None:
-		self.ctrl.send_reply('NOTICE', ":{} is now {}".format(ctc_head.email, ctc_head.status.substatus))
+	def on_presence_notification(self, bs_other: Optional[BackendSession], ctc: Contact, old_substatus: Substatus, on_contact_add: bool, *, trid: Optional[str] = None, update_status: bool = True, send_status_on_bl: bool = False, visible_notif: bool = True, updated_phone_info: Optional[Dict[str, Any]] = None, circle_user_bs: Optional[BackendSession] = None, circle_id: Optional[str] = None) -> None:
+		self.ctrl.send_reply('NOTICE', ":{} is now {}".format(ctc.head.email, ctc.status.substatus))
+	
+	def on_presence_self_notification(self) -> None:
+		pass
 	
 	def on_chat_invite(self, chat: Chat, inviter: User, *, inviter_id: Optional[str] = None, invite_msg: str = '') -> None:
 		self.ctrl.send_reply('INVITE', self.bs.user.email, chat.ids['irc'], source = inviter.email)
@@ -230,16 +233,21 @@ class ChatEventHandler(event.ChatEventHandler):
 	def on_close(self, keep_future: bool, idle: bool) -> None:
 		self.ctrl.chat_sessions.pop(self.cs.chat, None)
 	
-	def on_participant_joined(self, cs_other: ChatSession) -> None:
-		self.ctrl.send_reply('JOIN', self.cs.chat.ids['irc'], source = cs_other.user.email)
+	def on_participant_joined(self, cs_other: ChatSession, first_pop: bool) -> None:
+		if first_pop:
+			self.ctrl.send_reply('JOIN', self.cs.chat.ids['irc'], source = cs_other.user.email)
 	
 	def on_participant_left(self, cs_other: ChatSession, idle: bool, last_pop: bool) -> None:
-		self.ctrl.send_reply('PART', self.cs.chat.ids['irc'], source = cs_other.user.email)
+		if last_pop:
+			self.ctrl.send_reply('PART', self.cs.chat.ids['irc'], source = cs_other.user.email)
 	
 	def on_invite_declined(self, invited_user: User, *, invited_id: Optional[str] = None, message: str = '') -> None:
 		self.ctrl.send_reply('NOTICE', ":{} declined the invitation".format(invited_user.email), source = invited_user.email)
 		if message:
 			self.ctrl.send_reply('NOTICE', ":\"{}\"".format(message), source = invited_user.email)
+	
+	def on_idle_increment(self) -> None:
+		pass
 	
 	def on_message(self, data: MessageData) -> None:
 		if data.type is not MessageType.Chat:

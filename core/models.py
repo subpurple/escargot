@@ -39,10 +39,10 @@ class Contact:
 		# `status`: status as known by the contact
 		self.status = status
 	
-	def compute_visible_status(self, to_user: User, criteria_callback: Callable[[User, User], None]) -> None:
+	def compute_visible_status(self, to_user: User) -> None:
 		# Set Contact.status based on BLP and Contact.lists
 		# If not blocked, Contact.status == Contact.head.status
-		if self.head.detail is None or criteria_callback(self.head, to_user):
+		if self.head.detail is None or _is_blocking(self.head, to_user):
 			self.status.substatus = Substatus.Offline
 			return
 		true_status = self.head.status
@@ -68,6 +68,15 @@ class Contact:
 				self._groups.discard(group)
 				break
 
+def _is_blocking(blocker: User, blockee: User) -> bool:
+	detail = blocker.detail
+	assert detail is not None
+	contact = detail.contacts.get(blockee.uuid)
+	lists = (contact and contact.lists or 0)
+	if lists & Lst.BL: return True
+	if lists & Lst.AL: return False
+	return (blocker.settings.get('BLP', 'AL') == 'BL')
+
 class ContactGroupEntry:
 	__slots__ = ('contact_uuid', 'id', 'uuid')
 	
@@ -81,7 +90,7 @@ class ContactGroupEntry:
 		self.uuid = uuid
 
 class ABContact:
-	__slots__ = ('type', 'uuid', 'email', 'member_uuid', 'date_last_modified', 'name', 'groups', 'is_messenger_user', 'networkinfos', 'annotations')
+	__slots__ = ('type', 'uuid', 'email', 'member_uuid', 'date_last_modified', 'name', 'groups', 'is_messenger_user', 'annotations')
 	
 	type: str
 	uuid: str
@@ -91,10 +100,10 @@ class ABContact:
 	name: Optional[str]
 	groups: Set[str]
 	is_messenger_user: bool
-	networkinfos: Dict['NetworkID', 'NetworkInfo']
+	#networkinfos: Dict['NetworkID', 'NetworkInfo']
 	annotations: Dict[str, Any]
 	
-	def __init__(self, type: str, uuid: str, email: str, name: Optional[str], groups: Set[str], networkinfos: Dict['NetworkID', 'NetworkInfo'], *, member_uuid: Optional[str] = None, is_messenger_user: Optional[bool] = None, annotations: Optional[Dict[str, Any]] = None, date_last_modified: Optional[datetime] = None) -> None:
+	def __init__(self, type: str, uuid: str, email: str, name: Optional[str], groups: Set[str], *, member_uuid: Optional[str] = None, is_messenger_user: Optional[bool] = None, annotations: Optional[Dict[str, Any]] = None, date_last_modified: Optional[datetime] = None) -> None:
 		self.type = type
 		self.uuid = uuid
 		self.email = email
@@ -103,44 +112,44 @@ class ABContact:
 		self.name = name
 		self.groups = groups
 		self.is_messenger_user = _default_if_none(is_messenger_user, False)
-		self.networkinfos = networkinfos
+		#self.networkinfos = networkinfos
 		self.annotations = _default_if_none(annotations, {})
 
-class NetworkInfo:
-	__slots__ = ('domain_id', 'source_id', 'domain_tag', 'display_name', 'relationship_info', 'invite_message', 'date_created', 'date_last_modified')
-	
-	domain_id: 'NetworkID'
-	source_id: str
-	domain_tag: str
-	display_name: Optional[str]
-	relationship_info: 'RelationshipInfo'
-	invite_message: Optional[str]
-	date_created: datetime
-	date_last_modified: datetime
-	
-	def __init__(self, domain_id: 'NetworkID', source_id: str, domain_tag: str, display_name: Optional[str], relationship_info: 'RelationshipInfo', *, invite_message: Optional[str] = None, date_created: Optional[datetime] = None, date_last_modified: Optional[datetime] = None) -> None:
-		self.domain_id = domain_id
-		self.source_id = source_id
-		self.domain_tag = domain_tag
-		self.display_name = display_name
-		self.relationship_info = relationship_info
-		self.invite_message = invite_message
-		self.date_created = _default_if_none(date_created, datetime.utcnow())
-		self.date_last_modified = _default_if_none(date_last_modified, datetime.utcnow())
-
-class RelationshipInfo:
-	__slots__ = ('relationship_type', 'relationship_role', 'relationship_state', 'relationship_state_date')
-	
-	relationship_type: 'ABRelationshipType'
-	relationship_role: 'ABRelationshipRole'
-	relationship_state: 'ABRelationshipState'
-	relationship_state_date: datetime
-	
-	def __init__(self, relationship_type: 'ABRelationshipType', relationship_role: 'ABRelationshipRole', relationship_state: 'ABRelationshipState', relationship_state_date: Optional[datetime] = None) -> None:
-		self.relationship_type = relationship_type
-		self.relationship_role = relationship_role
-		self.relationship_state = relationship_state
-		self.relationship_state_date = _default_if_none(relationship_state_date, datetime.utcnow())
+#class NetworkInfo:
+#	__slots__ = ('domain_id', 'source_id', 'domain_tag', 'display_name', 'relationship_info', 'invite_message', 'date_created', 'date_last_modified')
+#	
+#	domain_id: 'NetworkID'
+#	source_id: str
+#	domain_tag: str
+#	display_name: Optional[str]
+#	relationship_info: 'RelationshipInfo'
+#	invite_message: Optional[str]
+#	date_created: datetime
+#	date_last_modified: datetime
+#	
+#	def __init__(self, domain_id: 'NetworkID', source_id: str, domain_tag: str, display_name: Optional[str], relationship_info: 'RelationshipInfo', *, invite_message: Optional[str] = None, date_created: Optional[datetime] = None, date_last_modified: Optional[datetime] = None) -> None:
+#		self.domain_id = domain_id
+#		self.source_id = source_id
+#		self.domain_tag = domain_tag
+#		self.display_name = display_name
+#		self.relationship_info = relationship_info
+#		self.invite_message = invite_message
+#		self.date_created = _default_if_none(date_created, datetime.utcnow())
+#		self.date_last_modified = _default_if_none(date_last_modified, datetime.utcnow())
+#
+#class RelationshipInfo:
+#	__slots__ = ('relationship_type', 'relationship_role', 'relationship_state', 'relationship_state_date')
+#	
+#	relationship_type: 'ABRelationshipType'
+#	relationship_role: 'ABRelationshipRole'
+#	relationship_state: 'ABRelationshipState'
+#	relationship_state_date: datetime
+#	
+#	def __init__(self, relationship_type: 'ABRelationshipType', relationship_role: 'ABRelationshipRole', relationship_state: 'ABRelationshipState', relationship_state_date: Optional[datetime] = None) -> None:
+#		self.relationship_type = relationship_type
+#		self.relationship_role = relationship_role
+#		self.relationship_state = relationship_state
+#		self.relationship_state_date = _default_if_none(relationship_state_date, datetime.utcnow())
 
 class UserStatus:
 	__slots__ = ('substatus', 'name', 'message', 'message_temp', 'media')
@@ -221,9 +230,13 @@ class Group:
 		self.is_favorite = is_favorite
 		self.date_last_modified = _default_if_none(date_last_modified, datetime.utcnow)
 
+class ChatType(Enum):
+	TwoWay = object()
+	Group = object()
+
 class MessageType(Enum):
 	Chat = object()
-	CircleXML = object()
+	#CircleXML = object()
 	Nudge = object()
 	Typing = object()
 	TypingDone = object()
@@ -262,41 +275,41 @@ class YahooAlias:
 		self.yid = yid
 		self.is_activated = is_activated
 
-class CircleMetadata:
-	__slots__ = ('circle_id', 'owner_email', 'owner_friendly', 'circle_name', 'date_last_modified', 'membership_access', 'request_membership_option', 'is_presence_enabled')
-	
-	circle_id: str
-	owner_email: str
-	owner_friendly: str
-	circle_name: str
-	date_last_modified: datetime
-	membership_access: int
-	request_membership_option: int
-	is_presence_enabled: bool
-	
-	def __init__(self, circle_id: str, owner_email: str, owner_friendly: str, circle_name: str, date_last_modified: datetime, membership_access: int, request_membership_option: int, is_presence_enabled: bool) -> None:
-		self.circle_id = circle_id
-		self.owner_email = owner_email
-		self.owner_friendly = owner_friendly
-		self.circle_name = circle_name
-		self.date_last_modified = date_last_modified
-		self.membership_access = membership_access
-		self.request_membership_option = request_membership_option
-		self.is_presence_enabled = is_presence_enabled
-
-class CircleMembership:
-	__slots__ = ('circle_id', 'email', 'role', 'state')
-	
-	circle_id: str
-	email: str
-	role: 'ABRelationshipRole'
-	state: 'ABRelationshipState'
-	
-	def __init__(self, circle_id: str, email: str, role: 'ABRelationshipRole', state: 'ABRelationshipState'):
-		self.circle_id = circle_id
-		self.email = email
-		self.role = role
-		self.state = state
+#class CircleMetadata:
+#	__slots__ = ('circle_id', 'owner_email', 'owner_friendly', 'circle_name', 'date_last_modified', 'membership_access', 'request_membership_option', 'is_presence_enabled')
+#	
+#	circle_id: str
+#	owner_email: str
+#	owner_friendly: str
+#	circle_name: str
+#	date_last_modified: datetime
+#	membership_access: int
+#	request_membership_option: int
+#	is_presence_enabled: bool
+#	
+#	def __init__(self, circle_id: str, owner_email: str, owner_friendly: str, circle_name: str, date_last_modified: datetime, membership_access: int, request_membership_option: int, is_presence_enabled: bool) -> None:
+#		self.circle_id = circle_id
+#		self.owner_email = owner_email
+#		self.owner_friendly = owner_friendly
+#		self.circle_name = circle_name
+#		self.date_last_modified = date_last_modified
+#		self.membership_access = membership_access
+#		self.request_membership_option = request_membership_option
+#		self.is_presence_enabled = is_presence_enabled
+#
+#class CircleMembership:
+#	__slots__ = ('circle_id', 'email', 'role', 'state')
+#	
+#	circle_id: str
+#	email: str
+#	role: 'ABRelationshipRole'
+#	state: 'ABRelationshipState'
+#	
+#	def __init__(self, circle_id: str, email: str, role: 'ABRelationshipRole', state: 'ABRelationshipState'):
+#		self.circle_id = circle_id
+#		self.email = email
+#		self.role = role
+#		self.state = state
 
 class OIMMetadata:
 	__slots__ = ('run_id', 'oim_num', 'from_member_name', 'from_member_friendly', 'to_member_name', 'last_oim_sent', 'oim_content_length')
@@ -400,27 +413,24 @@ class NetworkID(IntEnum):
 	CIRCLE = 0x09
 	SMTP = 0x10 # Jaguire, Japanese mobile interop
 	YAHOO = 0x20
-	# Escargot-specific types
-	ANY = 0x00 # For global non-frontend or non-user accounts (e.g., bots, all-in-one test accounts, etc.)
-	IRC = 0x21
 
-class ABRelationshipRole(IntEnum):
-	Empty = 0
-	Admin = 1
-	AssistantAdmin = 2
-	Member = 3
-	StatePendingOutbound = 4
+#class ABRelationshipRole(IntEnum):
+#	Empty = 0
+#	Admin = 1
+#	AssistantAdmin = 2
+#	Member = 3
+#	StatePendingOutbound = 4
 
-class ABRelationshipState(IntEnum):
-	Empty = 0
-	WaitingResponse = 1
-	Left = 2
-	Accepted = 3
-	Rejected = 4
+#class ABRelationshipState(IntEnum):
+#	Empty = 0
+#	WaitingResponse = 1
+#	Left = 2
+#	Accepted = 3
+#	Rejected = 4
 
-class ABRelationshipType(IntEnum):
-	Regular = 3
-	Circle = 5
+#class ABRelationshipType(IntEnum):
+#	Regular = 3
+#	Circle = 5
 
 class Service:
 	__slots__ = ('host', 'port')

@@ -15,7 +15,7 @@
 		<ABFindContactsPagedResponse xmlns="http://www.msn.com/webservices/AddressBook">
 			<ABFindContactsPagedResult>
 				{%- if ab_id == '00000000-0000-0000-0000-000000000000' and user_creator_detail -%}
-					{%- if user_creator_detail.groups_by_uuid -%}
+					{%- if user_creator_detail._groups_by_uuid -%}
 						<Groups>
 							{% for group in user_creator_detail._groups_by_uuid.values() %}
 								{{ group_entry(group) }}
@@ -34,50 +34,12 @@
 					</Contacts>
 				{%- endif -%}
 				<CircleResult>
-					{%- if circle_info|length > 0 -%}
-						<Circles>
-							{%- for circle, membership_info in circle_info -%}
-								{%- if membership_info -%}
-									<CircleInverseInfo>
-										<Content>
-											<Handle>
-												<Id>{{ circle.circle_id }}</Id>
-											</Handle>
-											<Info>
-												<Domain>1</Domain>
-												<HostedDomain>live.com</HostedDomain>
-												<Type>2</Type>
-												<MembershipAccess>{{ circle.membership_access }}</MembershipAccess>
-												<IsPresenceEnabled>{{ bool_to_str(circle.is_presence_enabled) }}</IsPresenceEnabled>
-												<RequestMembershipOption>{{ circle.request_membership_option }}</RequestMembershipOption>
-												<DisplayName>{{ circle.circle_name }}</DisplayName>
-												<ProfileLastUpdated>0001-01-01T00:00:00</ProfileLastUpdated>
-												<Changes />
-												<CreateDate>0001-01-01T00:00:00</CreateDate>
-												<LastChanged>{{ date_format(circle.date_last_modified, Z = False) }}</LastChanged>
-											</Info>
-										</Content>
-										<PersonalInfo>
-											<MembershipInfo>
-												<CirclePersonalMembership>
-													<Role>{{ membership_info.role.name }}</Role>
-													<State>{{ membership_info.state.name }}</State>
-												</CirclePersonalMembership>
-											</MembershipInfo>
-											<Name>{{ circle.circle_name }}</Name>
-											<IsNotMobileVisible>false</IsNotMobileVisible>
-											<IsFavorite>false</IsFavorite>
-											<IsFamily>false</IsFamily>
-											<Changes />
-										</PersonalInfo>
-										<Deleted>false</Deleted>
-									</CircleInverseInfo>
-								{%- endif -%}
-							{%- endfor -%}
-						</Circles>
-					{%- endif -%}
 					<CircleTicket>
-					{{ signedticket }}
+						&lt;?xml version="1.0" encoding="utf-16"?&gt;
+						&lt;SignedTicket xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" ver="1" keyVer="1"&gt;
+							&lt;Data&gt;PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTE2Ij8+DQo8VGlja2V0IHhtbG5zOnhzaT0iaHR0cDovL3d3dy53My5vcmcvMjAwMS9YTUxTY2hlbWEtaW5zdGFuY2UiIHhtbG5zOnhzZD0iaHR0cDovL3d3dy53My5vcmcvMjAwMS9YTUxTY2hlbWEiPg0KICA8VFM+MjAwNy0wNi0xMVQxNDoxNTozNy4yMjQ4NzNaPC9UUz4NCiAgPENJRD4xOTAzNDMzMDUyMTExOTc3ODE5PC9DSUQ+DQo8L1RpY2tldD4=&lt;/Data&gt;
+							&lt;Sig&gt;Q8+XE+Cox+gyVsmQFFlaBRXmiaB4HPiNjcS7bF52bWho8rK2Yxed1piOSjzGg5/YIcb874yfJtRThdul4O+NdKgJgeg5WTgSwkigp/Z7gyhC6bYXgZnSlB/WmI7GAAxQFgYGEYAM19l7OCrm/7H+cR8TGVdDShLSvOcHrP1KtGc=&lt;/Sig&gt;
+						&lt;/SignedTicket&gt;
 					</CircleTicket>
 				</CircleResult>
 				<Ab>

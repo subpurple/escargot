@@ -47,7 +47,10 @@ class BackendEventHandler(event.BackendEventHandler):
 	def on_maintenance_boot(self) -> None:
 		pass
 	
-	def on_presence_notification(self, bs_other: Optional[BackendSession], ctc_head: User, old_substatus: Substatus, on_contact_add: bool, *, trid: Optional[str] = None, update_status: bool = True, send_status_on_bl: bool = False, visible_notif: bool = True, updated_phone_info: Optional[Dict[str, Any]] = None, circle_user_bs: Optional[BackendSession] = None, circle_id: Optional[str] = None) -> None:
+	def on_presence_notification(self, bs_other: Optional[BackendSession], ctc: Contact, old_substatus: Substatus, on_contact_add: bool, *, trid: Optional[str] = None, update_status: bool = True, send_status_on_bl: bool = False, visible_notif: bool = True, updated_phone_info: Optional[Dict[str, Any]] = None, circle_user_bs: Optional[BackendSession] = None, circle_id: Optional[str] = None) -> None:
+		pass
+	
+	def on_presence_self_notification(self) -> None:
 		pass
 	
 	def on_chat_invite(self, chat: Chat, inviter: User, *, inviter_id: Optional[str] = None, invite_msg: str = '') -> None:
@@ -86,13 +89,16 @@ class ChatEventHandler(event.ChatEventHandler):
 			text = "Hello, world!",
 		))
 	
-	def on_participant_joined(self, cs_other: ChatSession) -> None:
+	def on_participant_joined(self, cs_other: ChatSession, first_pop: bool) -> None:
 		pass
 	
 	def on_participant_left(self, cs_other: ChatSession, idle: bool, last_pop: bool) -> None:
 		pass
 	
 	def on_invite_declined(self, invited_user: User, *, invited_id: Optional[str] = None, message: str = '') -> None:
+		pass
+	
+	def on_idle_increment(self) -> None:
 		pass
 	
 	def on_message(self, message: MessageData) -> None:

@@ -19,6 +19,13 @@ def first_in_iterable(iterable: Iterable[T]) -> Optional[T]:
 	for x in iterable: return x
 	return None
 
+def last_in_iterable(iterable: Iterable[T]) -> Optional[T]:
+	last = None
+	
+	for x in iterable:
+		last = x
+	return last
+
 class Runner(metaclass = ABCMeta):
 	__slots__ = ('host', 'port', 'ssl_context', 'ssl_only')
 	

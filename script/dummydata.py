@@ -8,7 +8,7 @@ from uuid import uuid4
 import time
 
 from core.models import Lst, NetworkID
-from core.db import Base, Session, User, UserGroup, UserContact, ABStore, ABStoreContact, ABStoreContactNetworkInfo, ABMetadata, CircleStore, CircleMembership, OIM, YahooOIM, engine
+from core.db import Base, Session, User, UserGroup, UserContact, ABStore, ABStoreContact, ABMetadata, OIM, YahooOIM, engine
 
 from script.user import set_passwords
 from front.msn.misc import cid_format
@@ -74,9 +74,9 @@ def main() -> None:
 		sess.query(ABMetadata).delete()
 		sess.query(ABStore).delete()
 		sess.query(ABStoreContact).delete()
-		sess.query(ABStoreContactNetworkInfo).delete()
-		sess.query(CircleStore).delete()
-		sess.query(CircleMembership).delete()
+		#sess.query(ABStoreContactNetworkInfo).delete()
+		#sess.query(CircleStore).delete()
+		#sess.query(CircleMembership).delete()
 		sess.query(OIM).delete()
 		sess.query(YahooOIM).delete()
 		sess.add(ABMetadata(

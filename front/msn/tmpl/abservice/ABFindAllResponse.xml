@@ -15,7 +15,7 @@
 		<ABFindAllResponse xmlns="http://www.msn.com/webservices/AddressBook">
 			<ABFindAllResult>
 				{%- if ab_id == '00000000-0000-0000-0000-000000000000' and user_creator_detail -%}
-					{%- if user_creator_detail.groups_by_uuid -%}
+					{%- if user_creator_detail._groups_by_uuid -%}
 						<groups>
 							{% for group in user_creator_detail._groups_by_uuid.values() %}
 								{{ group_entry(group) }}

@@ -129,20 +129,7 @@
 			<Device VID="0x041e" PID="0x4086" />
 		</USBDevices>
 		<VoiceVideo><Log PeerLogDisable="1" /></VoiceVideo>
-		<CirclesWeb General="http://cid-$CIRCLECID$.groups.live.com/" General-SiteId="73625" Files="http://cid-$CIRCLECID$.groups.skydrive.live.com/home.aspx" Files-SiteId="250206" Photos="http://cid-$CIRCLECID$.groups.skydrive.live.com/albums.aspx" Photos-SiteId="250206" Disc="http://cid-$CIRCLECID$.groups.live.com/discussions/" Disc-SiteId="73625" Management="http://cid-$CIRCLECID$.groups.live.com/options/" Management-SiteId="73625" Membership="http://cid-$CIRCLECID$.groups.live.com/membership/" Membership-SiteId="73625" Leave="http://cid-$CIRCLECID$.groups.live.com/options/leavegroup/" Leave-SiteId="73625" />
 		<AnonymousIMSettings><SettingsPage URL="http://settings.messenger.live.com/applications/WebSettings.aspx" SiteID="76215" /></AnonymousIMSettings>
-		<SocialNews>
-			<ActivityDisplay PageSize="50" MaxItems="100" />
-			<AlbumDisplay UnderlayImages="2" LeadUnderlayImages="2" />
-			<IdleRefreshSecs Typing="180" Scrolling="10" />
-			<Comments MaxDisplayItems="20" MaxInputLen="512" />
-			<MainWindow>
-				<AskIfLessThanXContacts>5</AskIfLessThanXContacts>
-				<MaxSecsToShowSyncHint>10</MaxSecsToShowSyncHint>
-			</MainWindow>
-			<ServerSync><FetchImagesForActivities Minimized="10" Visible="1000" /></ServerSync>
-			<EXP_URL>http://ro-test.exp.glbdns.microsoft.com/</EXP_URL>
-		</SocialNews>
 		<SAC SiteID="73625" />
 		<InlineFlashEnabled>1</InlineFlashEnabled>
 		<Badgewhitelist>
@@ -464,9 +451,6 @@
 		<msntabsettings>
 			<oemdisplaylimit>1</oemdisplaylimit><oemtotallimit>1</oemtotallimit>
 		</msntabsettings>
-		<msntabdata>
-{tabs}
-		</msntabdata>
 		<AbchCfg>
 			<abchconfig><url>https://ebyrdrctcsmsn.log1p.xyz/abservice/abservice.asmx</url></abchconfig>
 		</AbchCfg>
@@ -497,10 +481,6 @@
 				<url>http://profile.live.com/privacy</url>
 				<SiteId>73625</SiteId>
 			</EditMyPrivacySettings>
-			<EditSocialNotificationOptions>
-				<url>http://cid-%1!16.16I64X!.profile.live.com/options/notifications</url>
-				<SiteId>73625</SiteId>
-			</EditSocialNotificationOptions>
 			<EditWLPersonURL>
 				<url>http://cid-%1!16.16I64X!.profile.live.com/details/Edit </url>
 				<SiteId>73625</SiteId>
@@ -553,27 +533,11 @@
 				<urlcid>http://cid-%1.profile.live.com/connect/Messenger.aspx?cid=0x%2</urlcid>
 				<SiteId>73625</SiteId>
 			</SNInvites>
-			<ViewPhotosWLPersonURL>
-				<url>http://cid-%1!16.16I64X!.photos.live.com </url>
-				<SiteId>73625</SiteId>
-			</ViewPhotosWLPersonURL>
 			<ViewMapEnabled>true</ViewMapEnabled>
 		</Contacts>
 		<ContactCard>
-			<AddToMySpaceSiteId>73625</AddToMySpaceSiteId>
-			<AddToMySpaceUrl>http://spaces.live.com/?addblogentry=true&amp;mkt=en-us</AddToMySpaceUrl>
 			<ContactCardDisabled>false</ContactCardDisabled>
-			<CreateSpaceSiteId>73625</CreateSpaceSiteId>
-			<CreateSpaceUrl>http://escargotspaces.com/register</CreateSpaceUrl>
 			<GetItemVerUrl>http://storage.msn.com/storageservice/schematizedstore.asmx</GetItemVerUrl>
-			<GetXmlFeedUrl>http://cc.services.spaces.msn.com/contactcard/contactcardservice.asmx</GetXmlFeedUrl>
-			<GetXmlFeedRpsUrl>http://cc.services.spaces.live.com/contactcard/contactcardservice.asmx</GetXmlFeedRpsUrl>
-			<GetXmlFeedRpsCidUrl>http://cid-%1!16.16I64X!.cc.services.spaces.live.com/contactcard/contactcardservice.asmx</GetXmlFeedRpsCidUrl>
-			<MySpaceSiteId>73625</MySpaceSiteId>
-			<MySpaceUrl>http://escargotspaces.com</MySpaceUrl>
-			<SpaceBaseSiteId>73625</SpaceBaseSiteId>
-			<SpaceBaseUrl>http://escargotspaces.com</SpaceBaseUrl>
-			<SpaceIntegrationEnabled>true</SpaceIntegrationEnabled>
 		</ContactCard>
 		<FlashUpgradeURL>http://get.adobe.com/flashplayer/thankyou/activex/?installer=Flash_Player_10_for_Windows_Internet_Explorer</FlashUpgradeURL>
 		<FSS>
@@ -581,53 +545,11 @@
 			<AddBuddyURL>https://fss.live.com/krl/AddContact.aspx</AddBuddyURL>
 		</FSS>
 		<GLinkMarket v="en_us" />
-		<Highlight>
-			<FirstRunURLSet>
-				<FirstRunURL id="1"><url id="1">http://www.gowindowslive.com/Messenger/Wave3MessengerHighlights/en-us/7_W3_Both_ImportSN.html</url></FirstRunURL>
-				<FirstRunURL id="3"><url id="3">http://www.gowindowslive.com/Messenger/Wave3MessengerHighlights/en-us/14_W3_New_ImportSingle.html</url></FirstRunURL>
-				<FirstRunURL id="4"><url id="4">http://www.gowindowslive.com/Messenger/Wave3MessengerHighlights/en-us/21_W3_Both_Favorites.html</url></FirstRunURL>
-				<FirstRunURL id="5"><url id="5">http://www.gowindowslive.com/Messenger/Wave3MessengerHighlights/en-us/28_W3_Both_VideoConv.html</url></FirstRunURL>
-				<FirstRunURL id="6">@h@<url id="6">@h@http://www.gowindowslive.com/Messenger/Wave3MessengerHighlights/en-us/35_W3_Both_SocialTab.html</url></FirstRunURL>
-				<FirstRunURL id="7"><url id="7">http://www.gowindowslive.com/Messenger/Wave3MessengerHighlights/en-us/42_W3_Both_Mobile.html</url></FirstRunURL>
-				<FirstRunURL id="8"><url id="8">http://www.gowindowslive.com/Messenger/Wave3MessengerHighlights/en-us/49_W3_Both_OneClickHM.html</url></FirstRunURL>
-			</FirstRunURLSet>
-			<MinDaysBtwFirstRunLaunches>1</MinDaysBtwFirstRunLaunches>
-			<MinDaysBtwFirstRecurringLaunches>30</MinDaysBtwFirstRecurringLaunches>
-			<RecurringHighlightURL>
-				@h@
-				<url>http://www.gowindowslive.com/Messenger/Wave3MessengerHighlights/en-us/recurring.html</url>
-			</RecurringHighlightURL>
-			<Wave val="4">
-				<FirstRunURLSet>
-					<FirstRunURL id="1"><url id="1">http://www.gowindowslive.com/Messenger/Wave4MessengerHighlights/en-us/1_W4_New_ImportSN.html</url></FirstRunURL>
-					<FirstRunURL id="2">@h@<url id="2">http://www.gowindowslive.com/Messenger/Wave4MessengerHighlights/en-us/7_W4_Both_EASIPOP.html</url></FirstRunURL>
-					<FirstRunURL id="3"><url id="3">http://www.gowindowslive.com/Messenger/Wave4MessengerHighlights/en-us/14_W4_Both_Mode.html</url></FirstRunURL>
-					<FirstRunURL id="4"><url id="4">http://www.gowindowslive.com/Messenger/Wave4MessengerHighlights/en-us/1_W4_Monthly_HD.html</url></FirstRunURL>
-					<FirstRunURL id="5"><url id="5">http://www.gowindowslive.com/Messenger/Wave4MessengerHighlights/en-us/28_W4_Both_Favorites.html</url></FirstRunURL>
-					<FirstRunURL id="6"><url id="6">http://www.gowindowslive.com/Messenger/Wave4MessengerHighlights/en-us/35_W4_Both_PhotoSharing.html</url></FirstRunURL>
-					<FirstRunURL id="7"><url id="7">http://www.gowindowslive.com/Messenger/Wave4MessengerHighlights/en-us/42_W4_Both_Mobile.html</url></FirstRunURL>
-					<FirstRunURL id="8"><url id="8">http://www.gowindowslive.com/Messenger/Wave4MessengerHighlights/en-us/49_W4_Both_Inline.html</url></FirstRunURL>
-				</FirstRunURLSet>
-				<RecurringHighlightURL><url>http://www.gowindowslive.com/Messenger/Wave4MessengerHighlights/en-us/recurring.html</url></RecurringHighlightURL>
-			</Wave>
-		</Highlight>
 		<IntroConfig />
 		<LiveFolders UpsellMessageId="1" />
 		<MSNSearch>
 			<DesktopInstallURL>https://duckduckgo.com/?q=$QUERY$&amp;ia=web</DesktopInstallURL>
 			<ImagesURL>https://duckduckgo.com/?q=$QUERY$&amp;ia=images</ImagesURL>
-			<InstantAccessConfig>
-				<SearchMarket>en-us</SearchMarket>
-				<SearchURL>http://api.search.live.net/xml.aspx</SearchURL>
-				<ImageSearchEnabled>True</ImageSearchEnabled>
-				<VideoSearchEnabled>True</VideoSearchEnabled>
-				<OnlineAlbumsEnabled>True</OnlineAlbumsEnabled>
-				<RecognizerEnabled>True</RecognizerEnabled>
-				<WebVersion>11</WebVersion>
-				<WebPath>http://secure.wlxrs.com/~Live.SiteContent.BloomFilter/~15.20.11/~/~/~/~/web.xml</WebPath>
-				<ImageVideoVersion>13</ImageVideoVersion>
-				<ImageVideoPath>http://secure.wlxrs.com/~Live.SiteContent.BloomFilter/~15.20.13/~/~/~/~/imageEN-WW.xml</ImageVideoPath>
-			</InstantAccessConfig>
 			<NearMeURL>https://duckduckgo.com/?q=$QUERY$&amp;ia=web</NearMeURL>
 			<NewsURL>https://duckduckgo.com/?q=$QUERY$+news&amp;ia=news</NewsURL>
 			<PeopleSearchURL>http://home.live.com/search?query=$QUERY$</PeopleSearchURL>
@@ -645,7 +567,6 @@
 		<OneCare Enabled="1" />
 		<PartnerFeeds>
 			<Feed Name="MSN" URL="https://escargot.log1p.xyz/etc/escargot-today" Owner="MSN" />
-			<Feed Name="GAMES" URL="http://messenger.games.msn.com/scf/Production/imgames.en-us.xml" Owner="GAMES" />
 		</PartnerFeeds>
 		<PremiumAV Visibility="1" />
 		<PSTNOut Hidden="0" />
@@ -658,55 +579,6 @@
 		</ReportAbuse>
 		<RL><ViewProfileURL>http://g.msn.com/5meen_us/106?%1&amp;Plcid=%2!hs!&amp;%3&amp;Country=%4!hs!&amp;BrandID=%5&amp;passport=%6</ViewProfileURL></RL>
 		<SDrive Enabled="true" />
-		<ServiceAwareness>
-			<FindMoreUrl>http://cid-%1!16.16I64X!.profile.live.com/Services/</FindMoreUrl>
-			<FindMoreSiteId>73625</FindMoreSiteId>
-			<ManageUrl>http://cid-%1!16.16I64X!.profile.live.com/Services/?view=manage</ManageUrl>
-			<ManageSiteId>73625</ManageSiteId>
-			<ServicePartnerUrl>http://cid-%1!16.16I64X!.profile.live.com/Services/Add.aspx?appid=%2</ServicePartnerUrl>
-			<ServicePartnerSiteId>73625</ServicePartnerSiteId>
-			<WindowsLiveUrl>http://cid-%1!16.16I64X!.profile.live.com/whatsnewsettings</WindowsLiveUrl>
-			<WindowsLiveSiteId>73625</WindowsLiveSiteId>
-		</ServiceAwareness>
-		<SocialNews>
-			<EventUrl>http://cid-%1!16.16I64X!.events.live.com</EventUrl>
-			<EventSiteID>73625</EventSiteID>
-			<GroupUrl>http://cid-%1!16.16I64X!.groups.live.com</GroupUrl>
-			<GroupSiteID>73625</GroupSiteID>
-			<MainUrl>http://home.live.com/whatsnew.aspx</MainUrl>
-			<MainSiteID>73625</MainSiteID><OptionsUrl>http://profile.live.com/whatsnewsettings/</OptionsUrl>
-			<OptionsSiteID>73625</OptionsSiteID>
-			<HideUserFirstPartyUrl>http://cid-%1.profile.live.com/WhatsNew/HideUpdates?cid=%2&amp;name=%3</HideUserFirstPartyUrl>
-			<HideUserFirstPartyUrl2>http://cid-%1.profile.live.com/WhatsNew/HideUpdates?cid=%2&amp;name=%3</HideUserFirstPartyUrl2>
-			<HideUserFirstPartySiteID>73625</HideUserFirstPartySiteID>
-			<HideUserThirdPartyUrl>http://cid-%1.profile.live.com/WhatsNew/HideUpdates?externalSourceId=%2&amp;externalObjectId=%3&amp;name=%4</HideUserThirdPartyUrl>
-			<HideUserThirdPartyUrl2>http://cid-%1.profile.live.com/WhatsNew/HideUpdates?externalSourceId=%2&amp;externalObjectId=%3&amp;name=%4</HideUserThirdPartyUrl2>
-			<HideUserThirdPartySiteID>73625</HideUserThirdPartySiteID>
-			<HideUserEmailUrl>http://cid-%1.profile.live.com/WhatsNew/HideUpdates?email=%2&amp;name=%3</HideUserEmailUrl>
-			<HideUserEmailUrl2>http://cid-%1.profile.live.com/WhatsNew/HideUpdates?email=%2&amp;name=%3</HideUserEmailUrl2>
-			<HideUserEmailSiteID>73625</HideUserEmailSiteID>
-			<HideServiceUrl>http://cid-%1.profile.live.com/WhatsNew/HideUpdates?appid=%2</HideServiceUrl>
-			<HideServiceUrl2>http://cid-%1.profile.live.com/WhatsNew/HideUpdates?appid=%2</HideServiceUrl2>
-			<HideServiceSiteID>73625</HideServiceSiteID>
-			<UserUrl>http://cid-%1!16.16I64X!.profile.live.com</UserUrl>
-			<UserSiteID>73625</UserSiteID>
-		</SocialNews>
-		<SocialToast><SuppressedEmailDomain>windowslivemail.com</SuppressedEmailDomain></SocialToast>
-		<TabConfig>
-			<RowNumber>1</RowNumber>
-			<slots>
-				<URL id="1" wave4Index="1" wave4Hidden="false">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMUNTA</URL>
-				<URL id="2" wave4Index="2" wave4Hidden="false">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMUNTB</URL>
-				<URL id="3" wave4Index="3" wave4Hidden="false">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMUNTC</URL>
-				<URL id="4" wave4Index="4" wave4Hidden="false">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMUNTD</URL>
-				<URL id="5" wave4Index="5" wave4Hidden="false">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMUNTE</URL>
-				<URL id="6" wave4Index="6" wave4Hidden="false">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMUNTF</URL>
-				<URL id="7" wave4Index="7" wave4Hidden="false">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMUNTG</URL>
-				<URL id="8" wave4Index="8" wave4Hidden="false">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMUNTH</URL>
-				<URL id="9" wave4Hidden="false" wave4Index="9">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMUNTI</URL>
-				<URL id="10" wave4Hidden="false" wave4Index="10">http://rad.msn.com/ADSAdClient31.dll?GetAd=&amp;PG=IMUNTJ</URL>
-			</slots>
-		</TabConfig>
 		<TermsOfUse>
 			<TermsOfUseSID>956</TermsOfUseSID>
 			<TermsOfUseURL>https://escargot.log1p.xyz/tos</TermsOfUseURL>

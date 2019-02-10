@@ -10,7 +10,7 @@ from util.misc import Logger
 
 from core import event, error
 from core.backend import Backend, BackendSession, Chat, ChatSession
-from core.models import Substatus, Lst, User, Contact, Group, TextWithData, MessageData, MessageType, UserStatus, LoginOption
+from core.models import Substatus, Lst, User, Contact, Group, TextWithData, ChatType, MessageData, MessageType, UserStatus, LoginOption
 from core.client import Client
 from core.user import UserService
 from core.auth import AuthService
@@ -301,7 +301,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 			add_request_response.add('66', 0)
 			self.send_reply(YMSGService.FriendAdd, YMSGStatus.BRB, self.sess_id, add_request_response)
 			
-			contact = bs.me_contact_add(ctc_head.uuid, Lst.FL, name = contact_yahoo_id, message = (TextWithData(message, utf8) if message is not None else None), adder_id = yahoo_id, needs_notify = True)[0]
+			contact = bs.me_contact_add(ctc_head.uuid, Lst.FL | Lst.AL, name = contact_yahoo_id, message = (TextWithData(message, utf8) if message is not None else None), adder_id = yahoo_id, needs_notify = True)[0]
 		try:
 			if len(contact._groups) >= 1: action_group_move = True
 			for group_other in contact._groups.copy():
@@ -466,20 +466,22 @@ class YMSGCtrlPager(YMSGCtrlBase):
 	def _y_004f(self, *args) -> None:
 		# SERVICE_PEERTOPEER (0x4f); see if P2P messaging is possible
 		
-		yid = args[4].get('1')
-		yid_from = args[4].get('4')
+		#yid = args[4].get('1')
+		#yid_from = args[4].get('4')
+		#
+		#p2p_to_id = args[4].get('5')
+		#contact_uuid = yahoo_id_to_uuid(self.backend, p2p_to_id)
+		#if contact_uuid is None:
+		#	return
+		#
+		#bs = (self.bs if yid not in self.activated_alias_bses else self.activated_alias_bses[yid])
+		#assert bs is not None
+		#
+		#for bs_other in bs.backend._sc.iter_sessions():
+		#	if bs_other.user.uuid == contact_uuid:
+		#		bs_other.evt.ymsg_on_p2p_msg_request(args[4])
 		
-		p2p_to_id = args[4].get('5')
-		contact_uuid = yahoo_id_to_uuid(self.backend, p2p_to_id)
-		if contact_uuid is None:
-			return
-		
-		bs = (self.bs if yid not in self.activated_alias_bses else self.activated_alias_bses[yid])
-		assert bs is not None
-		
-		for bs_other in bs.backend._sc.iter_sessions():
-			if bs_other.user.uuid == contact_uuid:
-				bs_other.evt.ymsg_on_p2p_msg_request(args[4])
+		return
 	
 	def _y_004b(self, *args) -> None:
 		# SERVICE_NOTIFY (0x4b); notify a contact of an action (typing, games, etc.)
@@ -1054,34 +1056,34 @@ class BackendEventHandler(event.BackendEventHandler):
 		self.ctrl.send_reply(YMSGService.LogOff, YMSGStatus.Available, 0, None)
 		self.on_close()
 	
-	def on_presence_notification(self, bs_other: Optional[BackendSession], ctc_head: User, old_substatus: Substatus, on_contact_add: bool, *, trid: Optional[str] = None, update_status: bool = True, send_status_on_bl: bool = False, visible_notif: bool = True, updated_phone_info: Optional[Dict[str, Any]] = None, circle_user_bs: Optional[BackendSession] = None, circle_id: Optional[str] = None) -> None:
+	def on_presence_notification(self, bs_other: Optional[BackendSession], ctc: Contact, old_substatus: Substatus, on_contact_add: bool, *, trid: Optional[str] = None, update_status: bool = True, send_status_on_bl: bool = False, visible_notif: bool = True, updated_phone_info: Optional[Dict[str, Any]] = None, circle_user_bs: Optional[BackendSession] = None, circle_id: Optional[str] = None) -> None:
 		bs = self.bs
 		assert bs is not None
 		
 		if on_contact_add: return
-		
-		is_contact = user_in_contact_list(bs.user, ctc_head, self.ctrl.backend)
-		if bs.front_data.get('ymsg_alias') or not is_contact[0]: return
-		contact = is_contact[1]
+		if bs.front_data.get('ymsg_alias'): return
 		
 		if update_status:
-			if contact.status.is_offlineish() and not old_substatus.is_offlineish():
+			if ctc.status.is_offlineish() and not old_substatus.is_offlineish():
 				service = YMSGService.LogOff
-			elif old_substatus.is_offlineish() and not contact.status.is_offlineish():
+			elif old_substatus.is_offlineish() and not ctc.status.is_offlineish():
 				service = YMSGService.LogOn
-			elif contact.status.substatus is Substatus.Online:
+			elif ctc.status.substatus is Substatus.Online:
 				service = YMSGService.IsBack
 			else:
 				service = YMSGService.IsAway
 			
-			if not (contact.status.is_offlineish() and old_substatus.is_offlineish()):
+			if not (ctc.status.is_offlineish() and old_substatus.is_offlineish()):
 				yahoo_data = MultiDict()
 				if service is not YMSGService.LogOff:
 					yahoo_data.add('0', self.ctrl.yahoo_id)
 				
-				add_contact_status_to_data(yahoo_data, contact.status, contact.head)
+				add_contact_status_to_data(yahoo_data, ctc.status, ctc.head)
 				
 				self.ctrl.send_reply(service, (YMSGStatus.Available if not visible_notif and service is YMSGService.LogOn else YMSGStatus.BRB), self.sess_id, yahoo_data)
+	
+	def on_presence_self_notification(self) -> None:
+		pass
 	
 	def on_sync_contact_statuses(self) -> None:
 		bs = self.ctrl.bs
@@ -1117,27 +1119,27 @@ class BackendEventHandler(event.BackendEventHandler):
 	def msn_on_put_sent(self, message: 'Message', sender: User, *, pop_id_sender: Optional[str] = None, pop_id: Optional[str] = None) -> None:
 		pass
 	
-	def ymsg_on_p2p_msg_request(self, yahoo_data: Dict[str, Any]) -> None:
-		bs = self.bs
-		assert bs is not None
-		
-		p2p_conn_dict = MultiDict([
-			('5', yahoo_data.get('5')),
-			('4', yahoo_data.get('1')),
-		])
-		
-		if None not in (yahoo_data.get('2'),yahoo_data.get('13'),yahoo_data.get('12')):
-			p2p_conn_dict.add('2', yahoo_data.get('2'))
-			p2p_conn_dict.add('13', yahoo_data.get('13'))
-			p2p_conn_dict.add('12', yahoo_data.get('12'))
-		else:
-			return
-		
-		p2p_conn_dict.add('49', yahoo_data.get('49'))
-		if yahoo_data.get('60') is not None: p2p_conn_dict.add('60', yahoo_data.get('60'))
-		if yahoo_data.get('61') is not None: p2p_conn_dict.add('60', yahoo_data.get('61'))
-		
-		self.ctrl.send_reply(YMSGService.PeerToPeer, YMSGStatus.BRB, self.sess_id, p2p_conn_dict)
+	#def ymsg_on_p2p_msg_request(self, yahoo_data: Dict[str, Any]) -> None:
+	#	bs = self.bs
+	#	assert bs is not None
+	#	
+	#	p2p_conn_dict = MultiDict([
+	#		('5', yahoo_data.get('5')),
+	#		('4', yahoo_data.get('1')),
+	#	])
+	#	
+	#	if None not in (yahoo_data.get('2'),yahoo_data.get('13'),yahoo_data.get('12')):
+	#		p2p_conn_dict.add('2', yahoo_data.get('2'))
+	#		p2p_conn_dict.add('13', yahoo_data.get('13'))
+	#		p2p_conn_dict.add('12', yahoo_data.get('12'))
+	#	else:
+	#		return
+	#	
+	#	p2p_conn_dict.add('49', yahoo_data.get('49'))
+	#	if yahoo_data.get('60') is not None: p2p_conn_dict.add('60', yahoo_data.get('60'))
+	#	if yahoo_data.get('61') is not None: p2p_conn_dict.add('60', yahoo_data.get('61'))
+	#	
+	#	self.ctrl.send_reply(YMSGService.PeerToPeer, YMSGStatus.BRB, self.sess_id, p2p_conn_dict)
 	
 	def ymsg_on_xfer_init(self, yahoo_data: Dict[str, Any]) -> None:
 		for y in misc.build_ft_packet(self.bs, yahoo_data):
@@ -1242,8 +1244,8 @@ class ChatEventHandler(event.ChatEventHandler):
 	def on_close(self, keep_future: bool, idle: bool) -> None:
 		if not keep_future: self.ctrl.chat_sessions.pop(self.cs.chat, None)
 	
-	def on_participant_joined(self, cs_other: ChatSession) -> None:
-		if self.cs.chat.front_data.get('ymsg_twoway_only'):
+	def on_participant_joined(self, cs_other: ChatSession, first_pop: bool) -> None:
+		if self.cs.chat.front_data.get('ymsg_twoway_only') or not first_pop:
 			return
 		self.ctrl.send_reply(YMSGService.ConfLogon, YMSGStatus.BRB, self.ctrl.sess_id, MultiDict([
 			('1', misc.yahoo_id(self.bs.user.email)),
@@ -1254,6 +1256,8 @@ class ChatEventHandler(event.ChatEventHandler):
 	def on_participant_left(self, cs_other: ChatSession, idle: bool, last_pop: bool) -> None:
 		if 'ymsg/conf' not in cs_other.chat.ids:
 			# Yahoo only receives this event in "conferences"
+			return
+		if not last_pop:
 			return
 		self.ctrl.send_reply(YMSGService.ConfLogoff, YMSGStatus.BRB, self.ctrl.sess_id, MultiDict([
 			('1', misc.yahoo_id(self.bs.user.email)),
@@ -1268,6 +1272,9 @@ class ChatEventHandler(event.ChatEventHandler):
 			('54', invited_id or misc.yahoo_id(invited_user.email)),
 			('14', message),
 		]))
+	
+	def on_idle_increment(self) -> None:
+		pass
 	
 	def on_message(self, data: MessageData) -> None:
 		bs = self.bs
@@ -1307,7 +1314,7 @@ class ChatEventHandler(event.ChatEventHandler):
 						conf_message_dict.add('97', yahoo_data.get('97'))
 					
 					self.ctrl.send_reply(YMSGService.ConfMsg, YMSGStatus.BRB, self.ctrl.sess_id, conf_message_dict)
-		elif data.type in (MessageType.Typing,MessageType.TypingDone):
+		elif data.type in (MessageType.Typing,MessageType.TypingDone) and self.cs.chat.front_data.get('ymsg_twoway_only'):
 			self.ctrl.send_reply(YMSGService.Notify, YMSGStatus.BRB, self.ctrl.sess_id, MultiDict([
 				('5', yahoo_data.get('5') or misc.yahoo_id(bs.user.email)),
 				('4', yahoo_data.get('1') or misc.yahoo_id(sender.email)),

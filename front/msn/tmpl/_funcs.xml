@@ -43,32 +43,6 @@
 		<IsPrivate>false</IsPrivate>
 		<Gender>Unspecified</Gender>
 		<TimeZone>None</TimeZone>
-		{%- if contact.networkinfos -%}
-			<NetworkInfoList>
-			{%- for networkinfo in contact.networkinfos.values() -%}
-				<NetworkInfo>
-					<DomainId>{{ networkinfo.domain_id.value }}</DomainId>
-					<SourceId>{{ networkinfo.source_id }}</SourceId>
-					<DomainTag>{{ networkinfo.domain_tag }}</DomainTag>
-					<ProfileURL>https://escargot.log1p.xyz</ProfileURL>
-					<DisplayName>{{ networkinfo.display_name }}</DisplayName>
-					<RelationshipType>{{ networkinfo.relationship_info.relationship_type.value }}</RelationshipType>
-					<RelationshipState>{{ networkinfo.relationship_info.relationship_state.value }}</RelationshipState>
-					<RelationshipStateDate>{{ date_format(networkinfo.relationship_info.relationship_state_date) }}</RelationshipStateDate>
-					<RelationshipRole>{{ networkinfo.relationship_info.relationship_role.value }}</RelationshipRole>
-					<NDRCount>0</NDRCount>
-					{%- if networkinfo.inviter_message -%}
-						<InviterMessage>{{ networkinfo.inviter_message }}</InviterMessage>
-					{%- endif -%}
-					<InviterCID>0</InviterCID>
-					<CreateDate>{{ date_format(networkinfo.date_created) }}</CreateDate>
-					<LastChanged>{{ date_format(networkinfo.date_last_modified) }}</LastChanged>
-					<PropertiesChanged />
-					<Settings>0</Settings>
-				</NetworkInfo>
-			{%- endfor -%}
-			</NetworkInfoList>
-		{%- endif -%}
 	</contactInfo>
 	<propertiesChanged />
 	<fDeleted>false</fDeleted>
@@ -93,6 +67,12 @@
 						<Name>MSN.IM.BLP</Name>
 						<Value>{%- if user_creator.settings.get('BLP') == 'AL' -%}1{%- elif user_creator.settings.get('BLP') == 'BL' -%}2{%- else -%}0{%- endif -%}</Value>
 					</Annotation>
+					{%- if user_creator.settings.get('MPOP') -%}
+						<Annotation>
+							<Name>MSN.IM.RoamLiveProperties</Name>
+							<Value>{{ user_creator.settings.get('MPOP') }}</Value>
+						</Annotation>
+					{%- endif -%}
 					{%- if user_creator.settings.get('RLP') -%}
 						<Annotation>
 							<Name>MSN.IM.RoamLiveProperties</Name>

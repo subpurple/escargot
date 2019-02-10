@@ -28,7 +28,10 @@ class BackendEventHandler(metaclass = ABCMeta):
 		pass
 	
 	@abstractmethod
-	def on_presence_notification(self, bs_other: Optional['BackendSession'], ctc_head: User, old_substatus: Substatus, on_contact_add: bool, *, trid: Optional[str] = None, update_status: bool = True, send_status_on_bl: bool = False, visible_notif: bool = True, updated_phone_info: Optional[Dict[str, Any]] = None, circle_user_bs: Optional['BackendSession'] = None, circle_id: Optional[str] = None) -> None: pass
+	def on_presence_notification(self, bs_other: Optional['BackendSession'], ctc: Contact, old_substatus: Substatus, on_contact_add: bool, *, trid: Optional[str] = None, update_status: bool = True, send_status_on_bl: bool = False, visible_notif: bool = True, updated_phone_info: Optional[Dict[str, Any]] = None, circle_user_bs: Optional['BackendSession'] = None, circle_id: Optional[str] = None) -> None: pass
+	
+	@abstractmethod
+	def on_presence_self_notification(self) -> None: pass
 	
 	@abstractmethod
 	def on_chat_invite(self, chat: 'Chat', inviter: User, *, inviter_id: Optional[str] = None, invite_msg: str = '') -> None: pass
@@ -66,6 +69,9 @@ class BackendEventHandler(metaclass = ABCMeta):
 	def msn_on_user_circle_presence(self, bs_other: 'BackendSession') -> None:
 		pass
 	
+	#def ymsg_on_p2p_msg_request(self, yahoo_data: Dict[str, Any]) -> None:
+	#	pass
+	
 	def ymsg_on_xfer_init(self, yahoo_data: Dict[str, Any]) -> None:
 		pass
 	
@@ -92,13 +98,16 @@ class ChatEventHandler(metaclass = ABCMeta):
 		pass
 	
 	@abstractmethod
-	def on_participant_joined(self, cs_other: 'ChatSession') -> None: pass
+	def on_participant_joined(self, cs_other: 'ChatSession', first_pop: bool) -> None: pass
 	
 	@abstractmethod
 	def on_participant_left(self, cs_other: 'ChatSession', idle: bool, last_pop: bool) -> None: pass
 	
 	@abstractmethod
 	def on_invite_declined(self, invited_user: User, *, invited_id: Optional[str] = None, message: str = '') -> None: pass
+	
+	@abstractmethod
+	def on_idle_increment(self) -> None: pass
 	
 	@abstractmethod
 	def on_message(self, data: MessageData) -> None: pass
