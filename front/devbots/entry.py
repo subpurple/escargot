@@ -78,9 +78,6 @@ class ChatEventHandler(event.ChatEventHandler):
 	def on_invite_declined(self, invited_user: User, *, invited_id: Optional[str] = None, message: Optional[str] = None) -> None:
 		pass
 	
-	def on_idle_increment(self) -> None:
-		pass
-	
 	def on_message(self, message: MessageData) -> None:
 		if message.type not in (MessageType.Chat,MessageType.Nudge):
 			return

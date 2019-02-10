@@ -10,7 +10,7 @@ from util.misc import Logger
 
 from core import event, error
 from core.backend import Backend, BackendSession, Chat, ChatSession
-from core.models import Substatus, Lst, User, Contact, Group, TextWithData, ChatType, MessageData, MessageType, UserStatus, LoginOption
+from core.models import Substatus, Lst, User, Contact, Group, TextWithData, MessageData, MessageType, UserStatus, LoginOption
 from core.client import Client
 from core.user import UserService
 from core.auth import AuthService
@@ -1272,9 +1272,6 @@ class ChatEventHandler(event.ChatEventHandler):
 			('54', invited_id or misc.yahoo_id(invited_user.email)),
 			('14', message),
 		]))
-	
-	def on_idle_increment(self) -> None:
-		pass
 	
 	def on_message(self, data: MessageData) -> None:
 		bs = self.bs

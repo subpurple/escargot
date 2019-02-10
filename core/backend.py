@@ -10,7 +10,7 @@ from .user import UserService
 from .auth import AuthService
 from .stats import Stats
 from .client import Client
-from .models import User, UserDetail, Group, Lst, Contact, ABContact, UserStatus, TextWithData, ChatType, MessageData, Substatus, LoginOption
+from .models import User, UserDetail, Group, Lst, Contact, ABContact, UserStatus, TextWithData, MessageData, Substatus, LoginOption
 from . import error, event
 
 class Ack(IntFlag):
@@ -786,14 +786,12 @@ class _SessionCollection:
 			self._sessions_by_user[sess.user].remove(sess)
 
 class Chat:
-	__slots__ = ('ids', 'backend', 'front_data', '_users_by_sess', 'idle_mins', '_idle_counter', '_stats')
+	__slots__ = ('ids', 'backend', 'front_data', '_users_by_sess', '_stats')
 	
 	ids: Dict[str, str]
 	backend: Backend
 	front_data: Dict[str, Any]
 	_users_by_sess: Dict['ChatSession', Tuple[User, str]]
-	idle_mins: int
-	_idle_counter: Optional[asyncio.Task]
 	_stats: Any
 	
 	def __init__(self, backend: Backend, stats: Any) -> None:
@@ -802,12 +800,9 @@ class Chat:
 		self.backend = backend
 		self.front_data = {}
 		self._users_by_sess = {}
-		self.idle_mins = 0
-		self._idle_counter = None
 		self._stats = stats
 		
 		self.add_id('main', backend.auth_service.GenTokenStr(trim = 10))
-		self._idle_counter = self.backend.loop.create_task(self._add_idle_min_to_chat())
 	
 	def add_id(self, scope: str, id: str):
 		assert id not in self.backend._chats_by_id
@@ -873,13 +868,9 @@ class Chat:
 		su = self._users_by_sess.pop(sess, None)
 		if su is None: return
 		last_pop = False
-		if self._users_by_sess:
-			self._reset_idle_counter()
 		# TODO: If it goes down to only 1 connected user,
 		# the chat and remaining session(s) should be automatically closed.
 		if not self._users_by_sess and not keep_future:
-			#TODO: Be able to force cancel counter task
-			self._idle_counter.cancel()
 			for scope_id in self.ids.items():
 				del self.backend._chats_by_id[scope_id]
 			return
@@ -900,22 +891,6 @@ class Chat:
 			for sess1, _ in self._users_by_sess.items():
 				if sess1 is sess: continue
 				sess1.evt.on_participant_left(sess, idle, last_pop)
-	
-	async def _add_idle_min_to_chat(self) -> None:
-		while self.idle_mins < 60:
-			await asyncio.sleep(60)
-			if settings.DEBUG: print('Chat {} idle mins: {}'.format(self.ids['main'], self.idle_mins))
-			self.idle_mins += 1
-			if settings.DEBUG: print('Chat {} new idle mins: {}'.format(self.ids['main'], self.idle_mins))
-			if not self.get_roster_single():
-				return
-			self.get_roster_single()[0].evt.on_idle_increment()
-	
-	def _reset_idle_counter(self) -> None:
-		#TODO: Be able to force cancel counter task
-		self._idle_counter.cancel()
-		self.idle_mins = 0
-		self._idle_counter = self.backend.loop.create_task(self._add_idle_min_to_chat())
 
 class ChatSession(Session):
 	__slots__ = ('origin', 'user', 'chat', 'bs', 'evt', 'primary_pop', 'preferred_name')
@@ -943,22 +918,20 @@ class ChatSession(Session):
 		self.chat.on_leave(self, keep_future, idle, send_idle_leave)
 	
 	def invite(self, invitee: User, *, invite_msg: Optional[str] = None) -> None:
-		session_already_invited = False # type: bool
 		already_invited_sessions = [] # type: List[BackendSession]
 		
 		ctc_sessions = self.bs.backend.util_get_sessions_by_user(invitee)
 		roster = list(self.chat.get_roster())
 		for cs_other in roster:
+			if cs_other.bs in already_invited_sessions: continue
 			for ctc_sess in ctc_sessions:
-				session_already_invited = False
 				if cs_other.bs is ctc_sess and self.origin is not 'yahoo':
-					session_already_invited = True
 					already_invited_sessions.append(ctc_sess)
-				if session_already_invited: continue
-				ctc_sess.evt.on_chat_invite(self.chat, self.user, invite_msg = invite_msg or '')
+		for ctc_sess in ctc_sessions:
+			if ctc_sess in already_invited_sessions: continue
+			ctc_sess.evt.on_chat_invite(self.chat, self.user, invite_msg = invite_msg or '')
 		
 		if len(ctc_sessions) == len(already_invited_sessions): raise error.ContactAlreadyOnList()
-		self.chat._reset_idle_counter()
 	
 	def send_message_to_everyone(self, data: MessageData) -> None:
 		stats = self.chat._stats
@@ -971,7 +944,6 @@ class ChatSession(Session):
 			if cs_other is self: continue
 			cs_other.evt.on_message(data)
 			stats.on_message_received(cs_other.user, client)
-		self.chat._reset_idle_counter()
 	
 	def send_message_to_user(self, user_uuid: str, data: MessageData) -> None:
 		stats = self.chat._stats
@@ -985,7 +957,6 @@ class ChatSession(Session):
 			if cs_other.user.uuid != user_uuid: continue
 			cs_other.evt.on_message(data)
 			stats.on_message_received(cs_other.user, client)
-		self.chat._reset_idle_counter()
 
 def _gen_group_id(detail: UserDetail) -> str:
 	id = 1
