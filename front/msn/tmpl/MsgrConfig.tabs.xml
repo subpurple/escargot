@@ -60,16 +60,6 @@
 			</tab>
 			<tab>
 				<type>page</type>
-				<contenturl>http://escargotspaces.com/sitelist</contenturl>
-				<hiturl>http://escargotspaces.com/sitelist</hiturl>
-				<image>http://storage.googleapis.com/escargot-storage-1/public/tabicon/escargot-spaces.png</image>
-				<name>Escargot Spaces</name>
-				<tooltip>Escargot Spaces</tooltip>
-				<siteid>0</siteid>
-				<notificationid>0</notificationid>
-			</tab>
-			<tab>
-				<type>page</type>
 				<contenturl>http://m.twitter.com</contenturl>
 				<hiturl>http://m.twitter.com</hiturl>
 				<image>http://storage.googleapis.com/escargot-storage-1/public/tabicon/twitter.png</image>
