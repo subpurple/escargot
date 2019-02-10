@@ -236,7 +236,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		utf8 = args[4].get('97')
 		
 		group = None
-		action_group_move = False
+		action_group_copy = False
 		
 		add_request_response = MultiDict([
 			('1', yahoo_id),
@@ -270,8 +270,8 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		
 		contact = contacts.get(contact_uuid)
 		if contact is not None and contact.lists & Lst.FL:
-			for group in contact._groups.copy():
-				if detail._groups_by_id[group.id].name == buddy_group:
+			for group_other in contact._groups.copy():
+				if detail._groups_by_id[group_other.id].name == buddy_group:
 					add_request_response.add('66', 2)
 					self.send_reply(YMSGService.FriendAdd, YMSGStatus.BRB, self.sess_id, add_request_response)
 					return
@@ -301,15 +301,19 @@ class YMSGCtrlPager(YMSGCtrlBase):
 			add_request_response.add('66', 0)
 			self.send_reply(YMSGService.FriendAdd, YMSGStatus.BRB, self.sess_id, add_request_response)
 			
-			contact = bs.me_contact_add(ctc_head.uuid, Lst.FL | Lst.AL, name = contact_yahoo_id, message = (TextWithData(message, utf8) if message is not None else None), adder_id = yahoo_id, needs_notify = True)[0]
+			contact = bs.me_contact_add(ctc_head.uuid, Lst.FL, message = (TextWithData(message, utf8) if message is not None else None), adder_id = yahoo_id, needs_notify = True)[0]
+			bs.me_contact_add(ctc_head.uuid, Lst.AL)
 		try:
-			if len(contact._groups) >= 1: action_group_move = True
+			# TODO: Moving/copying contacts to groups
+			if len(contact._groups) >= 1: action_group_copy = True
+			print(contact._groups)
+			bs.me_group_contact_add(group.id, contact.head.uuid)
 			for group_other in contact._groups.copy():
-				bs.me_group_contact_remove(group_other.id, contact_uuid)
+				if group_other.id is group.id:
+					print('New group ID(s):', group_other.id)
+			print(contact._groups)
 			
-			bs.me_group_contact_add(group.id, contact_uuid)
-			
-			if action_group_move: self._update_buddy_list()
+			if action_group_copy: self._update_buddy_list()
 		except error.ContactAlreadyOnList:
 			# Ignore, because this condition was checked earlier, so the only way this
 			# can happen is if the the contact list gets in an inconsistent state.

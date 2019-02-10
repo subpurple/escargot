@@ -32,7 +32,7 @@ class Contact:
 	lists: 'Lst'
 	status: 'UserStatus'
 	
-	def __init__(self, user: User,groups: Set['ContactGroupEntry'], lists: 'Lst', status: 'UserStatus') -> None:
+	def __init__(self, user: User, groups: Set['ContactGroupEntry'], lists: 'Lst', status: 'UserStatus') -> None:
 		self.head = user
 		self._groups = groups
 		self.lists = lists
@@ -66,6 +66,9 @@ class Contact:
 		for group in self._groups.copy():
 			if group.id == grp.id or group.uuid == grp.uuid:
 				self._groups.discard(group)
+				break
+		for group in self._groups.copy():
+			if group.id == grp.id or group.uuid == grp.uuid:
 				break
 
 def _is_blocking(blocker: User, blockee: User) -> bool:

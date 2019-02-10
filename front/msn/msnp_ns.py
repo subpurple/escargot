@@ -343,7 +343,7 @@ class MSNPCtrlNS(MSNPCtrl):
 				self.send_reply('BLP', trid, ser, settings.get('BLP', 'AL'))
 			elif dialect < 8:
 				self.send_reply('SYN', trid, ser)
-				num_groups = len(groups) + 1
+				num_groups = len(detail._groups_by_id.values()) + 1
 				self.send_reply('LSG', trid, ser, 1, num_groups, '0', "Other Contacts", 0)
 				for i, g in enumerate(detail._groups_by_id.values()):
 					self.send_reply('LSG', trid, ser, i + 2, num_groups, g.id, g.name, 0)
@@ -362,7 +362,7 @@ class MSNPCtrlNS(MSNPCtrl):
 				self.send_reply('GTC', trid, ser, settings.get('GTC', 'A'))
 				self.send_reply('BLP', trid, ser, settings.get('BLP', 'AL'))
 			else:
-				num_groups = len(groups) + 1
+				num_groups = len(detail._groups_by_id.values()) + 1
 				self.send_reply('SYN', trid, ser, len(contacts), num_groups)
 				self.send_reply('GTC', settings.get('GTC', 'A'))
 				self.send_reply('BLP', settings.get('BLP', 'AL'))
@@ -382,7 +382,7 @@ class MSNPCtrlNS(MSNPCtrl):
 							self.send_reply('BPR', bpr_setting, bpr_value)
 			self.syn_sent = True
 		elif 10 <= self.dialect <= 12:
-			self.send_reply('SYN', trid, TIMESTAMP, TIMESTAMP, len(contacts), len(groups))
+			self.send_reply('SYN', trid, TIMESTAMP, TIMESTAMP, len(contacts), len(detail._groups_by_id.values()))
 			self.send_reply('GTC', settings.get('GTC', 'A'))
 			self.send_reply('BLP', settings.get('BLP', 'AL'))
 			for prp_setting in ('PHH','PHW','PHM','MOB','MBE'):
@@ -394,14 +394,14 @@ class MSNPCtrlNS(MSNPCtrl):
 			for g in detail._groups_by_id.values():
 				self.send_reply('LSG', g.name, (g.id if self.dialect == 10 else g.uuid))
 			for c in contacts.values():
-				if self.backend.util_msn_is_circle_user(c.head.uuid):
-					self.send_reply('LST', 'N={}'.format(c.head.email), 'F={}'.format(c.status.name or c.head.email), 'C={}'.format(c.head.uuid),
-						int(c.lists), (None if dialect < 12 else '1'), ','.join([(group.id if self.dialect == 10 else group.uuid) for group in c._groups.copy()])
-					)
-					for bpr_setting in ('PHH','PHM','PHW','MOB'):
-						bpr_value = c.head.settings.get(bpr_setting)
-						if bpr_value:
-							self.send_reply('BPR', bpr_setting, bpr_value)
+				#if self.backend.util_msn_is_circle_user(c.head.uuid):
+				self.send_reply('LST', 'N={}'.format(c.head.email), 'F={}'.format(c.status.name or c.head.email), 'C={}'.format(c.head.uuid),
+					int(c.lists), (None if dialect < 12 else '1'), ','.join([(group.id if self.dialect == 10 else group.uuid) for group in c._groups.copy()])
+				)
+				for bpr_setting in ('PHH','PHM','PHW','MOB'):
+					bpr_value = c.head.settings.get(bpr_setting)
+					if bpr_value:
+						self.send_reply('BPR', bpr_setting, bpr_value)
 			self.syn_sent = True
 		else:
 			self.send_reply(Err.CommandDisabled, trid)
@@ -787,12 +787,14 @@ class MSNPCtrlNS(MSNPCtrl):
 		
 		ser = self._ser()
 		
+		#TODO: `ADC` reply isn't immediately recognized by MSN 7.5 on initial contact adds. Halp.
+		
 		if self.dialect >= 10:
 			if lst == Lst.FL:
 				if group_id:
 					self.send_reply('ADC', trid, lst_name, 'C={}'.format(ctc_head.uuid), group_id)
 				else:
-					self.send_reply('ADC', trid, lst_name, 'N={}'.format(ctc.status.name or ctc_head.email), 'C={}'.format(ctc_head.uuid))
+					self.send_reply('ADC', trid, lst_name, 'N={}'.format(ctc.status.name or ctc_head.email), ('F={}'.format(ctc.status.name) if ctc.status.name else None), 'C={}'.format(ctc_head.uuid))
 			else:
 				self.send_reply('ADC', trid, lst_name, 'N={}'.format(ctc.status.name or ctc_head.email))
 		else:

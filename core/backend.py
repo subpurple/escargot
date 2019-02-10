@@ -534,7 +534,6 @@ class BackendSession(Session):
 			other_last_sess = other_sess[-1]
 			other_last_sess.me_subscribe_ab(ab_id)
 		else:
-			print('Subscribing via `set_ab_subscription`')
 			backend.user_service.set_ab_subscription(head.uuid, ab_id)
 	
 	def me_contact_add(self, contact_uuid: str, lst: Lst, *, trid: Optional[str] = None, name: Optional[str] = None, message: Optional[TextWithData] = None, group_id: Optional[str] = None, adder_id: Optional[str] = None, add_to_ab: bool = True, needs_notify: bool = False) -> Tuple[Contact, User]:
@@ -664,7 +663,7 @@ class BackendSession(Session):
 			if ctc.lists & Lst.FL:
 				ab_updated = True
 		
-		if lst & Lst.FL:
+		if lst == Lst.FL:
 			ab_updated = True
 			if group_id is not None:
 				try:
@@ -684,8 +683,7 @@ class BackendSession(Session):
 				)
 			ctc_ab.name = ctc.status.name
 			for group in ctc._groups:
-				if backend.user_service.ab_get_group_by_id('00000000-0000-0000-0000-000000000000', group.uuid, user) is not None:
-					ctc_ab.groups.add(group.uuid)
+				ctc_ab.groups.add(group.uuid)
 			self.backend.user_service.mark_ab_modified('00000000-0000-0000-0000-000000000000', { 'contacts': [ctc_ab] }, user)
 		
 		return ctc
