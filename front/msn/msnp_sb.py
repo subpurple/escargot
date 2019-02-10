@@ -327,26 +327,28 @@ def messagedata_from_msnp(sender: User, sender_pop_id: Optional[str], data: byte
 	# etc.
 	
 	try:
-		message_mime = Parser().parsestr(data.decode('utf-8'))
+		i = data.index(b'\r\n\r\n') + 4
+		headers = Parser().parsestr(data[:i].decode('utf-8'))
+		body = data[i:]
 		
-		if message_mime.get('Content-Type') is not None:
-			if message_mime['Content-Type'].startswith('text/x-msmsgscontrol'):
+		if headers.get('Content-Type') is not None:
+			if headers['Content-Type'].startswith('text/x-msmsgscontrol'):
 				type = MessageType.Typing
 				text = ''
-			elif message_mime['Content-Type'].startswith('text/x-msnmsgr-datacast'):
-				payload = message_mime.get_payload()
-				id_start = payload.index('ID:')
-				id_end = payload.index('\r\n', id_start)
-				id = payload[id_start+3:id_end].strip()
+			elif headers['Content-Type'].startswith('text/x-msnmsgr-datacast'):
+				body = body.decode('utf-8')
+				id_start = body.index('ID:') + 3
+				id_end = body.index('\r\n', id_start)
+				id = body[id_start:id_end].strip()
 				if id is '1':
 					type = MessageType.Nudge
 					text = ''
 				else:
 					type = MessageType.Chat
 					text = "(Unsupported MSNP Content-Type)"
-			elif message_mime['Content-Type'].startswith('text/plain'):
+			elif headers['Content-Type'].startswith('text/plain'):
 				type = MessageType.Chat
-				text = message_mime.get_payload()
+				text = body.decode('utf-8')
 			else:
 				type = MessageType.Chat
 				text = "(Unsupported MSNP Content-Type)"
@@ -355,7 +357,7 @@ def messagedata_from_msnp(sender: User, sender_pop_id: Optional[str], data: byte
 			text = "(Unsupported MSNP Content-Type)"
 	except:
 		type = MessageType.Chat
-		text = data.decode('utf-8')
+		text = "(Unsupported MSNP Content-Type)"
 	
 	message = MessageData(sender = sender, type = type, text = text)
 	message.front_cache['msnp'] = data
