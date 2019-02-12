@@ -11,5 +11,4 @@ git+https://gitlab.com/valtron/sqlaltery.git@0.1.0
 git+https://gitlab.com/valtron/devtls.git@0.1.0
 multidict
 pytz
-# TODO: Use `cryptography` instead
-pycryptodome
+cryptography

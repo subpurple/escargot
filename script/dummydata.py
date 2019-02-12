@@ -1,12 +1,9 @@
 from typing import Dict, List, Any, Tuple, Optional
-from Crypto.Hash import SHA1
-from Crypto.PublicKey import RSA
-from Crypto.Signature import pkcs1_15
-import base64
 from datetime import datetime
 from uuid import uuid4
 import time
 
+from util import misc
 from core.models import Lst, NetworkID
 from core.db import Base, Session, User, UserGroup, UserContact, ABStore, ABStoreContact, ABMetadata, OIM, YahooOIM, engine
 
@@ -90,10 +87,11 @@ def create_user(email: str, pw: str, name: str, message: str) -> User:
 		name = name, message = message,
 		settings = {}, subscribed_ab_stores = ['00000000-0000-0000-0000-000000000000'],
 	)
+	# TODO: Should be generated on-demand, not here
 	ticketxml = '<?xml version="1.0" encoding="utf-16"?>\r\n<Ticket xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">\r\n  <TS>{}</TS>\r\n  <CID>{}</CID>\r\n</Ticket>'.format(
 		datetime.utcnow().isoformat()[0:19] + 'Z', cid_format(user.uuid, decimal = True)
-	).encode('utf-8')
-	user.set_front_data('msn', 'circleticket', [base64.b64encode(ticketxml).decode('ascii'), base64.b64encode(pkcs1_15.new(RSA.generate(2048)).sign(SHA1.new(ticketxml))).decode('ascii')])
+	)
+	user.set_front_data('msn', 'circleticket', misc.sign_with_new_key_and_b64(ticketxml))
 	set_passwords(user, pw, support_old_msn = True, support_yahoo = True)
 	return user
 

@@ -1,10 +1,6 @@
 from typing import Dict, Optional, List, Tuple, Set, Any
 from datetime import datetime
-from Crypto.Hash import SHA1
-from Crypto.PublicKey import RSA
-from Crypto.Signature import pkcs1_15
 from urllib.parse import quote
-import base64
 import asyncio, traceback
 
 from util.hash import hasher, hasher_md5, hasher_md5crypt, gen_salt
@@ -401,13 +397,11 @@ class UserService:
 	#	ticketxml += '  <TS>{}</TS>\r\n  <CID>{}</CID>\r\n</Ticket>'.format(
 	#		datetime.utcnow().isoformat()[0:19] + 'Z', cid,
 	#	)
-	#	ticketxml = ticketxml.encode('utf-8')
 	#	# Possible system of signature creation:
 	#	# - SHA-1 hash ticket XML (judging from the fact that `CircleTicket` is used in `USR SHA`, and MS seems to have a history of favouring SHA-1)
 	#	# - Signatures from samples were 256 bytes long, or 2048 bits long, possibly leading to RSA-2048
 	#	# - In that case, sign SHA-1 hash with RSA-2048
-	#	ticketxml_sig = pkcs1_15.new(RSA.generate(2048)).sign(SHA1.new(ticketxml))
-	#	return base64.b64encode(ticketxml).decode('ascii'), base64.b64encode(ticketxml_sig).decode('ascii')
+	#	return *misc.sign_with_new_key_and_b64(ticketxml)
 	#
 	#def msn_get_circleticket(self, uuid: str) -> Optional[List[str]]:
 	#	with Session() as sess:

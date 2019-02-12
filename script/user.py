@@ -33,14 +33,10 @@ def main(email: str, *, oldmsn: bool = False, yahoo: bool = False) -> None:
 			sess.add(abstore)
 			
 			# TODO: Should be generated on-demand, not here
-			import base64
-			from Crypto.Hash import SHA1
-			from Crypto.PublicKey import RSA
-			from Crypto.Signature import pkcs1_15
 			ticketxml = '<?xml version="1.0" encoding="utf-16"?>\r\n<Ticket xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">\r\n  <TS>{}</TS>\r\n  <CID>{}</CID>\r\n</Ticket>'.format(
 				now.isoformat()[0:19] + 'Z', cid_format(user.uuid, decimal = True)
-			).encode('utf-8')
-			user.set_front_data('msn', 'circleticket', [base64.b64encode(ticketxml).decode('ascii'), base64.b64encode(pkcs1_15.new(RSA.generate(2048)).sign(SHA1.new(ticketxml))).decode('ascii')])
+			)
+			user.set_front_data('msn', 'circleticket', misc.sign_with_new_key_and_b64(ticketxml))
 		else:
 			print("User exists, changing password...")
 		pw = getpass.getpass("Password: ")
