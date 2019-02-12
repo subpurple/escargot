@@ -1,76 +1,125 @@
-from core.session import Session, SessionState
+from typing import Optional, Dict, Any
+import asyncio
+import random
+
 from core.client import Client
-from core.models import Substatus, Lst
+from core.models import Substatus, Lst, Contact, User, NetworkID, TextWithData, MessageData, MessageType, LoginOption
+from core.backend import Backend, BackendSession, Chat, ChatSession
 from core import event
 
-CLIENT = Client('testbot', '0.1')
+CLIENT = Client('testbot', '0.1', 'direct')
 BOT_EMAIL = 'test@bot.log1p.xyz'
 
-def register(loop, backend):
-	state = Bot_NS_SessState(backend)
-	sess = DirectSession(state)
-	sess.client = CLIENT
-	backend.login_IKWIAD(sess, BOT_EMAIL)
-	backend.me_update(sess, { 'substatus': Substatus.NLN })
-	
-	user = sess.user
-	uuid = backend.util_get_uuid_from_email('test1@example.com')
-	if uuid not in user.detail.contacts:
-		backend.me_contact_add(sess, uuid, Lst.FL, "Test 1")
-		backend.me_contact_add(sess, uuid, Lst.AL, "Test 1")
+def register(loop: asyncio.AbstractEventLoop, backend: Backend) -> None:
+	uuid = backend.util_get_uuid_from_email(BOT_EMAIL)
+	assert uuid is not None
+	bs = backend.login(uuid, CLIENT, BackendEventHandler(loop), option = LoginOption.BootOthers)
+	assert bs is not None
+	bs.front_data['msn_capabilities'] = 32
+	bs.front_data['msn_capabilitiesex'] = 0
 
-class DirectSession(Session):
-	def send_event(self, outgoing_event):
-		self.state.apply_outgoing_event(outgoing_event, self)
-
-class Bot_NS_SessState(SessionState):
-	def __init__(self, backend):
-		super().__init__()
-		self.backend = backend
-		self.chats = []
+class BackendEventHandler(event.BackendEventHandler):
+	__slots__ = ('loop', 'bs')
 	
-	def get_sb_extra_data(self):
-		return {}
+	loop: asyncio.AbstractEventLoop
+	bs: BackendSession
 	
-	def apply_outgoing_event(self, outgoing_event, sess: Session) -> None:
-		if isinstance(outgoing_event, event.InvitedToChatEvent):
-			cs = DirectSession(Bot_SB_SessState(self.backend))
-			data = self.backend.login_cal(cs, BOT_EMAIL, outgoing_event.token, outgoing_event.chatid)
-			if data:
-				chat, _ = data
-				self.chats.append(chat)
-				cs.state.chat = chat
-				chat.send_message_to_everyone(cs, (MSG_HEADER + "Hello, world!").encode('utf-8'))
+	def __init__(self, loop: asyncio.AbstractEventLoop) -> None:
+		self.loop = loop
+	
+	def on_open(self) -> None:
+		bs = self.bs
+		
+		bs.me_update({ 'substatus': Substatus.Online })
+		print("Bot active:", bs.user.status.name)
+		
+		detail = bs.user.detail
+		assert detail is not None
+		
+		uuid = bs.backend.util_get_uuid_from_email('test1@example.com')
+		if uuid is None:
 			return
-		print("NS outgoing", outgoing_event)
+		
+		if uuid not in detail.contacts:
+			bs.me_contact_add(uuid, Lst.FL, name = "Test 1")
+			bs.me_contact_add(uuid, Lst.AL, name = "Test 1")
 	
-	def on_connection_lost(self, sess: Session) -> None:
-		self.backend.on_leave(sess)
-
-MSG_HEADER = '''
-MIME-Version: 1.0
-Content-Type: text/plain; charset=UTF-8
-X-MMS-IM-Format: FN=MS%20Shell%20Dlg; EF=; CO=0; CS=0; PF=0
-
-'''.replace('\n', '\r\n')
-
-class Bot_SB_SessState(SessionState):
-	def __init__(self, backend):
-		super().__init__()
-		self.backend = backend
-		self.chat = None
+	def on_maintenance_boot(self) -> None:
+		pass
 	
-	def apply_outgoing_event(self, outgoing_event, sess: Session) -> None:
-		if isinstance(outgoing_event, event.ChatMessage):
-			sender = outgoing_event.user_sender
-			data = outgoing_event.data.decode('utf-8')
-			if 'Content-Type: text/plain' not in data:
-				return
-			data = data.split('\r\n\r\n')[-1]
-			msg = "You, {}, insist that \"{}\".".format(sender.status.name, data)
-			self.chat.send_message_to_everyone(sess, (MSG_HEADER + msg).encode('utf-8'))
+	def on_presence_notification(self, bs_other: Optional[BackendSession], ctc: Contact, old_substatus: Substatus, on_contact_add: bool, *, trid: Optional[str] = None, update_status: bool = True, send_status_on_bl: bool = False, visible_notif: bool = True, updated_phone_info: Optional[Dict[str, Any]] = None, circle_user_bs: Optional[BackendSession] = None, circle_id: Optional[str] = None) -> None:
+		pass
+	
+	def on_presence_self_notification(self) -> None:
+		pass
+	
+	def on_chat_invite(self, chat: Chat, inviter: User, *, inviter_id: Optional[str] = None, invite_msg: str = '') -> None:
+		cs = chat.join('testbot', self.bs, ChatEventHandler(self.loop, self.bs))
+		chat.send_participant_joined(cs)
+	
+	def on_added_me(self, user: User, *, adder_id: Optional[str] = None, message: Optional[TextWithData] = None) -> None:
+		pass
+	
+	def on_contact_request_denied(self, user_added: User, message: Optional[str], *, contact_id: Optional[str] = None) -> None:
+		pass
+	
+	def ymsg_on_p2p_msg_request(self, yahoo_data: Dict[str, Any]) -> None:
+		pass
+	
+	def on_login_elsewhere(self, option: LoginOption) -> None:
+		pass
+
+class ChatEventHandler(event.ChatEventHandler):
+	__slots__ = ('loop', 'bs', 'cs', '_sending')
+	
+	loop: asyncio.AbstractEventLoop
+	bs: BackendSession
+	cs: ChatSession
+	_sending: bool
+	
+	def __init__(self, loop: asyncio.AbstractEventLoop, bs: BackendSession) -> None:
+		self.loop = loop
+		self.bs = bs
+		self._sending = False
+	
+	def on_open(self) -> None:
+		self.cs.send_message_to_everyone(MessageData(
+			sender = self.cs.user,
+			type = MessageType.Chat,
+			text = "Hello, world!",
+		))
+	
+	def on_participant_joined(self, cs_other: ChatSession, first_pop: bool) -> None:
+		pass
+	
+	def on_participant_left(self, cs_other: ChatSession, idle: bool, last_pop: bool) -> None:
+		pass
+	
+	def on_invite_declined(self, invited_user: User, *, invited_id: Optional[str] = None, message: str = '') -> None:
+		pass
+	
+	def on_message(self, message: MessageData) -> None:
+		if message.type is not MessageType.Chat:
 			return
-		print("SB outgoing", outgoing_event)
+		
+		if self._sending:
+			return
+		
+		if message.sender.email.endswith('@bot.log1p.xyz'):
+			return
+		
+		me = self.cs.user
+		self._sending = True
+		
+		typing_message = MessageData(sender = me, type = MessageType.Typing)
+		self.cs.send_message_to_everyone(typing_message)
+		
+		self.loop.create_task(self._send_delayed(random.uniform(0.5, 1), MessageData(
+			sender = me, type = MessageType.Chat,
+			text = "You, {}, insist that \"{}\".".format(message.sender.status.name, message.text),
+		)))
 	
-	def on_connection_lost(self, sess: Session) -> None:
-		self.chat.on_leave(sess)
+	async def _send_delayed(self, delay: float, message: MessageData) -> None:
+		await asyncio.sleep(delay, loop = self.loop)
+		self.cs.send_message_to_everyone(message)
+		self._sending = False

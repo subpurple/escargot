@@ -12,21 +12,68 @@
 	DEBUG_MSNP = True
 	DEBUG_HTTP_REQUEST = True
 	```
-- run `python cmd/dbcreate.py`; if you get `ModuleNotFoundError: No module named '...'`, add `export PYTHONPATH=".;$PYTHONPATH"` in your `.bashrc`
-- run `python cmd/dummydata.py` (creates a few dummy accounts, check the file to see what they are/their passwords)
-- to create users, run `python cmd/user.py -h` for instructions
-- for MSN <= 7.5, use a **patched** install, and in your `HOSTS` add `127.0.0.1 m1.escargot.log1p.xyz`
-- for WLM, use a 8.1.0178 **clean** install, replace [msidcrl40.dll](https://storage.googleapis.com/escargot-storage-1/public/msidcrl.dll), and in your `HOSTS` add:
+	- if you want to enable YMSG support, set the following option:
 	```
+	ENABLE_FRONT_YMSG = True
+	```
+- run `python script/dbcreate.py`; if you get `ModuleNotFoundError: No module named '...'`, add `export PYTHONPATH=".;$PYTHONPATH"` in your `.bashrc`
+- run `python script/dummydata.py` (creates a few dummy accounts, passwords are all "123456")
+
+- to create users, run `python script/user.py -h` for instructions
+
+## MSN
+
+- for 4.7.2009 and 4.7.3001, use a **clean** install, and in your `HOSTS` add:
+	```
+	127.0.0.1 m1.escargot.log1p.xyz
 	127.0.0.1 messenger.hotmail.com
 	127.0.0.1 gateway.messenger.hotmail.com
+	127.0.0.1 nexus.passport.com
+	```
+- for 5.0 - 7.5, use a **patched** install, and in your `HOSTS` add `127.0.0.1 m1.escargot.log1p.xyz`
+	- **(6.0+ only):** add `127.0.0.1 ebyrdromegactcsmsn.log1p.xyz` in your `HOSTS`
+- for WLM:
+	- 8.1.0178 and 8.5.1302: use a **patched** install, and in your `HOSTS` add:
+	```
+	127.0.0.1 m1.escargot.log1p.xyz
+	127.0.0.1 ebyrdromegactcsmsn.log1p.xyz
+	127.0.0.1 etkrdrstmsn.log1p.xyz
+	127.0.0.1 eowsmsgrmsn.log1p.xyz
+	127.0.0.1 ersih.log1p.xyz
+	```
+	- 14.0.8117.0416: use a **clean** install of the Messenger MSI, install the [Windows Live Communications Platform](http://messenger.jonathankay.com/redir/w3qfe2update/contacts.asp), and in your `HOSTS` add:
+	```
+	127.0.0.1 m1.escargot.log1p.xyz
+	127.0.0.1 messenger.hotmail.com
+	127.0.0.1 login.live.com
+	127.0.0.1 gateway.messenger.hotmail.com
 	127.0.0.1 byrdr.omega.contacts.msn.com
+	127.0.0.1 ebyrdromegactcsmsn.log1p.xyz
 	127.0.0.1 config.messenger.msn.com
 	127.0.0.1 tkrdr.storage.msn.com
 	127.0.0.1 ows.messenger.msn.com
 	127.0.0.1 rsi.hotmail.com
 	```
-- run `python dev`
+	(Note about the `127.0.0.1 login.live.com` entry: **BE SURE TO REMOVE IT OR COMMENT IT OUT AFTER TESTING OR ELSE YOU WON'T BE ABLE TO LOG ON TO ANY OFFICIAL MICROSOFT SERVICES!!**)
+
+## Yahoo!
+
+- for version 5.5, use a **clean** install and patch the following registry values:
+	- `HKEY_CURRENT_USER\SOFTWARE\Yahoo\Pager\IPLookup` -> `127.0.0.1,127.0.0.1`
+	- `HKEY_CURRENT_USER\SOFTWARE\Yahoo\Pager\socket server` -> `localhost`
+	- `HKEY_CURRENT_USER\SOFTWARE\Yahoo\Pager\FileTransfer\Server Name` -> `localhost`
+
+- and also, in your `HOSTS`, add:
+	```
+	127.0.0.1 scs.msg.yahoo.com
+	127.0.0.1 rd.yahoo.com
+	127.0.0.1 insider.msg.yahoo.com
+	127.0.0.1 chat.yahoo.com
+	127.0.0.1 msg.edit.yahoo.com
+	127.0.0.1 filetransfer.msg.yahoo.com
+	```
+
+- run `python dev` to start the dev server
 
 The **first time** you run `python dev`, a root certificate `DO_NOT_TRUST_DevTLS_Escargot.crt` is created in `.devtls_cache`,
 it tells you to install it, and exits. To install (on Windows):
@@ -50,6 +97,11 @@ if you're testing those versions. It's located:
 All generated certificates expire after 30 days for "security" purposes (i.e. I didn't
 set it to a long period of time so as to not open anyone up to... vulnerabilities...
 if they forget to uninstall the root certificate).
+
+## Typechecking/MyPy
+
+Take advantage of [mypy](https://mypy-lang.org) by adding type annotations.
+Run `mypy dev` to typecheck, and do your best to ensure your commits contain no typechecking errors.
 
 ## Testing
 

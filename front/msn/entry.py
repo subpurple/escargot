@@ -1,54 +1,57 @@
+from typing import Optional, Callable
 import asyncio
 
-from core.session import PersistentSession
+from aiohttp import web
+
+from core.backend import Backend
 from util.misc import Logger
 
-from .msnp import MSNPReader, MSNPWriter
+from .msnp import MSNPCtrl
 
-def register(loop, backend, *, http_port = None, devmode = False):
-	from util.misc import AIOHTTPRunner, ProtocolRunner
-	from .http import create_app
-	from .msnp import MSNP_NS_SessState, MSNP_SB_SessState
+def register(loop: asyncio.AbstractEventLoop, backend: Backend, http_app: web.Application) -> None:
+	from util.misc import ProtocolRunner
+	from . import msnp_ns, msnp_sb, http, http_gateway, http_sound
 	
-	assert http_port, "Please specify `http_port`."
-	
-	if devmode:
-		http_host = '0.0.0.0'
-	else:
-		http_host = '127.0.0.1'
-	
-	backend.add_runner(ProtocolRunner('0.0.0.0', 1863, ListenerMSNP, args = ['NS', backend, MSNP_NS_SessState]))
-	backend.add_runner(ProtocolRunner('0.0.0.0', 1864, ListenerMSNP, args = ['SB', backend, MSNP_SB_SessState]))
-	backend.add_runner(AIOHTTPRunner(http_host, http_port, create_app(backend)))
-	if devmode:
-		from devtls import DevTLS
-		devtls = DevTLS('Escargot')
-		ssl_context = devtls.create_ssl_context()
-		backend.add_runner(AIOHTTPRunner(http_host, 443, create_app(backend), ssl = ssl_context))
+	backend.add_runner(ProtocolRunner('0.0.0.0', 1863, ListenerMSNP, args = ['NS', backend, msnp_ns.MSNPCtrlNS]))
+	backend.add_runner(ProtocolRunner('0.0.0.0', 1864, ListenerMSNP, args = ['SB', backend, msnp_sb.MSNPCtrlSB]))
+	http.register(http_app)
+	http_gateway.register(loop, http_app)
+	http_sound.register(http_app)
 
 class ListenerMSNP(asyncio.Protocol):
-	def __init__(self, logger_prefix, backend, sess_state_factory):
+	logger: Logger
+	backend: Backend
+	controller: MSNPCtrl
+	transport: Optional[asyncio.WriteTransport]
+	
+	def __init__(self, logger_prefix: str, backend: Backend, controller_factory: Callable[[Logger, str, Backend], MSNPCtrl]) -> None:
 		super().__init__()
-		self.logger_prefix = logger_prefix
+		self.logger = Logger(logger_prefix, self)
 		self.backend = backend
-		self.sess_state_factory = sess_state_factory
+		self.controller = controller_factory(self.logger, 'direct', backend)
+		self.controller.close_callback = self._on_close
 		self.transport = None
-		self.logger = None
-		self.sess = None
 	
-	def connection_made(self, transport):
+	def connection_made(self, transport: asyncio.BaseTransport) -> None:
+		assert isinstance(transport, asyncio.WriteTransport)
 		self.transport = transport
-		self.logger = Logger(self.logger_prefix, transport)
-		sess_state = self.sess_state_factory(MSNPReader(self.logger), self.backend)
-		self.sess = PersistentSession(sess_state, MSNPWriter(self.logger, sess_state), transport)
 		self.logger.log_connect()
+		self.controller.on_connect()
 	
-	def connection_lost(self, exc):
+	def connection_lost(self, exc: Exception) -> None:
+		self.controller.close(hard = True)
 		self.logger.log_disconnect()
-		self.sess.close()
-		self.sess = None
-		self.logger = None
 		self.transport = None
 	
-	def data_received(self, data):
-		self.sess.state.data_received(data, self.sess)
+	def data_received(self, data: bytes) -> None:
+		transport = self.transport
+		assert transport is not None
+		# Setting `transport` to None so all data is held until the flush
+		self.controller.transport = None
+		self.controller.data_received(transport, data)
+		transport.write(self.controller.flush())
+		self.controller.transport = transport
+	
+	def _on_close(self) -> None:
+		if self.transport is None: return
+		self.transport.close()

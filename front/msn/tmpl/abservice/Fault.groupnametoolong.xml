@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+	<soap:Body>
+		<soap:Fault>
+			<faultcode>soap:Client</faultcode>
+			<faultstring>Argument Exceeded Allowed Length GroupName exceeded length</faultstring>
+			<faultactor>http://www.msn.com/webservices/AddressBook/{{ action_str }}</faultactor>
+			<detail>
+				<errorcode xmlns="http://www.msn.com/webservices/AddressBook">BadArgumentLength</errorcode>
+				<errorstring xmlns="http://www.msn.com/webservices/AddressBook">Argument Exceeded Allowed Length GroupName exceeded length</errorstring>
+				<parameterFault xmlns="http://www.msn.com/webservices/AddressBook">GroupName</parameterFault>
+				<machineName xmlns="http://www.msn.com/webservices/AddressBook">BAYABCHWBB143</machineName>
+				<additionalDetails>
+					<originalExceptionErrorMessage>Argument Exceeded Allowed Length GroupName exceeded length</originalExceptionErrorMessage>
+				</additionalDetails>
+			</detail>
+		</soap:Fault>
+	</soap:Body>
+</soap:Envelope>

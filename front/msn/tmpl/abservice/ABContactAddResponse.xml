@@ -2,15 +2,17 @@
 <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
 	<soap:Header>
 		<ServiceHeader xmlns="http://www.msn.com/webservices/AddressBook">
-			<Version>12.01.0920.0001</Version>
+			<Version>15.01.1408.0000</Version>
 			<CacheKey>12r1:{{ cachekey }}</CacheKey>
 			<CacheKeyChanged>true</CacheKeyChanged>
+			<PreferredHostName>{{ host }}</PreferredHostName>
+			<SessionId>{{ session_id }}</SessionId>
 		</ServiceHeader>
 	</soap:Header>
 	<soap:Body>
 		<ABContactAddResponse xmlns="http://www.msn.com/webservices/AddressBook">
 			<ABContactAddResult>
-				<guid>665906c3-6b12-4dd9-9c86-3a56d3953327</guid>
+				<guid>{{ contact_uuid }}</guid>
 			</ABContactAddResult>
 		</ABContactAddResponse>
 	</soap:Body>

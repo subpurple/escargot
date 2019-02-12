@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+	<soap:Body>
+		<soap:Fault>
+			<faultcode>soap:Client</faultcode>
+			<faultstring>Malformed email Argument Email missing '@' character</faultstring>
+			<faultactor>http://www.msn.com/webservices/AddressBook/ABContactAdd</faultactor>
+			<detail>
+				<errorcode xmlns="http://www.msn.com/webservices/AddressBook">BadEmailArgument</errorcode>
+				<errorstring xmlns="http://www.msn.com/webservices/AddressBook">Malformed email Argument Email missing '@' character</errorstring>
+				<machineName xmlns="http://www.msn.com/webservices/AddressBook">BAYABCHWBB136</machineName>
+				<additionalDetails>
+					<originalExceptionErrorMessage>Malformed email Argument Email missing '@' character</originalExceptionErrorMessage>
+				</additionalDetails>
+			</detail>
+		</soap:Fault>
+	</soap:Body>
+</soap:Envelope>

@@ -1,0 +1,596 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<MsgrConfig>
+	<Brands>
+		<Client v="def" bv="1.0.1.0">
+			<b i="FT01" v="1.0.5.0" f="FT01_fr-fr_R4.cab" u="http://g.msn.com/0USWLPIT/9" p="FT01" />
+			<b i="Q002" v="1.0.0.1" f="Q002_en-us_P10.cab" u="http://g.msn.com/0USWLPIT/5" p="Q001" />
+			<b i="VZ03" v="1.0" f="VZ03_en-us_VZ03_R7.cab" u="http://g.msn.com/0USWLPIT/11" p="VZ02" />
+		</Client>
+		<Client v="2" CDNVER="http://cba.domains.live.com/cdn1" CDNCAB="http://cba.domains.live.com/cdn3" CDNPRV="http://cba.domains.live.com/prvw" />
+		<Client v="3" CDNVER="http://cba.domains.live.com/cdn1" CDNCAB="http://cba.domains.live.com/cdn3" CDNPRV="http://cba.domains.live.com/prvw" />
+	</Brands>
+	<Simple>
+		<Config><ExpiresInDays>0</ExpiresInDays></Config>
+		<P2PConfig>
+			<ObjectStore><SendDelay>1</SendDelay></ObjectStore>
+		</P2PConfig>
+		<DisablePhoneDialer>1</DisablePhoneDialer>
+		<GetItemVersionForUnknown>false</GetItemVersionForUnknown>
+		<Logitech>
+			<PremiumAVConfigServer>http://mplocate.spotlife.net/locate.sxml</PremiumAVConfigServer>
+			<PreRollEnabled>0</PreRollEnabled>
+			<WebcamConfigServer>http://mlocate.spotlife.net/locate.sxml</WebcamConfigServer>
+		</Logitech>
+		<MinFlashPlayer BuildNumber="28" MajorVersion="9" MinorVersion="0" />
+		<Relay>
+			<Enabled>0</Enabled>
+			<MaxCallLength>0</MaxCallLength>
+		</Relay>
+		<Contacts>
+			<Client ZombieServerDetectDelay="1800" ZombieServerDetectInterval="30" ZombieServerDetectResumeDelay="1800" ZombieServerDetectDelayW4="180" ZombieServerDetectIntervalW4="30" ZombieServerDetectResumeDelayW4="180" />
+			<Server ZombieServerDetectDelay="900" ZombieServerDetectResumeDelay="900" ZombieServerDetectConnectDelay="900" ZombieServerDetectLongDelay="900" ZombieServerDetectDelayW4="45" ZombieServerDetectResumeDelayW4="600" ZombieServerDetectConnectDelayW4="135" ZombieServerDetectLongDelayW4="450" />
+		</Contacts>
+		<TrustedDomains>
+			<domain name="wink.messengergeek.com" />
+			<domain name="messengergeek.com" />
+			<domain name="escargot.log1p.xyz" />
+		</TrustedDomains>
+		<ErrorResponseTable>
+			<Feature type="0" name="Login">
+				<Entry hr="*" action="3" />
+				<Entry hr="0x80048849" action="5" />
+				<Entry hr="0x8004882A" action="5" />
+				<Entry hr="0x80048800" action="5" />
+				<Entry hr="0x8004889C" action="5" />
+				<Entry hr="0x80048831" action="5" />
+				<Entry hr="0x81000306" action="5" />
+				<Entry hr="0x80048862" action="5" />
+				<Entry hr="0x800488EB" action="5" />
+				<Entry hr="0x80048848" action="5" />
+				<Entry hr="0x80004002" action="3" />
+				<Entry hr="0x80004004" action="3" />
+				<Entry hr="0x80004005" action="3" />
+				<Entry hr="0x8000402A" action="3" />
+				<Entry hr="0x8000FFFF" action="3" />
+				<Entry hr="0x8001012E" action="3" />
+				<Entry hr="0x80040200" action="3" />
+				<Entry hr="0x80048051" action="3" />
+				<Entry hr="0x80048820" action="5" />
+				<Entry hr="0x80048823" action="3" />
+				<Entry hr="0x80070002" action="3" />
+				<Entry hr="0x80070005" action="3" />
+				<Entry hr="0x8007000E" action="3" />
+				<Entry hr="0x80070057" action="3" />
+				<Entry hr="0x8007007E" action="3" />
+				<Entry hr="0x800702E4" action="3" />
+				<Entry hr="0x800706BA" action="3" />
+				<Entry hr="0x800706BE" action="3" />
+				<Entry hr="0x80071392" action="3" />
+				<Entry hr="0x80072745" action="3" />
+				<Entry hr="0x80072746" action="3" />
+				<Entry hr="0x80072EE2" action="3" />
+				<Entry hr="0x80072EF3" action="3" />
+				<Entry hr="0x80072EFD" action="3" />
+				<Entry hr="0x80072EFF" action="3" />
+				<Entry hr="0x80072F06" action="3" />
+				<Entry hr="0x80072F7D" action="3" />
+				<Entry hr="0x800C013E" action="3" />
+				<Entry hr="0x80191002" action="3" />
+				<Entry hr="0x8100030D" action="3" />
+				<Entry hr="0x81000314" action="3" />
+				<Entry hr="0x81000362" action="3" />
+				<Entry hr="0x81000378" action="3" />
+				<Entry hr="0x81000395" action="3" />
+				<Entry hr="0x85AE000B" action="3" />
+				<Entry hr="0x85AE000F" action="3" />
+				<Entry hr="0x85AE001D" action="3" />
+				<Entry hr="0x85AE0022" action="3" />
+				<Entry hr="0x85AE0024" action="3" />
+				<Entry hr="0x85AE0027" action="3" />
+				<Entry hr="0x85AE003C" action="3" />
+				<Entry hr="0x85AE0053" action="3" />
+				<Entry hr="0x8E5E0152" action="3" />
+				<Entry hr="0x8E5E0158" action="3" />
+				<Entry hr="0x8E5E0211" action="3" />
+				<Entry hr="0x8E5E0220" action="3" />
+				<Entry hr="0x8E5E0226" action="3" />
+				<Entry hr="0x8E5E03FE" action="3" />
+				<Entry hr="0x8E5E0408" action="3" />
+				<Entry hr="0x8E5E05F6" action="3" />
+				<Entry hr="0x8E5E0710" action="3" />
+				<Entry hr="0x8E5E0713" action="3" />
+			</Feature>
+			<Feature type="2" name="MapFile">
+				<Entry hr="0x810003F1" action="3" />
+				<Entry hr="0x810003F6" action="3" />
+			</Feature>
+			<Feature type="3" name="P2P">
+				<Entry hr="0x82000016" action="3" />
+				<Entry hr="0x82000017" action="3" />
+				<Entry hr="0x82000019" action="3" />
+				<Entry hr="0x8200001b" action="3" />
+				<Entry hr="0x8200001d" action="3" />
+				<Entry hr="0x8200001e" action="3" />
+				<Entry hr="0x82000024" action="3" />
+				<Entry hr="0x82000026" action="3" />
+			</Feature>
+			<Feature type="5" name="VoiceVideo">
+				<Entry hr="*" action="3" />
+			</Feature>
+		</ErrorResponseTable>
+		<USBDevices>
+			<Device VID="0x045e" PID="0x0719" />
+			<Device VID="0x045e" PID="0x070F" />
+			<Device VID="0x045e" PID="0x0772" />
+			<Device VID="0x041e" PID="0x4080" />
+			<Device VID="0x041e" PID="0x4083" />
+			<Device VID="0x041e" PID="0x4088" />
+			<Device VID="0x041e" PID="0x4087" />
+			<Device VID="0x041e" PID="0x4086" />
+		</USBDevices>
+		<VoiceVideo><Log PeerLogDisable="1" /></VoiceVideo>
+		<AnonymousIMSettings><SettingsPage URL="http://settings.messenger.live.com/applications/WebSettings.aspx" SiteID="76215" /></AnonymousIMSettings>
+		<SAC SiteID="73625" />
+		<InlineFlashEnabled>1</InlineFlashEnabled>
+		<Badgewhitelist>
+			<Badge hash="rjRj6/uxqE/vvn4pKy3nQsZ2tcU=" />
+			<Badge hash="9lfw5+i0VZl9Vg7y5Un2OlJmtfs=" />
+			<Badge hash="37ryp9MdaDZjOiv4goIAeWK0EX8=" />
+			<Badge hash="bg4dyWk7FEhW5vh3FrGxr7xw+mg=" />
+			<Badge hash="h8tLlwWUls1wgiFYbjVZBzs5mW0=" />
+			<Badge hash="4rzC8sYjtzAbzVYZcB4wvxMhbVg=" />
+			<Badge hash="vVenvAzv1l+nEMf62r5+n6DCIn0=" />
+			<Badge hash="vjJ3jVT690ORqHHhBgrYsMK5DOw=" />
+			<Badge hash="Yxv7pB8BkosiGNn0oGsXryPkGwk=" />
+			<Badge hash="mChdOIxTCBtxBPa+jrB8wwUs5gw=" />
+			<Badge hash="4Dyw5JiNMjquWPruSAHEFwYq/Gs=" />
+			<Badge hash="D9vI4Cg6dxswaI8CWe4OyBnLe9I=" />
+			<Badge hash="ZPa3APVAtDXHZWkXMuqvHJ7d1Oc=" />
+			<Badge hash="6on/QiZ+oCinkJoZ46kJUUuOJOU=" />
+			<Badge hash="m1RNenPjuuPi5K9J8URF+s1t1RA=" />
+			<Badge hash="IOGiVO3tySKcci62UN5cm3HWpu8=" />
+			<Badge hash="BozySP9KXMkBFD7yhU5dtFk7uhY=" />
+			<Badge hash="LTNH5f05qB2H50imy+Ofaw+/qw8=" />
+			<Badge hash="uaTtuyeo5QU4Dh4yARAW6cW3aUo=" />
+			<Badge hash="0KCUWpJSsZYCQgXY+06ByEJ/ERI=" />
+			<Badge hash="nCD9/B5c201fF/Ot7zZZ7/INJA0=" />
+			<Badge hash="MS85a24EPxmX+7ipb1ofZtSw/ko=" />
+			<Badge hash="Nrwqt5rMHklRx5LKEpjehMpVn+A=" />
+			<Badge hash="/7MKmbMzmONaycoG7VNPAEkdr00=" />
+			<Badge hash="EsQACwRq6NCL+JWAa9AAH2BaMsY=" />
+			<Badge hash="ar31hczEYl/sslkX18zI0m/xdrY=" />
+			<Badge hash="Je/d+h4PT/70+WDGjPzkmZjPy+g=" />
+			<Badge hash="YrKxRZWQpZtNor7QNEZXl4X5Heg=" />
+			<Badge hash="tFoZo2fLXgK90oyYmDT8CvY3LxM=" />
+			<Badge hash="WMyxo0KoI3PvGQtjGyFLYN3GWWw=" />
+			<Badge hash="/W2q6gP4iHjdUW/pX3m3VPgUlzM=" />
+			<Badge hash="++OrIUsKfFdF0n4XQeYFcJIMS2E=" />
+			<Badge hash="R04oPazPd6h9I8KphgLUK0zccXE=" />
+			<Badge hash="QvaYObfDCYnqJ7PY1xehXK1h7Vg=" />
+			<Badge hash="M7K5ogpIQeUwRYj5F8fyZN+7yG8=" />
+			<Badge hash="ev1TxfBsXT71YaxkwJ1qLWxTvqM=" />
+			<Badge hash="AVL5/uKTExH58MBBif46FwDeIlI=" />
+			<Badge hash="zI4RpERkOV8EIPe8GgVuMP/zsAU=" />
+			<Badge hash="w+OPDFW9zUCophcUHzCD9vJkWPo=" />
+			<Badge hash="LTSltKJuhiAXwEnYnhdhlGwCeh4=" />
+			<Badge hash="Q35ITEMaQZoU6HaJ1O0f/B0t9gs=" />
+			<Badge hash="4MFANR59I364LscZCocBADKMaUU=" />
+			<Badge hash="XnMhTovzcp1yO7TI5IVKLHJPZno=" />
+			<Badge hash="hy6tBPFM3KZqYlgPi2kw9fO4aL4=" />
+			<Badge hash="2U8bFTklft9mQGSS+3VHyVy1/qI=" />
+			<Badge hash="6ySHnh8am+tzkXatxFb6Vx4HAtM=" />
+			<Badge hash="c7oW3xGrDlI8ql+YkLgCzPvk1Go=" />
+			<Badge hash="P2APQpiwcXrEw9tJBsmWi3eYjIg=" />
+			<Badge hash="GfElAXMjFzqJRf+Svfs+1yohnGY=" />
+			<Badge hash="3K2D6zrXvnH+IxEDRM6YMHpxJXY=" />
+			<Badge hash="fH3GjN36mUl4SfjH/YOg1PxLOy4=" />
+			<Badge hash="VykdBqtwjFhb0kAziDpQiVnNM+k=" />
+			<Badge hash="kChHfLheceJaxMUZuob+MpChxbw=" />
+			<Badge hash="ilK3EQV7GZlrKbu/Y1pQal2jKp8=" />
+			<Badge hash="lBH9pWvBC5FlxwHcSK4U4USI07s=" />
+			<Badge hash="ZQw+11+6G4OF9n7WguZz5XM035o=" />
+			<Badge hash="YRvlze90juOgqdIImAL90KgthZ0=" />
+			<Badge hash="EWBDbmbSZn+r1Ee13P1H2ZIwklA=" />
+			<Badge hash="ev41Sv7dau+RxTmiLIVPzBZgCKk=" />
+			<Badge hash="U3X1CvuODydEc0c9O8LICplqrzU=" />
+			<Badge hash="dpZnQqLhm5JEJ7TZlo3FPN5kKWw=" />
+			<Badge hash="/CvHtempHoYoEMur6bScpPBGjcY=" />
+			<Badge hash="PFQWQP240DAcKmGB2gZTmIzGB/0=" />
+			<Badge hash="VO6iXf+HzW2D9Nm6T5u71EpuCgU=" />
+			<Badge hash="fZ1VxCqTXg0wV6zm8gYt7w5WSQc=" />
+			<Badge hash="jfsnDFCvl09McP1Br6H+hho4znA=" />
+			<Badge hash="bq1wJWeiazVvfoIxbSdWV7vzy0U=" />
+			<Badge hash="y2oc1eUgoaMwPV8QkvC39su8le8=" />
+			<Badge hash="EOo7KM22cAfqmVflDu/m9QN7+tM=" />
+			<Badge hash="SmFxh5fKxUXpdKe3oYBk+9XGxPY=" />
+			<Badge hash="qfuRXhwfj6PgymM6v4FeAsOzT10=" />
+			<Badge hash="IDxgi5cKtmbg9zJkjmHCv506RNI=" />
+			<Badge hash="KbDnLWZ01Yx6sfgVNF9VWdiChdw=" />
+			<Badge hash="Al36d4x0D/Xo/REBrUuGu/KGfMY=" />
+			<Badge hash="wvnUBXTaSOJGJQnH3niVR7PuTFA=" />
+			<Badge hash="pLGINH4WCAYW8J9FfpbJK8m5oGs=" />
+			<Badge hash="zHEh3OWpQWrjgNvbopyCw+OxHh8=" />
+			<Badge hash="wl9ahNztgc7DyDmjvfvD4TbnR0Y=" />
+			<Badge hash="LUzgr93YJwd3w4KPlnwNXFTc4RQ=" />
+			<Badge hash="lc8grXfzFPqLwqh36wRJwaolSqs=" />
+			<Badge hash="Y8gVMD3mERPg6mqvjrGAM/ypPrU=" />
+			<Badge hash="5/UHrvCLwBvNuDxwtO3V+6/pI7I=" />
+			<Badge hash="ZmqV0xhXvap+LlZwooJHxy/q4n0=" />
+			<Badge hash="RtTjDZnXqog8JPCmuZkg1wwezPQ=" />
+			<Badge hash="qt7d1rBxs8dAOn7iY0HsxITbLXw=" />
+			<Badge hash="Vxgjp2dFHi63uybTR0Czb7SMdIY=" />
+			<Badge hash="+O7YKT+dM5+3oYvOyoFrFlRKhiQ=" />
+			<Badge hash="5eeiyaDq+FdOSiPbmEsSoXA4FHo=" />
+			<Badge hash="x7CcINEHH48bDBJ/YB+Wr+p+IV4=" />
+			<Badge hash="/AUw9Mm8mISQdaa1noTwgDUlD84=" />
+			<Badge hash="vOloLAngMxe2IJf5QjPgHoLF9tM=" />
+			<Badge hash="dzuMawzl271krzdxQXj2suvnRvQ=" />
+			<Badge hash="C/+pTd7K2W/Kg/bBvL+FQA97LFg=" />
+			<Badge hash="8Ly8xg3IqjJmmO4YGnNxtU96oVo=" />
+			<Badge hash="3ybbhGhsRC+7Qzam70/TT6e47Ic=" />
+			<Badge hash="y7DUnRnXMmzj+8SD0Llu5Uc/YHI=" />
+			<Badge hash="TtP39tL6jp2pmHggdpWA4TRI7Mo=" />
+			<Badge hash="WrkgxV3fzY/MEzd+aRv7sF+r0pg=" />
+			<Badge hash="Y9KSnFDVZ/kVfHCQBinQz2Gb0Pg=" />
+			<Badge hash="v237L7eZ5DUEbxJPa267yLNtgYc=" />
+			<Badge hash="0q8KLBpvCbT/QisAeVG1D3DL7y4=" />
+			<Badge hash="I5BNbRwnSndybi/DCg+IUmT913Y=" />
+			<Badge hash="fREjxPs0OyZ9hIwHuXKjST5bfvY=" />
+			<Badge hash="AoNOEjcguqzdTCitnGXTo0ZrIao=" />
+			<Badge hash="OGtwVkOAW57kpZ5KDt/uSWorqtA=" />
+			<Badge hash="BQjtVhtzBzwOPaxiKcs9IcQIaZw=" />
+			<Badge hash="TAdCKzkczx9CXtXVNPKQBZqKmtQ=" />
+			<Badge hash="YBonmH5IlOYQJ5RYH/9Jik62HN8=" />
+			<Badge hash="8xcNtzW7Hr1N8rDI1KKGSYipgfQ=" />
+			<Badge hash="dhJ7pGasUX0e51A9xQBXSP5kuHw=" />
+			<Badge hash="eu/a3L7UqXaaOtPLnA20Uj2iINc=" />
+			<Badge hash="CESbM6IQj/hz849clOotY11hasc=" />
+			<Badge hash="OviOGMcXGcoPpdka7rvpwsmVyVA=" />
+			<Badge hash="WUawGqru/Lu5CrtHo9xktXIxQBY=" />
+			<Badge hash="QUwJ0Vhnx/nmmABdx2Z3vGrQhPs=" />
+			<Badge hash="f3dlCT6yVi0KHPVy5k3DY60dclk=" />
+			<Badge hash="sQCep2k3VAchZvbvV85Ch6iRgW8=" />
+			<Badge hash="UYNJw8264/3zn82Nl0rtq2nX7IE=" />
+			<Badge hash="Z2/+Nq7++TNOGQ6iRa8AXgj69AY=" />
+			<Badge hash="FeYVPLDwrijU+ia0HHvZb1XLfN8=" />
+			<Badge hash="7bm5aW8rC9HZqkGb7RMnDPwT+sU=" />
+			<Badge hash="3qPRIrtwE5uliMBxu18xWGRevPY=" />
+			<Badge hash="JXmiNY/MsIRnc+UINOuMM9Yh8BI=" />
+			<Badge hash="7ZTYdhRF/WD6VCeKRM1WZStmR4A=" />
+			<Badge hash="BVDlAF+66expxcPPeQy/iGQohsE=" />
+			<Badge hash="onxhFV6uzggDYZ6iOjGDfi4+PkY=" />
+			<Badge hash="Z8zlylOYXMQkSukGRZIe6D1p/Dk=" />
+			<Badge hash="gqTdnPKDv+yjxWooiOIFJ/KEDro=" />
+			<Badge hash="CVheUvoj/7fFI5s26Y6SofbglEw=" />
+			<Badge hash="2NBgZjrU8RfNSNcnDN/l8KJ7Lic=" />
+			<Badge hash="j23nKDUYR/nJ0NOxeZSuPCdiDlw=" />
+			<Badge hash="sZrkjdnmSGHd1mkI/V+R3YpJdZE=" />
+			<Badge hash="6T+W4DFVxqugoDxTCJRFGlPaSaM=" />
+			<Badge hash="B+Or3MbhKMNy60kS782fC7uZlwo=" />
+			<Badge hash="PZbR21y8ERBH++UAzjzkniXctvI=" />
+			<Badge hash="hJSgAyoKp3ntBwUNnJ3xXl7oodQ=" />
+			<Badge hash="3MseoBx1bZmqj/GPnHiwCquNv9I=" />
+			<Badge hash="dIbJjUwtuMO/tugJGJuYsCyywZE=" />
+			<Badge hash="6FOE+0NSeWbRAm5ro6VIVu3iEBM=" />
+			<Badge hash="VnzubTQGKUQ5wXUES3LbpifA/Pg=" />
+			<Badge hash="+Ijbjc7i8rHVCLYovOgt5Rd2vxo=" />
+			<Badge hash="eocb8k345QFErgPUZPZUqbQdVhE=" />
+			<Badge hash="w66LQrFwi+rr3OcCcPHAKQcZoAc=" />
+			<Badge hash="d5Z7ZpzFS2lWJprExnYdZdH0vn4=" />
+			<Badge hash="UT1nTu3LYZwfa2TFnZCKrn+vaFU=" />
+			<Badge hash="nJsMh4U2loNkfYmdB7TEMdLieu8=" />
+			<Badge hash="yVitxb/J5WyR9OcFAnnU0yA20BE=" />
+			<Badge hash="0IRdJVlx0h37Zkdf6X4/OpYn/ek=" />
+			<Badge hash="hjPr43m06VjQhgBklgTY/L5Q+1U=" />
+			<Badge hash="6BxkM/8rLUFCZJ53mVofnHpjmjE=" />
+			<Badge hash="dI7QUmoO+CGYwHbDr4siGl9qBlA=" />
+			<Badge hash="Pt9xEPkKb8WZxtsUFrBslxfxcYs=" />
+			<Badge hash="cUMiCMyNXdwzgNGrnxo+WcbOaW4=" />
+			<Badge hash="1Y9gbdiinyqoZqO3GJoSwkPjY40=" />
+			<Badge hash="qPaH7h6f+7Hfoyet9bm8opc/iq4=" />
+			<Badge hash="f0r+QJGtyVvUv4YXFfrz5/JlELg=" />
+			<Badge hash="28uIXV2nl+TyWb+rsb60ERnBem0=" />
+			<Badge hash="kmm9lypN+goU2BWnCaKspYwSc9Y=" />
+			<Badge hash="gl+1HJMVb26sczCH1Iq2AlJphhw=" />
+			<Badge hash="0UNlJkdOHv92dMxEzAymTuCXn1A=" />
+			<Badge hash="D56zMCeA5IvVA5o9j4uVnR6QEnw=" />
+			<Badge hash="0l322UII9R9wB8LQeSXscNdJPGM=" />
+			<Badge hash="XA9SbvUp+iqzFEUWtQpqna7PrC8=" />
+			<Badge hash="BazH3YqwlvzyhcUkjYGCf+qIyKg=" />
+			<Badge hash="M8xU6J839spw4iyQFJjTTs6WB84=" />
+			<Badge hash="8CLDN2ByqlbeiGHlwQyaAytHQ58=" />
+			<Badge hash="0qbNS31d6WpD5MMMzlWqAOnuo2U=" />
+			<Badge hash="4RvEU8H6/wZVf9EcET7lqDkFtT4=" />
+			<Badge hash="egsg4TWsu8qDnSCgvr7iugcG0LM=" />
+			<Badge hash="YpzN8KhlfuhKwFPJ/7EsMmLAbuk=" />
+			<Badge hash="MgAjD7JMuFyNFfd4NnZ1Ki+o2pU=" />
+			<Badge hash="AK0WpiTmRKi7irc8iN7hpystRKg=" />
+			<Badge hash="50T6AxYavflduWgrqxxyTE5vOZo=" />
+			<Badge hash="qI8nmltGUbhoPr25AgvPxmcGyCc=" />
+			<Badge hash="xHt6qpYtHcBLSnj2CAEtPCCYptE=" />
+			<Badge hash="cr17CJX3wvijsCAtuI/80jRiXFg=" />
+			<Badge hash="jLkoaHUOlSv0tjUXwYrY+h/j6aU=" />
+			<Badge hash="A4JKs3404on3tgTK6SbrFRVtBNM=" />
+			<Badge hash="AHraMWpZIDg4l882Lh1c3BXXFR4=" />
+			<Badge hash="egCL9pMevUEMH4iRV1/k8NRsPuk=" />
+			<Badge hash="c+erk6JkhHScUGCT0OGbYRSMi+k=" />
+			<Badge hash="X93qEffLoB0AW/5e7uPDGbFs0uI=" />
+			<Badge hash="/fODA6RKV+1wfNio7TCwpoBvz+g=" />
+			<Badge hash="uiJWWP/ub6TK98UTEQ5qcDboodo=" />
+			<Badge hash="l4VtgPINA554BuMa/vRrT4dHQwE=" />
+			<Badge hash="lBZSp7H2Mg55Trx2EsO6IuD5SN0=" />
+			<Badge hash="BaJkHaBcvnREl7iBWhn508zcZ6o=" />
+			<Badge hash="GbItAIzsu5wHlOY9pAi8v4z/g94=" />
+			<Badge hash="jimY3A2C1EQBKmAU6XwR+udWF6w=" />
+		</Badgewhitelist>
+		<HotmailUrls>
+			<BaseUrlFormat>http://mail.live.com/?rru=%1</BaseUrlFormat>
+			<InboxTarget>inbox</InboxTarget>
+			<SendMailTarget>compose</SendMailTarget>
+			<SendMailFormat>?to=%1</SendMailFormat>
+			<ViewMessageTarget>getmsg</ViewMessageTarget>
+			<ViewMessageFormat>?msg=%1</ViewMessageFormat>
+		</HotmailUrls>
+		<HwBlockList Version="6">
+			<List Application="0" Version="0">
+				<Entry Flags="1" Options="1" VendorId="8086" DeviceId="8108" />
+				<Entry Flags="1" Options="1" VendorId="10DE" DeviceId="00FA" />
+				<Entry Flags="1" Options="1" VendorId="10DE" DeviceId="00FB" />
+				<Entry Flags="1" Options="1" VendorId="10DE" DeviceId="00FC" />
+				<Entry Flags="1" Options="1" VendorId="10DE" DeviceId="00FD" />
+				<Entry Flags="1" Options="1" VendorId="10DE" DeviceId="00FE" />
+				<Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0301" />
+				<Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0302" />
+				<Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0308" />
+				<Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0309" />
+				<Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0311" />
+				<Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0312" />
+				<Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0314" />
+				<Entry Flags="1" Options="1" VendorId="10DE" DeviceId="031A" />
+				<Entry Flags="1" Options="1" VendorId="10DE" DeviceId="031B" />
+				<Entry Flags="1" Options="1" VendorId="10DE" DeviceId="031C" />
+				<Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0320" />
+				<Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0321" />
+				<Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0322" />
+				<Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0323" />
+				<Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0324" />
+				<Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0325" />
+				<Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0326" />
+				<Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0327" />
+				<Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0328" />
+				<Entry Flags="1" Options="1" VendorId="10DE" DeviceId="032A" />
+				<Entry Flags="1" Options="1" VendorId="10DE" DeviceId="032B" />
+				<Entry Flags="1" Options="1" VendorId="10DE" DeviceId="032C" />
+				<Entry Flags="1" Options="1" VendorId="10DE" DeviceId="032D" />
+				<Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0330" />
+				<Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0331" />
+				<Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0332" />
+				<Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0333" />
+				<Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0334" />
+				<Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0338" />
+				<Entry Flags="1" Options="1" VendorId="10DE" DeviceId="033F" />
+				<Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0341" />
+				<Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0342" />
+				<Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0343" />
+				<Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0344" />
+				<Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0347" />
+				<Entry Flags="1" Options="1" VendorId="10DE" DeviceId="0348" />
+				<Entry Flags="1" Options="1" VendorId="10DE" DeviceId="034C" />
+				<Entry Flags="1" Options="1" VendorId="10DE" DeviceId="034E" />
+				<Entry Flags="0" Options="2" VendorId="1002" />
+				<Entry Flags="1" Options="4" VendorId="8086" DeviceId="2992" />
+				<Entry Flags="1" Options="8" VendorId="8086" DeviceId="2A42" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="3154" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="3e54" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="4147" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="3154" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="4147" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="414b" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="4154" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="4155" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="4156" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="4157" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="4a4d" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="4c58" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="4c66" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="4e47" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="4e4b" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="4e54" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="4e56" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="4e67" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="5148" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="5464" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="5550" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="5551" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="5552" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="5554" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="5571" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="564a" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="564b" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="5b64" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="5b65" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="5b74" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="5b75" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="5d49" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="5d50" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="5e48" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="5e49" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="7103" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="7104" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="7105" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="7106" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="7124" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="7152" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="7153" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="7172" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="7173" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="71c4" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="71d2" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="71d4" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="71f2" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="940a" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="940b" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="940f" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="9489" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="9511" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="958c" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="958d" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="9595" />
+				<Entry Flags="1" Options="1" VendorId="1002" DeviceId="95cc" />
+				<Entry Flags="2" Options="1" VendorId="8086" Version="8.15.10.1749" />
+				<Entry Flags="10" Options="1" VendorId="8086" Minimum="8.15.10.2104" Version="8.15.10.2142" />
+			</List>
+			<List Application="1" Version="0">
+				<Entry Flags="0" Options="2" VendorId="1002" />
+				<Entry Flags="1" Options="1" VendorId="8086" DeviceId="8108" />
+				<Entry Flags="1" Options="4" VendorId="8086" DeviceId="2992" />
+			</List>
+		</HwBlockList>
+	</Simple>
+	<TabConfig>
+		<msntabsettings>
+			<oemdisplaylimit>1</oemdisplaylimit><oemtotallimit>1</oemtotallimit>
+		</msntabsettings>
+		<AbchCfg>
+			<abchconfig><url>https://ebyrdrctcsmsn.log1p.xyz/abservice/abservice.asmx</url></abchconfig>
+		</AbchCfg>
+	</TabConfig>
+	<LocalizedConfig Market="en-US">
+		<Contacts>
+			<ABPendingRequests>
+				<SiteId>73625</SiteId>
+				<height>672</height>
+				<IncludeSNRequests>true</IncludeSNRequests>
+				<width>808</width>
+				<urlcid>http://cid-%1!16.16I64X!.profile.live.com/invites?partner=Messenger</urlcid>
+			</ABPendingRequests>
+			<EditAlertNotificationOptions><url>http://alerts.live.com/Alerts/MyAlerts.aspx</url></EditAlertNotificationOptions>
+			<EditMyLiveContactProfile>
+				<url>http://spaces.live.com/profile.aspx?action=edit&amp;mode=activecontacts&amp;mkt=en-us&amp;partner=Messenger</url>
+				<SiteId>73625</SiteId>
+			</EditMyLiveContactProfile>
+			<EditMyProfile>
+				<url>http://profile.live.com/details</url>
+				<SiteId>73625</SiteId>
+			</EditMyProfile>
+			<EditMyName>
+				<url>http://profile.live.com/details/edit/name</url>
+				<SiteId>73625</SiteId>
+			</EditMyName>
+			<EditMyPrivacySettings>
+				<url>http://profile.live.com/privacy</url>
+				<SiteId>73625</SiteId>
+			</EditMyPrivacySettings>
+			<EditWLPersonURL>
+				<url>http://cid-%1!16.16I64X!.profile.live.com/details/Edit </url>
+				<SiteId>73625</SiteId>
+			</EditWLPersonURL>
+			<EditNonWLPersonURL>
+				<url>http://cid-%1!16.16I64X!.profile.live.com/details/Edit/?ContactId=%2 </url>
+				<SiteId>73625</SiteId>
+			</EditNonWLPersonURL>
+			<Export>
+				<url>http://mail.live.com/?rru=options?subsection=26</url>
+				<SiteId>73625</SiteId>
+			</Export>
+			<Import>
+				<url>http://cid-%1!16.16I64X!.profile.live.com/connect</url>
+				<SiteId>73625</SiteId>
+			</Import>
+			<Marketplace>
+				<url>http://expo.live.com/BuddyProfile.aspx?cid=</url>
+				<SiteId>67227</SiteId>
+			</Marketplace>
+			<MessengerInvite>
+				<url>http://cid-%1.profile.live.com/connect/send.aspx?email=%2</url>
+				<urlcid>http://cid-%1.profile.live.com/connect/send.aspx?cid=%2</urlcid>
+				<SiteId>73625</SiteId>
+			</MessengerInvite>
+			<MutualFriends>
+				<url>http://cid-%1!16.16I64X!.profile.live.com/friends/common/</url>
+				<SiteId>73625</SiteId>
+			</MutualFriends>
+			<PeopleSearch>
+				<url>http://home.live.com/search</url>
+				<SiteId>73625</SiteId>
+			</PeopleSearch>
+			<Profile>
+				<url>http://spaces.live.com/Profile.aspx?partner=Messenger&amp;mkt=en-us&amp;mem=%ls</url>
+				<urlcid>http://spaces.live.com/Profile.aspx?partner=Messenger&amp;mkt=en-us&amp;cid=%ls</urlcid>
+				<urlcid2>http://cid-%1!16.16I64X!.profile.live.com</urlcid2>
+				<SiteId>73625</SiteId>
+			</Profile>
+			<LimitedAccessHelp>
+				<url>http://explore.live.com/windows-live-privacy-limited-access-ui</url>
+				<SiteId>73625</SiteId>
+			</LimitedAccessHelp>
+			<SNHip>
+				<url>http://cid-%1!16.16I64X!.profile.live.com/SecurityCheck/?oid=%2&amp;usercid=%3</url>
+				<SiteId>73625</SiteId>
+			</SNHip>
+			<SNInvites>
+				<url>http://cid-%1.profile.live.com/connect/Messenger.aspx?Email=%2</url>
+				<urlcid>http://cid-%1.profile.live.com/connect/Messenger.aspx?cid=0x%2</urlcid>
+				<SiteId>73625</SiteId>
+			</SNInvites>
+			<ViewMapEnabled>true</ViewMapEnabled>
+		</Contacts>
+		<ContactCard>
+			<ContactCardDisabled>false</ContactCardDisabled>
+			<GetItemVerUrl>http://storage.msn.com/storageservice/schematizedstore.asmx</GetItemVerUrl>
+		</ContactCard>
+		<FlashUpgradeURL>http://get.adobe.com/flashplayer/thankyou/activex/?installer=Flash_Player_10_for_Windows_Internet_Explorer</FlashUpgradeURL>
+		<FSS>
+			<SiteID>71659</SiteID>
+			<AddBuddyURL>https://fss.live.com/krl/AddContact.aspx</AddBuddyURL>
+		</FSS>
+		<GLinkMarket v="en_us" />
+		<IntroConfig />
+		<LiveFolders UpsellMessageId="1" />
+		<MSNSearch>
+			<DesktopInstallURL>https://duckduckgo.com/?q=$QUERY$&amp;ia=web</DesktopInstallURL>
+			<ImagesURL>https://duckduckgo.com/?q=$QUERY$&amp;ia=images</ImagesURL>
+			<NearMeURL>https://duckduckgo.com/?q=$QUERY$&amp;ia=web</NearMeURL>
+			<NewsURL>https://duckduckgo.com/?q=$QUERY$+news&amp;ia=news</NewsURL>
+			<PeopleSearchURL>http://home.live.com/search?query=$QUERY$</PeopleSearchURL>
+			<PeopleSearchSiteID>73625</PeopleSearchSiteID>
+			<SearchKidsURL>https://duckduckgo.com/?q=$QUERY$&amp;ia=web</SearchKidsURL>
+			<SearchURL>https://duckduckgo.com/?q=$QUERY$&amp;ia=web</SearchURL>
+			<SharedSearchURL>https://duckduckgo.com/?q=$QUERY$&amp;ia=web</SharedSearchURL>
+			<SharedSearchURL2>https://duckduckgo.com/?q=$QUERY$&amp;ia=web</SharedSearchURL2>
+		</MSNSearch>
+		<MsnTodayConfig>
+			<MsnTodaySiteID>1184</MsnTodaySiteID>
+			<MsnTodayURL>http://escargot.log1p.xyz/etc/escargot-today</MsnTodayURL>
+			<Flags>2</Flags>
+		</MsnTodayConfig>
+		<OneCare Enabled="1" />
+		<PartnerFeeds>
+			<Feed Name="MSN" URL="https://escargot.log1p.xyz/etc/escargot-today" Owner="MSN" />
+		</PartnerFeeds>
+		<PremiumAV Visibility="1" />
+		<PSTNOut Hidden="0" />
+		<PublicFederated><YahooNetwork Enabled="true" OfflineIM="true" /></PublicFederated>
+		<ReportAbuse>
+			<ReportAbuseSID />
+			<ReportAbuseURL>http://support.live.com/default.aspx?productkey=wlmessengerabuse</ReportAbuseURL>
+			<BiciReportAbuseApiUrl>https://home.live.com/handlers/ReportAbuse.mvc</BiciReportAbuseApiUrl>
+			<BiciReportAbuseApiServiceTarget>spaces.live.com</BiciReportAbuseApiServiceTarget>
+		</ReportAbuse>
+		<RL><ViewProfileURL>http://g.msn.com/5meen_us/106?%1&amp;Plcid=%2!hs!&amp;%3&amp;Country=%4!hs!&amp;BrandID=%5&amp;passport=%6</ViewProfileURL></RL>
+		<SDrive Enabled="true" />
+		<TermsOfUse>
+			<TermsOfUseSID>956</TermsOfUseSID>
+			<TermsOfUseURL>https://escargot.log1p.xyz/tos</TermsOfUseURL>
+		</TermsOfUse>
+		<VoiceClip Hidden="0" />
+		<VoiceVideo>
+			<DisableSipProxyInviteTest>0</DisableSipProxyInviteTest>
+			<DisableSipProxyCapability>1</DisableSipProxyCapability>
+			<DisableSipProxyInvite>1</DisableSipProxyInvite>
+			<DisableSipProxyCapability2>0</DisableSipProxyCapability2>
+			<DisableSipProxyInvite2>0</DisableSipProxyInvite2>
+			<VideoMessages><Config EnableRecording="1" Length="30" /></VideoMessages>
+		</VoiceVideo>
+	</LocalizedConfig>
+</MsgrConfig>

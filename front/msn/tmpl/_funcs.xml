@@ -1,0 +1,158 @@
+{%- macro contact_entry(ab_id, contact, detail) -%}
+	<contactId>{{ contact.uuid }}</contactId>
+	<contactInfo>
+		{%- if contact.annotations -%}
+			<annotations>
+			{%- for name, value in contact.annotations.items() -%}
+				<Annotation>
+					<Name>{{ name }}</Name>
+					<Value>{{ value }}</Value>
+				</Annotation>
+			{%- endfor -%}
+			</annotations>
+		{%- endif -%}
+		<contactType>{{ contact.type }}</contactType>
+		<quickName>{{ contact.name or contact.email }}</quickName>
+		<passportName>{{ contact.email }}</passportName>
+		<IsPassportNameHidden>false</IsPassportNameHidden>
+		<displayName>{{ contact.name or contact.email }}</displayName>
+		{%- if contact.member_uuid -%}
+			<puid>0</puid>
+		{%- endif -%}
+		{%- if contact.groups -%}
+			<groupIds>
+			{% for group_id in contact.groups %}
+				<guid>{{ group_id }}</guid>
+			{% endfor %}
+			</groupIds>
+		{%- endif -%}
+		{%- if contact.member_uuid -%}
+			<CID>{{ cid_format(contact.member_uuid, decimal = True) }}</CID>
+		{%- endif -%}
+		<IsNotMobileVisible>false</IsNotMobileVisible>
+		<isMobileIMEnabled>false</isMobileIMEnabled>
+		<isMessengerUser>{{ bool_to_str(contact.is_messenger_user) }}</isMessengerUser>
+		<isFavorite>{%- if ab_id == '00000000-0000-0000-0000-000000000000' -%}{{ bool_to_str(contact_is_favorite(detail.groups, contact)) }}{%- else -%}false{%- endif -%}</isFavorite>
+		<isSmtp>false</isSmtp>
+		<hasSpace>false</hasSpace>
+		<spotWatchState>NoDevice</spotWatchState>
+		<birthdate>0001-01-01T00:00:00</birthdate>
+		<primaryEmailType>ContactEmailPersonal</primaryEmailType>
+		<PrimaryLocation>ContactLocationPersonal</PrimaryLocation>
+		<PrimaryPhone>ContactPhonePersonal</PrimaryPhone>
+		<IsPrivate>false</IsPrivate>
+		<Gender>Unspecified</Gender>
+		<TimeZone>None</TimeZone>
+	</contactInfo>
+	<propertiesChanged />
+	<fDeleted>false</fDeleted>
+	<lastChange>{{ date_format(contact.date_last_modified) }}</lastChange>
+{%- endmacro -%}
+
+{%- macro generate_me_entry(ab_id, user_creator, now) -%}
+	<Contact>
+		<contactId>{{ user_creator.uuid }}</contactId>
+		<contactInfo>
+			{%- if ab_id == '00000000-0000-0000-0000-000000000000' -%}
+				<annotations>
+					<Annotation>
+						<Name>MSN.IM.MBEA</Name>
+						<Value>0</Value>
+					</Annotation>
+					<Annotation>
+						<Name>MSN.IM.GTC</Name>
+						<Value>{%- if user_creator.settings.get('GTC') == 'A' -%}1{%- elif user_creator.settings.get('GTC') == 'N' -%}2{%- else -%}0{%- endif -%}</Value>
+					</Annotation>
+					<Annotation>
+						<Name>MSN.IM.BLP</Name>
+						<Value>{%- if user_creator.settings.get('BLP') == 'AL' -%}1{%- elif user_creator.settings.get('BLP') == 'BL' -%}2{%- else -%}0{%- endif -%}</Value>
+					</Annotation>
+					{%- if user_creator.settings.get('MPOP') -%}
+						<Annotation>
+							<Name>MSN.IM.RoamLiveProperties</Name>
+							<Value>{{ user_creator.settings.get('MPOP') }}</Value>
+						</Annotation>
+					{%- endif -%}
+					{%- if user_creator.settings.get('RLP') -%}
+						<Annotation>
+							<Name>MSN.IM.RoamLiveProperties</Name>
+							<Value>{{ user_creator.settings.get('RLP') }}</Value>
+						</Annotation>
+					{%- endif -%}
+				</annotations>
+			{%- endif -%}
+			<contactType>Me</contactType>
+			<quickName>{{ user_creator.status.name or user_creator.email }}</quickName>
+			<passportName>{{ user_creator.email }}</passportName>
+			<IsPassportNameHidden>false</IsPassportNameHidden>
+			{%- if user_creator.status.name -%}
+				<displayName>{{ user_creator.status.name }}</displayName>
+			{%- endif -%}
+			<puid>0</puid>
+			<CID>{{ cid_format(user_creator.uuid, decimal = True) }}</CID>
+			<IsNotMobileVisible>false</IsNotMobileVisible>
+			<isMobileIMEnabled>false</isMobileIMEnabled>
+			<isMessengerUser>false</isMessengerUser>
+			<isFavorite>false</isFavorite>
+			<isSmtp>false</isSmtp>
+			<hasSpace>false</hasSpace>
+			<spotWatchState>NoDevice</spotWatchState>
+			<birthdate>0001-01-01T00:00:00</birthdate>
+			<primaryEmailType>ContactEmailPersonal</primaryEmailType>
+			<PrimaryLocation>ContactLocationPersonal</PrimaryLocation>
+			<PrimaryPhone>ContactPhonePersonal</PrimaryPhone>
+			<IsPrivate>false</IsPrivate>
+			<Gender>Unspecified</Gender>
+			<TimeZone>None</TimeZone>
+		</contactInfo>
+		<propertiesChanged />
+		<fDeleted>false</fDeleted>
+		<lastChange>{{ now }}</lastChange>
+	</Contact>
+{%- endmacro -%}
+
+{%- macro group_entry(group) -%}
+	<Group>
+		<groupId>{{ group.uuid }}</groupId>
+		<groupInfo>
+			<annotations>
+				<Annotation>
+					<Name>MSN.IM.Display</Name>
+					<Value>1</Value>
+				</Annotation>
+			</annotations>
+			<groupType>c8529ce2-6ead-434d-881f-341e17db3ff8</groupType>
+			<name>{{ group.name }}</name>
+			<IsNotMobileVisible>false</IsNotMobileVisible>
+			<IsPrivate>false</IsPrivate>
+			<IsFavorite>{{ bool_to_str(group.is_favorite) }}</IsFavorite>
+		</groupInfo>
+		<propertiesChanged />
+		<fDeleted>false</fDeleted>
+		<lastChange>{{ date_format(group.date_last_modified) }}</lastChange>
+	</Group>
+{%- endmacro -%}
+
+{%- macro ab_properties(ab_id, user_creator, ab_type, ab_created, ab_last_modified, paged) -%}
+	<abId>{{ ab_id }}</abId>
+	<abInfo>
+		<ownerPuid>0</ownerPuid>
+		<OwnerCID>{{ cid_format(user_creator.uuid, decimal = True) }}</OwnerCID>
+		<ownerEmail>{{ user_creator.email }}</ownerEmail>
+		<fDefault>true</fDefault>
+		<joinedNamespace>false</joinedNamespace>
+		<IsBot>false</IsBot>
+		<IsParentManaged>false</IsParentManaged>
+		{%- if paged -%}
+			<AccountTierLastChanged>0001-01-01T00:00:00</AccountTierLastChanged>
+			<ProfileVersion>0</ProfileVersion>
+		{%- endif -%}
+		<SubscribeExternalPartner>false</SubscribeExternalPartner>
+		<NotifyExternalPartner>false</NotifyExternalPartner>
+		<AddressBookType>{{ ab_type }}</AddressBookType>
+	</abInfo>
+	<lastChange>{{ date_format(ab_last_modified) }}</lastChange>
+	<DynamicItemLastChanged>0001-01-01T00:00:00</DynamicItemLastChanged>
+	<createDate>{{ date_format(ab_created) }}</createDate>
+	<propertiesChanged />
+{%- endmacro -%}
