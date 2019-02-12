@@ -2,7 +2,7 @@ import json
 from sqlalchemy import types
 from sqlalchemy.dialects import postgresql
 
-class JSONType(types.TypeDecorator):
+class JSONType(types.TypeDecorator): # type: ignore
 	impl = types.TEXT
 	
 	def load_dialect_impl(self, dialect):

@@ -1426,7 +1426,7 @@ def _date_format(d: Optional[datetime], *, timezone: Optional[str] = None, Z: bo
 		d = d.astimezone(timezone)
 	if timezone:
 		d_iso = '{}.{:03.0f}'.format(
-			d.strftime('%Y-%m-%dT%H:%M:%S'), round(dt.microsecond / 1000.0),
+			d.strftime('%Y-%m-%dT%H:%M:%S'), round(d.microsecond / 1000.0),
 		)
 		offset = d.strftime('%z')
 		if re.match(r'([\+-]\d{4})$', offset):

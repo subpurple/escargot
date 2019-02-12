@@ -35,7 +35,7 @@ class Backend:
 	_sc: '_SessionCollection'
 	_chats_by_id: Dict[Tuple[str, str], 'Chat']
 	_user_by_uuid: Dict[str, User]
-	_worklist_sync_db: Dict[User, UserDetail]
+	_worklist_sync_db: Dict[User, Tuple[UserDetail, bool]]
 	_worklist_notify: Dict[str, Tuple['BackendSession', Substatus, bool, Optional[Dict[str, Any]], bool, bool, bool]]
 	_worklist_notify_self: Dict[str, 'BackendSession']
 	_runners: List[Runner]
@@ -73,7 +73,7 @@ class Backend:
 			self.maintenance_mins = args[1]
 			self.loop.create_task(self._worker_set_server_maintenance())
 	
-	async def _worker_set_server_maintenance(self):
+	async def _worker_set_server_maintenance(self) -> None:
 		while self.maintenance_mins > 0:
 			await asyncio.sleep(60)
 			self.maintenance_mins -= 1
@@ -107,7 +107,7 @@ class Backend:
 		self._sync_contact_statuses(user)
 		self._notify_contacts(sess, for_logout = True, old_substatus = old_substatus)
 	
-	def login(self, uuid: str, client: Optional[Client], evt: event.BackendEventHandler, *, option: Optional[LoginOption] = None, message_temp: bool = False, only_once: bool = False) -> Optional['BackendSession']:
+	def login(self, uuid: str, client: Client, evt: event.BackendEventHandler, *, option: Optional[LoginOption] = None, message_temp: bool = False, only_once: bool = False) -> Optional['BackendSession']:
 		user = self._load_user_record(uuid)
 		if user is None: return None
 		bs_others = self._sc.get_sessions_by_user(user)
@@ -124,11 +124,10 @@ class Backend:
 			except:
 				traceback.print_exc()
 		
-		bs = BackendSession(self, user, client, evt, message_temp)
+		bs = BackendSession(self, user, client, evt, message_temp = message_temp)
 		bs.evt.bs = bs
-		if client is not None:
-			self._stats.on_login()
-			self._stats.on_user_active(user, client)
+		self._stats.on_login()
+		self._stats.on_user_active(user, client)
 		self._sc.add_session(bs)
 		user.detail = self._load_detail(user)
 		bs.evt.on_open()
@@ -226,8 +225,9 @@ class Backend:
 			users = list(self._worklist_sync_db.keys())[:100]
 			batch = []
 			for user in users:
-				detail, message_temp = self._worklist_sync_db.pop(user, None)
-				if not detail: continue
+				tpl = self._worklist_sync_db.pop(user, None)
+				if tpl is None: continue
+				detail, message_temp = tpl
 				batch.append((user, detail, message_temp))
 			self.user_service.save_batch(batch)
 		except:
@@ -266,6 +266,7 @@ class Backend:
 				for bs, old_substatus, on_contact_add, updated_phone_info, update_status, send_notif_to_self, for_logout in worklist.values():
 					user = bs.user
 					detail = user.detail
+					assert detail is not None
 					for ctc in detail.contacts.values():
 						for bs_other in self._sc.get_sessions_by_user(ctc.head):
 							if bs_other.user is user and not send_notif_to_self: continue
@@ -305,14 +306,14 @@ class Session(metaclass = ABCMeta):
 	def __init__(self) -> None:
 		self.closed = False
 	
-	def close(self, **kwargs) -> None:
+	def close(self, **kwargs: Any) -> None:
 		if self.closed:
 			return
 		self.closed = True
 		self._on_close(**kwargs)
 	
 	@abstractmethod
-	def _on_close(self) -> None: pass
+	def _on_close(self, **kwargs: Any) -> None: pass
 
 class BackendSession(Session):
 	__slots__ = ('backend', 'user', 'client', 'evt', 'message_temp', 'front_data')
@@ -324,7 +325,7 @@ class BackendSession(Session):
 	message_temp: bool
 	front_data: Dict[str, Any]
 	
-	def __init__(self, backend: Backend, user: User, client: Client, evt: event.BackendEventHandler, message_temp: bool) -> None:
+	def __init__(self, backend: Backend, user: User, client: Client, evt: event.BackendEventHandler, *, message_temp: bool) -> None:
 		super().__init__()
 		self.backend = backend
 		self.user = user
@@ -450,7 +451,9 @@ class BackendSession(Session):
 		if '00000000-0000-0000-0000-000000000000' in detail.subscribed_ab_stores:
 			ctcs_to_update = []
 			
-			_, _, _, _, ctcs_ab = self.backend.user_service.get_ab_contents('00000000-0000-0000-0000-000000000000', user)
+			tpl = self.backend.user_service.get_ab_contents('00000000-0000-0000-0000-000000000000', user)
+			assert tpl is not None
+			_, _, _, _, ctcs_ab = tpl
 			for ctc_ab in ctcs_ab.values():
 				if group.uuid in ctc_ab.groups:
 					ctc_ab.groups.remove(group.uuid)
@@ -505,6 +508,8 @@ class BackendSession(Session):
 			raise error.GroupDoesNotExist()
 		if group_id == '0':
 			raise error.ContactNotOnList()
+		if group is None:
+			raise error.GroupDoesNotExist()
 		ctc.remove_from_group(group)
 		self.backend._mark_modified(user, message_temp = self.message_temp)
 		if '00000000-0000-0000-0000-000000000000' in detail.subscribed_ab_stores:
@@ -573,6 +578,7 @@ class BackendSession(Session):
 		self.backend.user_service.mark_ab_modified(ab_id, { 'contacts': ab_contacts }, user)
 		if ab_id == '00000000-0000-0000-0000-000000000000':
 			for ab_contact in ab_contacts:
+				if ab_contact.member_uuid is None: continue
 				ctc = detail.contacts.get(ab_contact.member_uuid)
 				if ctc is None: continue
 				for group_uuid in ab_contact.groups:
@@ -633,7 +639,7 @@ class BackendSession(Session):
 			raise error.UserDoesNotExist()
 		user = self.user
 		for sess_adder in self.backend._sc.get_sessions_by_user(user_adder):
-			sess_adder.evt.on_contact_request_denied(user, deny_message or '', adder_id = adder_id)
+			sess_adder.evt.on_contact_request_denied(user, deny_message or '', contact_id = adder_id)
 	
 	def _add_to_list(self, user: User, ctc_head: User, lst: Lst, add_to_ab: bool, name: Optional[str], group_id: Optional[str]) -> Contact:
 		# Add `ctc` to `user`'s `lst`
@@ -653,7 +659,7 @@ class BackendSession(Session):
 			updated = True
 		else:
 			if lst == Lst.FL and group_id is not None:
-				if ctc.group_in_entry(group_id):
+				if ctc.is_in_group_id(group_id):
 					raise error.ContactAlreadyOnList()
 		
 		orig_name = ctc.status.name
@@ -789,7 +795,7 @@ class Chat:
 	ids: Dict[str, str]
 	backend: Backend
 	front_data: Dict[str, Any]
-	_users_by_sess: Dict['ChatSession', Tuple[User, str]]
+	_users_by_sess: Dict['ChatSession', Tuple[User, Optional[str]]]
 	_stats: Any
 	
 	def __init__(self, backend: Backend, stats: Any) -> None:
@@ -826,23 +832,24 @@ class Chat:
 		cs.evt.on_open()
 		return cs
 	
-	def add_session(self, sess: 'ChatSession', pop_id: Optional[str] = None) -> None:
-		self._users_by_sess[sess] = (sess.user, pop_id)
+	def add_session(self, cs: 'ChatSession', pop_id: Optional[str] = None) -> None:
+		self._users_by_sess[cs] = (cs.user, pop_id)
 	
 	def get_roster(self) -> Iterable['ChatSession']:
 		return self._users_by_sess.keys()
 	
 	def get_roster_single(self) -> Iterable['ChatSession']:
-		sess_per_user = []
+		sess_per_user = [] # type: List[ChatSession]
 		
-		for sess in self._users_by_sess:
+		for cs in self._users_by_sess.keys():
 			already_in_roster = False
 			for sess1 in sess_per_user:
-				if sess.primary_pop:
-					if sess1.user is sess.user:
+				if cs.primary_pop:
+					if sess1.user is cs.user:
 						already_in_roster = True
 					break
-			if not already_in_roster: sess_per_user.append(sess)
+			if not already_in_roster:
+				sess_per_user.append(cs)
 		
 		return sess_per_user
 	
@@ -873,15 +880,14 @@ class Chat:
 				del self.backend._chats_by_id[scope_id]
 			return
 		sess_others = [sess_other for sess_other in self._users_by_sess.keys() if sess_other.user is su[0]]
-		if len(sess_others) > 0:
+		if sess_others:
 			no_primary_pop = True
 			for sess_other in sess_others:
 				if sess_other.primary_pop:
 					no_primary_pop = False
 					break
 			if no_primary_pop:
-				last_sess = last_in_iterable(sess_others)
-				last_sess.primary_pop = True
+				sess_others[-1].primary_pop = True
 		else:
 			last_pop = True
 		# Notify others that `sess` has left
@@ -911,7 +917,10 @@ class ChatSession(Session):
 		self.primary_pop = primary_pop
 		self.preferred_name = preferred_name
 	
-	def _on_close(self, *, keep_future: bool = False, idle: bool = False, send_idle_leave: bool = False) -> None:
+	def _on_close(self, **kwargs: Any) -> None:
+		keep_future = kwargs.pop('keep_future', False)
+		idle = kwargs.pop('idle', False)
+		send_idle_leave = kwargs.pop('send_idle_leave', False)
 		self.evt.on_close(keep_future, idle)
 		self.chat.on_leave(self, keep_future, idle, send_idle_leave)
 	

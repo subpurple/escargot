@@ -38,7 +38,7 @@ class ListenerMSNP(asyncio.Protocol):
 		self.logger.log_connect()
 		self.controller.on_connect()
 	
-	def connection_lost(self, exc: Exception) -> None:
+	def connection_lost(self, exc: Optional[Exception]) -> None:
 		self.controller.close(hard = True)
 		self.logger.log_disconnect()
 		self.transport = None

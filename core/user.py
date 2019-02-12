@@ -142,7 +142,7 @@ class UserService:
 			keys = list(self._worklist_sync_ab.keys())[:100]
 			batch = []
 			for key in keys:
-				ab_id, user, fields = self._worklist_sync_ab.pop(key, None)
+				ab_id, user, fields = self._worklist_sync_ab.pop(key)
 				if not ab_id: continue
 				self._working_ab_sync_ids.append(key)
 				batch.append((key,ab_id,user,fields))
@@ -152,12 +152,7 @@ class UserService:
 	
 	def check_ab(self, ab_id: str, *, uuid: Optional[str] = None) -> bool:
 		with Session() as sess:
-			_, dbabstore = self._get_ab_store(ab_id, uuid = uuid)
-			
-			if dbabstore is None:
-				return False
-			
-			return True
+			return self._get_ab_store(ab_id, uuid = uuid) is not None
 	
 	def create_ab(self, ab_id: str, type: str, user: User) -> None:
 		with Session() as sess:
@@ -180,7 +175,7 @@ class UserService:
 				sess.add(dbabstore)
 	
 	def mark_ab_modified(self, ab_id: str, fields: Dict[str, Any], user: User) -> int:
-		id = len(list(self._worklist_sync_ab.keys()))
+		id = len(self._worklist_sync_ab.keys())
 		self._worklist_sync_ab[id] = (ab_id, user, fields)
 		return id
 	
@@ -192,7 +187,10 @@ class UserService:
 	
 	def ab_get_entry_by_uuid(self, ab_id: str, ctc_uuid: str, user: User) -> Optional[ABContact]:
 		with Session() as sess:
-			ab_type, dbabstore = self._get_ab_store(ab_id, uuid = user.uuid)
+			tpl = self._get_ab_store(ab_id, uuid = user.uuid)
+			if tpl is None:
+				return None
+			ab_type, dbabstore = tpl
 			
 			dbabstorecontact = sess.query(DBABStoreContact).filter(DBABStoreContact.contact_uuid == ctc_uuid, DBABStoreContact.ab_id == ab_id, DBABStoreContact.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None)).one_or_none()
 			
@@ -203,7 +201,10 @@ class UserService:
 	
 	def ab_get_entry_by_email(self, ab_id: str, email: str, ctc_type: str, user: User) -> Optional[ABContact]:
 		with Session() as sess:
-			ab_type, dbabstore = self._get_ab_store(ab_id, uuid = user.uuid)
+			tpl = self._get_ab_store(ab_id, uuid = user.uuid)
+			if tpl is None:
+				return None
+			ab_type, dbabstore = tpl
 			
 			dbabstorecontact = sess.query(DBABStoreContact).filter(DBABStoreContact.email == email, DBABStoreContact.type == ctc_type, DBABStoreContact.ab_id == ab_id, DBABStoreContact.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None)).one_or_none()
 			
@@ -225,9 +226,9 @@ class UserService:
 				head = self.get(dbabstorecontact.contact_member_uuid)
 				if head is None: return None
 			
-			annotations = {}
-			for annotation in dbabstorecontact.annotations:
-				annotations.update(annotation)
+			annotations = {} # type: Dict[Any, Any]
+			for annots in dbabstorecontact.annotations:
+				annotations.update(annots)
 			#dbabstorecontactnetworkinfos = sess.query(DBABStoreContactNetworkInfo).filter(DBABStoreContactNetworkInfo.contact_uuid == dbabstorecontact.contact_uuid, DBABStoreContactNetworkInfo.ab_id == dbabstorecontact.ab_id, DBABStoreContactNetworkInfo.ab_owner_uuid == (dbabstorecontact.ab_owner_uuid if ab_type == 'Individual' else None))
 			#networkinfos = {
 			#	NetworkID(dbabstorecontactnetworkinfo.domain_id): NetworkInfo(
@@ -247,12 +248,12 @@ class UserService:
 				member_uuid = dbabstorecontact.contact_member_uuid, is_messenger_user = dbabstorecontact.is_messenger_user, annotations = annotations, date_last_modified = dbabstorecontact.date_last_modified,
 			)
 	
-	def get_ab_contents(self, ab_id: str, user: User) -> Optional[Tuple[str, User, datetime, datetime, Dict[str, Contact]]]:
+	def get_ab_contents(self, ab_id: str, user: User) -> Optional[Tuple[str, User, datetime, datetime, Dict[str, ABContact]]]:
 		with Session() as sess:
-			ab_type, dbabstore = self._get_ab_store(ab_id, uuid = user.uuid)
-			
-			if dbabstore is None:
+			tpl = self._get_ab_store(ab_id, uuid = user.uuid)
+			if tpl is None:
 				return None
+			ab_type, dbabstore = tpl
 			
 			head = self.get(dbabstore.member_uuid)
 			if head is None: return None
@@ -268,10 +269,10 @@ class UserService:
 	
 	def ab_delete_entry(self, ab_id: str, ctc_uuid: str, user: User) -> None:
 		with Session() as sess:
-			ab_type, dbabstore = self._get_ab_store(ab_id, uuid = user.uuid)
-			
-			if dbabstore is None:
+			tpl = self._get_ab_store(ab_id, uuid = user.uuid)
+			if tpl is None:
 				return None
+			ab_type, dbabstore = tpl
 			
 			dbabstorecontact = sess.query(DBABStoreContact).filter(DBABStoreContact.contact_uuid == ctc_uuid, DBABStoreContact.ab_id == ab_id, DBABStoreContact.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None)).one_or_none()
 			if dbabstorecontact is not None:
@@ -282,10 +283,10 @@ class UserService:
 	
 	def ab_delete_entry_by_email(self, ab_id: str, email: str, ctc_type: str, user: User) -> None:
 		with Session() as sess:
-			ab_type, dbabstore = self._get_ab_store(ab_id, uuid = user.uuid)
-			
-			if dbabstore is None:
+			tpl = self._get_ab_store(ab_id, uuid = user.uuid)
+			if tpl is None:
 				return None
+			ab_type, dbabstore = tpl
 			
 			dbabstorecontact = sess.query(DBABStoreContact).filter(DBABStoreContact.email == email, DBABStoreContact.type == ctc_type, DBABStoreContact.ab_id == ab_id, DBABStoreContact.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None)).one_or_none()
 			if dbabstorecontact is not None:
@@ -294,14 +295,14 @@ class UserService:
 				dbabstore.date_last_modified = datetime.utcnow()
 				sess.add(dbabstore)
 	
-	def save_batch_ab(self, batch: Tuple[int, str, User, Dict[str, Any]]) -> None:
+	def save_batch_ab(self, batch: List[Tuple[int, str, User, Dict[str, Any]]]) -> None:
 		with Session() as sess:
 			for id, ab_id, user, fields in batch:
 				updated = False
-				ab_type, dbabstore = self._get_ab_store(ab_id, uuid = user.uuid)
-				
-				if dbabstore is None:
+				tpl = self._get_ab_store(ab_id, uuid = user.uuid)
+				if tpl is None:
 					return None
+				ab_type, dbabstore = tpl
 				
 				if 'contacts' in fields:
 					for c in fields['contacts']:

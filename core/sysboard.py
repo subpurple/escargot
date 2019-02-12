@@ -17,9 +17,9 @@ def register(loop: asyncio.AbstractEventLoop, backend: Backend, *, devmode: bool
 	from util.misc import AIOHTTPRunner
 	
 	if devmode:
+		from devtls import DevTLS
 		sysboard_host = '0.0.0.0'
-		from dev import autossl
-		ssl_context = autossl.create_context() # type: Optional[Any]
+		ssl_context = DevTLS('Escargot').create_ssl_context()
 	else:
 		sysboard_host = '127.0.0.1'
 		ssl_context = None

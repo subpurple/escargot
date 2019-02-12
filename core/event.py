@@ -57,7 +57,7 @@ class BackendEventHandler(metaclass = ABCMeta):
 	def msn_on_oim_deletion(self) -> None:
 		pass
 	
-	def msn_on_uun_sent(self, sender: User, snm: bytes) -> None:
+	def msn_on_uun_sent(self, sender: User, type: int, snm: bytes, *, pop_id_sender: Optional[str] = None, pop_id: Optional[str] = None) -> None:
 		pass
 	
 	def msn_on_notify_ab(self, owner_cid: str, ab_last_modified: str) -> None:

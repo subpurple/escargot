@@ -51,8 +51,14 @@ class Contact:
 		self.status.message = true_status.message
 		self.status.media = true_status.media
 	
+	def is_in_group_id(self, group_id: str) -> bool:
+		for group in self._groups:
+			if group.id == group_id:
+				return True
+		return False
+	
 	def group_in_entry(self, grp: 'Group') -> bool:
-		for group in self._groups.copy():
+		for group in self._groups:
 			if group.id == grp.id or group.uuid == grp.uuid:
 				return True
 		return False
@@ -63,13 +69,13 @@ class Contact:
 		))
 	
 	def remove_from_group(self, grp: 'Group') -> None:
-		for group in self._groups.copy():
+		found_group = None
+		for group in self._groups:
 			if group.id == grp.id or group.uuid == grp.uuid:
-				self._groups.discard(group)
+				found_group = group
 				break
-		for group in self._groups.copy():
-			if group.id == grp.id or group.uuid == grp.uuid:
-				break
+		if found_group is not None:
+			self._groups.discard(group)
 
 def _is_blocking(blocker: User, blockee: User) -> bool:
 	detail = blocker.detail
@@ -201,8 +207,7 @@ class UserDetail:
 		return group
 	
 	def get_groups_by_name(self, name: str) -> Optional[List['Group']]:
-		groups = []
-		
+		groups = [] # type: List[Group]
 		for group in self._groups_by_id.values():
 			if group.name == name or (group.name.startswith(name) and len(group.name) > len(name) and group.name[len(group.name):].isnumeric()):
 				if group not in groups: groups.append(group)
@@ -231,7 +236,9 @@ class Group:
 		self.uuid = uuid
 		self.name = name
 		self.is_favorite = is_favorite
-		self.date_last_modified = _default_if_none(date_last_modified, datetime.utcnow)
+		if date_last_modified is None:
+			date_last_modified = datetime.utcnow()
+		self.date_last_modified = date_last_modified
 
 class MessageType(Enum):
 	Chat = object()

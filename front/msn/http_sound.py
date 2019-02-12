@@ -27,7 +27,7 @@ PATH_USERS = path.join('storage', 'sound', 'users')
 
 Metadata = namedtuple('Metadata', ['title', 'hash', 'category', 'language', 'is_public'])
 
-def builtin(request: web.Request) -> web.Response:
+async def builtin(request: web.Request) -> web.Response:
 	"""
 		Get builtin sound file
 		
@@ -44,7 +44,7 @@ def builtin(request: web.Request) -> web.Response:
 	except FileNotFoundError:
 		return web.HTTPOk(text = str(0))
 
-def check(request: web.Request) -> web.Response:
+async def check(request: web.Request) -> web.Response:
 	"""
 		Check if sound file is available
 		
@@ -98,7 +98,7 @@ async def put(request: web.Request) -> web.Response:
 	
 	return web.HTTPOk(text = str(1))
 
-def get(request: web.Request) -> web.Response:
+async def get(request: web.Request) -> web.Response:
 	"""
 		Get sound file
 		
@@ -114,7 +114,7 @@ def get(request: web.Request) -> web.Response:
 	except FileNotFoundError:
 		return web.HTTPOk(text = str(0))
 
-def random(request: web.Request) -> web.Response:
+async def random(request: web.Request) -> web.Response:
 	"""
 		Get random sound from library
 		
