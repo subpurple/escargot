@@ -1,3 +1,4 @@
+from typing import Any
 import sys
 
 def main(*, devmode: bool = False) -> None:
@@ -38,7 +39,7 @@ def main(*, devmode: bool = False) -> None:
 	
 	backend.run_forever()
 
-def _excepthook(type, value, traceback):
+def _excepthook(type: Any, value: Any, traceback: Any) -> None:
 	# TODO: Something useful
 	sys.__excepthook__(type, value, traceback)
 

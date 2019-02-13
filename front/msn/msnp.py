@@ -38,7 +38,7 @@ class MSNPCtrl(metaclass = ABCMeta):
 			except Exception as ex:
 				self.logger.error(ex)
 	
-	def send_reply(self, *m) -> None:
+	def send_reply(self, *m: Any) -> None:
 		self.writer.write(m)
 		transport = self.transport
 		if transport is not None:

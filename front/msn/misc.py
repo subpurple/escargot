@@ -10,7 +10,7 @@ from util.misc import first_in_iterable, last_in_iterable, DefaultDict
 from typing import Optional
 
 from core import error, event
-from core.backend import Backend
+from core.backend import Backend, BackendSession
 from core.models import User, Contact, Lst, Substatus, NetworkID
 
 def build_presence_notif(trid: Optional[str], ctc_head: User, user_me: User, dialect: int, backend: Backend, *, bs_other: Optional['BackendSession'] = None, circle_user_bs: Optional['BackendSession'] = None, circle_id: Optional[str] = None) -> Iterable[Tuple[Any, ...]]:
@@ -21,7 +21,9 @@ def build_presence_notif(trid: Optional[str], ctc_head: User, user_me: User, dia
 		status = user_me.status
 		head = user_me
 	else:
+		assert detail is not None
 		ctc = detail.contacts.get(ctc_head.uuid)
+		assert ctc is not None
 		status = ctc.status
 		head = ctc.head
 	is_offlineish = status.is_offlineish()
@@ -51,7 +53,7 @@ def build_presence_notif(trid: Optional[str], ctc_head: User, user_me: User, dia
 				reply += ('0:0',)
 			else:
 				# Most likely scenario this would pop up is in circle presence
-				reply += (encode_capabilities_capabilitiesex(((circle_user_bs.front_data.get('msn_capabilities') or 0) if ciircle_user_bs.front_data.get('msn') is True else MAX_CAPABILITIES), 0),)
+				reply += (encode_capabilities_capabilitiesex(((circle_user_bs.front_data.get('msn_capabilities') or 0) if circle_user_bs.front_data.get('msn') is True else MAX_CAPABILITIES), 0),)
 		else:
 			reply = ('FLN', head.email)
 			if dialect >= 14: reply += (int(NetworkID.WINDOWS_LIVE),)
@@ -319,7 +321,7 @@ PRIVATEEPDATA_STATE_PAYLOAD = '<State>{state}</State>'
 #	def on_login_elsewhere(self, option: 'LoginOption') -> None:
 #		pass
 #	
-#	def msn_on_put_sent(self, message: 'Message', sender: User, *, pop_id_sender: Optional[str] = None, pop_id: Optional[str] = None) -> None:
+#	def msn_on_put_sent(self, message: EmailMessage, sender: User, *, pop_id_sender: Optional[str] = None, pop_id: Optional[str] = None) -> None:
 #		bs = self.bs
 #		assert bs is not None
 #		

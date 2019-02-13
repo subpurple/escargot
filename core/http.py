@@ -35,7 +35,7 @@ def create_app(loop: asyncio.AbstractEventLoop, backend: Backend) -> Any:
 	
 	return app
 
-async def on_response_prepare(req, res):
+async def on_response_prepare(req: web.Request, res: web.StreamResponse) -> None:
 	if not settings.DEBUG:
 		return
 	if not settings.DEBUG_HTTP_REQUEST:

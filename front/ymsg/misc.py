@@ -159,7 +159,7 @@ def build_ft_packet(bs: BackendSession, xfer_dict: Dict[str, Any]) -> Iterable[E
 	
 	yield (YMSGService.P2PFileXfer, YMSGStatus.BRB, ft_dict)
 
-def build_http_ft_packet(bs: BackendSession, sender: str, url_path: str, upload_time: int, message: str):
+def build_http_ft_packet(bs: BackendSession, sender: str, url_path: str, upload_time: int, message: str) -> Iterable[Any]:
 	user = bs.user
 	
 	yield (YMSGService.FileTransfer, YMSGStatus.BRB, MultiDict([

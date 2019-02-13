@@ -89,14 +89,16 @@ class IRCCtrl:
 		# TODO: Chats created in other frontends are usually secret+private.
 		#self.send_numeric(Err.InviteOnlyChan, email, channel, ":Cannot join channel")
 	
-	def _m_invite(self, user: str, channel: str) -> None:
+	def _m_invite(self, user_email: str, channel: str) -> None:
 		assert self.bs is not None
 		cs = self._channel_to_chatsession(channel)
 		assert cs is not None
-		uuid = self.backend.util_get_uuid_from_email(user)
+		uuid = self.backend.util_get_uuid_from_email(user_email)
 		assert uuid is not None
-		cs.invite(uuid)
-		self.send_numeric(RPL.Inviting, self.bs.user.email, user, channel)
+		user = self.backend.user_service.get(uuid)
+		assert user is not None
+		cs.invite(user)
+		self.send_numeric(RPL.Inviting, self.bs.user.email, user_email, channel)
 	
 	def _m_mode(self, channel: str) -> None:
 		#self.send_numeric(RPL.ChannelModeIs, self.bs.user.email, channel, '+tnl', 200)

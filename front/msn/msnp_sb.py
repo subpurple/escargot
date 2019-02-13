@@ -310,7 +310,7 @@ class ChatEventHandler(event.ChatEventHandler):
 		if data.type is not MessageType.TypingDone:
 			self.ctrl.send_reply('MSG', data.sender.email, data.sender.status.name, messagedata_to_msnp(data))
 	
-	def on_close(self, keep_future: bool, idle: bool):
+	def on_close(self, keep_future: bool, idle: bool) -> None:
 		self.ctrl.close(hard = idle)
 
 def messagedata_from_msnp(sender: User, sender_pop_id: Optional[str], data: bytes) -> MessageData:

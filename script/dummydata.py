@@ -10,9 +10,9 @@ from core.db import Base, Session, User, UserGroup, UserContact, ABStore, ABStor
 from script.user import set_passwords
 from front.msn.misc import cid_format
 
-usercontacts_by_uuid_by_uuid = {}
-user_groups_by_uuid_by_uuid = {}
-ab_store_contacts_by_uuid_by_uuid = {}
+usercontacts_by_uuid_by_uuid = {} # type: Dict[str, Dict[str, UserContact]]
+user_groups_by_uuid_by_uuid = {} # type: Dict[str, Dict[str, UserGroup]]
+ab_store_contacts_by_uuid_by_uuid = {} # type: Dict[str, Dict[str, ABStoreContact]]
 
 def main() -> None:
 	U = []
@@ -133,6 +133,7 @@ def set_contacts(user: User, contacts_by_group: Dict[str, List[User]]) -> None:
 			contact, contact_abs = add_contact_twosided(user, u)
 			if group_name:
 				contact.groups.append({ 'id': group_id, 'uuid': group_uuid })
+				assert contact_abs is not None
 				contact_abs.groups.append(group_uuid)
 				contact_abs.date_last_modified = datetime.utcnow()
 
@@ -144,7 +145,7 @@ def add_contact_twosided(user: User, user_contact: User) -> Tuple[UserContact, O
 	add_contact_onesided(user_contact, user, Lst.RL)
 	return contact, contact_abs
 
-def add_contact_onesided(user: User, user_contact: User, lst: Lst) -> Tuple[Dict[str, Any], Optional[ABStoreContact]]:
+def add_contact_onesided(user: User, user_contact: User, lst: Lst) -> Tuple[UserContact, Optional[ABStoreContact]]:
 	if user_contact.uuid not in usercontacts_by_uuid_by_uuid[user.uuid]:
 		usercontacts_by_uuid_by_uuid[user.uuid][user_contact.uuid] = create_usercontact(user.uuid, user_contact.uuid, user_contact.name, user_contact.message)
 	contact = usercontacts_by_uuid_by_uuid[user.uuid][user_contact.uuid]

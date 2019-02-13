@@ -51,7 +51,7 @@ class ProtocolRunner(Runner):
 	
 	_protocol: Any
 	
-	def __init__(self, host: str, port: int, protocol, *, args: Optional[List[Any]] = None, ssl_context: Optional[ssl.SSLContext] = None, ssl_only:bool = False) -> None:
+	def __init__(self, host: str, port: int, protocol: Any, *, args: Optional[List[Any]] = None, ssl_context: Optional[ssl.SSLContext] = None, ssl_only: bool = False) -> None:
 		super().__init__(host, port, ssl_context = ssl_context, ssl_only = ssl_only)
 		if args:
 			protocol = functools.partial(protocol, *args)

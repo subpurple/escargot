@@ -95,7 +95,6 @@ class UserService:
 	#		return dbuser.uuid
 	
 	def get(self, uuid: str) -> Optional[User]:
-		if uuid is None: return None
 		if uuid not in self._cache_by_uuid:
 			self._cache_by_uuid[uuid] = self._get_uncached(uuid)
 		return self._cache_by_uuid[uuid]

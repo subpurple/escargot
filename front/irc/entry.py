@@ -30,7 +30,7 @@ class ListenerIRC(asyncio.Protocol):
 		self.transport = transport
 		self.logger.log_connect()
 	
-	def connection_lost(self, exc: Exception) -> None:
+	def connection_lost(self, exc: Optional[Exception]) -> None:
 		self.controller.close()
 		self.logger.log_disconnect()
 		self.transport = None

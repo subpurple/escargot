@@ -169,7 +169,7 @@ async def handle_yahoo_alias_delete(req: web.Request) -> web.Response:
 	
 	(id, bs) = _parse_cookies(req, backend)
 	
-	if id != params['id'] or bs is None:
+	if id != req.query['id'] or bs is None:
 		raise web.HTTPInternalServerError
 	
 	if not backend.user_service.yahoo_check_alias(body['alias']):

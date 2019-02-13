@@ -64,7 +64,7 @@ def register(app: web.Application) -> None:
 	app.router.add_get('/etc/debug', handle_debug)
 
 async def handle_abservice(req: web.Request) -> web.Response:
-	backend = req.app['backend']
+	backend: Backend = req.app['backend']
 	
 	header, action, bs, token = await _preprocess_soap(req)
 	if bs is None:
@@ -78,7 +78,6 @@ async def handle_abservice(req: web.Request) -> web.Response:
 	cachekey = secrets.token_urlsafe(172)
 	
 	#print(_xml_to_string(action))
-	backend: Backend = req.app['backend']
 	
 	try:
 		if action_str == 'FindMembership':
@@ -123,7 +122,7 @@ async def handle_abservice(req: web.Request) -> web.Response:
 			detail = user.detail
 			assert detail is not None
 			
-			email = None # type: Optional[str]
+			email = None
 			
 			memberships = action.findall('.//{*}memberships/{*}Membership')
 			for membership in memberships:
@@ -853,7 +852,7 @@ async def handle_abservice(req: web.Request) -> web.Response:
 	
 	return _unknown_soap(req, header, action)
 
-async def handle_storageservice(req):
+async def handle_storageservice(req: web.Request) -> web.Response:
 	header, action, bs, token = await _preprocess_soap(req)
 	assert bs is not None
 	action_str = _get_tag_localname(action)
@@ -1017,7 +1016,7 @@ async def handle_oim(req: web.Request) -> web.Response:
 		'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
 	})
 
-def _is_on_al(uuid: str, detail: models.UserDetail):
+def _is_on_al(uuid: str, detail: models.UserDetail) -> bool:
 	contact = detail.contacts.get(uuid)
 	if detail.settings.get('BLP', 'AL') is 'AL' and (contact is None or contact.lists != models.Lst.BL):
 		return True
@@ -1414,7 +1413,7 @@ def _extract_pp_credentials(auth_str: str) -> Optional[Tuple[str, str]]:
 	pwd = auth['pwd']
 	return email, pwd
 
-def _login(req, email: str, pwd: str, lifetime: int = 30) -> Optional[str]:
+def _login(req: web.Request, email: str, pwd: str, lifetime: int = 30) -> Optional[str]:
 	backend: Backend = req.app['backend']
 	uuid = backend.user_service.login(email, pwd)
 	if uuid is None: return None

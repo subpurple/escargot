@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Iterator
 import json
 from contextlib import contextmanager
 from datetime import datetime, timedelta
@@ -205,7 +205,7 @@ engine = sa.create_engine(settings.DB)
 session_factory = sessionmaker(bind = engine)
 
 @contextmanager
-def Session():
+def Session() -> Iterator[Any]:
 	if Session._depth > 0: # type: ignore
 		yield Session._global # type: ignore
 		return

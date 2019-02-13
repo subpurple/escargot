@@ -334,7 +334,7 @@ class BackendSession(Session):
 		self.message_temp = message_temp
 		self.front_data = {}
 	
-	def _on_close(self, **kwargs) -> None:
+	def _on_close(self, **kwargs: Any) -> None:
 		if not kwargs.get('passthrough'): self.evt.on_close()
 		self.backend.on_leave(self)
 	
@@ -633,7 +633,7 @@ class BackendSession(Session):
 					'MOB': user.settings.get('MOB'),
 				})
 	
-	def me_contact_deny(self, adder_uuid: str, deny_message: Optional[str], *, adder_id: Optional[str] = None):
+	def me_contact_deny(self, adder_uuid: str, deny_message: Optional[str], *, adder_id: Optional[str] = None) -> None:
 		user_adder = self.backend._load_user_record(adder_uuid)
 		if user_adder is None:
 			raise error.UserDoesNotExist()
@@ -808,7 +808,7 @@ class Chat:
 		
 		self.add_id('main', backend.auth_service.GenTokenStr(trim = 10))
 	
-	def add_id(self, scope: str, id: str):
+	def add_id(self, scope: str, id: str) -> None:
 		assert id not in self.backend._chats_by_id
 		self.ids[scope] = id
 		self.backend._chats_by_id[(scope, id)] = self

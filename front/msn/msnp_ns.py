@@ -3,6 +3,7 @@ from datetime import datetime
 from lxml.etree import fromstring as parse_xml, XMLSyntaxError
 import base64
 from email.parser import Parser
+from email.message import EmailMessage
 import secrets
 import asyncio
 import re
@@ -70,7 +71,7 @@ class MSNPCtrlNS(MSNPCtrl):
 	
 	# State = Auth
 	
-	def _m_ver(self, trid: str, *args) -> None:
+	def _m_ver(self, trid: str, *args: str) -> None:
 		#>>> VER trid MSNPz MSNPy MSNPx [CVR0]
 		dialects = [a.upper() for a in args]
 		try:
@@ -88,7 +89,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		self.dialect = int(d[4:])
 		self.send_reply('VER', trid, d)
 	
-	def _m_cvr(self, trid: str, *args) -> None:
+	def _m_cvr(self, trid: str, *args: str) -> None:
 		v = args[5]
 		self.client = Client('msn', v, self.client.via)
 		self.send_reply('CVR', trid, v, v, v, 'https://escargot.log1p.xyz', 'https://escargot.log1p.xyz')
@@ -100,7 +101,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		else:
 			self.send_reply(Err.CommandDisabled, trid)
 	
-	def _m_usr(self, trid: str, authtype: str, stage: str, *args) -> None:
+	def _m_usr(self, trid: str, authtype: str, stage: str, *args: str) -> None:
 		dialect = self.dialect
 		backend = self.backend
 		machineguid = None # type: Optional[str]
@@ -314,7 +315,7 @@ class MSNPCtrlNS(MSNPCtrl):
 	
 	# State = Live
 	
-	def _m_syn(self, trid: str, *extra) -> None:
+	def _m_syn(self, trid: str, *extra: str) -> None:
 		bs = self.bs
 		dialect = self.dialect
 		
@@ -478,10 +479,10 @@ class MSNPCtrlNS(MSNPCtrl):
 		
 		self.send_reply('UUX', trid, 0)
 	
-	def _m_url(self, trid: str, *ignored) -> None:
+	def _m_url(self, trid: str, *ignored: str) -> None:
 		self.send_reply('URL', trid, '/unused1', '/unused2', 1)
 	
-	def _m_adg(self, trid: str, name: str, ignored = None) -> None:
+	def _m_adg(self, trid: str, name: str, ignored: Optional[str] = None) -> None:
 		#>>> ADG 276 New Group
 		bs = self.bs
 		assert bs is not None
@@ -515,7 +516,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		
 		self.send_reply('RMG', trid, self._ser() or 1, group_id)
 	
-	def _m_reg(self, trid: str, group_id: str, name: str, ignored = None) -> None:
+	def _m_reg(self, trid: str, group_id: str, name: str, ignored: Optional[str] = None) -> None:
 		#>>> REG 275 00000000-0000-0000-0001-000000000001 newname
 		bs = self.bs
 		assert bs is not None
@@ -932,7 +933,7 @@ class MSNPCtrlNS(MSNPCtrl):
 				self.send_reply(*m)
 		# TODO: There's a weird timeout issue with the challenges on 8.x. Comment out for now
 		#if 8 <= self.dialect <= 10:
-		#	self._send_chl()
+		#	self._send_chl(trid)
 		if self.backend.notify_maintenance:
 			bs.evt.on_system_message(1, self.backend.maintenance_mins)
 	
@@ -1013,7 +1014,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		# Send email about how to use MSN. Ignore it for now.
 		self.send_reply('SND', trid, email)
 	
-	def _m_prp(self, trid: str, key: str, value: Optional[str], *rest) -> None:
+	def _m_prp(self, trid: str, key: str, value: Optional[str], *rest: str) -> None:
 		#>>> PRP 115 MFN ~~woot~~
 		bs = self.bs
 		assert bs is not None
@@ -1169,19 +1170,19 @@ class MSNPCtrlNS(MSNPCtrl):
 		
 		bs.me_send_uun_invitation(contact_uuid, type, data, pop_id_sender = pop_id_self, pop_id = pop_id)
 	
-	async def _check_qry_sent(self):
+	def _send_chl(self, trid: str) -> None:
+		backend = self.backend
+		
+		self.challenge = str(secrets.randbelow(89999999999999999999) + 10000000000000000000)
+		backend.loop.create_task(self._check_qry_sent(trid))
+		self.send_reply('CHL', 0, self.challenge)
+	
+	async def _check_qry_sent(self, trid: str) -> None:
 		await asyncio.sleep(50)
 		
 		if self.challenge:
 			self.send_reply(Err.ChallengeResponseFailed, trid)
 			self.close(hard = True)
-	
-	def _send_chl(self) -> None:
-		backend = self.backend
-		
-		self.challenge = str(secrets.randbelow(89999999999999999999) + 10000000000000000000)
-		backend.loop.create_task(self._check_qry_sent())
-		self.send_reply('CHL', 0, self.challenge)
 	
 	def _ser(self) -> Optional[int]:
 		if self.dialect >= 10:
@@ -1223,7 +1224,7 @@ class BackendEventHandler(event.BackendEventHandler):
 		if self.ctrl.dialect < 13 and updated_phone_info and self.ctrl.syn_sent:
 			for phone_type, value in updated_phone_info.items():
 				if value is not None:
-					self.ctrl.send_reply('BPR', self.ctrl._ser(), ctc_head.email, phone_type, value)
+					self.ctrl.send_reply('BPR', self.ctrl._ser(), ctc.head.email, phone_type, value)
 		if update_status:
 			for m in build_presence_notif(trid, ctc.head, user, self.ctrl.dialect, self.ctrl.backend,  bs_other = bs_other, circle_user_bs = circle_user_bs, circle_id = circle_id):
 				self.ctrl.send_reply(*m)
@@ -1310,7 +1311,7 @@ class BackendEventHandler(event.BackendEventHandler):
 			cid = owner_cid, last_modified = ab_last_modified,
 		))
 	
-	def msn_on_put_sent(self, message: 'Message', sender: User, *, pop_id_sender: Optional[str] = None, pop_id: Optional[str] = None) -> None:
+	def msn_on_put_sent(self, message: EmailMessage, sender: User, *, pop_id_sender: Optional[str] = None, pop_id: Optional[str] = None) -> None:
 		ctrl = self.ctrl
 		bs = ctrl.bs
 		assert bs is not None

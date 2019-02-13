@@ -84,8 +84,9 @@ async def handle_http_gateway(req: web.Request) -> web.Response:
 	if gwsess is None:
 		raise web.HTTPBadRequest()
 	
+	assert req.transport is not None
 	gwsess.logger.log_connect()
-	gwsess.controller.data_received(req.transport, await req.body())
+	gwsess.controller.data_received(req.transport, await req.read())
 	gwsess.logger.log_disconnect()
 	body = gwsess.controller.flush()
 	

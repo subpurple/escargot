@@ -15,7 +15,7 @@ from random import randrange
 
 from core.db import Sound, Session
 
-def register(app: web.Application):
+def register(app: web.Application) -> None:
 	app.router.add_get('/esnd/snd/builtin', builtin)
 	app.router.add_get('/esnd/snd/check', check)
 	app.router.add_get('/esnd/snd/get', get)
@@ -68,8 +68,10 @@ async def put(request: web.Request) -> web.Response:
 		:return 1 for success 0 for failure
 	"""
 	data = await request.post()
+	file = data['file']
+	assert isinstance(file, web.FileField)
 	
-	with data['file'].file as f:
+	with file.file as f:
 		f.seek(-128, 2) # metadata offset
 		metadata = _parse_metadata(f.read())
 		

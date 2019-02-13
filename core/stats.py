@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Iterator
 from datetime import datetime
 from contextlib import contextmanager
 import sqlalchemy as sa
@@ -187,7 +187,7 @@ engine = sa.create_engine(settings.STATS_DB)
 session_factory = sessionmaker(bind = engine)
 
 @contextmanager
-def Session():
+def Session() -> Iterator[Any]:
 	if Session._depth > 0: # type: ignore
 		yield Session._global # type: ignore
 		return
