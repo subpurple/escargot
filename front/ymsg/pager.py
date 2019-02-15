@@ -6,6 +6,7 @@ import asyncio
 import time
 import binascii
 from email.message import EmailMessage
+import struct
 
 from util.misc import Logger
 
@@ -48,8 +49,8 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		self.chat_sessions = {}
 		self.client = Client('yahoo', '?', via)
 	
-	def _on_close(self) -> None:
-		if self.yahoo_id:
+	def _on_close(self, remove_session: bool = True) -> None:
+		if self.yahoo_id and remove_session:
 			PRE_SESSION_ID.pop(self.yahoo_id, None)
 		
 		if self.bs:
@@ -80,7 +81,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 			return
 		
 		if self.yahoo_id in PRE_SESSION_ID:
-			self.close()
+			self.close(remove_session = False)
 			return
 		self.sess_id = secrets.randbelow(4294967294) + 1
 		PRE_SESSION_ID[self.yahoo_id] = self.sess_id
@@ -950,7 +951,12 @@ YAHOO_ID_ENCODING = {
 def add_contact_status_to_data(data: Any, status: UserStatus, contact: User) -> None:
 	is_offlineish = status.is_offlineish()
 	user_yahoo_id = misc.yahoo_id(contact.email)
-	key_11_val = contact.uuid[:8].upper()
+	# `static var YMSG_FLD_SESSION_ID = 11;`
+	# Yahoo! was weird sometimes :p
+	if user_yahoo_id in PRE_SESSION_ID:
+		key_11_val = binascii.hexlify(struct.pack('!I', PRE_SESSION_ID[user_yahoo_id])).decode().upper()
+	else:
+		key_11_val = contact.uuid[:8].upper()
 	
 	data.add('7', user_yahoo_id)
 	
