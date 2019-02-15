@@ -7,6 +7,7 @@ from pathlib import PurePath
 import os
 import datetime
 import shutil
+import re
 
 from core.backend import Backend, BackendSession
 import util.misc
@@ -30,17 +31,10 @@ def register(app: web.Application) -> None:
 	app.router.add_route('*', '/c/msg/tabs.html', handle_chat_tabad)
 	app.router.add_route('*', '/c/msg/chat.html', handle_chat_notice)
 	app.router.add_route('*', '/c/msg/alerts.html', handle_chat_alertad)
-	app.router.add_static('/c/msg/chat_img', YAHOO_TMPL_DIR + '/c/msg/chat_img')
-	app.router.add_static('/c/msg/ad_img', YAHOO_TMPL_DIR + '/c/msg/ad_img')
+	app.router.add_static('/c/msg/img', YAHOO_TMPL_DIR + '/c/msg/img')
 	
 	# Yahoo!'s redirector to cookie-based services
-	app.router.add_route('*', '/config/reset_cookies', handle_cookies_redirect)
-	
-	# Yahoo! Messenger alias service
-	app.router.add_get('/config/edit_identity', handle_yahoo_alias_service)
-	app.router.add_post('/config/alias/cgi/delete_alias', handle_yahoo_alias_delete)
-	app.router.add_static('/config/alias/img', YAHOO_TMPL_DIR + '/yh_config/alias/img')
-	app.router.add_static('/config/alias/css', YAHOO_TMPL_DIR + '/yh_config/alias/css')
+	#app.router.add_route('*', '/config/reset_cookies', handle_cookies_redirect)
 	
 	# Yahoo!'s redirect service (rd.yahoo.com)
 	app.router.add_get('/messenger/search/', handle_rd_yahoo)
@@ -109,91 +103,41 @@ async def handle_chat_alertad(req: web.Request) -> web.Response:
 	})
 
 async def handle_chat_notice(req: web.Request) -> web.Response:
-	return render(req, 'ymsg:c/msg/chat.html')
+	return render(req, 'ymsg:c/msg/chatpane.html')
 
 async def handle_rd_yahoo(req: web.Request) -> web.Response:
 	return web.HTTPFound(req.query_string.replace(' ', '+'))
 
-async def handle_cookies_redirect(req: web.Request) -> web.Response:
-	# Retreive the `Y` and `T` cookies.
-	
-	query = req.query
-	backend = req.app['backend']
-	
-	y_cookie = query.get('.y')
-	t_cookie = query.get('.t')
-	
-	(yahoo_id, bs) = _parse_cookies(req, backend, y = y_cookie[2:], t = t_cookie[2:])
-	if bs is None or yahoo_id is None:
-		raise web.HTTPInternalServerError
-	
-	redir_to = query.get('.done')
-	
-	return _redir_with_auth_cookies(redir_to, y_cookie[2:], t_cookie[2:], backend)
+#async def handle_cookies_redirect(req: web.Request) -> web.Response:
+#	# Retreive the `Y` and `T` cookies.
+#	
+#	query = req.query
+#	backend = req.app['backend']
+#	
+#	y_cookie = query.get('.y')
+#	t_cookie = query.get('.t')
+#	
+#	(yahoo_id, bs) = _parse_cookies(req, backend, y = y_cookie[2:], t = t_cookie[2:])
+#	if bs is None or yahoo_id is None:
+#		raise web.HTTPInternalServerError
+#	
+#	redir_to = query.get('.done')
+#	
+#	return _redir_with_auth_cookies(redir_to, y_cookie[2:], t_cookie[2:], backend)
 
-async def handle_yahoo_alias_service(req: web.Request) -> web.Response:
-	backend = req.app['backend']
-	query = req.query
-	
-	new_alias = None
-	errors = None
-	
-	(yahoo_id, bs) = _parse_cookies(req, backend)
-	
-	if yahoo_id != query.get('.l') or bs is None:
-		raise web.HTTPInternalServerError
-	
-	if req.method == 'POST':
-		body = await req.post()
-		
-		for bs_other in bs.backend._sc.iter_sessions():
-			if body['alias_new'] == yahoo_id(bs_other.user.email) or backend.user_service.yahoo_check_alias(body['alias_new']):
-				errors = 'Alias "' + body['alias_new'] + '" has already been registered.'
-		
-		backend.user_service.yahoo_add_alias(bs.user.uuid, body['alias_new'])
-		bs.evt.ymsg_on_notify_alias_activate(body['alias_new'])
-	
-	aliases = backend.user_service.yahoo_get_aliases(bs.user.uuid)
-	
-	return render(req, 'ymsg:yh_config/alias/aliascmdbrd.html', {
-		'aliases': aliases,
-		'new_alias': new_alias,
-		'errors': errors,
-		'main_yid': query.get('.l'),
-	})
-
-async def handle_yahoo_alias_delete(req: web.Request) -> web.Response:
-	body = await req.post()
-	
-	backend = req.app['backend']
-	
-	(id, bs) = _parse_cookies(req, backend)
-	
-	if id != req.query['id'] or bs is None:
-		raise web.HTTPInternalServerError
-	
-	if not backend.user_service.yahoo_check_alias(body['alias']):
-		raise web.HTTPInternalServerError
-	
-	bs.evt.ymsg_on_notify_alias_deactivate(body['alias'])
-	
-	alias_delete = backend.user_service.yahoo_delete_alias(bs.user.uuid, body['alias'])
-	
-	return web.HTTPOk()
-
-def _redir_with_auth_cookies(loc: str, y: str, t: str, backend: Backend) -> web.Response:
-	resp = web.Response(status = 302, headers = {
-		'Location': loc,
-	})
-	
-	y_expiry = datetime.datetime.utcfromtimestamp(backend.auth_service.get_token_expiry('ymsg/cookie', y)).strftime('%a, %d %b %Y %H:%M:%S GMT')
-	t_expiry = datetime.datetime.utcfromtimestamp(backend.auth_service.get_token_expiry('ymsg/cookie', t)).strftime('%a, %d %b %Y %H:%M:%S GMT') 
-	
-	# TODO: Replace '.yahoo.com' with '.log1p.xyz' when patched Yahoo! Messenger files are released.
-	resp.set_cookie('Y', y, path = '/', expires = y_expiry, domain = '.yahoo.com')
-	resp.set_cookie('T', t, path = '/', expires = t_expiry, domain = '.yahoo.com')
-	
-	return resp
+#def _redir_with_auth_cookies(loc: str, y: str, t: str, backend: Backend) -> web.Response:
+#	resp = web.Response(status = 302, headers = {
+#		'Location': loc,
+#	})
+#	
+#	y_expiry = datetime.datetime.utcfromtimestamp(backend.auth_service.get_token_expiry('ymsg/cookie', y)).strftime('%a, %d %b %Y %H:%M:%S GMT')
+#	t_expiry = datetime.datetime.utcfromtimestamp(backend.auth_service.get_token_expiry('ymsg/cookie', t)).strftime('%a, %d %b %Y %H:%M:%S GMT') 
+#	
+#	# TODO: Replace '.yahoo.com' with '.log1p.xyz' when patched Yahoo! Messenger files are released.
+#	resp.set_cookie('Y', y, path = '/', expires = y_expiry, domain = '.yahoo.com')
+#	resp.set_cookie('T', t, path = '/', expires = t_expiry, domain = '.yahoo.com')
+#	
+#	return resp
 
 async def handle_ft_http(req: web.Request) -> web.Response:
 	body = await req.read()

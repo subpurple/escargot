@@ -174,13 +174,6 @@ def _simplify_json_data(data: Any) -> Any:
 		return [_simplify_json_data(x) for x in data]
 	return data
 
-class YahooAlias(Base):
-	__tablename__ = 't_yahoo_alias'
-	
-	id = sa.Column(sa.Integer, nullable = False, primary_key = True)
-	yid_alias = sa.Column(sa.String, nullable = False)
-	owner_uuid = sa.Column(sa.String, nullable = False)
-
 class YahooOIM(Base):
 	__tablename__ = 't_yahoo_oim'
 	

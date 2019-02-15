@@ -10,7 +10,7 @@ from .ymsg_ctrl import YMSGCtrlBase
 
 def register(loop: asyncio.AbstractEventLoop, backend: Backend, http_app: web.Application) -> None:
 	from util.misc import ProtocolRunner
-	from . import pager, http, voicechat
+	from . import pager, http, voicechat, videochat
 	
 	backend.add_runner(ProtocolRunner('0.0.0.0', 5050, ListenerYMSG, args = ['YH', backend, pager.YMSGCtrlPager]))
 	# Funny that Yahoo! used the FTP transfer, Telnet, SMTP, and NNTP (Usenet) ports as the fallback ports.
@@ -25,6 +25,7 @@ def register(loop: asyncio.AbstractEventLoop, backend: Backend, http_app: web.Ap
 	backend.add_runner(ProtocolRunner('0.0.0.0', 8002, ListenerYMSG, args = ['YH', backend, pager.YMSGCtrlPager]))
 	http.register(http_app)
 	#voicechat.register(backend)
+	videochat.register(backend)
 
 class ListenerYMSG(asyncio.Protocol):
 	logger: Logger

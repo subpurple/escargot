@@ -57,8 +57,8 @@ def register(app: web.Application) -> None:
 	app.router.add_post('/storageservice/SchematizedStore.asmx', handle_storageservice)
 	app.router.add_get('/storage/usertile/{uuid}/static', handle_usertile)
 	app.router.add_get('/storage/usertile/{uuid}/small', lambda req: handle_usertile(req, small = True))
-	app.router.add_post('/rsi/rsi.asmx', handle_rsi)
-	app.router.add_post('/OimWS/oim.asmx', handle_oim)
+	#app.router.add_post('/rsi/rsi.asmx', handle_rsi)
+	#app.router.add_post('/OimWS/oim.asmx', handle_oim)
 	
 	# Misc
 	app.router.add_get('/etc/debug', handle_debug)

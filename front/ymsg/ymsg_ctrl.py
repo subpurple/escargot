@@ -144,8 +144,11 @@ def _try_decode_ymsg(d: bytes, i: int) -> Tuple[DecodedYMSG, int]:
 	assert len(d[i:]) >= e
 	assert d[i:i+4] == PRE
 	header = d[i+4:i+e]
-	struct_fmt = ('!xB' if header[0] == b'\x00' else '!Bx') + 'HHHII'
-	(version, vendor_id, n, service, status, session_id) = struct.unpack(struct_fmt, header)
+	if header[0] != b'\x00':
+		version = struct.unpack('<H', header[:2])[0]
+	else:
+		version = struct.unpack('!H', header[:2])[0]
+	(vendor_id, n, service, status, session_id) = struct.unpack('!HHHII', header[2:])
 	assert version in YMSG_DIALECTS
 	assert e+n <= len(d[i:])
 	payload = d[e:e+n]
@@ -155,8 +158,8 @@ def _try_decode_ymsg(d: bytes, i: int) -> Tuple[DecodedYMSG, int]:
 		del parts[-1]
 		assert len(parts) % 2 == 0
 		for i in range(1, len(parts), 2):
-			key = int(parts[i-1].decode())
-			kvs.add(str(key), parts[i].decode('utf-8'))
+			key = str(parts[i-1].decode())
+			kvs.add(key, parts[i].decode('utf-8'))
 		e += n
 	return ((YMSGService(service), version, vendor_id, YMSGStatus(status), session_id, kvs), e)
 

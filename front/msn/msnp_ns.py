@@ -423,6 +423,7 @@ class MSNPCtrlNS(MSNPCtrl):
 	def _m_uux(self, trid: str, data: bytes) -> None:
 		bs = self.bs
 		assert bs is not None
+		user = bs.user
 		dialect = self.dialect
 		
 		elm = parse_xml(data.decode('utf-8'))
@@ -474,7 +475,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		bs.me_update({
 			'message': ((psm.text or '') if psm is not None else None),
 			'media': ((cm.text or '') if cm is not None else None),
-			'notify_self': (True if self.dialect >= 16 else False),
+			'notify_self': (True if self.dialect >= 16 and user.status.substatus is Substatus.Offline else False),
 		})
 		
 		self.send_reply('UUX', trid, 0)
@@ -906,12 +907,11 @@ class MSNPCtrlNS(MSNPCtrl):
 		else:
 			bs.front_data['msn_msnobj'] = msnobj
 		
-		if self.dialect >= 13 and not self.initial_adl_sent: return
+		if dialect >= 13 and not self.initial_adl_sent: return
 		
 		bs.me_update({
 			'substatus': MSNStatus.ToSubstatus(getattr(MSNStatus, sts_name)),
 			'refresh_profile': True,
-			'notify_self': (True if self.dialect >= 16 else False),
 		})
 		
 		extra = () # type: Tuple[Any, ...]
@@ -921,21 +921,25 @@ class MSNPCtrlNS(MSNPCtrl):
 		self.send_reply('CHG', trid, sts_name, capabilities, *extra)
 		
 		# Send ILNs (and system messages, if any)
-		if self.iln_sent:
-			return
-		self.iln_sent = True
-		user = bs.user
-		detail = user.detail
-		assert detail is not None
-		dialect = self.dialect
-		for ctc in detail.contacts.values():
-			for m in build_presence_notif(trid, ctc.head, user, dialect, self.backend):
-				self.send_reply(*m)
-		# TODO: There's a weird timeout issue with the challenges on 8.x. Comment out for now
-		#if 8 <= self.dialect <= 10:
-		#	self._send_chl(trid)
-		if self.backend.notify_maintenance:
-			bs.evt.on_system_message(1, self.backend.maintenance_mins)
+		if not self.iln_sent:
+			self.iln_sent = True
+			user = bs.user
+			detail = user.detail
+			assert detail is not None
+			dialect = self.dialect
+			for ctc in detail.contacts.values():
+				for m in build_presence_notif(trid, ctc.head, user, dialect, self.backend):
+					self.send_reply(*m)
+			# TODO: There's a weird timeout issue with the challenges on 8.x. Comment out for now
+			#if 8 <= self.dialect <= 10:
+			#	self._send_chl()
+			if self.backend.notify_maintenance:
+				bs.evt.on_system_message(1, self.backend.maintenance_mins)
+		
+		if dialect >= 16:
+			bs.me_update({
+				'notify_self': True,
+			})
 	
 	def _m_qry(self, trid: str, client_id: str, response: bytes) -> None:
 		challenge = self.challenge

@@ -24,7 +24,7 @@ from . import misc, Y64
 PRE_SESSION_ID: Dict[str, int] = {}
 
 class YMSGCtrlPager(YMSGCtrlBase):
-	__slots__ = ('backend', 'dialect', 'yahoo_id', 'sess_id', 'challenge', 't_cookie_token', 'bs', 'activated_alias_bses', 'chat_sessions', 'client')
+	__slots__ = ('backend', 'dialect', 'yahoo_id', 'sess_id', 'challenge', 't_cookie_token', 'bs', 'chat_sessions', 'client')
 	
 	backend: Backend
 	dialect: int
@@ -33,7 +33,6 @@ class YMSGCtrlPager(YMSGCtrlBase):
 	challenge: Optional[str]
 	t_cookie_token: Optional[str]
 	bs: Optional[BackendSession]
-	activated_alias_bses: Dict[str, BackendSession]
 	chat_sessions: Dict[Chat, ChatSession]
 	client: Client
 	
@@ -46,7 +45,6 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		self.challenge = None
 		self.t_cookie_token = None
 		self.bs = None
-		self.activated_alias_bses = {}
 		self.chat_sessions = {}
 		self.client = Client('yahoo', '?', via)
 	
@@ -106,7 +104,6 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		
 		y = None
 		t = None
-		aliases_to_activate = []
 		
 		status = args[2]
 		if status is YMSGStatus.WebLogin:
@@ -141,16 +138,14 @@ class YMSGCtrlPager(YMSGCtrlBase):
 					is_resp_correct = False
 				else:
 					self.bs = bs
-					if '2' in args[4]:
-						aliases_to_activate = args[4].getall('2')
-					self._util_authresp_final(status, aliases_to_activate = aliases_to_activate, cached_y = y, cached_t = t)
+					self._util_authresp_final(status, cached_y = y, cached_t = t)
 		
 		if not is_resp_correct:
 			self.send_reply(YMSGService.AuthResp, YMSGStatus.LoginError, self.sess_id, MultiDict([
 				('66', int(YMSGStatus.Bad))
 			]))
 	
-	def _util_authresp_final(self, status: YMSGStatus, *, aliases_to_activate: Optional[List[str]] = None, cached_y: Optional[str] = None, cached_t: Optional[str] = None) -> None:
+	def _util_authresp_final(self, status: YMSGStatus, *, cached_y: Optional[str] = None, cached_t: Optional[str] = None) -> None:
 		bs = self.bs
 		assert bs is not None
 		user = bs.user
@@ -161,11 +156,10 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		
 		bs.front_data['ymsg'] = True
 		bs.front_data['ymsg_private_chats'] = {}
-		bs.front_data['ymsg_alias'] = False
 		
 		self._get_oims(self.yahoo_id)
 		
-		self._update_buddy_list(aliases_to_activate = aliases_to_activate, cached_y = cached_y, cached_t = cached_t, after_login = True)
+		self._update_buddy_list(cached_y = cached_y, cached_t = cached_t, after_login = True)
 		
 		if self.dialect >= 10:
 			self.send_reply(YMSGService.PingConfiguration, YMSGStatus.Available, self.sess_id, MultiDict([
@@ -187,8 +181,6 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		new_status = YMSGStatus(int(args[2]))
 		
 		me_status_update(bs, new_status)
-		for _, alias_bs in self.activated_alias_bses.items():
-			me_status_update(alias_bs, new_status)
 	
 	def _y_0003(self, *args: Any) -> None:
 		# SERVICE_ISAWAY (0x03); notify contacts of FYI idle presence
@@ -200,8 +192,6 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		message = args[4].get('19') or ''
 		is_away_message = (args[4].get('47') == '1')
 		me_status_update(bs, new_status, message = message, is_away_message = is_away_message)
-		for _, alias_bs in self.activated_alias_bses.items():
-			me_status_update(alias_bs, new_status, message = message, is_away_message = is_away_message)
 	
 	def _y_0012(self, *args: Any) -> None:
 		# SERVICE_PINGCONFIGURATION (0x12); set the "ticks" and "tocks" of a ping sent
@@ -307,12 +297,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		try:
 			# TODO: Moving/copying contacts to groups
 			if len(contact._groups) >= 1: action_group_copy = True
-			print(contact._groups)
 			bs.me_group_contact_add(group.id, contact.head.uuid)
-			for group_other in contact._groups.copy():
-				if group_other.id is group.id:
-					print('New group ID(s):', group_other.id)
-			print(contact._groups)
 			
 			if action_group_copy: self._update_buddy_list()
 		except error.ContactAlreadyOnList:
@@ -449,24 +434,12 @@ class YMSGCtrlPager(YMSGCtrlBase):
 	def _y_0008(self, *args: Any) -> None:
 		# SERVICE_IDDEACTIVATE (0x08); deactivate an alias
 		
-		alias = args[4].get('3')
-		
-		self._deactivate_alias(alias)
-		
-		self.send_reply(YMSGService.IDDeactivate, YMSGStatus.BRB, self.sess_id, MultiDict([
-			('3', alias),
-		]))
+		return
 	
 	def _y_0007(self, *args: Any) -> None:
 		# SERVICE_IDACTIVATE (0x07); activate an alias
 		
-		alias = args[4].get('3')
-		
-		self._activate_alias(alias)
-		
-		self.send_reply(YMSGService.IDActivate, YMSGStatus.BRB, self.sess_id, MultiDict([
-			('3', alias),
-		]))
+		return
 	
 	def _y_004f(self, *args: Any) -> None:
 		# SERVICE_PEERTOPEER (0x4f); see if P2P messaging is possible
@@ -518,13 +491,27 @@ class YMSGCtrlPager(YMSGCtrlBase):
 			for yahoo_id in contact_yahoo_ids:
 				self._message_common(args[4], yahoo_id, args[4].get('1'))
 	
+	def _y_0050(self, *args: Any) -> None:
+		bs = self.bs
+		assert bs is not None
+		
+		if not args[4].get('1'): return
+		
+		webcam_token = self.backend.auth_service.create_token('ymsg/webcam', args[4].get('1'), lifetime = 86400)
+		
+		self.send_reply(YMSGService.VideoChat, YMSGStatus.BRB, self.sess_id, MultiDict([
+			('1', args[4].get('1')),
+			('5', args[4].get('1')),
+			('61', webcam_token),
+		]))
+	
 	def _y_004d(self, *args: Any) -> None:
 		# SERVICE_P2PFILEXFER (0x4d); initiate P2P file transfer. Due to this service being present in 3rd-party libraries; we can implement it here
 		
 		yahoo_data = args[4]
 		yahoo_id = yahoo_data.get('4')
 		
-		bs = (self.bs if yahoo_id not in self.activated_alias_bses else self.activated_alias_bses[yahoo_id])
+		bs = self.bs
 		assert bs is not None
 		
 		contact_uuid = yahoo_id_to_uuid(self.backend, yahoo_data.get('5'))
@@ -614,7 +601,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		
 		yahoo_id = args[4].get('1')
 		
-		bs = (self.bs if yahoo_id not in self.activated_alias_bses else self.activated_alias_bses[yahoo_id])
+		bs = self.bs
 		assert bs is not None
 		
 		inviter_ids = args[4].getall('3', None)
@@ -711,7 +698,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 				pass
 	
 	def _get_private_chat_with(self, yahoo_id: str, other_user_uuid: str) -> Tuple[ChatSession, 'ChatEventHandler']:
-		bs = (self.bs if yahoo_id not in self.activated_alias_bses else self.activated_alias_bses.get(yahoo_id))
+		bs = self.bs
 		assert bs is not None
 		user = bs.user
 		detail = user.detail
@@ -722,8 +709,6 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		# as if they were an unblocked contact who was offline. Due to this quirk, it's hard to tell if they blocked you for the purpose of
 		# determining if they can be sent OIMs. Find a better scheme for detecting this, as with this implementation it'd be impossible to
 		# send OIMs to anyone (people in Invisible mode are supposed to receive IMs as normal).
-		if other_user.detail is None or is_blocking(other_user, user):
-			raise error.ContactNotOnList()
 		other_user_ctc = detail.contacts.get(other_user.uuid)
 		if other_user_ctc is not None and other_user_ctc.lists & Lst.BL:
 			raise error.ContactNotOnList()
@@ -748,7 +733,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		return chat
 	
 	def _get_chat_session(self, yahoo_id: str, chat: Chat, *, create: bool = False) -> Optional[ChatSession]:
-		bs = (self.bs if yahoo_id not in self.activated_alias_bses else self.activated_alias_bses.get(yahoo_id))
+		bs = self.bs
 		assert bs is not None
 		
 		cs = self.chat_sessions.get(chat)
@@ -759,7 +744,8 @@ class YMSGCtrlPager(YMSGCtrlBase):
 			chat.send_participant_joined(cs)
 		return cs
 	
-	def _update_buddy_list(self, *, aliases_to_activate: Optional[List[str]] = None, cached_y: Optional[str] = None, cached_t: Optional[str] = None, after_login: bool = False) -> None:
+	def _update_buddy_list(self, *, cached_y: Optional[str] = None, cached_t: Optional[str] = None, after_login: bool = False) -> None:
+		backend = self.backend
 		bs = self.bs
 		assert bs is not None
 		user = bs.user
@@ -788,17 +774,13 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		
 		ignore_list = [misc.yahoo_id(c.head.email) for c in cs if c.lists & Lst.BL and not c.lists & Lst.FL]
 		
-		id_list = [self.yahoo_id]
-		aliases = self.backend.user_service.yahoo_get_aliases(user.uuid)
-		for alias in aliases: id_list.append(alias.yid)
-		
 		list_reply_kvs = MultiDict([
 			('87', ''.join(contact_group_list)),
 			('88', ','.join(ignore_list)),
-			('89', ','.join(id_list)),
+			('89', self.yahoo_id),
 		])
 		
-		if cached_y is not None and cached_t is not None:
+		if cached_y is not None and cached_t is not None and backend.auth_service.get_token('ymsg/cookie', cached_y) and backend.auth_service.get_token('ymsg/cookie', cached_t):
 			list_reply_kvs.add('59', cached_y)
 			list_reply_kvs.add('59', cached_t)
 		else:
@@ -825,20 +807,6 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		for c in cs_fl:
 			add_contact_status_to_data(logon_payload, c.status, c.head)
 		
-		if after_login and aliases_to_activate:
-			for alias_name in aliases_to_activate:
-				for alias in aliases:
-					if alias_name is alias.yid:
-						self.send_reply(YMSGService.IDActivate, YMSGStatus.BRB, self.sess_id, MultiDict([
-							('3', alias.yid),
-						]))
-						
-						self._activate_alias(alias.yid)
-					else:
-						self.send_reply(YMSGService.IDDeactivate, YMSGStatus.BRB, self.sess_id, MultiDict([
-							('3', alias.yid),
-						]))
-		
 		self.send_reply(YMSGService.LogOn, YMSGStatus.Available, self.sess_id, logon_payload)
 	
 	def _get_oims(self, yahoo_id: str) -> None:
@@ -859,25 +827,6 @@ class YMSGCtrlPager(YMSGCtrlBase):
 				oim_msg_dict.add('97', int(oim.utf8_kv))
 			
 			self.send_reply(YMSGService.Message, YMSGStatus.NotInOffice, self.sess_id, oim_msg_dict)
-	
-	def _activate_alias(self, alias: str) -> None:
-		bs = self.bs
-		assert bs is not None
-		user = bs.user
-		
-		alias_bs = self.backend.login(yahoo_id_to_uuid(self.backend, alias), self.client, BackendEventHandler(self.backend.loop, self), LoginOption.Duplicate)
-		assert alias_bs is not None
-		alias_bs.front_data['ymsg_private_chats'] = {}
-		alias_bs.front_data['ymsg_alias'] = True
-		self.activated_alias_bses[alias] = alias_bs
-		me_status_update(alias_bs, YMSGStatus.FromSubstatus(user.status.substatus))
-		self._get_oims(alias)
-	
-	def _deactivate_alias(self, alias: str) -> None:
-		alias_bs = self.activated_alias_bses.pop(alias, None)
-		assert alias_bs is not None
-		
-		alias_bs.close(passthrough = True)
 	
 	def _verify_challenge_v1(self, yahoo_id: str, resp_6: str, resp_96: str) -> bool:
 		from hashlib import md5
@@ -943,8 +892,8 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		auth_service.pop_token('ymsg/cookie', y_cookie)
 		auth_service.pop_token('ymsg/cookie', t_cookie)
 		
-		auth_service.create_token('ymsg/cookie', self.yahoo_id, token = y_cookie, lifetime = 86400)
-		auth_service.create_token('ymsg/cookie', self.bs, token = t_cookie, lifetime = 86400)
+		y_cookie_new = auth_service.create_token('ymsg/cookie', self.yahoo_id, token = y_cookie, lifetime = 86400)
+		t_cookie_new = auth_service.create_token('ymsg/cookie', self.bs, token = t_cookie, lifetime = 86400)
 		
 		return (y_cookie, t_cookie, expiry)
 
@@ -1066,7 +1015,6 @@ class BackendEventHandler(event.BackendEventHandler):
 		assert bs is not None
 		
 		if on_contact_add: return
-		if bs.front_data.get('ymsg_alias'): return
 		
 		if update_status:
 			if ctc.status.is_offlineish() and not old_substatus.is_offlineish():
@@ -1089,24 +1037,6 @@ class BackendEventHandler(event.BackendEventHandler):
 	
 	def on_presence_self_notification(self) -> None:
 		pass
-	
-	def on_sync_contact_statuses(self) -> None:
-		bs = self.ctrl.bs
-		assert bs is not None
-		user = bs.user
-		detail = user.detail
-		assert detail is not None
-		
-		for ctc in detail.contacts.values():
-			is_contact = user_in_contact_list(user, ctc.head, self.ctrl.backend)[0]
-			if is_contact:
-				ctc.compute_visible_status(user, is_blocking)
-			
-			if ctc.head.detail is None: continue
-			ctc_rev = ctc.head.detail.contacts.get(user.uuid)
-			if ctc_rev is None: continue
-			if ctc_rev.lists & Lst.FL and not ctc_rev.lists & Lst.BL:
-				ctc_rev.compute_visible_status(ctc.head, is_blocking)
 	
 	def on_contact_request_denied(self, user_added: User, message: str, *, contact_id: Optional[str] = None) -> None:
 		bs = self.bs
@@ -1161,14 +1091,6 @@ class BackendEventHandler(event.BackendEventHandler):
 	def ymsg_on_sent_ft_http(self, sender: str, url_path: str, upload_time: int, message: str) -> None:
 		for y in misc.build_http_ft_packet(self.bs, sender, url_path, upload_time, message):
 			self.ctrl.send_reply(y[0], y[1], self.sess_id, y[2])
-	
-	def ymsg_on_notify_alias_activate(self, activated_alias: str, new_alias: bool = False) -> None:
-		if new_alias: self.ctrl._update_buddy_list()
-		
-		self.ctrl._activate_alias(activated_alias)
-	
-	def ymsg_on_notify_alias_deactivate(self, deactivated_alias: str) -> None:
-		self.ctrl._deactivate_alias(deactivated_alias)
 	
 	def on_chat_invite(self, chat: Chat, inviter: User, *, inviter_id: Optional[str] = None, invite_msg: str = '') -> None:
 		if chat.front_data.get('ymsg_twoway_only'):
@@ -1324,6 +1246,13 @@ class ChatEventHandler(event.ChatEventHandler):
 				('14', yahoo_data.get('14') or data.text or ' '),
 				('13', yahoo_data.get('13') or ('0' if data.type is MessageType.TypingDone else '1'))
 			]))
+		elif data.type is MessageType.Webcam:
+			self.ctrl.send_reply(YMSGService.Notify, YMSGStatus.BRB, self.ctrl.sess_id, MultiDict([
+				('5', yahoo_data.get('5') or misc.yahoo_id(bs.user.email)),
+				('4', yahoo_data.get('1') or misc.yahoo_id(sender.email)),
+				('49', 'WEBCAMINVITE'),
+				('14', yahoo_data.get('14') or data.text),
+			]))
 	
 	def _send_when_user_joins(self, user_uuid: str, data: MessageData) -> None:
 		# Send to everyone currently in chat
@@ -1364,6 +1293,8 @@ def messagedata_from_ymsg(sender: User, data: Dict[str, Any], *, notify_type: Op
 			type = MessageType.TypingDone
 		else:
 			type = MessageType.Typing
+	elif notify_type == 'WEBCAMINVITE':
+		type = MessageType.Webcam
 	else:
 		# TODO: other `notify_type`s
 		raise Exception("Unknown notify_type", notify_type)

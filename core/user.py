@@ -7,8 +7,8 @@ from util.hash import hasher, hasher_md5, hasher_md5crypt, gen_salt
 from util import misc
 
 from . import error
-from .db import Session, User as DBUser, UserGroup as DBUserGroup, UserContact as DBUserContact, ABStore as DBABStore, ABStoreContact as DBABStoreContact, ABMetadata as DBABMetadata, OIM as DBOIM, YahooOIM as DBYahooOIM, YahooAlias as DBYahooAlias
-from .models import User, Contact, ContactGroupEntry, ABContact, UserStatus, UserDetail, NetworkID, Lst, Group, OIMMetadata, YahooOIM, YahooAlias, MessageData
+from .db import Session, User as DBUser, UserGroup as DBUserGroup, UserContact as DBUserContact, ABStore as DBABStore, ABStoreContact as DBABStoreContact, ABMetadata as DBABMetadata, OIM as DBOIM, YahooOIM as DBYahooOIM
+from .models import User, Contact, ContactGroupEntry, ABContact, UserStatus, UserDetail, NetworkID, Lst, Group, OIMMetadata, YahooOIM, MessageData
 
 class UserService:
 	loop: asyncio.AbstractEventLoop
@@ -570,43 +570,6 @@ class UserService:
 				message = message, utf8_kv = utf8_kv,
 			)
 			sess.add(dbyahoooim)
-	
-	def yahoo_get_aliases(self, uuid: str) -> List[YahooAlias]:
-		with Session() as sess:
-			aliases = sess.query(DBYahooAlias).filter(DBYahooAlias.owner_uuid == uuid)
-			tmp_aliases = [
-				YahooAlias(
-					alias.yid_alias, alias.is_activated,
-				)
-				for alias in aliases
-			]
-			return tmp_aliases
-	
-	def yahoo_add_alias(self, uuid: str, alias: str) -> None:
-		with Session() as sess:
-			dbyahooalias = DBYahooAlias(owner_uuid = uuid)
-			dbyahooalias.yid_alias = alias
-			sess.add(dbyahooalias)
-			
-			yahooalias_user = DBUser(
-				uuid = misc.gen_uuid(), email = alias + '@yahoo.com', relay = True, verified = False,
-				name = alias, message = '',
-				password = hasher.encode(gen_salt(length = 32)), settings = {},
-			)
-			sess.add(yahooalias_user)
-	
-	def yahoo_check_alias(self, alias: str) -> bool:
-		with Session() as sess:
-			query = sess.query(DBYahooAlias).filter(DBYahooAlias.yid_alias == alias).one_or_none()
-			if query is not None: return True
-		return False
-	
-	def yahoo_delete_alias(self, uuid: str, alias: str) -> bool:
-		with Session() as sess:
-			alias_entry = sess.query(DBYahooAlias).filter(DBYahooAlias.owner_uuid == uuid, DBYahooAlias.yid_alias == alias).one_or_none()
-			if alias_entry is None: return False
-			sess.delete(alias_entry)
-		return True
 	
 	def save_batch(self, to_save: List[Tuple[User, UserDetail, bool]]) -> None:
 		with Session() as sess:

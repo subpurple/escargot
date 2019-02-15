@@ -246,6 +246,7 @@ class MessageType(Enum):
 	Nudge = object()
 	Typing = object()
 	TypingDone = object()
+	Webcam = object()
 
 class MessageData:
 	__slots__ = ('sender', 'type', 'text', 'front_cache')
@@ -270,16 +271,6 @@ class TextWithData:
 	def __init__(self, text: str, yahoo_utf8: Any) -> None:
 		self.text = text
 		self.yahoo_utf8 = yahoo_utf8
-
-class YahooAlias:
-	__slots__ = ('yid', 'is_activated')
-	
-	yid: str
-	is_activated: bool
-	
-	def __init__(self, yid: str, is_activated: bool) -> None:
-		self.yid = yid
-		self.is_activated = is_activated
 
 #class CircleMetadata:
 #	__slots__ = ('circle_id', 'owner_email', 'owner_friendly', 'circle_name', 'date_last_modified', 'membership_access', 'request_membership_option', 'is_presence_enabled')
