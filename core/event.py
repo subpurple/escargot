@@ -80,7 +80,7 @@ class BackendEventHandler(metaclass = ABCMeta):
 	def ymsg_on_upload_file_ft(self, recipient: str, message: str) -> None:
 		pass
 		
-	def ymsg_on_sent_ft_http(self, yahoo_id_sender: str, url_path: str, upload_time: int, message: str) -> None:
+	def ymsg_on_sent_ft_http(self, yahoo_id_sender: str, url_path: str, upload_time: float, message: str) -> None:
 		pass
 
 class ChatEventHandler(metaclass = ABCMeta):

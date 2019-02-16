@@ -11,7 +11,7 @@ from util.misc import Logger
 
 from .misc import YMSGStatus, YMSGService
 
-KVS = Dict[str, str]
+KVS = MultiDict[str]
 
 class YMSGCtrlBase(metaclass = ABCMeta):
 	__slots__ = ('logger', 'decoder', 'encoder', 'peername', 'closed', 'close_callback', 'transport')
@@ -53,7 +53,7 @@ class YMSGCtrlBase(metaclass = ABCMeta):
 	def flush(self) -> bytes:
 		return self.encoder.flush()
 	
-	def close(self) -> None:
+	def close(self, **kwargs: Any) -> None:
 		if self.closed: return
 		self.closed = True
 		
@@ -80,7 +80,7 @@ class YMSGEncoder:
 		# version number and vendor id are replaced with 0x00000000
 		w(b'\x00\x00\x00\x00')
 		
-		_truncated_log(self._logger, '<<<', (service, 0, 0, status, session_id, kvs), 'OUTGOING')
+		_truncated_log(self._logger, '<<<', (service, 0, 0, status, session_id, kvs or MultiDict()), 'OUTGOING')
 		
 		payload_list = []
 		if kvs is not None:
@@ -138,17 +138,17 @@ class YMSGDecoder:
 		return y
 
 def _try_decode_ymsg(d: bytes, i: int) -> Tuple[DecodedYMSG, int]:
-	kvs = MultiDict()
+	kvs = MultiDict() # type: MultiDict[str]
 	
 	e = 20
 	assert len(d[i:]) >= e
 	assert d[i:i+4] == PRE
 	header = d[i+4:i+e]
 	if header[0] != b'\x00':
-		version = struct.unpack('<H', header[:2])[0]
+		version = struct.unpack('<H', header[:2])[0] # type: int
 	else:
 		version = struct.unpack('!H', header[:2])[0]
-	(vendor_id, n, service, status, session_id) = struct.unpack('!HHHII', header[2:])
+	(vendor_id, n, service, status, session_id) = struct.unpack('!HHHII', header[2:]) # type: Tuple[int, int, int, int, int]
 	assert version in YMSG_DIALECTS
 	assert e+n <= len(d[i:])
 	payload = d[e:e+n]

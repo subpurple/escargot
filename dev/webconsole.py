@@ -24,7 +24,7 @@ def register(loop: asyncio.AbstractEventLoop, backend: Backend, http_app: web.Ap
 async def handle_index(req: web.Request) -> web.Response:
 	return render(req, 'dev:index.html', { 'wsurl': 'ws://localhost/dev/ws' })
 
-async def handle_websocket(req: web.Request) -> web.Response:
+async def handle_websocket(req: web.Request) -> web.StreamResponse:
 	webconsole: Webconsole = req.app['webconsole']
 	
 	ws = web.WebSocketResponse()

@@ -1,4 +1,5 @@
-from typing import Any
+from typing import Any, Type
+from types import TracebackType
 import sys
 
 def main(*, devmode: bool = False) -> None:
@@ -39,7 +40,7 @@ def main(*, devmode: bool = False) -> None:
 	
 	backend.run_forever()
 
-def _excepthook(type: Any, value: Any, traceback: Any) -> None:
+def _excepthook(type_: Type[BaseException], value: BaseException, traceback: TracebackType) -> None:
 	# TODO: Something useful
 	sys.__excepthook__(type, value, traceback)
 

@@ -537,7 +537,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		bs = self.bs
 		assert bs is not None
 		user = bs.user
-		c_nids = []
+		#c_nids = []
 		#circle_mode = False
 		
 		try:

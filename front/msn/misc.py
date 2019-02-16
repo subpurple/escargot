@@ -192,10 +192,8 @@ def gen_chal_response(chal: str, id: str, id_key: str, *, msnp11: bool = False) 
 	if not msnp11:
 		return key_hash.hexdigest()
 	
-	if msnp11:
-		# TODO: MSNP11 challenge/response procedure
-		
-		return 'PASS'
+	# TODO: MSNP11 challenge/response procedure
+	return 'PASS'
 
 def gen_mail_data(user: User, backend: Backend, *, oim_uuid: Optional[str] = None, just_sent: bool = False, on_ns: bool = True, e_node: bool = True, q_node: bool = True) -> str:
 	md_m_pl = ''

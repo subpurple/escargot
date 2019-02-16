@@ -1,3 +1,4 @@
+from typing import Optional
 import asyncio
 
 from core.backend import Backend
@@ -11,7 +12,7 @@ class ListenerVideoChat(asyncio.Protocol):
 	def connection_made(self, transport: asyncio.BaseTransport) -> None:
 		print("Video chat connection_made")
 	
-	def connection_lost(self, exc: Exception) -> None:
+	def connection_lost(self, exc: Optional[Exception]) -> None:
 		print("Video chat connection_lost")
 	
 	def data_received(self, data: bytes) -> None:

@@ -16,7 +16,7 @@ from .misc import YMSGService, yahoo_id_to_uuid, yahoo_id
 import time
 
 YAHOO_TMPL_DIR = 'front/ymsg/tmpl'
-_tasks_by_uuid_store = {} # type: Dict[str, asyncio.Task]
+_tasks_by_uuid_store = {} # type: Dict[str, asyncio.Task[None]]
 
 def register(app: web.Application) -> None:
 	util.misc.add_to_jinja_env(app, 'ymsg', YAHOO_TMPL_DIR)
@@ -178,7 +178,7 @@ async def handle_ft_http(req: web.Request) -> web.Response:
 	
 	yahoo_id_sender = ymsg_data.get('0') or ''
 	(yahoo_id, bs) = _parse_cookies(req, backend, yahoo_id_sender)
-	if bs is None or (yahoo_id != yahoo_id_sender or not yahoo_id_to_uuid(backend, yahoo_id)):
+	if bs is None or yahoo_id is None or (yahoo_id != yahoo_id_sender or not yahoo_id_to_uuid(backend, yahoo_id)):
 		raise web.HTTPInternalServerError
 	
 	yahoo_id_recipient = ymsg_data.get('5') or ''
@@ -253,6 +253,7 @@ async def handle_yahoo_filedl(req: web.Request) -> web.Response:
 				return web.HTTPOk(body = file_stream)
 		except FileNotFoundError:
 			raise web.HTTPNotFound
+	raise web.HTTPMethodNotAllowed
 
 def _get_tmp_file_storage_path(id: Optional[str] = None) -> str:
 	if not id:

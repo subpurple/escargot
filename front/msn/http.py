@@ -220,7 +220,6 @@ async def handle_abservice(req: web.Request) -> web.Response:
 			
 			ctc = None
 			ctc_updated = False
-			annotations_dict = {}
 			
 			ab_id = _find_element(action, 'abId')
 			if ab_id is not None:
@@ -261,7 +260,12 @@ async def handle_abservice(req: web.Request) -> web.Response:
 				groups = set()
 			annotations = contact.findall('.//{*}annotations/{*}Annotation')
 			if annotations:
-				annotations_dict = {_find_element(annotation, 'Name'): _find_element(annotation, 'Value') for annotation in annotations}
+				annotations_dict = {
+					_find_element(annotation, 'Name'): _find_element(annotation, 'Value')
+					for annotation in annotations
+				}
+			else:
+				annotations_dict = {}
 			is_messenger_user = _find_element(contact, 'isMessengerUser')
 			ctc_ab = models.ABContact(
 				('Regular' if type == 'LivePending' else type), util.misc.gen_uuid(), email, email, groups,
