@@ -493,18 +493,19 @@ class YMSGCtrlPager(YMSGCtrlBase):
 				self._message_common(args[4], yahoo_id, args[4].get('1'))
 	
 	def _y_0050(self, *args: Any) -> None:
-		bs = self.bs
-		assert bs is not None
-		
-		if not args[4].get('1'): return
-		
-		webcam_token = self.backend.auth_service.create_token('ymsg/webcam', args[4].get('1'), lifetime = 86400)
-		
-		self.send_reply(YMSGService.VideoChat, YMSGStatus.BRB, self.sess_id, MultiDict([
-			('1', args[4].get('1')),
-			('5', args[4].get('1')),
-			('61', webcam_token),
-		]))
+		# SERVICE_VIDEOCHAT (0x50); create a webcam token for authentication
+		#bs = self.bs
+		#assert bs is not None
+		#
+		#if not args[4].get('1'): return
+		#
+		#webcam_token = self.backend.auth_service.create_token('ymsg/webcam', args[4].get('1'), lifetime = 86400)
+		#
+		#self.send_reply(YMSGService.VideoChat, YMSGStatus.BRB, self.sess_id, MultiDict([
+		#	('1', args[4].get('1')),
+		#	('5', args[4].get('1')),
+		#	('61', webcam_token),
+		#]))
 	
 	def _y_004d(self, *args: Any) -> None:
 		# SERVICE_P2PFILEXFER (0x4d); initiate P2P file transfer. Due to this service being present in 3rd-party libraries; we can implement it here
