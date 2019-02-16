@@ -1169,7 +1169,7 @@ class BackendEventHandler(event.BackendEventHandler):
 			('58', invite_msg)
 		]) # type: MultiDict[Any]
 		
-		roster = list(chat.get_roster())
+		roster = list(chat.get_roster_single())
 		for cs in roster:
 			if cs.user.uuid == inviter.uuid: continue
 			conf_invite_dict.add('52', cs.preferred_name or misc.yahoo_id(cs.user.email))

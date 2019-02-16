@@ -83,7 +83,7 @@ class IRCCtrl:
 			self.chat_sessions[chat] = cs
 		
 		self.send_numeric(RPL.NamReply, email, '=', channel, ':' + ' '.join(
-			cs.user.email for cs in chat.get_roster()
+			cs.user.email for cs in chat.get_roster_single()
 		))
 		
 		# TODO: Chats created in other frontends are usually secret+private.
