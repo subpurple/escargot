@@ -11,7 +11,8 @@ from util.misc import Logger
 
 from .misc import YMSGStatus, YMSGService
 
-KVS = MultiDict[str]
+#KVS = MultiDict[str]
+KVS = Any
 
 class YMSGCtrlBase(metaclass = ABCMeta):
 	__slots__ = ('logger', 'decoder', 'encoder', 'peername', 'closed', 'close_callback', 'transport')

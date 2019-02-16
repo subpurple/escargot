@@ -233,7 +233,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		utf8 = args[4].get('97')
 		
 		group = None
-		action_group_copy = False
+		action_group_refresh = False
 		
 		add_request_response = MultiDict([
 			('1', yahoo_id),
@@ -258,28 +258,29 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		contacts = detail.contacts
 		
 		cs = list(contacts.values())
-		cs_fl = [c for c in cs if c.lists & Lst.FL and not c.lists & Lst.BL]
-		
-		if len(cs_fl) >= 100:
-			add_request_response.add('66', 6)
-			self.send_reply(YMSGService.FriendAdd, YMSGStatus.BRB, self.sess_id, add_request_response)
-			return
 		
 		contact = contacts.get(contact_uuid)
 		if contact is not None and contact.lists & Lst.FL:
-			for group_other in contact._groups.copy():
-				if detail._groups_by_id[group_other.id].name == buddy_group:
+			if contact._groups:
+				for group_other in contact._groups.copy():
+					if detail._groups_by_id[group_other.id].name == buddy_group:
+						add_request_response.add('66', 2)
+						self.send_reply(YMSGService.FriendAdd, YMSGStatus.BRB, self.sess_id, add_request_response)
+						return
+			else:
+				if buddy_group == '(No Group)':
 					add_request_response.add('66', 2)
 					self.send_reply(YMSGService.FriendAdd, YMSGStatus.BRB, self.sess_id, add_request_response)
 					return
 		
-		for grp in detail._groups_by_id.values():
-			if grp.name == buddy_group:
-				group = grp
-				break
-		
-		if group is None:
-			group = bs.me_group_add(buddy_group)
+		if buddy_group != '(No Group)':
+			for grp in detail._groups_by_id.values():
+				if grp.name == buddy_group:
+					group = grp
+					break
+			
+			if group is None:
+				group = bs.me_group_add(buddy_group)
 		
 		ctc_head = self.backend._load_user_record(contact_uuid)
 		assert ctc_head is not None
@@ -295,17 +296,29 @@ class YMSGCtrlPager(YMSGCtrlBase):
 			
 			self.send_reply(YMSGService.ContactNew, YMSGStatus.BRB, self.sess_id, contact_struct)
 			
-			add_request_response.add('66', 0)
-			self.send_reply(YMSGService.FriendAdd, YMSGStatus.BRB, self.sess_id, add_request_response)
-			
 			contact = bs.me_contact_add(ctc_head.uuid, Lst.FL, message = (TextWithData(message, utf8) if message is not None else None), adder_id = yahoo_id, needs_notify = True)[0]
-			bs.me_contact_add(ctc_head.uuid, Lst.AL)
+			bs.me_contact_add(contact.head.uuid, Lst.AL)
+		add_request_response.add('66', 0)
+		self.send_reply(YMSGService.FriendAdd, YMSGStatus.BRB, self.sess_id, add_request_response)
 		try:
 			# TODO: Moving/copying contacts to groups
-			if len(contact._groups) >= 1: action_group_copy = True
-			bs.me_group_contact_add(group.id, contact.head.uuid)
+			if len(contact._groups) >= 1 or (contact._groups and buddy_group == '(No Group)'): action_group_refresh = True
+			if buddy_group == '(No Group)':
+				for group_other in contact._groups.copy():
+					group_full = False
+					bs.me_group_contact_remove(group_other.id, contact.head.uuid)
+					for ctc_other in detail.contacts.values():
+						if ctc_other is contact: continue
+						for group_ctc in ctc_other._groups.copy():
+							if group_ctc.id is group_other.id:
+								group_full = True
+								break
+						if group_full:
+							break
+			if group is not None:
+				bs.me_group_contact_add(group.id, contact.head.uuid)
 			
-			if action_group_copy: self._update_buddy_list()
+			if action_group_refresh: self._update_buddy_list()
 		except error.ContactAlreadyOnList:
 			# Ignore, because this condition was checked earlier, so the only way this
 			# can happen is if the the contact list gets in an inconsistent state.
@@ -327,6 +340,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 	def _y_0089(self, *args: Any) -> None:
 		# SERVICE_GROUPRENAME (0x89); rename a contact group
 		
+		yahoo_id = args[4].get('1')
 		group_name = args[4].get('65')
 		new_group_name = args[4].get('67')
 		bs = self.bs
@@ -338,12 +352,24 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		
 		group = None
 		
-		for grp in detail._groups_by_id.values():
-			if grp.name == group_name:
-				group = grp
+		# "(No Group)" is used for displaying group-less contacts; ignore any requests to rename the "group"
 		
-		if group is not None:
-			bs.me_group_edit(group.id, new_name = new_group_name, disregard_name_limit = True)
+		if group_name != '(No Group)':
+			for grp in detail._groups_by_id.values():
+				if grp.name == group_name:
+					group = grp
+			
+			if group is not None:
+				bs.me_group_edit(group.id, new_name = new_group_name, disregard_name_limit = True)
+			
+			group_rename_response = MultiDict([
+				('1', yahoo_id),
+				('66', 0),
+				('67', new_group_name),
+				('65', group_name),
+			]) #type: MultiDict[Any]
+			
+			self.send_reply(YMSGService.GroupRename, YMSGStatus.BRB, self.sess_id, group_rename_response)
 		
 		self._update_buddy_list()
 	
@@ -354,24 +380,46 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		contact_id = args[4].get('7')
 		buddy_group = args[4].get('65')
 		
-		remove_buddy_response = MultiDict([
-			('1', yahoo_id),
-			('7', contact_id),
-			('65', buddy_group)
-		])
 		bs = self.bs
 		assert bs is not None
 		user = bs.user
 		detail = user.detail
 		assert detail is not None
 		
+		group = None
+		
 		contact_uuid = yahoo_id_to_uuid(self.backend, contact_id)
 		if contact_uuid is None:
-			remove_buddy_response.add('66', 3)
-			self.send_reply(YMSGService.FriendRemove, YMSGStatus.BRB, self.sess_id, remove_buddy_response)
 			return
 		
-		bs.me_contact_remove(contact_uuid, Lst.FL)
+		contact = detail.contacts.get(contact_uuid)
+		
+		if contact is None:
+			return
+		
+		if contact._groups:
+			for group_other in contact._groups.copy():
+				if detail._groups_by_id[group_other.id].name == buddy_group:
+					group = detail._groups_by_id[group_other.id]
+					break
+		
+		if group is None and buddy_group != '(No Group)':
+			return
+		
+		if group is not None:
+			bs.me_group_contact_remove(group.id, contact.head.uuid)
+		
+		if not contact._groups:
+			bs.me_contact_remove(contact_uuid, Lst.FL)
+		
+		remove_buddy_response = MultiDict([
+			('1', yahoo_id),
+			('66', 0),
+			('7', contact_id),
+			('65', buddy_group),
+		]) #type: MultiDict[Any]
+		
+		self.send_reply(YMSGService.FriendRemove, YMSGStatus.BRB, self.sess_id, remove_buddy_response)
 		
 		self._update_buddy_list()
 	
@@ -783,7 +831,6 @@ class YMSGCtrlPager(YMSGCtrlBase):
 			if contact_list:
 				contact_group_list.append(grp.name + ':' + ','.join(contact_list) + '\n')
 		# Handle contacts that aren't part of any groups
-		# Since Yahoo! Messenger by design requires you to add a contact to a group, remove when code is pushed to `master` branch
 		contact_list = [misc.yahoo_id(c.head.email) for c in cs_fl if not c._groups]
 		if contact_list:
 			contact_group_list.append('(No Group):' + ','.join(contact_list) + '\n')

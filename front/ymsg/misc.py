@@ -122,7 +122,9 @@ _FromSubstatus = DefaultDict(YMSGStatus.Bad, {
 	Substatus.SteppedOut: YMSGStatus.SteppedOut,
 })
 
-EncodedYMSG = Tuple[YMSGService, YMSGStatus, MultiDict[Any]]
+#EncodedYMSG = Tuple[YMSGService, YMSGStatus, MultiDict[Any]]
+#Can't use `MultiDict` as type
+EncodedYMSG = Tuple[YMSGService, YMSGStatus, Any]
 
 def build_ft_packet(bs: BackendSession, xfer_dict: Dict[str, Any]) -> Iterable[EncodedYMSG]:
 	user_to = bs.user
