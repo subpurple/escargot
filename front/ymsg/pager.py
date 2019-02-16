@@ -506,6 +506,8 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		#	('5', args[4].get('1')),
 		#	('61', webcam_token),
 		#]))
+		
+		return
 	
 	def _y_004d(self, *args: Any) -> None:
 		# SERVICE_P2PFILEXFER (0x4d); initiate P2P file transfer. Due to this service being present in 3rd-party libraries; we can implement it here
