@@ -16,16 +16,12 @@ from core.models import User, Contact, Lst, Substatus, NetworkID
 def build_presence_notif(trid: Optional[str], ctc_head: User, user_me: User, dialect: int, backend: Backend, *, bs_other: Optional['BackendSession'] = None, circle_user_bs: Optional['BackendSession'] = None, circle_id: Optional[str] = None) -> Iterable[Tuple[Any, ...]]:
 	circle_owner = False
 	detail = user_me.detail
+	assert detail is not None
 	
-	if ctc_head is user_me:
-		status = user_me.status
-		head = user_me
-	else:
-		assert detail is not None
-		ctc = detail.contacts.get(ctc_head.uuid)
-		assert ctc is not None
-		status = ctc.status
-		head = ctc.head
+	ctc = detail.contacts.get(ctc_head.uuid)
+	assert ctc is not None
+	status = ctc.status
+	head = ctc.head
 	is_offlineish = status.is_offlineish()
 	if is_offlineish and trid is not None:
 		return

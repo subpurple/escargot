@@ -475,7 +475,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		bs.me_update({
 			'message': ((psm.text or '') if psm is not None else None),
 			'media': ((cm.text or '') if cm is not None else None),
-			'notify_self': (True if self.dialect >= 16 and user.status.substatus is Substatus.Offline else False),
+			'notify_self': (True if self.dialect >= 16 and user.status.substatus is not Substatus.Offline else False),
 		})
 		
 		self.send_reply('UUX', trid, 0)
@@ -537,6 +537,8 @@ class MSNPCtrlNS(MSNPCtrl):
 		bs = self.bs
 		assert bs is not None
 		user = bs.user
+		detail = user.detail
+		assert detail is not None
 		#c_nids = []
 		#circle_mode = False
 		
@@ -595,9 +597,6 @@ class MSNPCtrlNS(MSNPCtrl):
 					#if circle_mode and (self.initial_adl_sent and not self.circle_adl_sent):
 					#	self.circle_adl_sent = True
 					
-					if not self.initial_adl_sent:
-						self.initial_adl_sent = True
-					
 					if contact_uuid is None:
 						#if circle_mode:
 						#	self.send_reply(Err.InvalidCircleMembership, trid)
@@ -612,6 +611,8 @@ class MSNPCtrlNS(MSNPCtrl):
 					#	if backend.user_service.msn_get_circle_membership(username, self.usr_email) is None:
 					#		self.send_reply(Err.InvalidCircleMembership, trid)
 					#		return
+			if not self.initial_adl_sent:
+				self.initial_adl_sent = True
 			
 			for d_el in d_els:
 				for c_el in c_els:
@@ -656,7 +657,7 @@ class MSNPCtrlNS(MSNPCtrl):
 							#		bs.evt.on_presence_notification(None, ctc_head, Substatus.Offline, True, trid = trid)
 							
 							if ctc is not None:
-								bs.evt.on_presence_notification(None, ctc, Substatus.Offline, True, trid = trid)
+								bs.evt.on_presence_notification(None, ctc, Substatus.Offline, False, trid = trid)
 		except Exception as ex:
 			if isinstance(ex, XMLSyntaxError):
 				self.send_reply(Err.XXLInvalidPayload, trid)
@@ -815,7 +816,7 @@ class MSNPCtrlNS(MSNPCtrl):
 				self.send_reply('BPR', ser, ctc_head.email, 'PHM', ctc_head.settings.get('PHM') if send_bpr_info else None)
 				self.send_reply('BPR', ser, ctc_head.email, 'MOB', ctc_head.settings.get('MOB', 'N') if send_bpr_info else 'N')
 			
-			bs.evt.on_presence_notification(None, ctc, Substatus.Offline, True, trid = trid, updated_phone_info = {
+			bs.evt.on_presence_notification(None, ctc, Substatus.Offline, False, trid = trid, updated_phone_info = {
 				'PHH': ctc_head.settings.get('PHH'),
 				'PHW': ctc_head.settings.get('PHW'),
 				'PHM': ctc_head.settings.get('PHM'),
@@ -1224,7 +1225,7 @@ class BackendEventHandler(event.BackendEventHandler):
 		assert bs is not None
 		user = bs.user
 		
-		if not update_status or (update_status and send_status_on_bl): return
+		if not update_status or (send_status_on_bl and not update_status): return
 		if self.ctrl.dialect < 13 and updated_phone_info and self.ctrl.syn_sent:
 			for phone_type, value in updated_phone_info.items():
 				if value is not None:

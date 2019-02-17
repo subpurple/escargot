@@ -344,7 +344,7 @@ class BackendSession(Session):
 		needs_notify = False
 		notify_status = False
 		notify_self = False
-		send_notif_to_self = True
+		send_notif_to_self = False
 		updated_phone_info = {}
 		notify_circle = False
 		
@@ -399,7 +399,7 @@ class BackendSession(Session):
 			updated_phone_info['MBE'] = fields['mbe']
 		if 'substatus' in fields:
 			user.status.substatus = fields['substatus']
-			if old_substatus != user.status.substatus or fields.get('refresh_profile'):
+			if old_substatus is not user.status.substatus or fields.get('refresh_profile'):
 				needs_notify = True
 				notify_status = True
 				if 'send_notif_to_self' in fields:
@@ -556,15 +556,20 @@ class BackendSession(Session):
 			for sess_added in backend._sc.get_sessions_by_user(ctc_head):
 				#if sess_added is self: continue
 				sess_added.evt.on_added_me(user, message = message, adder_id = adder_id)
+		else:
+			ctc_detail = backend._load_detail(ctc_head)
+			ctc_me = ctc_detail.contacts.get(user.uuid)
 		if ((lst & Lst.AL or lst & Lst.BL) and ctc.lists & Lst.RL) or needs_notify:
 			for sess_added in backend._sc.get_sessions_by_user(ctc_head):
 				if sess_added is self: continue
-				sess_added.evt.on_presence_notification(self, ctc, (ctc_status if lst & Lst.BL else Substatus.Offline), False, visible_notif = False, send_status_on_bl = True, updated_phone_info = {
-					'PHH': user.settings.get('PHH'),
-					'PHW': user.settings.get('PHW'),
-					'PHM': user.settings.get('PHM'),
-					'MOB': user.settings.get('MOB'),
-				})
+				if ctc_me:
+					if ctc_me.lists & Lst.FL:
+						sess_added.evt.on_presence_notification(self, ctc_me, (ctc_status if lst & Lst.BL else Substatus.Offline), False, visible_notif = False, send_status_on_bl = True, updated_phone_info = {
+							'PHH': user.settings.get('PHH'),
+							'PHW': user.settings.get('PHW'),
+							'PHM': user.settings.get('PHM'),
+							'MOB': user.settings.get('MOB'),
+						})
 		return ctc, ctc_head
 	
 	def me_ab_contact_edit(self, ab_contacts: List[ABContact], ab_id: str) -> None:
@@ -624,14 +629,17 @@ class BackendSession(Session):
 			# Remove matching RL
 			self._remove_from_list(ctc.head, user, Lst.RL, False, None)
 		if lst & Lst.BL:
+			ctc_me = ctc_detail.contacts.get(user.uuid)
 			for sess_added in backend._sc.get_sessions_by_user(ctc.head):
 				if sess_added is self: continue
-				sess_added.evt.on_presence_notification(self, ctc, Substatus.Offline, False, updated_phone_info = {
-					'PHH': user.settings.get('PHH'),
-					'PHW': user.settings.get('PHW'),
-					'PHM': user.settings.get('PHM'),
-					'MOB': user.settings.get('MOB'),
-				})
+				if ctc_me:
+					if ctc_me.lists & Lst.FL:
+						sess_added.evt.on_presence_notification(self, ctc_me, Substatus.Offline, False, updated_phone_info = {
+							'PHH': user.settings.get('PHH'),
+							'PHW': user.settings.get('PHW'),
+							'PHM': user.settings.get('PHM'),
+							'MOB': user.settings.get('MOB'),
+						})
 	
 	def me_contact_deny(self, adder_uuid: str, deny_message: Optional[str], *, adder_id: Optional[str] = None) -> None:
 		user_adder = self.backend._load_user_record(adder_uuid)

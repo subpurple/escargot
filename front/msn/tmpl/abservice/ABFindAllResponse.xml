@@ -14,25 +14,23 @@
 	<soap:Body>
 		<ABFindAllResponse xmlns="http://www.msn.com/webservices/AddressBook">
 			<ABFindAllResult>
-				{%- if ab_id == '00000000-0000-0000-0000-000000000000' and user_creator_detail -%}
-					{%- if user_creator_detail._groups_by_uuid -%}
-						<groups>
-							{% for group in user_creator_detail._groups_by_uuid.values() %}
-								{{ group_entry(group) }}
-							{% endfor %}
-						</groups>
+				<groups>
+					{%- if ab_id == '00000000-0000-0000-0000-000000000000' and user_creator_detail -%}
+						{% for group in user_creator_detail._groups_by_uuid.values() %}
+							{{ group_entry(group) }}
+						{% endfor %}
 					{%- endif -%}
-				{%- endif -%}
-				{%- if ab_contacts -%}
-					<contacts>
+				</groups>
+				<contacts>
+					{%- if ab_contacts -%}
 						{%- for ab_contact in ab_contacts.values() -%}
 							<Contact>
 							{{ contact_entry(ab_id, ab_contact, user_creator_detail) }}
 							</Contact>
 						{%- endfor -%}
-						{{ generate_me_entry(ab_id, user_creator, now) }}
-					</contacts>
-				{%- endif -%}
+					{%- endif -%}
+					{{ generate_me_entry(ab_id, user_creator, now) }}
+				</contacts>
 				<ab>
 				{{ ab_properties(ab_id, user_creator, ab_type, ab_created, ab_last_modified, False) }}
 				</ab>

@@ -23,16 +23,16 @@
 						</Groups>
 					{%- endif -%}
 				{%- endif -%}
-				{%- if ab_contacts -%}
-					<Contacts>
+				<Contacts>
+					{%- if ab_contacts -%}
 						{%- for contact in ab_contacts.values() -%}
 							<Contact>
 							{{ contact_entry(ab_id, contact, user_creator_detail) }}
 							</Contact>
 						{%- endfor -%}
-						{{ generate_me_entry(ab_id, user_creator, now) }}
-					</Contacts>
-				{%- endif -%}
+					{%- endif -%}
+					{{ generate_me_entry(ab_id, user_creator, now) }}
+				</Contacts>
 				<CircleResult>
 					<CircleTicket>
 						&lt;?xml version="1.0" encoding="utf-16"?&gt;

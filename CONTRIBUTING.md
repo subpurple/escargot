@@ -12,10 +12,15 @@
 	DEBUG_MSNP = True
 	DEBUG_HTTP_REQUEST = True
 	```
-	- if you want to enable YMSG support, set the following option:
-	```
-	ENABLE_FRONT_YMSG = True
-	```
+	- if you want to enable support for other frontends, set the following options:
+		- YMSG:
+		```
+		ENABLE_FRONT_YMSG = True
+		```
+		- IRC:
+		```
+		ENABLE_FRONT_IRC = True
+		```
 - run `python script/dbcreate.py`; if you get `ModuleNotFoundError: No module named '...'`, add `export PYTHONPATH=".;$PYTHONPATH"` in your `.bashrc`
 - run `python script/dummydata.py` (creates a few dummy accounts, passwords are all "123456")
 
@@ -69,8 +74,8 @@
 	127.0.0.1 rd.yahoo.com
 	127.0.0.1 insider.msg.yahoo.com
 	127.0.0.1 chat.yahoo.com
-	127.0.0.1 msg.edit.yahoo.com
 	127.0.0.1 filetransfer.msg.yahoo.com
+	127.0.0.1 yflstore.log1p.xyz
 	```
 
 - run `python dev` to start the dev server
