@@ -60,7 +60,7 @@ class YMSGCtrlBase(metaclass = ABCMeta):
 		
 		if self.close_callback:
 			self.close_callback()
-		self._on_close()
+		self._on_close(**kwargs)
 	
 	@abstractmethod
 	def _on_close(self) -> None: pass

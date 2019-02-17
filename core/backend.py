@@ -91,7 +91,7 @@ class Backend:
 	def run_forever(self) -> None:
 		run_loop(self.loop, self._runners)
 	
-	def on_leave(self, sess: 'BackendSession') -> None:
+	def on_leave(self, sess: 'BackendSession', *, sess_id: Optional[int] = None) -> None:
 		user = sess.user
 		old_substatus = user.status.substatus
 		self._stats.on_logout()
@@ -170,11 +170,11 @@ class Backend:
 			if ctc_rev is None: continue
 			ctc_rev.compute_visible_status(ctc.head)
 	
-	def _notify_contacts(self, bs: 'BackendSession', *, for_logout: bool = False, old_substatus: Substatus = Substatus.Offline, on_contact_add: bool = False, updated_phone_info: Optional[Dict[str, Any]] = None, update_status: bool = True, send_notif_to_self: bool = True) -> None:
+	def _notify_contacts(self, bs: 'BackendSession', *, for_logout: bool = False, sess_id: Optional[int] = None, old_substatus: Substatus = Substatus.Offline, on_contact_add: bool = False, updated_phone_info: Optional[Dict[str, Any]] = None, update_status: bool = True, send_notif_to_self: bool = True) -> None:
 		uuid = bs.user.uuid
 		if uuid in self._worklist_notify:
 			return
-		self._worklist_notify[uuid] = (bs, old_substatus, on_contact_add, updated_phone_info, update_status, send_notif_to_self, for_logout)
+		self._worklist_notify[uuid] = (bs, sess_id, old_substatus, on_contact_add, updated_phone_info, update_status, send_notif_to_self, for_logout)
 	
 	def _notify_self(self, bs: 'BackendSession') -> None:
 		uuid = bs.user.uuid
@@ -263,7 +263,7 @@ class Backend:
 		while True:
 			await asyncio.sleep(0.2)
 			try:
-				for bs, old_substatus, on_contact_add, updated_phone_info, update_status, send_notif_to_self, for_logout in worklist.values():
+				for bs, sess_id, old_substatus, on_contact_add, updated_phone_info, update_status, send_notif_to_self, for_logout in worklist.values():
 					user = bs.user
 					detail = user.detail
 					assert detail is not None
@@ -277,7 +277,7 @@ class Backend:
 							# an `RL` contact on the other users' list (at the very least).
 							if ctc_me is None: continue
 							if not ctc_me.lists & (Lst.FL | Lst.AL): continue
-							bs_other.evt.on_presence_notification(bs, ctc_me, old_substatus, on_contact_add, update_status = update_status, updated_phone_info = updated_phone_info)
+							bs_other.evt.on_presence_notification(bs, ctc_me, old_substatus, on_contact_add, sess_id = sess_id, update_status = update_status, updated_phone_info = updated_phone_info)
 					if for_logout:
 						if not self._sc.get_sessions_by_user(user): user.detail = None
 			except:
@@ -336,7 +336,7 @@ class BackendSession(Session):
 	
 	def _on_close(self, **kwargs: Any) -> None:
 		if not kwargs.get('passthrough'): self.evt.on_close()
-		self.backend.on_leave(self)
+		self.backend.on_leave(self, sess_id = kwargs.get('sess_id'))
 	
 	def me_update(self, fields: Dict[str, Any]) -> None:
 		user = self.user

@@ -49,12 +49,12 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		self.chat_sessions = {}
 		self.client = Client('yahoo', '?', via)
 	
-	def _on_close(self, remove_session: bool = True) -> None:
-		if self.yahoo_id and remove_session:
-			PRE_SESSION_ID.pop(self.yahoo_id, None)
-		
+	def _on_close(self, remove_sess_id: bool = True) -> None:
 		if self.bs:
-			self.bs.close()
+			self.bs.close(sess_id = PRE_SESSION_ID[self.yahoo_id])
+		
+		if self.yahoo_id and remove_sess_id:
+			PRE_SESSION_ID.pop(self.yahoo_id, None)
 	
 	# State = Auth
 	
@@ -82,7 +82,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 			return
 		
 		if self.yahoo_id in PRE_SESSION_ID:
-			self.close()
+			self.close(remove_sess_id = False)
 			return
 		self.sess_id = secrets.randbelow(4294967294) + 1
 		PRE_SESSION_ID[self.yahoo_id] = self.sess_id
@@ -1014,15 +1014,20 @@ YAHOO_ID_ENCODING = {
 	'j': '9',
 }
 
-def add_contact_status_to_data(data: Any, status: UserStatus, contact: User) -> None:
+def add_contact_status_to_data(data: Any, status: UserStatus, contact: User, *, old_substatus: Substatus = Substatus.Offline, sess_id: Optional[int] = None) -> None:
 	is_offlineish = status.is_offlineish()
 	user_yahoo_id = misc.yahoo_id(contact.email)
 	# `static var YMSG_FLD_SESSION_ID = 11;`
 	# Yahoo! was weird sometimes :p
 	if user_yahoo_id in PRE_SESSION_ID:
 		key_11_val = binascii.hexlify(struct.pack('!I', PRE_SESSION_ID[user_yahoo_id])).decode().upper()
+	elif sess_id is not None:
+		key_11_val = binascii.hexlify(struct.pack('!I', sess_id)).decode().upper()
 	else:
-		key_11_val = contact.uuid[:8].upper()
+		if not (old_substatus.is_offlineish() and is_offlineish):
+			key_11_val = contact.uuid[:8].upper()
+		else:
+			key_11_val = '0'
 	
 	data.add('7', user_yahoo_id)
 	
@@ -1071,7 +1076,7 @@ class BackendEventHandler(event.BackendEventHandler):
 		self.ctrl.send_reply(YMSGService.LogOff, YMSGStatus.Available, 0, None)
 		self.on_close()
 	
-	def on_presence_notification(self, bs_other: Optional[BackendSession], ctc: Contact, old_substatus: Substatus, on_contact_add: bool, *, trid: Optional[str] = None, update_status: bool = True, send_status_on_bl: bool = False, visible_notif: bool = True, updated_phone_info: Optional[Dict[str, Any]] = None, circle_user_bs: Optional[BackendSession] = None, circle_id: Optional[str] = None) -> None:
+	def on_presence_notification(self, bs_other: Optional[BackendSession], ctc: Contact, old_substatus: Substatus, on_contact_add: bool, *, trid: Optional[str] = None, update_status: bool = True, send_status_on_bl: bool = False, visible_notif: bool = True, sess_id: Optional[int] = None, updated_phone_info: Optional[Dict[str, Any]] = None, circle_user_bs: Optional[BackendSession] = None, circle_id: Optional[str] = None) -> None:
 		bs = self.bs
 		assert bs is not None
 		
@@ -1092,7 +1097,7 @@ class BackendEventHandler(event.BackendEventHandler):
 				if service is not YMSGService.LogOff:
 					yahoo_data.add('0', self.ctrl.yahoo_id)
 				
-				add_contact_status_to_data(yahoo_data, ctc.status, ctc.head)
+				add_contact_status_to_data(yahoo_data, ctc.status, ctc.head, old_substatus = old_substatus, sess_id = sess_id)
 				
 				self.ctrl.send_reply(service, (YMSGStatus.Available if not visible_notif and service is YMSGService.LogOn else YMSGStatus.BRB), self.sess_id, yahoo_data)
 	
