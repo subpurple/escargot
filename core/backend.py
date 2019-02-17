@@ -426,6 +426,8 @@ class BackendSession(Session):
 		user = self.user
 		detail = user.detail
 		assert detail is not None
+		if name == '(No Group)':
+			raise error.GroupAlreadyExists()
 		groups = detail.get_groups_by_name(name)
 		if groups is not None:
 			name += str(len(groups))
@@ -460,7 +462,7 @@ class BackendSession(Session):
 					ctcs_to_update.append(ctc_ab)
 			self.backend.user_service.mark_ab_modified('00000000-0000-0000-0000-000000000000', { 'contacts': ctcs_to_update, }, user)
 	
-	def me_group_edit(self, group_id: str, *, new_name: Optional[str] = None, is_favorite: Optional[bool] = None, disregard_name_limit: bool = False) -> None:
+	def me_group_edit(self, group_id: str, *, new_name: Optional[str] = None, is_favorite: Optional[bool] = None) -> None:
 		user = self.user
 		detail = user.detail
 		assert detail is not None
@@ -468,7 +470,9 @@ class BackendSession(Session):
 		if g is None:
 			raise error.GroupDoesNotExist()
 		if new_name is not None:
-			if len(new_name) > MAX_GROUP_NAME_LENGTH and not disregard_name_limit:
+			if new_name == '(No Group)':
+				raise error.GroupAlreadyExists()
+			if len(new_name) > MAX_GROUP_NAME_LENGTH:
 				raise error.GroupNameTooLong()
 			g.name = new_name
 		if is_favorite is not None:

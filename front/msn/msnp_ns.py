@@ -523,7 +523,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		assert bs is not None
 		
 		try:
-			bs.me_group_edit(group_id, name)
+			bs.me_group_edit(group_id, new_name = name)
 		except Exception as ex:
 			self.send_reply(Err.GetCodeForException(ex, self.dialect), trid)
 			return
@@ -790,14 +790,12 @@ class MSNPCtrlNS(MSNPCtrl):
 		
 		ser = self._ser()
 		
-		#TODO: `ADC` reply isn't immediately recognized by MSN 7.5 on initial contact adds. Halp.
-		
 		if self.dialect >= 10:
 			if lst == Lst.FL:
 				if group_id:
 					self.send_reply('ADC', trid, lst_name, 'C={}'.format(ctc_head.uuid), group_id)
 				else:
-					self.send_reply('ADC', trid, lst_name, 'N={}'.format(ctc.status.name or ctc_head.email), ('F={}'.format(ctc.status.name) if ctc.status.name else None), 'C={}'.format(ctc_head.uuid))
+					self.send_reply('ADC', trid, lst_name, 'N={}'.format(ctc_head.email), ('F={}'.format(ctc.status.name) if ctc.status.name else None), 'C={}'.format(ctc_head.uuid))
 			else:
 				self.send_reply('ADC', trid, lst_name, 'N={}'.format(ctc.status.name or ctc_head.email))
 		else:
@@ -1019,7 +1017,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		# Send email about how to use MSN. Ignore it for now.
 		self.send_reply('SND', trid, email)
 	
-	def _m_prp(self, trid: str, key: str, value: Optional[str], *rest: str) -> None:
+	def _m_prp(self, trid: str, key: str, value: Optional[str] = None, *rest: Optional[str]) -> None:
 		#>>> PRP 115 MFN ~~woot~~
 		bs = self.bs
 		assert bs is not None
@@ -1045,7 +1043,7 @@ class MSNPCtrlNS(MSNPCtrl):
 				self.send_reply(Err.NotExpected, trid)
 				return
 			
-			if len(value) > 95:
+			if value is not None and len(value) > 95:
 				self.close(hard = True)
 				return
 			

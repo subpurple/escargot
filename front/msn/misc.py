@@ -393,6 +393,7 @@ class Err:
 	AlreadyInMode = 218
 	GroupInvalid = 224
 	PrincipalNotInGroup = 225
+	GroupAlreadyExists = 228
 	GroupNameTooLong = 229
 	GroupZeroUnremovable = 230
 	XXLEmptyDomain = 240
@@ -407,6 +408,8 @@ class Err:
 	
 	@classmethod
 	def GetCodeForException(cls, exc: Exception, dialect: int) -> int:
+		if isinstance(exc, error.GroupAlreadyExists):
+			return cls.GroupAlreadyExists
 		if isinstance(exc, error.GroupNameTooLong):
 			return cls.GroupNameTooLong
 		if isinstance(exc, error.GroupDoesNotExist):

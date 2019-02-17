@@ -354,13 +354,16 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		
 		# "(No Group)" is used for displaying group-less contacts; ignore any requests to rename the "group"
 		
-		if group_name != '(No Group)':
+		if '(No Group)' not in (group_name,new_group_name):
 			for grp in detail._groups_by_id.values():
 				if grp.name == group_name:
 					group = grp
 			
 			if group is not None:
-				bs.me_group_edit(group.id, new_name = new_group_name, disregard_name_limit = True)
+				try:
+					bs.me_group_edit(group.id, new_name = new_group_name)
+				except:
+					pass
 			
 			group_rename_response = MultiDict([
 				('1', yahoo_id),

@@ -429,6 +429,11 @@ async def handle_abservice(req: web.Request) -> web.Response:
 			name = _find_element(action, 'name')
 			is_favorite = _find_element(action, 'IsFavorite')
 			
+			if name == '(No Group)':
+				return render(req, 'msn:abservice/Fault.groupalreadyexists.xml', {
+					'action_str': 'ABGroupAdd',
+				}, status = 500)
+			
 			if len(name) > MAX_GROUP_NAME_LENGTH:
 				return render(req, 'msn:abservice/Fault.groupnametoolong.xml', {
 					'action_str': 'ABGroupAdd',
@@ -478,6 +483,10 @@ async def handle_abservice(req: web.Request) -> web.Response:
 						name = str(_find_element(group_info, 'name'))
 						if name is None:
 							return web.HTTPInternalServerError()
+						elif name == '(No Group)':
+							return render(req, 'msn:abservice/Fault.groupalreadyexists.xml', {
+								'action_str': 'ABGroupUpdate',
+							}, status = 500)
 						elif len(name) > MAX_GROUP_NAME_LENGTH:
 							return render(req, 'msn:abservice/Fault.groupnametoolong.xml', {
 								'action_str': 'ABGroupUpdate',

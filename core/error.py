@@ -10,6 +10,9 @@ class GroupNameTooLong(ClientError):
 class GroupDoesNotExist(ClientError):
 	pass
 
+class GroupAlreadyExists(ClientError):
+	pass
+
 class CannotRemoveSpecialGroup(ClientError):
 	pass
 
