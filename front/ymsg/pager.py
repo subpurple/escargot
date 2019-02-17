@@ -51,7 +51,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 	
 	def _on_close(self, remove_sess_id: bool = True) -> None:
 		if self.bs:
-			self.bs.close(sess_id = PRE_SESSION_ID[self.yahoo_id])
+			self.bs.close(sess_id = PRE_SESSION_ID.get(self.yahoo_id or ''))
 		
 		if self.yahoo_id and remove_sess_id:
 			PRE_SESSION_ID.pop(self.yahoo_id, None)

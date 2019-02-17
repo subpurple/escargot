@@ -106,6 +106,7 @@ async def handle_abservice(req: web.Request) -> web.Response:
 					elif member_type == 'EmailMember':
 						if _find_element(member, 'Type') == 'Email' and _find_element(member, 'State') == 'Accepted':
 							email = _find_element(member, 'Email')
+					assert email is not None
 					contact_uuid = backend.util_get_uuid_from_email(email)
 					assert contact_uuid is not None
 					try:
@@ -137,6 +138,7 @@ async def handle_abservice(req: web.Request) -> web.Response:
 					elif member_type == 'EmailMember':
 						if _find_element(member, 'Type') == 'Email' and _find_element(member, 'State') == 'Accepted':
 							email = _find_element(member, 'Email')
+							assert email is not None
 							contact_uuid = backend.util_get_uuid_from_email(email)
 							assert contact_uuid is not None
 					if contact_uuid not in detail.contacts:
@@ -152,6 +154,10 @@ async def handle_abservice(req: web.Request) -> web.Response:
 			})
 		
 		if action_str == 'ABFindAll':
+			user = bs.user
+			detail = user.detail
+			assert detail is not None
+			
 			ab_id = _find_element(action, 'abId')
 			if ab_id is not None:
 				ab_id = str(ab_id)
@@ -161,7 +167,9 @@ async def handle_abservice(req: web.Request) -> web.Response:
 			if ab_id not in detail.subscribed_ab_stores:
 				return web.HTTPInternalServerError()
 			
-			ab_type, user_creator, ab_created, ab_last_modified, ab_contacts = backend.user_service.get_ab_contents(ab_id, user)
+			tpl = backend.user_service.get_ab_contents(ab_id, user)
+			assert tpl is not None
+			ab_type, user_creator, ab_created, ab_last_modified, ab_contacts = tpl
 			
 			return render(req, 'msn:abservice/ABFindAllResponse.xml', {
 				'cachekey': cachekey,
@@ -194,7 +202,9 @@ async def handle_abservice(req: web.Request) -> web.Response:
 			#	backend.user_service.msn_get_circle_metadata(circle_id), backend.user_service.msn_get_circle_membership(circle_id, user.email),
 			#) for circle_id in detail.subscribed_ab_stores if circle_id.startswith('00000000-0000-0000-0009')]
 			
-			ab_type, user_creator, ab_created, ab_last_modified, ab_contacts = backend.user_service.get_ab_contents(ab_id, user)
+			tpl = backend.user_service.get_ab_contents(ab_id, user)
+			assert tpl is not None
+			ab_type, user_creator, ab_created, ab_last_modified, ab_contacts = tpl
 			
 			return render(req, 'msn:abservice/ABFindContactsPagedResponse.xml', {
 				'cachekey': cachekey,
@@ -236,7 +246,7 @@ async def handle_abservice(req: web.Request) -> web.Response:
 				return web.HTTPInternalServerError()
 			
 			type = _find_element(contact, 'contactType') or 'Regular'
-			email = _find_element(contact, 'passportName')
+			email = _find_element(contact, 'passportName') or ''
 			if '@' not in email:
 				return render(req, 'msn:abservice/Fault.emailmissingatsign.xml', status = 500)
 			elif '.' not in email:
@@ -393,7 +403,7 @@ async def handle_abservice(req: web.Request) -> web.Response:
 									bs.me_update({ 'blp': None if blp is BLPAnnotation.Empty else blp.name })
 							if name == 'MSN.IM.MPOP':
 								if _find_element(contact_info, 'contactType') == 'Me':
-									bs.me_update({ 'mpop': None if value in ('',None) else value })
+									bs.me_update({ 'mpop': None if value in ('', None) else value })
 							if name == 'MSN.IM.RoamLiveProperties':
 								if _find_element(contact_info, 'contactType') == 'Me':
 									bs.me_update({ 'rlp': value })
@@ -404,6 +414,7 @@ async def handle_abservice(req: web.Request) -> web.Response:
 								if value == '':
 									del ctc_ab.annotations[name]
 					# TODO: Contact details
+				assert ctc_ab is not None
 				contacts_to_update.append(ctc_ab)
 			bs.me_ab_contact_edit(contacts_to_update, ab_id)
 			
@@ -466,12 +477,12 @@ async def handle_abservice(req: web.Request) -> web.Response:
 				return web.HTTPInternalServerError()
 			
 			groups = action.findall('.//{*}groups/{*}Group')
-			for group in groups:
-				group_id = str(_find_element(group, 'groupId'))
+			for group_elm in groups:
+				group_id = str(_find_element(group_elm, 'groupId'))
 				if group_id not in detail._groups_by_uuid:
 					return web.HTTPInternalServerError()
-				group_info = group.find('.//{*}groupInfo')
-				properties_changed = _find_element(group, 'propertiesChanged')
+				group_info = group_elm.find('.//{*}groupInfo')
+				properties_changed = _find_element(group_elm, 'propertiesChanged')
 				if not properties_changed:
 					return web.HTTPInternalServerError()
 				properties_changed = str(properties_changed).strip().split(' ')
@@ -500,11 +511,11 @@ async def handle_abservice(req: web.Request) -> web.Response:
 					if is_favorite is not None:
 						if not isinstance(is_favorite, bool):
 							return web.HTTPInternalServerError()
-			for group in groups:
-				group_id = str(_find_element(group, 'groupId'))
+			for group_elm in groups:
+				group_id = str(_find_element(group_elm, 'groupId'))
 				g = detail.get_group_by_id(group_id)
-				group_info = group.find('.//{*}groupInfo')
-				properties_changed = _find_element(group, 'propertiesChanged')
+				group_info = group_elm.find('.//{*}groupInfo')
+				properties_changed = _find_element(group_elm, 'propertiesChanged')
 				properties_changed = str(properties_changed).strip().split(' ')
 				for contact_property in properties_changed:
 					if contact_property == 'GroupName':
@@ -577,8 +588,8 @@ async def handle_abservice(req: web.Request) -> web.Response:
 				ctc = detail.contacts.get(contact_uuid)
 				if ctc is not None and ctc.lists & models.Lst.FL:
 					for group_id in group_ids:
-						for group in ctc._groups.copy():
-							if group.uuid == group_id:
+						for group_contact_entry in ctc._groups:
+							if group_contact_entry.uuid == group_id:
 								return web.HTTPInternalServerError()
 				
 				ctc_ab = backend.user_service.ab_get_entry_by_email(ab_id, email, ('Regular' if type == 'LivePending' else type), user)
@@ -597,6 +608,7 @@ async def handle_abservice(req: web.Request) -> web.Response:
 						return web.HTTPInternalServerError()
 				
 				if ctc_ab is None:
+					assert ctc is not None
 					ctc_ab = models.ABContact(
 						('Regular' if type == 'LivePending' else type), util.misc.gen_uuid(), ctc.head.email, ctc.status.name, set(),
 						member_uuid = contact_uuid, is_messenger_user = is_messenger_user,
@@ -618,7 +630,7 @@ async def handle_abservice(req: web.Request) -> web.Response:
 						if group_id in ctc_ab.groups:
 							return web.HTTPInternalServerError()
 				
-				ctc = detail.contacts.get(ctc_ab.member_uuid)
+				ctc = detail.contacts.get(ctc_ab.member_uuid or '')
 				if ctc is None or not ctc.lists & models.Lst.FL:
 					if ctc is None:
 						print('ctc does not exist')
@@ -627,8 +639,8 @@ async def handle_abservice(req: web.Request) -> web.Response:
 					return web.HTTPInternalServerError()
 				else:
 					for group_id in group_ids:
-						for group in ctc._groups.copy():
-							if group.uuid == group_id:
+						for group_contact_entry in ctc._groups:
+							if group_contact_entry.uuid == group_id:
 								return web.HTTPInternalServerError()
 				
 				for group_id in group_ids:
@@ -672,14 +684,15 @@ async def handle_abservice(req: web.Request) -> web.Response:
 					if group_id not in ctc_ab.groups:
 						return web.HTTPInternalServerError()
 			
-			ctc = detail.contacts.get(ctc_ab.member_uuid)
+			ctc = detail.contacts.get(ctc_ab.member_uuid or '')
 			if ctc is not None:
 				if ctc.lists & models.Lst.FL:
 					for group_id in group_ids:
 						ctc_in_group = False
-						for group in ctc._groups.copy():
-							if group.uuid == group_id:
+						for group_contact_entry in ctc._groups:
+							if group_contact_entry.uuid == group_id:
 								ctc_in_group = True
+								break
 						if not ctc_in_group:
 							return web.HTTPInternalServerError()
 					for group_id in group_ids:
@@ -985,11 +998,12 @@ async def handle_oim(req: web.Request) -> web.Response:
 	
 	recipient_uuid = backend.util_get_uuid_from_email(recipient)
 	
-	if email != user.email or recipient_uuid is None or not _is_on_al(recipient_uuid, detail):
+	if email != user.email or recipient_uuid is None or not _is_on_al(recipient_uuid, user, detail):
 		return render(req, 'msn:oim/Fault.unavailable.xml', {
 			'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
 		}, status = 500)
 	
+	assert req.transport is not None
 	peername = req.transport.get_extra_info('peername')
 	if peername:
 		host = peername[0]
@@ -1029,11 +1043,11 @@ async def handle_oim(req: web.Request) -> web.Response:
 		'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
 	})
 
-def _is_on_al(uuid: str, detail: models.UserDetail) -> bool:
+def _is_on_al(uuid: str, user: models.User, detail: models.UserDetail) -> bool:
 	contact = detail.contacts.get(uuid)
-	if detail.settings.get('BLP', 'AL') is 'AL' and (contact is None or contact.lists != models.Lst.BL):
+	if user.settings.get('BLP', 'AL') is 'AL' and (contact is None or contact.lists != models.Lst.BL):
 		return True
-	elif detail.settings.get('BLP', 'AL') is 'BL' and contact is not None and contact.lists != models.Lst.BL:
+	elif user.settings.get('BLP', 'AL') is 'BL' and contact is not None and contact.lists != models.Lst.BL:
 		return True
 	return False
 
@@ -1168,7 +1182,7 @@ def _find_element(xml: Any, query: str) -> Any:
 
 async def handle_msgrconfig(req: web.Request) -> web.Response:
 	if req.method == 'POST':
-		body = await req.read()
+		body = await req.read() # type: Optional[bytes]
 	else:
 		body = None
 	msgr_config = _get_msgr_config(req, body)
@@ -1277,14 +1291,15 @@ async def handle_rst(req: web.Request, rst2: bool = False) -> web.Response:
 	uuid = backend.util_get_uuid_from_email(email)
 	
 	if token is not None and uuid is not None:
-		now = datetime.utcfromtimestamp(backend.auth_service.get_token_expiry('nb/login', token) - 86400)
-		timez = _date_format(now)
-		tomorrowz = _date_format((now + timedelta(days = 1)))
-		time_5mz = _date_format((now + timedelta(minutes = 5)))
+		day_before_expiry = datetime.utcfromtimestamp((backend.auth_service.get_token_expiry('nb/login', token) or 0) - 86400)
+		timez = _date_format(day_before_expiry)
+		tomorrowz = _date_format((day_before_expiry + timedelta(days = 1)))
+		time_5mz = _date_format((day_before_expiry + timedelta(minutes = 5)))
 		
 		# load PUID and CID, assume them to be the same for our purposes
 		cid = cid_format(uuid)
 		
+		assert req.transport is not None
 		peername = req.transport.get_extra_info('peername')
 		if peername:
 			host = peername[0]
@@ -1432,24 +1447,12 @@ def _login(req: web.Request, email: str, pwd: str, lifetime: int = 30) -> Option
 	if uuid is None: return None
 	return backend.auth_service.create_token('nb/login', uuid, lifetime = lifetime)
 
-def _date_format(d: Optional[datetime], *, timezone: Optional[str] = None, Z: bool = True) -> Optional[str]:
-	if d is None: return None
-	if timezone:
-		d = d.astimezone(timezone)
-	if timezone:
-		d_iso = '{}.{:03.0f}'.format(
-			d.strftime('%Y-%m-%dT%H:%M:%S'), round(d.microsecond / 1000.0),
-		)
-		offset = d.strftime('%z')
-		if re.match(r'([\+-]\d{4})$', offset):
-			d_iso += '{}:{}'.format(
-				offset[:3], offset[-2:],
-			)
-	else:
-		d_iso = '{}{}'.format(
-			d.isoformat()[0:19], ('Z' if Z else ''),
-		)
-	
+def _date_format(d: Optional[datetime]) -> Optional[str]:
+	if d is None:
+		return None
+	d_iso = '{}{}'.format(
+		d.isoformat()[0:19], 'Z',
+	)
 	return d_iso
 
 def _bool_to_str(b: bool) -> str:

@@ -44,7 +44,7 @@ def build_presence_notif(trid: Optional[str], ctc_head: User, user_me: User, dia
 	
 	if is_offlineish and not ctc_head is user_me:
 		if dialect >= 18:
-			reply = ('FLN', encode_email_networkid(head.email, None, circle_id = circle_id))
+			reply = ('FLN', encode_email_networkid(head.email, None, circle_id = circle_id)) # type: Tuple[Any, ...]
 			if circle_owner or not circle_user_bs:
 				reply += ('0:0',)
 			else:
@@ -52,7 +52,9 @@ def build_presence_notif(trid: Optional[str], ctc_head: User, user_me: User, dia
 				reply += (encode_capabilities_capabilitiesex(((circle_user_bs.front_data.get('msn_capabilities') or 0) if circle_user_bs.front_data.get('msn') is True else MAX_CAPABILITIES), 0),)
 		else:
 			reply = ('FLN', head.email)
-			if dialect >= 14: reply += (int(NetworkID.WINDOWS_LIVE),)
+			if dialect >= 14:
+				# Mypy incorrectly gives a type error here. Must be a bug.
+				reply += (int(NetworkID.WINDOWS_LIVE),) # type: ignore
 		yield reply
 		return
 	
@@ -119,8 +121,11 @@ def encode_xml_ne(data: Optional[str]) -> Optional[str]:
 def encode_capabilities_capabilitiesex(capabilities: int, capabilitiesex: int) -> str:
 	return '{}:{}'.format(capabilities, capabilitiesex)
 
-def decode_capabilities_capabilitiesex(capabilities_encoded: str) -> Optional[Tuple[int, int]]:
-	return (capabilities_encoded.split(':', 1) if capabilities_encoded.find(':') > 0 else None)
+def decode_capabilities_capabilitiesex(capabilities_encoded: str) -> Optional[Tuple[str, str]]:
+	if capabilities_encoded.find(':') > 0:
+		a, b = capabilities_encoded.split(':', 1)
+		return a, b
+	return None
 
 def cid_format(uuid: str, *, decimal: bool = False) -> str:
 	cid = (uuid[19:23] + uuid[24:36]).lower()
@@ -161,7 +166,10 @@ def extend_ubx_payload(dialect: int, backend: Backend, user: User, ctc_sess: 'Ba
 			response += EPDATA_PAYLOAD.format(mguid = '{' + pop_id_ctc + '}', capabilities = encode_capabilities_capabilitiesex(ctc_sess.front_data.get('msn_capabilities') or 0, ctc_sess.front_data.get('msn_capabilitiesex') or 0))
 			for ctc_sess_other in backend.util_get_sessions_by_user(ctc_sess.user):
 				if ctc_sess_other.front_data.get('msn_pop_id') == pop_id_ctc: continue
-				response += EPDATA_PAYLOAD.format(mguid = '{' + ctc_sess_other.front_data.get('msn_pop_id') + '}', capabilities = encode_capabilities_capabilitiesex(ctc_sess_other.front_data.get('msn_capabilities') or 0, ctc_sess_other.front_data.get('msn_capabilitiesex') or 0))
+				response += EPDATA_PAYLOAD.format(
+					mguid = '{' + (ctc_sess_other.front_data.get('msn_pop_id') or '') + '}',
+					capabilities = encode_capabilities_capabilitiesex(ctc_sess_other.front_data.get('msn_capabilities') or 0, ctc_sess_other.front_data.get('msn_capabilitiesex') or 0)
+				)
 			if ctc_sess.user is user:
 				for ctc_sess_other in backend.util_get_sessions_by_user(ctc_sess.user):
 					ped_data = ''
@@ -173,7 +181,7 @@ def extend_ubx_payload(dialect: int, backend: Backend, user: User, ctc_sess: 'Ba
 						ped_data += PRIVATEEPDATA_CLIENTTYPE_PAYLOAD.format(ct = ctc_sess_other.front_data['msn_client_type'])
 					if ctc_sess_other.front_data.get('msn_ep_state'):
 						ped_data += PRIVATEEPDATA_STATE_PAYLOAD.format(state = ctc_sess_other.front_data['msn_ep_state'])
-					response += PRIVATEEPDATA_PAYLOAD.format(mguid = '{' + ctc_sess_other.front_data.get('msn_pop_id') + '}', ped_data = ped_data)
+					response += PRIVATEEPDATA_PAYLOAD.format(mguid = '{' + (ctc_sess_other.front_data.get('msn_pop_id') or '') + '}', ped_data = ped_data)
 	return response
 
 #def gen_signedticket_xml(user: User, backend: Backend) -> str:

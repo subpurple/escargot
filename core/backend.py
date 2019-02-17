@@ -36,7 +36,7 @@ class Backend:
 	_chats_by_id: Dict[Tuple[str, str], 'Chat']
 	_user_by_uuid: Dict[str, User]
 	_worklist_sync_db: Dict[User, Tuple[UserDetail, bool]]
-	_worklist_notify: Dict[str, Tuple['BackendSession', Substatus, bool, Optional[Dict[str, Any]], bool, bool, bool]]
+	_worklist_notify: Dict[str, Tuple['BackendSession', Optional[int], Substatus, bool, Optional[Dict[str, Any]], bool, bool, bool]]
 	_worklist_notify_self: Dict[str, 'BackendSession']
 	_runners: List[Runner]
 	_dev: Optional[Any]
@@ -555,7 +555,7 @@ class BackendSession(Session):
 		ctc = self._add_to_list(user, ctc_head, lst, add_to_ab, name, group_id)
 		if lst & Lst.FL:
 			# FL needs a matching RL on the contact
-			ctc_me = self._add_to_list(ctc_head, user, Lst.RL, False, user.email, None)
+			ctc_me = self._add_to_list(ctc_head, user, Lst.RL, False, user.email, None) # type: Optional[Contact]
 			# `ctc_head` was added to `user`'s RL
 			for sess_added in backend._sc.get_sessions_by_user(ctc_head):
 				#if sess_added is self: continue
@@ -633,6 +633,7 @@ class BackendSession(Session):
 			# Remove matching RL
 			self._remove_from_list(ctc.head, user, Lst.RL, False, None)
 		if lst & Lst.BL:
+			ctc_detail = backend._load_detail(ctc.head)
 			ctc_me = ctc_detail.contacts.get(user.uuid)
 			for sess_added in backend._sc.get_sessions_by_user(ctc.head):
 				if sess_added is self: continue

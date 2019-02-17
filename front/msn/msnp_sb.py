@@ -17,8 +17,8 @@ class MSNPCtrlSB(MSNPCtrl):
 	
 	backend: Backend
 	dialect: int
-	loop: Optional[asyncio.AbstractEventLoop]
-	counter_task: Optional[asyncio.Task]
+	loop: asyncio.AbstractEventLoop
+	counter_task: Optional[asyncio.Task[None]]
 	auth_sent: bool
 	bs: Optional[BackendSession]
 	cs: Optional[ChatSession]
@@ -27,14 +27,14 @@ class MSNPCtrlSB(MSNPCtrl):
 		super().__init__(logger)
 		self.backend = backend
 		self.dialect = 0
-		self.loop = None
+		self.loop = backend.loop
 		self.counter_task = None
 		self.auth_sent = False
 		self.bs = None
 		self.cs = None
 	
 	def on_connect(self) -> None:
-		self.counter_task = asyncio.ensure_future(self._conn_auth_limit_counter())
+		self.counter_task = self.loop.create_task(self._conn_auth_limit_counter())
 	
 	def _on_close(self) -> None:
 		if self.counter_task is not None:
@@ -49,7 +49,9 @@ class MSNPCtrlSB(MSNPCtrl):
 		#>>> USR trid email@example.com token (MSNP < 16)
 		#>>> USR trid email@example.com;{00000000-0000-0000-0000-000000000000} token (MSNP >= 16)
 		self.auth_sent = True
-		if None in (trid,arg,token) or len(args) > 0: self.close(hard = True)
+		if trid is None or arg is None or token is None or len(args) > 0:
+			self.close(hard = True)
+			return
 		
 		(email, pop_id) = decode_email_pop(arg)
 		
@@ -57,6 +59,8 @@ class MSNPCtrlSB(MSNPCtrl):
 		if data is None:
 			self.send_reply(Err.AuthFail, trid)
 			self.close(hard = True)
+			return
+		
 		bs, dialect = data
 		if bs.user.email != email or (dialect >= 16 and pop_id is not None and bs.front_data.get('msn_pop_id') != pop_id[1:-1]):
 			self.send_reply(Err.AuthFail, trid)
@@ -81,7 +85,7 @@ class MSNPCtrlSB(MSNPCtrl):
 		#>>> ANS trid email@example.com token sessionid (MSNP < 16)
 		#>>> ANS trid email@example.com;{00000000-0000-0000-0000-000000000000} token sessionid (MSNP >= 16)
 		self.auth_sent = True
-		if None in (trid,arg,token,sessid) or len(args) > 0:
+		if trid is None or arg is None or token is None or sessid is None or len(args) > 0:
 			self.close(hard = True)
 			return
 		
@@ -91,7 +95,8 @@ class MSNPCtrlSB(MSNPCtrl):
 		if data is None:
 			self.send_reply(Err.AuthFail, trid)
 			self.close(hard = True)
-		expiry = self.backend.auth_service.get_token_expiry('sb/cal', token)
+			return
+		expiry = self.backend.auth_service.get_token_expiry('sb/cal', token) or 0
 		self.backend.auth_service.pop_token('sb/cal', token)
 		if round(time.time() - expiry) >= 60:
 			self.close(hard = True)

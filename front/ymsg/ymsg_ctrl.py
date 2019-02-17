@@ -63,7 +63,7 @@ class YMSGCtrlBase(metaclass = ABCMeta):
 		self._on_close(**kwargs)
 	
 	@abstractmethod
-	def _on_close(self) -> None: pass
+	def _on_close(self, remove_sess_id: bool = True) -> None: pass
 
 class YMSGEncoder:
 	__slots__ = ('_logger', '_buf')
