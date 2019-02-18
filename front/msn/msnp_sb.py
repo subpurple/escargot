@@ -1,4 +1,4 @@
-from typing import Tuple, Any, Optional, List, Set
+from typing import Tuple, Any, Optional, List, Set, TYPE_CHECKING
 import time
 import re
 import secrets
@@ -12,13 +12,18 @@ from core import event, error
 from .misc import Err, encode_capabilities_capabilitiesex, decode_email_pop, encode_email_pop, MAX_CAPABILITIES, MAX_CAPABILITIESEX
 from .msnp import MSNPCtrl
 
+if TYPE_CHECKING:
+	VoidTaskType = asyncio.Task[None]
+else:
+	VoidTaskType = Any
+
 class MSNPCtrlSB(MSNPCtrl):
 	__slots__ = ('backend', 'dialect', 'loop', 'counter_task', 'auth_sent', 'bs', 'cs')
 	
 	backend: Backend
 	dialect: int
 	loop: asyncio.AbstractEventLoop
-	counter_task: Optional[asyncio.Task[None]]
+	counter_task: Optional[VoidTaskType]
 	auth_sent: bool
 	bs: Optional[BackendSession]
 	cs: Optional[ChatSession]

@@ -507,10 +507,10 @@ class BackendSession(Session):
 		ctc = detail.contacts.get(contact_uuid)
 		if ctc is None:
 			raise error.ContactDoesNotExist()
-		group = detail.get_group_by_id(group_id)
-		if group is None and group_id != '0':
-			raise error.GroupDoesNotExist()
 		if group_id != '0':
+			group = detail.get_group_by_id(group_id)
+			if group is None:
+				raise error.GroupDoesNotExist()
 			ctc.remove_from_group(group)
 			self.backend._mark_modified(user, message_temp = self.message_temp)
 			if '00000000-0000-0000-0000-000000000000' in detail.subscribed_ab_stores:

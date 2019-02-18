@@ -1,4 +1,4 @@
-from typing import Optional, Tuple, Any, Iterable, Dict, List, ClassVar
+from typing import Optional, Tuple, Any, Iterable, Dict, List, ClassVar, TYPE_CHECKING
 from urllib.parse import quote_plus
 from multidict import MultiDict
 from enum import IntEnum
@@ -122,9 +122,11 @@ _FromSubstatus = DefaultDict(YMSGStatus.Bad, {
 	Substatus.SteppedOut: YMSGStatus.SteppedOut,
 })
 
-#EncodedYMSG = Tuple[YMSGService, YMSGStatus, MultiDict[Any]]
-#Can't use `MultiDict` as type
-EncodedYMSG = Tuple[YMSGService, YMSGStatus, Any]
+if TYPE_CHECKING:
+	KVSType = MultiDict[Any]
+else:
+	KVSType = Any
+EncodedYMSG = Tuple[YMSGService, YMSGStatus, KVSType]
 
 def build_ft_packet(bs: BackendSession, xfer_dict: Dict[str, Any]) -> Iterable[EncodedYMSG]:
 	user_to = bs.user
