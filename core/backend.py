@@ -510,17 +510,14 @@ class BackendSession(Session):
 		group = detail.get_group_by_id(group_id)
 		if group is None and group_id != '0':
 			raise error.GroupDoesNotExist()
-		if group_id == '0':
-			raise error.ContactNotOnList()
-		if group is None:
-			raise error.GroupDoesNotExist()
-		ctc.remove_from_group(group)
-		self.backend._mark_modified(user, message_temp = self.message_temp)
-		if '00000000-0000-0000-0000-000000000000' in detail.subscribed_ab_stores:
-			ctc_ab = self.backend.user_service.ab_get_entry_by_email('00000000-0000-0000-0000-000000000000', ctc.head.email, 'Regular', user)
-			if ctc_ab:
-				ctc_ab.groups.remove(group.uuid)
-				self.backend.user_service.mark_ab_modified('00000000-0000-0000-0000-000000000000', { 'contacts': [ctc_ab], }, user)
+		if group_id != '0':
+			ctc.remove_from_group(group)
+			self.backend._mark_modified(user, message_temp = self.message_temp)
+			if '00000000-0000-0000-0000-000000000000' in detail.subscribed_ab_stores:
+				ctc_ab = self.backend.user_service.ab_get_entry_by_email('00000000-0000-0000-0000-000000000000', ctc.head.email, 'Regular', user)
+				if ctc_ab:
+					ctc_ab.groups.remove(group.uuid)
+					self.backend.user_service.mark_ab_modified('00000000-0000-0000-0000-000000000000', { 'contacts': [ctc_ab], }, user)
 	
 	def me_subscribe_ab(self, ab_id: str) -> None:
 		user = self.user
