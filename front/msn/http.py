@@ -1230,9 +1230,18 @@ def _get_msgr_config(req: web.Request, body: Optional[bytes]) -> str:
 	
 	return result or ''
 
+PassportURLs = 'PassportURLs'
+if settings.DEBUG:
+	# Caddy (on the live server) standardizes all header names, and so
+	# turns this into 'Passporturls'. Because of this, patching MSN
+	# involves changing that string in the executable as well.
+	# But then if you try to use a patched MSN with a dev server, it
+	# won't work, so we have to standardize the header name here.
+	PassportURLs = PassportURLs.title()
+
 async def handle_nexus(req: web.Request) -> web.Response:
 	return web.HTTPOk(headers = {
-		'PassportURLs': 'DALogin=https://{}{}'.format(settings.LOGIN_HOST, LOGIN_PATH),
+		PassportURLs: 'DALogin=https://{}{}'.format(settings.LOGIN_HOST, LOGIN_PATH),
 	})
 
 async def handle_login(req: web.Request) -> web.Response:
