@@ -49,7 +49,7 @@ def build_presence_notif(trid: Optional[str], ctc_head: User, user_me: User, dia
 				reply += ('0:0',)
 			else:
 				# Most likely scenario this would pop up is in circle presence
-				reply += (encode_capabilities_capabilitiesex(((circle_user_bs.front_data.get('msn_capabilities') or 0) if circle_user_bs.front_data.get('msn') is True else MAX_CAPABILITIES), 0),)
+				reply += (encode_capabilities_capabilitiesex(((circle_user_bs.front_data.get('msn_capabilities') or 0) if circle_user_bs.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC), 0),)
 		else:
 			reply = ('FLN', head.email)
 			if dialect >= 14:
@@ -68,9 +68,9 @@ def build_presence_notif(trid: Optional[str], ctc_head: User, user_me: User, dia
 	rst = []
 	
 	if 8 <= dialect <= 15:
-		rst.append(((ctc_sess.front_data.get('msn_capabilities') or 0) if ctc_sess.front_data.get('msn') is True else MAX_CAPABILITIES))
+		rst.append(((ctc_sess.front_data.get('msn_capabilities') or 0) if ctc_sess.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC))
 	elif dialect >= 18:
-		rst.append(('0:0' if circle_owner else encode_capabilities_capabilitiesex(((ctc_sess.front_data.get('msn_capabilities') or 0) if ctc_sess.front_data.get('msn') is True else MAX_CAPABILITIES), ((ctc_sess.front_data.get('msn_capabilitiesex') or 0) if ctc_sess.front_data.get('msn') is True else MAX_CAPABILITIESEX))))
+		rst.append(('0:0' if circle_owner else encode_capabilities_capabilitiesex(((ctc_sess.front_data.get('msn_capabilities') or 0) if ctc_sess.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC), ctc_sess.front_data.get('msn_capabilitiesex') or 0)))
 	if dialect >= 9:
 		rst.append(encode_msnobj(ctc_sess.front_data.get('msn_msnobj') or '<msnobj/>'))
 	
@@ -163,12 +163,12 @@ def extend_ubx_payload(dialect: int, backend: Backend, user: User, ctc_sess: 'Ba
 			encode_xml_he(ctc_sess.front_data.get('msn_msnobj_ddp'), dialect) or '', encode_xml_he(ctc_sess.front_data.get('msn_sigsound'), dialect) or '', encode_xml_he(ctc_sess.front_data.get('msn_msnobj_scene'), dialect) or '', ctc_sess.front_data.get('msn_colorscheme') or '',
 		)
 		if pop_id_ctc:
-			response += EPDATA_PAYLOAD.format(mguid = '{' + pop_id_ctc + '}', capabilities = encode_capabilities_capabilitiesex(ctc_sess.front_data.get('msn_capabilities') or 0, ctc_sess.front_data.get('msn_capabilitiesex') or 0))
+			response += EPDATA_PAYLOAD.format(mguid = '{' + pop_id_ctc + '}', capabilities = encode_capabilities_capabilitiesex(((ctc_sess.front_data.get('msn_capabilities') or 0) if ctc_sess.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC), ctc_sess.front_data.get('msn_capabilitiesex') or 0))
 			for ctc_sess_other in backend.util_get_sessions_by_user(ctc_sess.user):
 				if ctc_sess_other.front_data.get('msn_pop_id') == pop_id_ctc: continue
 				response += EPDATA_PAYLOAD.format(
 					mguid = '{' + (ctc_sess_other.front_data.get('msn_pop_id') or '') + '}',
-					capabilities = encode_capabilities_capabilitiesex(ctc_sess_other.front_data.get('msn_capabilities') or 0, ctc_sess_other.front_data.get('msn_capabilitiesex') or 0)
+					capabilities = encode_capabilities_capabilitiesex(((ctc_sess.front_data.get('msn_capabilities') or 0) if ctc_sess.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC), ctc_sess_other.front_data.get('msn_capabilitiesex') or 0)
 				)
 			if ctc_sess.user is user:
 				for ctc_sess_other in backend.util_get_sessions_by_user(ctc_sess.user):
@@ -339,8 +339,7 @@ PRIVATEEPDATA_STATE_PAYLOAD = '<State>{state}</State>'
 #			bs.front_data.get('msn_circle_roster').add(bs_other)
 #			self.on_presence_notification(bs, bs.user, bs.user.status.substatus, False)
 
-MAX_CAPABILITIES = 2788999212
-MAX_CAPABILITIESEX = 12
+MAX_CAPABILITIES_BASIC = 1073741824
 
 class MSNStatus(Enum):
 	FLN = object()

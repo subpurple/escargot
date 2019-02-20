@@ -9,7 +9,7 @@ from util.misc import Logger, first_in_iterable
 from core.models import User, MessageData, MessageType
 from core.backend import Backend, BackendSession, ChatSession, Chat
 from core import event, error
-from .misc import Err, encode_capabilities_capabilitiesex, decode_email_pop, encode_email_pop, MAX_CAPABILITIES, MAX_CAPABILITIESEX
+from .misc import Err, encode_capabilities_capabilitiesex, decode_email_pop, encode_email_pop, MAX_CAPABILITIES_BASIC
 from .msnp import MSNPCtrl
 
 if TYPE_CHECKING:
@@ -157,9 +157,9 @@ class MSNPCtrlSB(MSNPCtrl):
 			for other_cs in tmp:
 				other_user = other_cs.user
 				if dialect >= 18:
-					capabilities = encode_capabilities_capabilitiesex(((other_cs.bs.front_data.get('msn_capabilities') or 0) if other_cs.bs.front_data.get('msn') is True else MAX_CAPABILITIES), ((other_cs.bs.front_data.get('msn_capabilitiesex') or 0) if other_cs.bs.front_data.get('msn') is True else MAX_CAPABILITIESEX))
+					capabilities = encode_capabilities_capabilitiesex(((other_cs.bs.front_data.get('msn_capabilities') or 0) if other_cs.bs.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC), other_cs.bs.front_data.get('msn_capabilitiesex') or 0)
 				else:
-					capabilities = ((other_cs.bs.front_data.get('msn_capabilities') or 0) if other_cs.bs.front_data.get('msn') is True else MAX_CAPABILITIES)
+					capabilities = ((other_cs.bs.front_data.get('msn_capabilities') or 0) if other_cs.bs.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC)
 				
 				self.send_reply('IRO', trid, i, l, encode_email_pop(other_user.email, other_cs.bs.front_data.get('msn_pop_id')), other_user.status.name, capabilities)
 				if other_cs.primary_pop and other_cs.bs.front_data.get('msn_pop_id') is not None:
@@ -178,7 +178,7 @@ class MSNPCtrlSB(MSNPCtrl):
 				other_user = other_cs.user
 				extra = () # type: Tuple[Any, ...]
 				if dialect >= 12:
-					extra = (((other_cs.bs.front_data.get('msn_capabilities') or 0) if other_cs.bs.front_data.get('msn') is True else MAX_CAPABILITIES),)
+					extra = (((other_cs.bs.front_data.get('msn_capabilities') or 0) if other_cs.bs.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC),)
 				self.send_reply('IRO', trid, i + 1, l, other_user.email, other_user.status.name, *extra)
 		
 		self.send_reply('ANS', trid, 'OK')
@@ -288,9 +288,9 @@ class ChatEventHandler(event.ChatEventHandler):
 			email = user.email
 		
 		if 12 <= ctrl.dialect <= 18:
-			extra = (((cs_other.bs.front_data.get('msn_capabilities') or 0) if cs_other.bs.front_data.get('msn') is True else MAX_CAPABILITIES),) # type: Tuple[Any, ...]
+			extra = (((cs_other.bs.front_data.get('msn_capabilities') or 0) if cs_other.bs.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC),) # type: Tuple[Any, ...]
 		elif ctrl.dialect >= 18:
-			extra = (encode_capabilities_capabilitiesex(((cs_other.bs.front_data.get('msn_capabilities') or 0) if cs_other.bs.front_data.get('msn') is True else MAX_CAPABILITIES), ((cs_other.bs.front_data.get('msn_capabilitiesex') or 0) if cs_other.bs.front_data.get('msn') is True else MAX_CAPABILITIES)),)
+			extra = (encode_capabilities_capabilitiesex(((cs_other.bs.front_data.get('msn_capabilities') or 0) if cs_other.bs.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC), cs_other.bs.front_data.get('msn_capabilitiesex') or 0),)
 		else:
 			extra = ()
 		ctrl.send_reply('JOI', email, user.status.name, *extra)

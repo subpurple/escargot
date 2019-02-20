@@ -628,13 +628,13 @@ class MSNPCtrlNS(MSNPCtrl):
 					
 					contact_uuid = backend.util_get_uuid_from_email(email)
 					
-					try:
-						ctc, _ = bs.me_contact_add(contact_uuid, lsts, name = email, add_to_ab = False)
-					except Exception:
-						pass
-					
-					if lsts & Lst.FL:
-						if contact_uuid is not None:
+					if contact_uuid is not None:
+						try:
+							ctc, _ = bs.me_contact_add(contact_uuid, lsts, name = email, add_to_ab = False)
+						except Exception:
+							pass
+						
+						if lsts & Lst.FL:
 							#if circle_mode:
 							#	ctc_head = backend._load_user_record(contact_uuid)
 							#	circle_metadata = backend.user_service.msn_get_circle_metadata(username)
@@ -688,39 +688,40 @@ class MSNPCtrlNS(MSNPCtrl):
 				self.send_reply(Err.XXLInvalidPayload, trid)
 				self.close(hard = True)
 			
-			domain = d_el.get('n')
-			c_el = d_el.find('c')
-			username = c_el.get('n')
-			email = '{}@{}'.format(username, domain)
-			
-			try:
-				lsts = Lst(int(c_el.get('l')))
+			if d_el is not None:
+				domain = d_el.get('n')
+				c_el = d_el.find('c')
+				username = c_el.get('n')
+				email = '{}@{}'.format(username, domain)
 				
-				if lsts & (Lst.RL | Lst.PL):
+				try:
+					lsts = Lst(int(c_el.get('l')))
+					
+					if lsts & (Lst.RL | Lst.PL):
+						self.send_reply(Err.XXLInvalidPayload, trid)
+						self.close(hard = True)
+						return
+				except ValueError:
 					self.send_reply(Err.XXLInvalidPayload, trid)
 					self.close(hard = True)
-					return
-			except ValueError:
-				self.send_reply(Err.XXLInvalidPayload, trid)
-				self.close(hard = True)
-			try:
-				networkid = NetworkID(int(c_el.get('t')))
+				try:
+					networkid = NetworkID(int(c_el.get('t')))
+					
+					if networkid in (NetworkID.OFFICE_COMMUNICATOR,NetworkID.TELEPHONE,NetworkID.MNI,NetworkID.SMTP):
+						self.send_reply(Err.InvalidUser2, trid)
+						return
+				except ValueError:
+					self.send_reply(Err.InvalidNetworkID, trid)
+					self.close(hard = True)
 				
-				if networkid in (NetworkID.OFFICE_COMMUNICATOR,NetworkID.TELEPHONE,NetworkID.MNI,NetworkID.SMTP):
+				contact_uuid = self.backend.util_get_uuid_from_email(email)
+				if contact_uuid is None:
 					self.send_reply(Err.InvalidUser2, trid)
 					return
-			except ValueError:
-				self.send_reply(Err.InvalidNetworkID, trid)
-				self.close(hard = True)
-			
-			contact_uuid = self.backend.util_get_uuid_from_email(email)
-			if contact_uuid is None:
-				self.send_reply(Err.InvalidUser2, trid)
-				return
-			try:
-				bs.me_contact_remove(contact_uuid, lsts, remove_from_ab = False)
-			except Exception:
-				pass
+				try:
+					bs.me_contact_remove(contact_uuid, lsts, remove_from_ab = False)
+				except Exception:
+					pass
 		except Exception as ex:
 			if isinstance(ex, XMLSyntaxError):
 				self.send_reply(Err.XXLInvalidPayload, trid)
@@ -887,10 +888,10 @@ class MSNPCtrlNS(MSNPCtrl):
 		bs = self.bs
 		assert bs is not None
 		
-		capabilities_msn = None # type: Optional[int]
-		capabilities_msn_ex = None # type: Optional[int]
+		capabilities_msn = None # type: Optional[str]
+		capabilities_msn_ex = None # type: Optional[str]
 		
-		if dialect >= 18:
+		if dialect >= 18 and capabilities is not None:
 			capabilities_msn, capabilities_msn_ex = capabilities.split(':', 1)
 		elif 8 <= dialect <= 16:
 			try:
@@ -1264,7 +1265,7 @@ class BackendEventHandler(event.BackendEventHandler):
 		
 		if dialect < 13:
 			if dialect < 10:
-				m: Tuple[Any, ...] = ('ADD', 0, self._ser(), Lst.RL.name, email, name)
+				m: Tuple[Any, ...] = ('ADD', 0, self.ctrl._ser(), Lst.RL.name, email, name)
 			else:
 				m = ('ADC', 0, Lst.RL.name, 'N={}'.format(email), 'F={}'.format(name))
 		else:
@@ -1322,8 +1323,8 @@ class BackendEventHandler(event.BackendEventHandler):
 		
 		del message['To']
 		del message['From']
-		message['To'] = _encode_networkid_email_pop(encode_email_networkid(bs.user.email, bs.user.networkid), pop_id)
-		message['From'] = _encode_networkid_email_pop(encode_email_networkid(sender.email, sender.networkid), pop_id_sender)
+		message['To'] = _encode_networkid_email_pop('1:{}'.format(bs.user.email), pop_id)
+		message['From'] = _encode_networkid_email_pop('1:{}'.format(bs.user.email), pop_id_sender)
 		
 		for variable, content in message.items():
 			data += '{}: {}\r\n'.format(
