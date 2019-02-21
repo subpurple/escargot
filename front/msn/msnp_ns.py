@@ -891,13 +891,15 @@ class MSNPCtrlNS(MSNPCtrl):
 		capabilities_msn = None # type: Optional[str]
 		capabilities_msn_ex = None # type: Optional[str]
 		
-		if dialect >= 18 and capabilities is not None:
-			capabilities_msn, capabilities_msn_ex = capabilities.split(':', 1)
-		elif 8 <= dialect <= 16:
-			try:
-				capabilities_msn = int(capabilities)
-			except ValueError:
-				return
+		if dialect >= 8:
+			if dialect >= 16 and capabilities is not None and capabilities.find(':') > 0:
+				capabilities_msn, capabilities_msn_ex = capabilities.split(':', 1)
+			else:
+				try:
+					capabilities_msn = int(capabilities)
+				except ValueError:
+					return
+				capabilities_msn = str(capabilities_msn)
 		
 		bs.front_data['msn_capabilities'] = capabilities_msn or 0
 		bs.front_data['msn_capabilitiesex'] = capabilities_msn_ex or 0

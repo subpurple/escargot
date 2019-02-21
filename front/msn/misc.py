@@ -48,7 +48,7 @@ def build_presence_notif(trid: Optional[str], ctc_head: User, user_me: User, dia
 		else:
 			reply = ('FLN', head.email)
 		
-		if 13 <= dialect <= 15:
+		if 13 <= dialect <= 17:
 			# Mypy incorrectly gives a type error here. Must be a bug.
 			reply += (int(NetworkID.WINDOWS_LIVE),) # type: ignore
 		if 13 <= dialect <= 15:
@@ -81,7 +81,7 @@ def build_presence_notif(trid: Optional[str], ctc_head: User, user_me: User, dia
 	if dialect >= 18:
 		yield (*frst, msn_status.name, encode_email_networkid(head.email, None, circle_id = circle_id), status.name, *rst)
 	else:
-		yield (*frst, msn_status.name, head.email, (int(NetworkID.WINDOWS_LIVE) if 14 <= dialect <= 16 else None), status.name, *rst)
+		yield (*frst, msn_status.name, head.email, (int(NetworkID.WINDOWS_LIVE) if 14 <= dialect <= 17 else None), status.name, *rst)
 	
 	if dialect < 11:
 		return
@@ -92,8 +92,8 @@ def build_presence_notif(trid: Optional[str], ctc_head: User, user_me: User, dia
 	
 	if dialect >= 18:
 		yield ('UBX', encode_email_networkid(head.email, None, circle_id = circle_id), ubx_payload)
-	elif dialect >= 11:
-		yield ('UBX', head.email, (int(NetworkID.WINDOWS_LIVE) if 14 <= dialect <= 16 else None), ubx_payload)
+	else:
+		yield ('UBX', head.email, (int(NetworkID.WINDOWS_LIVE) if 14 <= dialect <= 17 else None), ubx_payload)
 
 def encode_email_networkid(email: str, networkid: Optional[NetworkID], *, circle_id: Optional[str] = None) -> str:
 	result = '{}:{}'.format(int(networkid or NetworkID.WINDOWS_LIVE), email)
@@ -113,7 +113,7 @@ def encode_msnobj(msnobj: Optional[str]) -> Optional[str]:
 def encode_xml_he(data: Optional[str], dialect: int) -> Optional[str]:
 	if data is None: return None
 	encoded = data.replace('&', '&#x26;')
-	if dialect >= 18:
+	if dialect >= 16:
 		encoded = encoded.replace('<', '&#x3C;').replace('>', '&#x3E;').replace('=', '&#x3D;').replace('\\', '&#x5C;')
 	return encoded
 
@@ -129,7 +129,7 @@ def decode_capabilities_capabilitiesex(capabilities_encoded: str) -> Optional[Tu
 	if capabilities_encoded.find(':') > 0:
 		a, b = capabilities_encoded.split(':', 1)
 		return a, b
-	return None
+	return capabilities_encoded
 
 def cid_format(uuid: str, *, decimal: bool = False) -> str:
 	cid = (uuid[19:23] + uuid[24:36]).lower()
