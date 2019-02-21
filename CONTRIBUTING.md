@@ -46,7 +46,7 @@
 	127.0.0.1 eowsmsgrmsn.log1p.xyz
 	127.0.0.1 ersih.log1p.xyz
 	```
-	- 14.0.8117.0416: use a **clean** install of the Messenger MSI, install the [Windows Live Communications Platform](http://messenger.jonathankay.com/redir/w3qfe2update/contacts.asp), and in your `HOSTS` add:
+	- 9.0.1407.1107 and 14.0.8117.0416: use a **clean** install of the Messenger MSI, and in your `HOSTS` add:
 	```
 	127.0.0.1 m1.escargot.log1p.xyz
 	127.0.0.1 messenger.hotmail.com
@@ -59,6 +59,7 @@
 	127.0.0.1 ows.messenger.msn.com
 	127.0.0.1 rsi.hotmail.com
 	```
+		- **(14.0 only):** install the [Windows Live Communications Platform](http://messenger.jonathankay.com/redir/w3qfe2update/contacts.asp)
 	(Note about the `127.0.0.1 login.live.com` entry: **BE SURE TO REMOVE IT OR COMMENT IT OUT AFTER TESTING OR ELSE YOU WON'T BE ABLE TO LOG ON TO ANY OFFICIAL MICROSOFT SERVICES!!**)
 
 ## Yahoo!

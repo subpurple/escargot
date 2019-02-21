@@ -30,7 +30,7 @@ MSNP_DIALECTS = ['MSNP{}'.format(d) for d in (
 )]
 
 class MSNPCtrlNS(MSNPCtrl):
-	__slots__ = ('backend', 'dialect', 'usr_email', 'bs', 'client', 'syn_ser', 'gcf_sent', 'syn_sent', 'iln_sent', 'challenge', 'circle_presence', 'initial_adl_sent', 'circle_adl_sent')
+	__slots__ = ('backend', 'dialect', 'usr_email', 'bs', 'client', 'syn_ser', 'gcf_sent', 'syn_sent', 'iln_sent', 'challenge', 'circle_presence', 'circle_adl_sent')
 	
 	backend: Backend
 	dialect: int
@@ -43,7 +43,6 @@ class MSNPCtrlNS(MSNPCtrl):
 	iln_sent: bool
 	challenge: Optional[str]
 	circle_presence: bool
-	initial_adl_sent: bool
 	circle_adl_sent: bool
 	
 	def __init__(self, logger: Logger, via: str, backend: Backend) -> None:
@@ -59,7 +58,6 @@ class MSNPCtrlNS(MSNPCtrl):
 		self.iln_sent = False
 		self.challenge = None
 		self.circle_presence = False
-		self.initial_adl_sent = False
 		self.circle_adl_sent = False
 	
 	def _on_close(self) -> None:
@@ -226,7 +224,7 @@ class MSNPCtrlNS(MSNPCtrl):
 					self.bs = backend.login(uuid, self.client, BackendEventHandler(self), option = option)
 					self.bs.front_data['msn'] = True
 					if dialect >= 16 and machineguid is not None:
-						self.bs.front_data['msn_pop_id'] = machineguid[1:-1]
+						self.bs.front_data['msn_pop_id'] = machineguid[1:-1].lower()
 					self._util_usr_final(trid, token, machineguid)
 				return
 		
@@ -272,9 +270,13 @@ class MSNPCtrlNS(MSNPCtrl):
 		else:
 			if dialect >= 11:
 				self.send_reply('SBS', 0, 'null')
-			if 18 <= dialect < 21:
+			if 16 <= dialect < 21:
 				# MSNP21 doesn't use this; unsure if 19/20 use it
-				self.send_reply('UBX', '1:' + user.email, b'')
+				if dialect >= 18:
+					rst = ('1:' + user.email,)
+				else:
+					rst = (user.email, '1')
+				self.send_reply('UBX', *rst, b'')
 		
 		msg1 = _encode_payload(PAYLOAD_MSG_1,
 			time = int(now.timestamp()),
@@ -611,8 +613,6 @@ class MSNPCtrlNS(MSNPCtrl):
 					#	if backend.user_service.msn_get_circle_membership(username, self.usr_email) is None:
 					#		self.send_reply(Err.InvalidCircleMembership, trid)
 					#		return
-			if not self.initial_adl_sent:
-				self.initial_adl_sent = True
 			
 			for d_el in d_els:
 				for c_el in c_els:
@@ -907,8 +907,6 @@ class MSNPCtrlNS(MSNPCtrl):
 		else:
 			bs.front_data['msn_msnobj'] = msnobj
 		
-		if dialect >= 13 and not self.initial_adl_sent: return
-		
 		bs.me_update({
 			'substatus': MSNStatus.ToSubstatus(getattr(MSNStatus, sts_name)),
 			'refresh_profile': True,
@@ -1135,7 +1133,7 @@ class MSNPCtrlNS(MSNPCtrl):
 			domain, username,
 		).encode('utf-8'))
 	
-	def _m_uun(self, trid: str, email: str, type: str, data: bytes) -> None:
+	def _m_uun(self, trid: str, email: str, type: str, data: Optional[bytes] = None) -> None:
 		# "Send sharing invitation or reply to invitation"
 		# https://web.archive.org/web/20130926060507/http://msnpiki.msnfanatic.com/index.php/MSNP13:Changes#UUN
 		bs = self.bs
@@ -1288,7 +1286,7 @@ class BackendEventHandler(event.BackendEventHandler):
 	def msn_on_oim_deletion(self) -> None:
 		self.ctrl.send_reply('MSG', 'Hotmail', 'Hotmail', _encode_payload(PAYLOAD_MSG_4))
 	
-	def msn_on_uun_sent(self, sender: User, type: int, data: bytes, *, pop_id_sender: Optional[str] = None, pop_id: Optional[str] = None) -> None:
+	def msn_on_uun_sent(self, sender: User, type: int, data: Optional[bytes], *, pop_id_sender: Optional[str] = None, pop_id: Optional[str] = None) -> None:
 		ctrl = self.ctrl
 		bs = ctrl.bs
 		assert bs is not None
@@ -1508,9 +1506,6 @@ SHIELDS_MSNP13 = '''<Policies>
 		</config>
 		<block>
 		</block>
-	</Policy>
-	<Policy type="CIRCLES" checksum="9208C5655F8D96CBBD9873181E5E79BD">
-		<Policy type="CIRCLES" >     <Msgr cMember="40"/></Policy>
 	</Policy>
 </Policies>'''.encode('utf-8')
 TIMESTAMP = '2000-01-01T00:00:00.0-00:00'

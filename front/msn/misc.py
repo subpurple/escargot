@@ -45,16 +45,20 @@ def build_presence_notif(trid: Optional[str], ctc_head: User, user_me: User, dia
 	if is_offlineish and not ctc_head is user_me:
 		if dialect >= 18:
 			reply = ('FLN', encode_email_networkid(head.email, None, circle_id = circle_id)) # type: Tuple[Any, ...]
+		else:
+			reply = ('FLN', head.email)
+		
+		if 13 <= dialect <= 15:
+			# Mypy incorrectly gives a type error here. Must be a bug.
+			reply += (int(NetworkID.WINDOWS_LIVE),) # type: ignore
+		if 13 <= dialect <= 15:
+			reply += ('0',)
+		elif dialect >= 16:
 			if circle_owner or not circle_user_bs:
 				reply += ('0:0',)
 			else:
 				# Most likely scenario this would pop up is in circle presence
 				reply += (encode_capabilities_capabilitiesex(((circle_user_bs.front_data.get('msn_capabilities') or 0) if circle_user_bs.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC), 0),)
-		else:
-			reply = ('FLN', head.email)
-			if dialect >= 14:
-				# Mypy incorrectly gives a type error here. Must be a bug.
-				reply += (int(NetworkID.WINDOWS_LIVE),) # type: ignore
 		yield reply
 		return
 	
@@ -69,12 +73,12 @@ def build_presence_notif(trid: Optional[str], ctc_head: User, user_me: User, dia
 	
 	if 8 <= dialect <= 15:
 		rst.append(((ctc_sess.front_data.get('msn_capabilities') or 0) if ctc_sess.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC))
-	elif dialect >= 18:
+	elif dialect >= 16:
 		rst.append(('0:0' if circle_owner else encode_capabilities_capabilitiesex(((ctc_sess.front_data.get('msn_capabilities') or 0) if ctc_sess.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC), ctc_sess.front_data.get('msn_capabilitiesex') or 0)))
 	if dialect >= 9:
 		rst.append(encode_msnobj(ctc_sess.front_data.get('msn_msnobj') or '<msnobj/>'))
 	
-	if dialect >= 16:
+	if dialect >= 18:
 		yield (*frst, msn_status.name, encode_email_networkid(head.email, None, circle_id = circle_id), status.name, *rst)
 	else:
 		yield (*frst, msn_status.name, head.email, (int(NetworkID.WINDOWS_LIVE) if 14 <= dialect <= 16 else None), status.name, *rst)
@@ -158,14 +162,14 @@ def extend_ubx_payload(dialect: int, backend: Backend, user: User, ctc_sess: 'Ba
 	pop_id_ctc = ctc_sess.front_data.get('msn_pop_id')
 	if dialect >= 13 and ctc_machineguid: response += '<MachineGuid>{}</MachineGuid>'.format(ctc_machineguid)
 	
-	if dialect >= 18:
-		response += '<DDP>{}</DDP><SignatureSound>{}</SignatureSound><Scene>{}</Scene><ColorScheme>{}</ColorScheme>'.format(
-			encode_xml_he(ctc_sess.front_data.get('msn_msnobj_ddp'), dialect) or '', encode_xml_he(ctc_sess.front_data.get('msn_sigsound'), dialect) or '', encode_xml_he(ctc_sess.front_data.get('msn_msnobj_scene'), dialect) or '', ctc_sess.front_data.get('msn_colorscheme') or '',
+	if dialect >= 16:
+		response += '{}<SignatureSound>{}</SignatureSound>{}'.format(
+			('<DDP>{}</DDP>'.format(encode_xml_he(ctc_sess.front_data.get('msn_msnobj_ddp'), dialect) or '') if dialect >= 18 else ''), encode_xml_he(ctc_sess.front_data.get('msn_sigsound'), dialect) or '', ('<Scene>{}</Scene><ColorScheme>{}</ColorScheme>'.format(encode_xml_he(ctc_sess.front_data.get('msn_msnobj_scene'), dialect) or '', ctc_sess.front_data.get('msn_colorscheme') or '') if dialect >= 18 else ''),
 		)
 		if pop_id_ctc:
 			response += EPDATA_PAYLOAD.format(mguid = '{' + pop_id_ctc + '}', capabilities = encode_capabilities_capabilitiesex(((ctc_sess.front_data.get('msn_capabilities') or 0) if ctc_sess.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC), ctc_sess.front_data.get('msn_capabilitiesex') or 0))
 			for ctc_sess_other in backend.util_get_sessions_by_user(ctc_sess.user):
-				if ctc_sess_other.front_data.get('msn_pop_id') == pop_id_ctc: continue
+				if ctc_sess_other.front_data.get('msn_pop_id').lower() == pop_id_ctc.lower(): continue
 				response += EPDATA_PAYLOAD.format(
 					mguid = '{' + (ctc_sess_other.front_data.get('msn_pop_id') or '') + '}',
 					capabilities = encode_capabilities_capabilitiesex(((ctc_sess.front_data.get('msn_capabilities') or 0) if ctc_sess.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC), ctc_sess_other.front_data.get('msn_capabilitiesex') or 0)

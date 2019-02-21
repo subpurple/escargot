@@ -1207,7 +1207,7 @@ def _get_msgr_config(req: web.Request, body: Optional[bytes]) -> str:
 			with open(TMPL_DIR + '/MsgrConfig.tabs.xml') as fh:
 				config_tabs = fh.read()
 			result = envelope.format(MsgrConfig = config.format(tabs = config_tabs))
-		elif int(config_ver[0]) == 8:
+		elif 8 <= int(config_ver[0]) <= 9:
 			with open(TMPL_DIR + '/MsgrConfig.wlm.8.xml') as fh:
 				config = fh.read()
 			with open(TMPL_DIR + '/MsgrConfig.tabs.xml') as fh:

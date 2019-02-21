@@ -67,7 +67,7 @@ class MSNPCtrlSB(MSNPCtrl):
 			return
 		
 		bs, dialect = data
-		if bs.user.email != email or (dialect >= 16 and pop_id is not None and bs.front_data.get('msn_pop_id') != pop_id[1:-1]):
+		if bs.user.email != email or (dialect >= 16 and pop_id is not None and bs.front_data.get('msn_pop_id').lower() != pop_id[1:-1].lower()):
 			self.send_reply(Err.AuthFail, trid)
 			self.close(hard = True)
 		chat = self.backend.chat_create()
@@ -108,7 +108,7 @@ class MSNPCtrlSB(MSNPCtrl):
 			return
 		
 		(bs, dialect, chat) = data
-		if bs.user.email != email or (dialect >= 16 and pop_id is not None and bs.front_data.get('msn_pop_id') != pop_id[1:-1]):
+		if bs.user.email != email or (dialect >= 16 and pop_id is not None and bs.front_data.get('msn_pop_id').lower() != pop_id[1:-1].lower()):
 			self.send_reply(Err.AuthFail, trid)
 			self.close(hard = True)
 			return
@@ -156,7 +156,7 @@ class MSNPCtrlSB(MSNPCtrl):
 			i = 1
 			for other_cs in tmp:
 				other_user = other_cs.user
-				if dialect >= 18:
+				if dialect >= 16:
 					capabilities = encode_capabilities_capabilitiesex(((other_cs.bs.front_data.get('msn_capabilities') or 0) if other_cs.bs.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC), other_cs.bs.front_data.get('msn_capabilitiesex') or 0)
 				else:
 					capabilities = ((other_cs.bs.front_data.get('msn_capabilities') or 0) if other_cs.bs.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC)
@@ -217,19 +217,19 @@ class MSNPCtrlSB(MSNPCtrl):
 					if invitee.status.is_offlineish():
 						raise error.ContactNotOnline()
 			
-			invited_sess = cs.invite(invitee)
+			cs.invite(invitee)
 		except Exception as ex:
 			# WLM 2009 sends a `CAL` with the invitee being the owner when a SB session is first initiated. If there are no other
 			# PoPs of the owner, send a `JOI` for now to fool the client.
 			# TODO: Set flag to mark if PoPs of owner are already invited
-			if isinstance(ex, error.ContactAlreadyOnList) and invitee_email == self.bs.user.email and len(chat.get_roster_single()) == 1 and chat.get_roster_single()[0] is cs and self.dialect >= 18:
+			if isinstance(ex, error.ContactAlreadyOnList) and invitee_email == self.bs.user.email and len(chat.get_roster_single()) == 1 and chat.get_roster_single()[0] is cs and self.dialect >= 16:
 				self.send_reply('CAL', trid, 'RINGING', chat.ids['main'])
 				cs.evt.on_participant_joined(cs, True)
 				return
 			self.send_reply(Err.GetCodeForException(ex, self.dialect), trid)
 		else:
 			self.send_reply('CAL', trid, 'RINGING', chat.ids['main'])
-			if self.dialect >= 18 and invitee_email == self.bs.user.email:
+			if self.dialect >= 16 and invitee_email == self.bs.user.email:
 				cs.evt.on_participant_joined(cs, True)
 	
 	def _m_msg(self, trid: str, ack: str, data: bytes) -> None:
@@ -287,9 +287,9 @@ class ChatEventHandler(event.ChatEventHandler):
 		else:
 			email = user.email
 		
-		if 12 <= ctrl.dialect <= 18:
+		if 12 <= ctrl.dialect <= 15:
 			extra = (((cs_other.bs.front_data.get('msn_capabilities') or 0) if cs_other.bs.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC),) # type: Tuple[Any, ...]
-		elif ctrl.dialect >= 18:
+		elif ctrl.dialect >= 16:
 			extra = (encode_capabilities_capabilitiesex(((cs_other.bs.front_data.get('msn_capabilities') or 0) if cs_other.bs.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC), cs_other.bs.front_data.get('msn_capabilitiesex') or 0),)
 		else:
 			extra = ()

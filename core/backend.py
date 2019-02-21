@@ -746,7 +746,7 @@ class BackendSession(Session):
 			if sess_notify is self: continue
 			sess_notify.evt.msn_on_oim_sent(uuid)
 	
-	def me_send_uun_invitation(self, uuid: str, type: int, data: bytes, *, pop_id_sender: Optional[str] = None, pop_id: Optional[str] = None) -> None:
+	def me_send_uun_invitation(self, uuid: str, type: int, data: Optional[bytes], *, pop_id_sender: Optional[str] = None, pop_id: Optional[str] = None) -> None:
 		ctc_head = self.backend._load_user_record(uuid)
 		if ctc_head is None:
 			raise error.UserDoesNotExist()
