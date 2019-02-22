@@ -46,20 +46,27 @@
 	127.0.0.1 eowsmsgrmsn.log1p.xyz
 	127.0.0.1 ersih.log1p.xyz
 	```
-	- 9.0.1407.1107 and 14.0.8117.0416: use a **clean** install of the Messenger MSI, and in your `HOSTS` add:
-	```
-	127.0.0.1 m1.escargot.log1p.xyz
-	127.0.0.1 messenger.hotmail.com
-	127.0.0.1 login.live.com
-	127.0.0.1 gateway.messenger.hotmail.com
-	127.0.0.1 byrdr.omega.contacts.msn.com
-	127.0.0.1 ebyrdromegactcsmsn.log1p.xyz
-	127.0.0.1 config.messenger.msn.com
-	127.0.0.1 tkrdr.storage.msn.com
-	127.0.0.1 ows.messenger.msn.com
-	127.0.0.1 rsi.hotmail.com
-	```
-		- **(14.0 only):** install the [Windows Live Communications Platform](http://messenger.jonathankay.com/redir/w3qfe2update/contacts.asp)
+	- 9.0.1407.1107 - 14.0.8117.0416:
+		- use a **clean** install of the Messenger MSI:
+			- 9.0.1407.1107: https://archive.org/download/MsnMessengerClients2/Windows%20Live%20Messenger%209.0.1407.1107%20%28English%20-%20United%20States%29.zip
+			- 14.0.8117.0416: https://archive.org/download/MsnMessengerClients2/Windows%20Live%20Messenger%2014.0.8117.0416%20%28English%29.zip
+		
+		- **(14.x only):** install the [Windows Live Communications Platform](http://messenger.jonathankay.com/redir/w3qfe2update/contacts.asp)
+		
+		- in your `HOSTS` add:
+		```
+		127.0.0.1 m1.escargot.log1p.xyz
+		127.0.0.1 messenger.hotmail.com
+		127.0.0.1 login.live.com
+		127.0.0.1 gateway.messenger.hotmail.com
+		127.0.0.1 byrdr.omega.contacts.msn.com
+		127.0.0.1 ebyrdromegactcsmsn.log1p.xyz
+		127.0.0.1 config.messenger.msn.com
+		127.0.0.1 tkrdr.storage.msn.com
+		127.0.0.1 ows.messenger.msn.com
+		127.0.0.1 rsi.hotmail.com
+		```
+	
 	(Note about the `127.0.0.1 login.live.com` entry: **BE SURE TO REMOVE IT OR COMMENT IT OUT AFTER TESTING OR ELSE YOU WON'T BE ABLE TO LOG ON TO ANY OFFICIAL MICROSOFT SERVICES!!**)
 
 ## Yahoo!
