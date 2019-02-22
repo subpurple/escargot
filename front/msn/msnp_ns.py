@@ -207,12 +207,15 @@ class MSNPCtrlNS(MSNPCtrl):
 							return
 						if machineguid is not None:
 							user = backend._load_user_record(uuid)
+							if user is None:
+								return
 							bses_self = backend.util_get_sessions_by_user(user)
 							for bs_self in bses_self:
-								if bs_self.front_data.get('msn_pop_id') is not None and bs_self.front_data.get('msn_pop_id').lower() == machineguid.lower()[1:-1]:
+								pop_id = bs_self.front_data.get('msn_pop_id')
+								if pop_id is not None and pop_id.lower() == machineguid.lower()[1:-1]:
 									option = LoginOption.BootOthers
 									break
-								if bs_self.front_data.get('msn_pop_id') is None:
+								if pop_id is None:
 									option = LoginOption.BootOthers
 									break
 							if not option:
@@ -221,10 +224,12 @@ class MSNPCtrlNS(MSNPCtrl):
 							option = LoginOption.BootOthers
 					else:
 						option = LoginOption.BootOthers
-					self.bs = backend.login(uuid, self.client, BackendEventHandler(self), option = option)
-					self.bs.front_data['msn'] = True
+					bs = backend.login(uuid, self.client, BackendEventHandler(self), option = option)
+					assert bs is not None
+					self.bs = bs
+					bs.front_data['msn'] = True
 					if dialect >= 16 and machineguid is not None:
-						self.bs.front_data['msn_pop_id'] = machineguid[1:-1].lower()
+						bs.front_data['msn_pop_id'] = machineguid[1:-1].lower()
 					self._util_usr_final(trid, token, machineguid)
 				return
 		
@@ -273,7 +278,7 @@ class MSNPCtrlNS(MSNPCtrl):
 			if 16 <= dialect < 21:
 				# MSNP21 doesn't use this; unsure if 19/20 use it
 				if dialect >= 18:
-					rst = ('1:' + user.email,)
+					rst = ('1:' + user.email,) # type: Tuple[str, ...]
 				else:
 					rst = (user.email, '1')
 				self.send_reply('UBX', *rst, b'')
@@ -892,14 +897,15 @@ class MSNPCtrlNS(MSNPCtrl):
 		capabilities_msn_ex = None # type: Optional[str]
 		
 		if dialect >= 8:
-			if dialect >= 16 and capabilities is not None and capabilities.find(':') > 0:
+			if capabilities is None:
+				return
+			if dialect >= 16 and capabilities.find(':') > 0:
 				capabilities_msn, capabilities_msn_ex = capabilities.split(':', 1)
 			else:
 				try:
-					capabilities_msn = int(capabilities)
+					capabilities_msn = str(int(capabilities))
 				except ValueError:
 					return
-				capabilities_msn = str(capabilities_msn)
 		
 		bs.front_data['msn_capabilities'] = capabilities_msn or 0
 		bs.front_data['msn_capabilitiesex'] = capabilities_msn_ex or 0
@@ -1149,21 +1155,21 @@ class MSNPCtrlNS(MSNPCtrl):
 		if contact_uuid is None:
 			return
 		try:
-			type = int(type)
+			uun_type = int(type)
 		except ValueError:
 			return
 		
-		if type is not None:
-			if type is 1:
+		if uun_type is not None:
+			if uun_type == 1 and data:
 				try:
 					snm = parse_xml(data.decode('utf-8'))
 					opcode = snm.get('opcode')
 					
 					if opcode in ('SNM','ACK'):
 						self.send_reply('UUN', trid, 'OK')
-				except Exception:
+				except:
 					return
-			elif type in (3,11):
+			elif uun_type in (3, 11):
 				# Initiating a voice call on WLM sends a `UUN` command with some integers instead of an `<SNM>` XML ('UUN <trid> <passport> 11\r\n\r\n1 1 0 134546710 144000000')
 				# Send a response in that case.
 				self.send_reply('UUN', trid, 'OK')
@@ -1172,7 +1178,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		
 		pop_id_self = bs.front_data.get('msn_pop_id')
 		
-		bs.me_send_uun_invitation(contact_uuid, type, data, pop_id_sender = pop_id_self, pop_id = pop_id)
+		bs.me_send_uun_invitation(contact_uuid, uun_type, data, pop_id_sender = pop_id_self, pop_id = pop_id)
 	
 	def _send_chl(self, trid: str) -> None:
 		backend = self.backend
@@ -1294,7 +1300,7 @@ class BackendEventHandler(event.BackendEventHandler):
 		assert bs is not None
 		
 		if pop_id is not None and 'msn_pop_id' in bs.front_data:
-			pop_id_self = bs.front_data.get('msn_pop_id')
+			pop_id_self = bs.front_data.get('msn_pop_id') or ''
 			if pop_id[1:-1].lower() != pop_id_self.lower(): return
 		
 		if pop_id_sender is not None and pop_id is not None and ctrl.dialect >= 16:
@@ -1331,7 +1337,12 @@ class BackendEventHandler(event.BackendEventHandler):
 				variable, content,
 			).encode('utf-8')
 		data += b'\r\n'
-		data += message.get_payload().encode('utf-8')
+		
+		payload = message.get_payload()
+		if isinstance(payload, str):
+			data += payload.encode('utf-8')
+		elif isinstance(payload, bytes):
+			data += payload
 		
 		self.ctrl.send_reply('NFY', 'PUT', data)
 	
@@ -1340,8 +1351,8 @@ class BackendEventHandler(event.BackendEventHandler):
 	
 	def ymsg_on_upload_file_ft(self, recipient: str, message: str) -> None:
 		pass
-		
-	def ymsg_on_sent_ft_http(self, yahoo_id_sender: str, url_path: str, upload_time: int, message: str) -> None:
+	
+	def ymsg_on_sent_ft_http(self, yahoo_id_sender: str, url_path: str, upload_time: float, message: str) -> None:
 		# TODO: Pass file transfer message to any chats with Yahoo! user
 		pass
 	

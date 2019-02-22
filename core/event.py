@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, Callable, Optional, Dict, Any, List
 from abc import ABCMeta, abstractmethod
-from email.message import Message as EmailMessage
+from email.message import EmailMessage
 
 from .models import User, Contact, Lst, MessageData, TextWithData, Substatus, LoginOption
 

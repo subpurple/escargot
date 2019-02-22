@@ -125,11 +125,11 @@ def encode_xml_ne(data: Optional[str]) -> Optional[str]:
 def encode_capabilities_capabilitiesex(capabilities: int, capabilitiesex: int) -> str:
 	return '{}:{}'.format(capabilities, capabilitiesex)
 
-def decode_capabilities_capabilitiesex(capabilities_encoded: str) -> Optional[Tuple[str, str]]:
+def decode_capabilities_capabilitiesex(capabilities_encoded: str) -> Optional[Tuple[int, int]]:
 	if capabilities_encoded.find(':') > 0:
 		a, b = capabilities_encoded.split(':', 1)
-		return a, b
-	return capabilities_encoded
+		return int(a), int(b)
+	return int(capabilities_encoded), 0
 
 def cid_format(uuid: str, *, decimal: bool = False) -> str:
 	cid = (uuid[19:23] + uuid[24:36]).lower()
@@ -169,9 +169,10 @@ def extend_ubx_payload(dialect: int, backend: Backend, user: User, ctc_sess: 'Ba
 		if pop_id_ctc:
 			response += EPDATA_PAYLOAD.format(mguid = '{' + pop_id_ctc + '}', capabilities = encode_capabilities_capabilitiesex(((ctc_sess.front_data.get('msn_capabilities') or 0) if ctc_sess.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC), ctc_sess.front_data.get('msn_capabilitiesex') or 0))
 			for ctc_sess_other in backend.util_get_sessions_by_user(ctc_sess.user):
-				if ctc_sess_other.front_data.get('msn_pop_id').lower() == pop_id_ctc.lower(): continue
+				pop_id = ctc_sess_other.front_data.get('msn_pop_id') or ''
+				if pop_id.lower() == pop_id_ctc.lower(): continue
 				response += EPDATA_PAYLOAD.format(
-					mguid = '{' + (ctc_sess_other.front_data.get('msn_pop_id') or '') + '}',
+					mguid = '{' + pop_id + '}',
 					capabilities = encode_capabilities_capabilitiesex(((ctc_sess.front_data.get('msn_capabilities') or 0) if ctc_sess.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC), ctc_sess_other.front_data.get('msn_capabilitiesex') or 0)
 				)
 			if ctc_sess.user is user:

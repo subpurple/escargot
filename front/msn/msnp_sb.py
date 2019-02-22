@@ -67,9 +67,12 @@ class MSNPCtrlSB(MSNPCtrl):
 			return
 		
 		bs, dialect = data
-		if bs.user.email != email or (dialect >= 16 and pop_id is not None and bs.front_data.get('msn_pop_id').lower() != pop_id[1:-1].lower()):
+		bs_pop_id = bs.front_data.get('msn_pop_id') or ''
+		if bs.user.email != email or (dialect >= 16 and pop_id is not None and bs_pop_id.lower() != pop_id[1:-1].lower()):
 			self.send_reply(Err.AuthFail, trid)
 			self.close(hard = True)
+			return
+		
 		chat = self.backend.chat_create()
 		
 		try:
@@ -108,7 +111,8 @@ class MSNPCtrlSB(MSNPCtrl):
 			return
 		
 		(bs, dialect, chat) = data
-		if bs.user.email != email or (dialect >= 16 and pop_id is not None and bs.front_data.get('msn_pop_id').lower() != pop_id[1:-1].lower()):
+		bs_pop_id = bs.front_data.get('msn_pop_id') or ''
+		if bs.user.email != email or (dialect >= 16 and pop_id is not None and bs_pop_id.lower() != pop_id[1:-1].lower()):
 			self.send_reply(Err.AuthFail, trid)
 			self.close(hard = True)
 			return
@@ -137,7 +141,7 @@ class MSNPCtrlSB(MSNPCtrl):
 		
 		if dialect >= 16:
 			l = 0
-			tmp = [] # type: List[Tuple[ChatSession, Optional[str]]]
+			tmp = [] # type: List[ChatSession]
 			seen_cses = set() # type: Set[ChatSession]
 			for other_cs_primary in roster_chatsessions:
 				if other_cs_primary in seen_cses: continue
@@ -159,7 +163,7 @@ class MSNPCtrlSB(MSNPCtrl):
 				if dialect >= 16:
 					capabilities = encode_capabilities_capabilitiesex(((other_cs.bs.front_data.get('msn_capabilities') or 0) if other_cs.bs.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC), other_cs.bs.front_data.get('msn_capabilitiesex') or 0)
 				else:
-					capabilities = ((other_cs.bs.front_data.get('msn_capabilities') or 0) if other_cs.bs.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC)
+					capabilities = str((other_cs.bs.front_data.get('msn_capabilities') or 0) if other_cs.bs.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC)
 				
 				self.send_reply('IRO', trid, i, l, encode_email_pop(other_user.email, other_cs.bs.front_data.get('msn_pop_id')), other_user.status.name, capabilities)
 				if other_cs.primary_pop and other_cs.bs.front_data.get('msn_pop_id') is not None:
@@ -168,7 +172,7 @@ class MSNPCtrlSB(MSNPCtrl):
 				i += 1
 		else:
 			roster_one_per_user = [] # type: List[ChatSession]
-			seen_users = { self.cs.user } # type: Set[ChatSession]
+			seen_users = { self.cs.user } # type: Set[User]
 			for other_cs in roster_chatsessions:
 				if other_cs.user in seen_users:
 					continue
@@ -190,6 +194,9 @@ class MSNPCtrlSB(MSNPCtrl):
 		cs = self.cs
 		assert cs is not None
 		
+		bs = self.bs
+		assert bs is not None
+		
 		if not re.match(r'^[a-zA-Z0-9._\-]+@([a-zA-Z0-9\-]+\.)+[a-zA-Z]+$', invitee_email):
 			self.send_reply(Err.InvalidUser2, trid)
 			return
@@ -201,14 +208,14 @@ class MSNPCtrlSB(MSNPCtrl):
 		
 		chat = cs.chat
 		try:
-			bs = self.bs
-			assert bs is not None
 			user = bs.user
 			detail = user.detail
 			assert detail is not None
 			
 			invitee = self.backend._load_user_record(invitee_uuid)
-			if invitee_email != self.bs.user.email:
+			if invitee is None:
+				return
+			if invitee_email != bs.user.email:
 				ctc = detail.contacts.get(invitee_uuid)
 				if ctc is not None:
 					if ctc.status.is_offlineish():
@@ -222,14 +229,15 @@ class MSNPCtrlSB(MSNPCtrl):
 			# WLM 2009 sends a `CAL` with the invitee being the owner when a SB session is first initiated. If there are no other
 			# PoPs of the owner, send a `JOI` for now to fool the client.
 			# TODO: Set flag to mark if PoPs of owner are already invited
-			if isinstance(ex, error.ContactAlreadyOnList) and invitee_email == self.bs.user.email and len(chat.get_roster_single()) == 1 and chat.get_roster_single()[0] is cs and self.dialect >= 16:
+			chat_roster_single = list(chat.get_roster_single())
+			if isinstance(ex, error.ContactAlreadyOnList) and invitee_email == bs.user.email and len(chat_roster_single) == 1 and chat_roster_single[0] is cs and self.dialect >= 16:
 				self.send_reply('CAL', trid, 'RINGING', chat.ids['main'])
 				cs.evt.on_participant_joined(cs, True)
 				return
 			self.send_reply(Err.GetCodeForException(ex, self.dialect), trid)
 		else:
 			self.send_reply('CAL', trid, 'RINGING', chat.ids['main'])
-			if self.dialect >= 16 and invitee_email == self.bs.user.email:
+			if self.dialect >= 16 and invitee_email == bs.user.email:
 				cs.evt.on_participant_joined(cs, True)
 	
 	def _m_msg(self, trid: str, ack: str, data: bytes) -> None:
@@ -313,7 +321,7 @@ class ChatEventHandler(event.ChatEventHandler):
 		if last_pop and pop_id_other is not None and ctrl.dialect >= 16:
 			self.ctrl.send_reply('BYE', cs_other.user.email, *extra)
 	
-	def on_invite_declined(self, invited_user: User, *, message: Optional[str] = None) -> None:
+	def on_invite_declined(self, invited_user: User, *, invited_id: Optional[str] = None, message: str = '') -> None:
 		pass
 	
 	def on_message(self, data: MessageData) -> None:
@@ -339,13 +347,14 @@ def messagedata_from_msnp(sender: User, sender_pop_id: Optional[str], data: byte
 	try:
 		i = data.index(b'\r\n\r\n') + 4
 		headers = Parser().parsestr(data[:i].decode('utf-8'))
-		body = data[i:]
+		data = data[i:]
 		
-		if headers.get('Content-Type') is not None:
-			if headers['Content-Type'].startswith('text/x-msmsgscontrol'):
+		content_type = str(headers.get('Content-Type'))
+		if content_type is not None:
+			if content_type.startswith('text/x-msmsgscontrol'):
 				type = MessageType.Typing
 				text = ''
-			elif headers['Content-Type'].startswith('text/x-msnmsgr-datacast'):
+			elif content_type.startswith('text/x-msnmsgr-datacast'):
 				body = body.decode('utf-8')
 				id_start = body.index('ID:') + 3
 				id_end = body.index('\r\n', id_start)
@@ -356,7 +365,7 @@ def messagedata_from_msnp(sender: User, sender_pop_id: Optional[str], data: byte
 				else:
 					type = MessageType.Chat
 					text = "(Unsupported MSNP Content-Type)"
-			elif headers['Content-Type'].startswith('text/plain'):
+			elif content_type.startswith('text/plain'):
 				type = MessageType.Chat
 				text = body.decode('utf-8')
 			else:
