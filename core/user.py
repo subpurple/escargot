@@ -571,15 +571,15 @@ class UserService:
 			)
 			sess.add(dbyahoooim)
 	
-	def save_batch(self, to_save: List[Tuple[User, UserDetail, bool]]) -> None:
+	def save_batch(self, to_save: List[Tuple[User, UserDetail]]) -> None:
 		with Session() as sess:
-			for user, detail, message_temp in to_save:
+			for user, detail in to_save:
 				dbusercontacts_to_add = []
 				dbusergroups_to_add = []
 				
 				dbuser = sess.query(DBUser).filter(DBUser.uuid == user.uuid).one()
 				dbuser.name = user.status.name
-				if not message_temp: dbuser.message = user.status.message
+				dbuser.message = _get_persisted_status_message(user.status)
 				dbuser.settings = user.settings
 				dbuser.subscribed_ab_stores = list(detail.subscribed_ab_stores)
 				sess.add(dbuser)
@@ -610,17 +610,18 @@ class UserService:
 						sess.delete(tmp)
 				for c in detail.contacts.values():
 					dbusercontact = sess.query(DBUserContact).filter(DBUserContact.user_uuid == user.uuid, DBUserContact.uuid == c.head.uuid).one_or_none()
+					status_message = _get_persisted_status_message(c.status)
 					if dbusercontact is None:
 						dbusercontact = DBUserContact(
 							user_uuid = user.uuid, uuid = c.head.uuid,
-							name = c.status.name, message = c.status.message,
+							name = c.status.name, message = status_message,
 							lists = c.lists, groups = [{
 								'id': group.id, 'uuid': group.uuid,
 							} for group in c._groups.copy()],
 						)
 					else:
 						dbusercontact.name = c.status.name
-						dbusercontact.message = c.status.message
+						dbusercontact.message = status_message
 						dbusercontact.lists = c.lists
 						dbusercontact.groups = [{
 							'id': group.id, 'uuid': group.uuid,
@@ -628,3 +629,8 @@ class UserService:
 					dbusercontacts_to_add.append(dbusercontact)
 				if dbusercontacts_to_add:
 					sess.add_all(dbusercontacts_to_add)
+
+def _get_persisted_status_message(status: UserStatus) -> str:
+	if not status._persistent:
+		return ''
+	return status.message or ''

@@ -48,7 +48,7 @@ class Contact:
 		true_status = self.head.status
 		self.status.substatus = true_status.substatus
 		self.status.name = true_status.name
-		self.status.message = true_status.message
+		self.status.set_status_message(true_status.message)
 		self.status.media = true_status.media
 	
 	def is_in_group_id(self, group_id: str) -> bool:
@@ -161,20 +161,28 @@ class ABContact:
 #		self.relationship_state_date = _default_if_none(relationship_state_date, datetime.utcnow())
 
 class UserStatus:
-	__slots__ = ('substatus', 'name', 'message', 'message_temp', 'media')
+	__slots__ = ('substatus', 'name', '_message', '_persistent', 'media')
 	
 	substatus: 'Substatus'
 	name: Optional[str]
-	message: Optional[str]
-	message_temp: bool
+	_message: Optional[str]
+	_persistent: bool
 	media: Optional[Any]
 	
 	def __init__(self, name: Optional[str], message: Optional[str] = None) -> None:
 		self.substatus = Substatus.Offline
 		self.name = name
-		self.message = message
-		self.message_temp = False
+		self._message = message
+		self._persistent = True
 		self.media = None
+	
+	@property
+	def message(self) -> Optional[str]:
+		return self._message
+	
+	def set_status_message(self, message: Optional[str], *, persistent: bool = True) -> None:
+		self._message = message
+		self._persistent = persistent
 	
 	def is_offlineish(self) -> bool:
 		return self.substatus.is_offlineish()

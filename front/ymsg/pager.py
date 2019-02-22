@@ -135,7 +135,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 					if len(args[4].getall('59')) != 2:
 						self.send_reply(YMSGService.LogOff, YMSGStatus.Available, 0, None)
 					y, t = args[4].getall('59')
-				bs = self.backend.login(uuid, self.client, BackendEventHandler(self.backend.loop, self), option = LoginOption.BootOthers, message_temp = True)
+				bs = self.backend.login(uuid, self.client, BackendEventHandler(self.backend.loop, self), option = LoginOption.BootOthers)
 				if bs is None:
 					is_resp_correct = False
 				else:
@@ -1388,6 +1388,7 @@ def me_status_update(bs: BackendSession, status_new: YMSGStatus, *, message: str
 		substatus = YMSGStatus.ToSubstatus(status_new)
 	bs.me_update({
 		'message': message,
+		'message_temp': True,
 		'substatus': substatus,
 		'send_notif_to_self': send_notif_to_self,
 	})

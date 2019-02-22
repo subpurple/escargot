@@ -35,7 +35,7 @@ class Backend:
 	_sc: '_SessionCollection'
 	_chats_by_id: Dict[Tuple[str, str], 'Chat']
 	_user_by_uuid: Dict[str, User]
-	_worklist_sync_db: Dict[User, Tuple[UserDetail, bool]]
+	_worklist_sync_db: Dict[User, UserDetail]
 	_worklist_notify: Dict[str, Tuple['BackendSession', Optional[int], Substatus, bool, Optional[Dict[str, Any]], bool, bool, bool]]
 	_worklist_notify_self: Dict[str, 'BackendSession']
 	_runners: List[Runner]
@@ -107,7 +107,7 @@ class Backend:
 		self._sync_contact_statuses(user)
 		self._notify_contacts(sess, for_logout = True, old_substatus = old_substatus)
 	
-	def login(self, uuid: str, client: Client, evt: event.BackendEventHandler, *, option: Optional[LoginOption] = None, message_temp: bool = False, only_once: bool = False) -> Optional['BackendSession']:
+	def login(self, uuid: str, client: Client, evt: event.BackendEventHandler, *, option: Optional[LoginOption] = None, only_once: bool = False) -> Optional['BackendSession']:
 		user = self._load_user_record(uuid)
 		if user is None: return None
 		bs_others = self._sc.get_sessions_by_user(user)
@@ -124,7 +124,7 @@ class Backend:
 			except:
 				traceback.print_exc()
 		
-		bs = BackendSession(self, user, client, evt, message_temp = message_temp)
+		bs = BackendSession(self, user, client, evt)
 		bs.evt.bs = bs
 		self._stats.on_login()
 		self._stats.on_user_active(user, client)
@@ -182,11 +182,11 @@ class Backend:
 			return
 		self._worklist_notify_self[uuid] = bs
 	
-	def _mark_modified(self, user: User, *, message_temp: bool = False, detail: Optional[UserDetail] = None) -> None:
+	def _mark_modified(self, user: User, *, detail: Optional[UserDetail] = None) -> None:
 		ud = user.detail or detail
 		if detail: assert ud is detail
 		assert ud is not None
-		self._worklist_sync_db[user] = (ud, message_temp)
+		self._worklist_sync_db[user] = ud
 	
 	#def util_get_msn_circle_acc_uuid_from_circle_id(self, circle_id: str) -> Optional[str]:
 	#	return self.user_service.get_msn_circle_acc_uuid(circle_id)
@@ -225,10 +225,9 @@ class Backend:
 			users = list(self._worklist_sync_db.keys())[:100]
 			batch = []
 			for user in users:
-				tpl = self._worklist_sync_db.pop(user, None)
-				if tpl is None: continue
-				detail, message_temp = tpl
-				batch.append((user, detail, message_temp))
+				detail = self._worklist_sync_db.pop(user, None)
+				if detail is None: continue
+				batch.append((user, detail))
 			self.user_service.save_batch(batch)
 		except:
 			traceback.print_exc()
@@ -316,22 +315,20 @@ class Session(metaclass = ABCMeta):
 	def _on_close(self, **kwargs: Any) -> None: pass
 
 class BackendSession(Session):
-	__slots__ = ('backend', 'user', 'client', 'evt', 'message_temp', 'front_data')
+	__slots__ = ('backend', 'user', 'client', 'evt', 'front_data')
 	
 	backend: Backend
 	user: User
 	client: Client
 	evt: event.BackendEventHandler
-	message_temp: bool
 	front_data: Dict[str, Any]
 	
-	def __init__(self, backend: Backend, user: User, client: Client, evt: event.BackendEventHandler, *, message_temp: bool) -> None:
+	def __init__(self, backend: Backend, user: User, client: Client, evt: event.BackendEventHandler) -> None:
 		super().__init__()
 		self.backend = backend
 		self.user = user
 		self.client = client
 		self.evt = evt
-		self.message_temp = message_temp
 		self.front_data = {}
 	
 	def _on_close(self, **kwargs: Any) -> None:
@@ -352,7 +349,7 @@ class BackendSession(Session):
 		
 		if 'message' in fields:
 			if fields['message'] is not None:
-				user.status.message = fields['message']
+				user.status.set_status_message(fields['message'], persistent = not fields.get('message_temp'))
 				needs_notify = True
 				notify_status = True
 		if 'media' in fields:
@@ -413,7 +410,7 @@ class BackendSession(Session):
 		if 'mpop' in fields:
 			user.settings['MPOP'] = fields['mpop']
 		
-		self.backend._mark_modified(user, message_temp = self.message_temp)
+		self.backend._mark_modified(user)
 		if needs_notify:
 			self.backend._sync_contact_statuses(user)
 			self.backend._notify_contacts(self, old_substatus = old_substatus, updated_phone_info = updated_phone_info, update_status = notify_status, send_notif_to_self = send_notif_to_self)
@@ -433,7 +430,7 @@ class BackendSession(Session):
 			name += str(len(groups))
 		group = Group(_gen_group_id(detail), gen_uuid(), name, False)
 		detail.insert_group(group)
-		self.backend._mark_modified(user, message_temp = self.message_temp)
+		self.backend._mark_modified(user)
 		return group
 	
 	def me_group_remove(self, group_id: str) -> None:
@@ -448,7 +445,7 @@ class BackendSession(Session):
 		detail.delete_group(group)
 		for ctc in detail.contacts.values():
 			ctc.remove_from_group(group)
-		self.backend._mark_modified(user, message_temp = self.message_temp)
+		self.backend._mark_modified(user)
 		
 		if '00000000-0000-0000-0000-000000000000' in detail.subscribed_ab_stores:
 			ctcs_to_update = []
@@ -477,7 +474,7 @@ class BackendSession(Session):
 			g.name = new_name
 		if is_favorite is not None:
 			g.is_favorite = is_favorite
-		self.backend._mark_modified(user, message_temp = self.message_temp)
+		self.backend._mark_modified(user)
 	
 	def me_group_contact_add(self, group_id: str, contact_uuid: str) -> None:
 		if group_id == '0': return
@@ -493,7 +490,7 @@ class BackendSession(Session):
 		if ctc.group_in_entry(group):
 			raise error.ContactAlreadyOnList()
 		ctc.add_group_to_entry(group)
-		self.backend._mark_modified(user, message_temp = self.message_temp)
+		self.backend._mark_modified(user)
 		if '00000000-0000-0000-0000-000000000000' in detail.subscribed_ab_stores:
 			ctc_ab = self.backend.user_service.ab_get_entry_by_email('00000000-0000-0000-0000-000000000000', ctc.head.email, 'Regular', user)
 			if ctc_ab:
@@ -512,7 +509,7 @@ class BackendSession(Session):
 			if group is None:
 				raise error.GroupDoesNotExist()
 			ctc.remove_from_group(group)
-			self.backend._mark_modified(user, message_temp = self.message_temp)
+			self.backend._mark_modified(user)
 			if '00000000-0000-0000-0000-000000000000' in detail.subscribed_ab_stores:
 				ctc_ab = self.backend.user_service.ab_get_entry_by_email('00000000-0000-0000-0000-000000000000', ctc.head.email, 'Regular', user)
 				if ctc_ab:
@@ -530,7 +527,7 @@ class BackendSession(Session):
 		ab_subscribe = self.backend.user_service.check_ab(ab_id)
 		if ab_subscribe:
 			detail.subscribed_ab_stores.add(ab_id)
-			self.backend._mark_modified(user, message_temp = self.message_temp)
+			self.backend._mark_modified(user)
 	
 	def other_subscribe_ab(self, ab_id: str, head: User) -> None:
 		backend = self.backend
@@ -593,7 +590,7 @@ class BackendSession(Session):
 						ctc.add_group_to_entry(group)
 				if ctc.status.name != ab_contact.name:
 					ctc.status.name = ab_contact.name
-			self.backend._mark_modified(user, message_temp = self.message_temp)
+			self.backend._mark_modified(user)
 	
 	def me_contact_rename(self, contact_uuid: str, new_name: str) -> None:
 		user = self.user
@@ -608,7 +605,7 @@ class BackendSession(Session):
 			raise error.NicknameExceedsLengthLimit()
 		
 		ctc.status.name = new_name
-		self.backend._mark_modified(user, message_temp = self.message_temp)
+		self.backend._mark_modified(user)
 		
 		if '00000000-0000-0000-0000-000000000000' in detail.subscribed_ab_stores:
 			ctc_ab = self.backend.user_service.ab_get_entry_by_email('00000000-0000-0000-0000-000000000000', ctc.head.email, 'Regular', user)
@@ -688,7 +685,7 @@ class BackendSession(Session):
 					raise ex
 		
 		if updated:
-			self.backend._mark_modified(user, message_temp = self.message_temp, detail = detail)
+			self.backend._mark_modified(user, detail = detail)
 			self.backend._sync_contact_statuses(user)
 		if add_to_ab and ab_updated and '00000000-0000-0000-0000-000000000000' in detail.subscribed_ab_stores:
 			ctc_ab = self.backend.user_service.ab_get_entry_by_email('00000000-0000-0000-0000-000000000000', ctc_head.email, 'Regular', user)
@@ -734,7 +731,7 @@ class BackendSession(Session):
 			updated = True
 		
 		if updated:
-			self.backend._mark_modified(user, message_temp = self.message_temp, detail = detail)
+			self.backend._mark_modified(user, detail = detail)
 			self.backend._sync_contact_statuses(user)
 	
 	def me_contact_notify_oim(self, uuid: str, oim_uuid: str) -> None:
