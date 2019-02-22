@@ -165,11 +165,11 @@ class UserStatus:
 	
 	substatus: 'Substatus'
 	name: Optional[str]
-	_message: Optional[str]
+	_message: str
 	_persistent: bool
 	media: Optional[Any]
 	
-	def __init__(self, name: Optional[str], message: Optional[str] = None) -> None:
+	def __init__(self, name: Optional[str], message: str = '') -> None:
 		self.substatus = Substatus.Offline
 		self.name = name
 		self._message = message
@@ -177,10 +177,10 @@ class UserStatus:
 		self.media = None
 	
 	@property
-	def message(self) -> Optional[str]:
+	def message(self) -> str:
 		return self._message
 	
-	def set_status_message(self, message: Optional[str], *, persistent: bool = True) -> None:
+	def set_status_message(self, message: str, *, persistent: bool = True) -> None:
 		self._message = message
 		self._persistent = persistent
 	

@@ -633,4 +633,4 @@ class UserService:
 def _get_persisted_status_message(status: UserStatus) -> str:
 	if not status._persistent:
 		return ''
-	return status.message or ''
+	return status.message
