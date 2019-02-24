@@ -211,6 +211,9 @@ class BackendEventHandler(event.BackendEventHandler):
 		if message:
 			self.ctrl.send_reply('NOTICE', ":\"{}\"".format(message), source = user_added.email)
 	
+	def msn_on_put_sent(self, payload: bytes, sender: User, *, pop_id_sender: Optional[str] = None, pop_id: Optional[str] = None) -> None:
+		pass
+	
 	def on_login_elsewhere(self, option: LoginOption) -> None:
 		if option is LoginOption.BootOthers:
 			self.ctrl.send_reply('NOTICE', ":You are being booted because your account is used elsewhere.")

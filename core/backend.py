@@ -347,6 +347,8 @@ class BackendSession(Session):
 		
 		old_substatus = user.status.substatus
 		
+		if 'needs_notify' in fields:
+			needs_notify = fields['needs_notify']
 		if 'message' in fields:
 			if fields['message'] is not None:
 				user.status.set_status_message(fields['message'], persistent = not fields.get('message_temp'))
@@ -395,12 +397,13 @@ class BackendSession(Session):
 			needs_notify = True
 			updated_phone_info['MBE'] = fields['mbe']
 		if 'substatus' in fields:
-			user.status.substatus = fields['substatus']
-			if old_substatus is not user.status.substatus or fields.get('refresh_profile'):
-				needs_notify = True
-				notify_status = True
-				if 'send_notif_to_self' in fields:
-					send_notif_to_self = fields['send_notif_to_self']
+			if fields['substatus'] is not None:
+				user.status.substatus = fields['substatus']
+				if old_substatus is not user.status.substatus or fields.get('refresh_profile'):
+					needs_notify = True
+					notify_status = True
+					if 'send_notif_to_self' in fields:
+						send_notif_to_self = fields['send_notif_to_self']
 		if 'notify_self' in fields:
 			notify_self = fields['notify_self']
 		if 'gtc' in fields:

@@ -13,15 +13,21 @@ from core import error, event
 from core.backend import Backend, BackendSession
 from core.models import User, Contact, Lst, Substatus, NetworkID
 
-def build_presence_notif(trid: Optional[str], ctc_head: User, user_me: User, dialect: int, backend: Backend, *, bs_other: Optional['BackendSession'] = None, circle_user_bs: Optional['BackendSession'] = None, circle_id: Optional[str] = None) -> Iterable[Tuple[Any, ...]]:
+def build_presence_notif(trid: Optional[str], ctc_head: User, user_me: User, dialect: int, backend: Backend, *, self_presence: bool = False, bs_other: Optional['BackendSession'] = None, circle_user_bs: Optional['BackendSession'] = None, circle_id: Optional[str] = None) -> Iterable[Tuple[Any, ...]]:
 	circle_owner = False
 	detail = user_me.detail
 	assert detail is not None
 	
-	ctc = detail.contacts.get(ctc_head.uuid)
-	assert ctc is not None
-	status = ctc.status
-	head = ctc.head
+	nfy_rst = ''
+	
+	if not self_presence and ctc_head is not user_me:
+		ctc = detail.contacts.get(ctc_head.uuid)
+		assert ctc is not None
+		status = ctc.status
+		head = ctc.head
+	else:
+		head = user_me
+		status = head.status
 	is_offlineish = status.is_offlineish()
 	if is_offlineish and trid is not None:
 		return
@@ -42,58 +48,128 @@ def build_presence_notif(trid: Optional[str], ctc_head: User, user_me: User, dia
 	#		head = circle_user_bs.user
 	#		status = head.status
 	
-	if is_offlineish and not ctc_head is user_me:
-		if dialect >= 18:
-			reply = ('FLN', encode_email_networkid(head.email, None, circle_id = circle_id)) # type: Tuple[Any, ...]
-		else:
-			reply = ('FLN', head.email)
-		
-		if 13 <= dialect <= 17:
-			# Mypy incorrectly gives a type error here. Must be a bug.
-			reply += (int(NetworkID.WINDOWS_LIVE),) # type: ignore
-		if 13 <= dialect <= 15:
-			reply += ('0',)
-		elif dialect >= 16:
-			if circle_owner or not circle_user_bs:
-				reply += ('0:0',)
-			else:
-				# Most likely scenario this would pop up is in circle presence
-				reply += (encode_capabilities_capabilitiesex(((circle_user_bs.front_data.get('msn_capabilities') or 0) if circle_user_bs.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC), 0),)
-		yield reply
-		return
-	
 	ctc_sess = first_in_iterable(backend.util_get_sessions_by_user(head))
-	assert ctc_sess is not None
 	
-	msn_status = MSNStatus.FromSubstatus(status.substatus)
-	
-	if trid: frst = ('ILN', trid) # type: Tuple[Any, ...]
-	else: frst = ('NLN',)
-	rst = []
-	
-	if 8 <= dialect <= 15:
-		rst.append(((ctc_sess.front_data.get('msn_capabilities') or 0) if ctc_sess.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC))
-	elif dialect >= 16:
-		rst.append(('0:0' if circle_owner else encode_capabilities_capabilitiesex(((ctc_sess.front_data.get('msn_capabilities') or 0) if ctc_sess.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC), ctc_sess.front_data.get('msn_capabilitiesex') or 0)))
-	if dialect >= 9:
-		rst.append(encode_msnobj(ctc_sess.front_data.get('msn_msnobj') or '<msnobj/>'))
-	
-	if dialect >= 18:
-		yield (*frst, msn_status.name, encode_email_networkid(head.email, None, circle_id = circle_id), status.name, *rst)
-	else:
-		yield (*frst, msn_status.name, head.email, (int(NetworkID.WINDOWS_LIVE) if 14 <= dialect <= 17 else None), status.name, *rst)
-	
-	if dialect < 11:
+	if dialect == 21:
+		cm = None # type: Optional[str]
+		pop_id_ctc = None # type: Optional[str]
+		
+		if not is_offlineish:
+			assert ctc_sess is not None
+			
+			cm = NFY_PUT_PRESENCE_USER_S_CM.format(cm = encode_xml_he(status.media or '', dialect))
+			nfy_rst += NFY_PUT_PRESENCE_USER_S_PE.format(
+				msnobj = encode_xml_he(ctc_sess.front_data.get('msn_msnobj') or '', dialect),
+				name = status.name or head.email, message = status.message,
+				ddp = encode_xml_he(ctc_sess.front_data.get('msn_msnobj_ddp') or '', dialect), colorscheme = encode_xml_he(ctc_sess.front_data.get('msn_colorscheme') or '', dialect), scene = encode_xml_he(ctc_sess.front_data.get('msn_msnobj_scene') or '', dialect), sigsound = encode_xml_he(ctc_sess.front_data.get('msn_sigsound') or '', dialect),
+			)
+			if ctc_sess.front_data.get('msn_pop_id') is not None:
+				pop_id_ctc = '{' + ctc_sess.front_data['msn_pop_id'] + '}'
+			nfy_rst += NFY_PUT_PRESENCE_USER_SEP_IM.format(
+				epid_attrib = NFY_PUT_PRESENCE_USER_SEP_EPID.format(mguid = pop_id_ctc or ''), capabilities = encode_capabilities_capabilitiesex(((ctc_sess.front_data.get('msn_capabilities') or 0) if ctc_sess.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC), ctc_sess.front_data.get('msn_capabilitiesex') or 0),
+			)
+			if ctc_sess.front_data.get('msn_PE'):
+				pe_data = ''
+				pe_data += NFY_PUT_PRESENCE_USER_SEP_PE_VER.format(ver = ctc_sess.front_data.get('msn_PE_VER') or '')
+				pe_data += NFY_PUT_PRESENCE_USER_SEP_PE_TYP.format(typ = ctc_sess.front_data.get('msn_PE_TYP') or '')
+				pe_data += NFY_PUT_PRESENCE_USER_SEP_PE_CAP.format(pe_capabilities = encode_capabilities_capabilitiesex(ctc_sess.front_data.get('msn_PE_capabilities') or 0, ctc_sess.front_data.get('msn_PE_capabilitiesex') or 0))
+				nfy_rst += NFY_PUT_PRESENCE_USER_SEP_PE.format(
+					epid_attrib = NFY_PUT_PRESENCE_USER_SEP_EPID.format(mguid = pop_id_ctc or ''), pe_data = pe_data,
+				)
+			if pop_id_ctc is not None:
+				nfy_rst += NFY_PUT_PRESENCE_USER_SEP_PD.format(
+					mguid = pop_id_ctc, ped_data = _list_private_endpoint_data(ctc_sess),
+				)
+			
+			for ctc_sess_other in backend.util_get_sessions_by_user(ctc_sess.user):
+				if ctc_sess_other is ctc_sess: continue
+				if ctc_sess_other.front_data.get('msn_pop_id') is None: continue
+				
+				nfy_rst += NFY_PUT_PRESENCE_USER_SEP_IM.format(
+					epid_attrib = NFY_PUT_PRESENCE_USER_SEP_EPID.format(mguid = '{' + ctc_sess_other.front_data['msn_pop_id'] + '}'), capabilities = encode_capabilities_capabilitiesex(((ctc_sess_other.front_data.get('msn_capabilities') or 0) if ctc_sess_other.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC), ctc_sess_other.front_data.get('msn_capabilitiesex') or 0),
+				)
+				if ctc_sess_other.front_data.get('msn_PE'):
+					pe_data = ''
+					pe_data += NFY_PUT_PRESENCE_USER_SEP_PE_VER.format(ver = ctc_sess_other.front_data.get('msn_PE_VER') or '')
+					pe_data += NFY_PUT_PRESENCE_USER_SEP_PE_TYP.format(typ = ctc_sess_other.front_data.get('msn_PE_TYP') or '')
+					pe_data += NFY_PUT_PRESENCE_USER_SEP_PE_CAP.format(capabilities = encode_capabilities_capabilitiesex(ctc_sess_other.front_data.get('msn_PE_capabilities') or 0, ctc_sess_other.front_data.get('msn_PE_capabilitiesex') or 0))
+					nfy_rst += NFY_PUT_PRESENCE_USER_SEP_PE.format(
+						epid_attrib = NFY_PUT_PRESENCE_USER_SEP_EPID.format(mguid = '{' + ctc_sess_other.front_data['msn_pop_id'] + '}'), pe_data = pe_data,
+					)
+				nfy_rst += NFY_PUT_PRESENCE_USER_SEP_PD.format(
+					mguid = '{' + ctc_sess_other.front_data['msn_pop_id'] + '}', ped_data = _list_private_endpoint_data(ctc_sess_other)
+				)
+		
+		substatus = status.substatus
+		
+		if is_offlineish and head is not user_me:
+			# In case `ctc` is going `HDN`; make sure other people don't receive `HDN` as status
+			substatus = Substatus.Offline
+		
+		msn_status = MSNStatus.FromSubstatus(substatus)
+		
+		nfy_presence_body = NFY_PUT_PRESENCE_USER.format(
+			substatus = msn_status.name, cm = cm or '', rst = nfy_rst,
+		)
+		
+		nfy_payload = encode_payload(NFY_PUT_PRESENCE,
+			to = user_me.email, from_email = head.email, cl = len(nfy_presence_body), payload = nfy_presence_body,
+		)
+		
+		yield ('NFY', 'PUT', nfy_payload)
 		return
-	
-	ubx_payload = '<Data><PSM>{}</PSM><CurrentMedia>{}</CurrentMedia>{}</Data>'.format(
-		(encode_xml_he(status.message, dialect) if dialect >= 13 else encode_xml_ne(status.message)) or '', (encode_xml_he(status.media, dialect) if dialect >= 13 else encode_xml_ne(status.media)) or '', extend_ubx_payload(dialect, backend, user_me, ctc_sess)
-	).encode('utf-8')
-	
-	if dialect >= 18:
-		yield ('UBX', encode_email_networkid(head.email, None, circle_id = circle_id), ubx_payload)
 	else:
-		yield ('UBX', head.email, (int(NetworkID.WINDOWS_LIVE) if 14 <= dialect <= 17 else None), ubx_payload)
+		if is_offlineish and not head is user_me:
+			if dialect >= 18:
+				reply = ('FLN', encode_email_networkid(head.email, None, circle_id = circle_id)) # type: Tuple[Any, ...]
+			else:
+				reply = ('FLN', head.email)
+			
+			if 13 <= dialect <= 17:
+				# Mypy incorrectly gives a type error here. Must be a bug.
+				reply += (int(NetworkID.WINDOWS_LIVE),) # type: ignore
+			if 13 <= dialect <= 15:
+				reply += ('0',)
+			elif dialect >= 16:
+				if circle_owner or not circle_user_bs:
+					reply += ('0:0',)
+				else:
+					# Most likely scenario this would pop up is in circle presence
+					reply += (encode_capabilities_capabilitiesex(((circle_user_bs.front_data.get('msn_capabilities') or 0) if circle_user_bs.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC), 0),)
+			yield reply
+			return
+		
+		assert ctc_sess is not None
+		
+		msn_status = MSNStatus.FromSubstatus(status.substatus)
+		
+		if trid: frst = ('ILN', trid) # type: Tuple[Any, ...]
+		else: frst = ('NLN',)
+		rst = []
+		
+		if 8 <= dialect <= 15:
+			rst.append(((ctc_sess.front_data.get('msn_capabilities') or 0) if ctc_sess.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC))
+		elif dialect >= 16:
+			rst.append(('0:0' if circle_owner else encode_capabilities_capabilitiesex(((ctc_sess.front_data.get('msn_capabilities') or 0) if ctc_sess.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC), ctc_sess.front_data.get('msn_capabilitiesex') or 0)))
+		if dialect >= 9:
+			rst.append(encode_msnobj(ctc_sess.front_data.get('msn_msnobj') or '<msnobj/>'))
+		
+		if dialect >= 18:
+			yield (*frst, msn_status.name, encode_email_networkid(head.email, None, circle_id = circle_id), status.name, *rst)
+		else:
+			yield (*frst, msn_status.name, head.email, (int(NetworkID.WINDOWS_LIVE) if 14 <= dialect <= 17 else None), status.name, *rst)
+		
+		if dialect < 11:
+			return
+		
+		ubx_payload = '<Data><PSM>{}</PSM><CurrentMedia>{}</CurrentMedia>{}</Data>'.format(
+			(encode_xml_he(status.message, dialect) if dialect >= 13 else encode_xml_ne(status.message)) or '', (encode_xml_he(status.media, dialect) if dialect >= 13 else encode_xml_ne(status.media)) or '', extend_ubx_payload(dialect, backend, user_me, ctc_sess)
+		).encode('utf-8')
+		
+		if dialect >= 18:
+			yield ('UBX', encode_email_networkid(head.email, None, circle_id = circle_id), ubx_payload)
+		else:
+			yield ('UBX', head.email, (int(NetworkID.WINDOWS_LIVE) if 14 <= dialect <= 17 else None), ubx_payload)
 
 def encode_email_networkid(email: str, networkid: Optional[NetworkID], *, circle_id: Optional[str] = None) -> str:
 	result = '{}:{}'.format(int(networkid or NetworkID.WINDOWS_LIVE), email)
@@ -177,23 +253,33 @@ def extend_ubx_payload(dialect: int, backend: Backend, user: User, ctc_sess: 'Ba
 				)
 			if ctc_sess.user is user:
 				for ctc_sess_other in backend.util_get_sessions_by_user(ctc_sess.user):
-					ped_data = ''
-					if ctc_sess_other.front_data.get('msn_epname'):
-						ped_data += PRIVATEEPDATA_EPNAME_PAYLOAD.format(epname = ctc_sess_other.front_data['msn_epname'])
-					if ctc_sess_other.front_data.get('msn_endpoint_idle'):
-						ped_data += PRIVATEEPDATA_IDLE_PAYLOAD.format(idle = ('true' if ctc_sess_other.front_data['msn_endpoint_idle'] else 'false'))
-					if ctc_sess_other.front_data.get('msn_client_type'):
-						ped_data += PRIVATEEPDATA_CLIENTTYPE_PAYLOAD.format(ct = ctc_sess_other.front_data['msn_client_type'])
-					if ctc_sess_other.front_data.get('msn_ep_state'):
-						ped_data += PRIVATEEPDATA_STATE_PAYLOAD.format(state = ctc_sess_other.front_data['msn_ep_state'])
-					response += PRIVATEEPDATA_PAYLOAD.format(mguid = '{' + (ctc_sess_other.front_data.get('msn_pop_id') or '') + '}', ped_data = ped_data)
+					if ctc_sess_other.front_data.get('msn_pop_id') is None: continue
+					
+					response += PRIVATEEPDATA_PAYLOAD.format(mguid = '{' + (ctc_sess_other.front_data.get('msn_pop_id') or '') + '}', ped_data = _list_private_endpoint_data(ctc_sess_other))
 	return response
+
+def _list_private_endpoint_data(ctc_sess: 'BackendSession') -> str:
+	ped_data = ''
+	
+	if ctc_sess.front_data.get('msn_epname'):
+		ped_data += PRIVATEEPDATA_EPNAME_PAYLOAD.format(epname = ctc_sess.front_data['msn_epname'])
+	if ctc_sess.front_data.get('msn_endpoint_idle'):
+		ped_data += PRIVATEEPDATA_IDLE_PAYLOAD.format(idle = ('true' if ctc_sess.front_data['msn_endpoint_idle'] else 'false'))
+	if ctc_sess.front_data.get('msn_client_type'):
+		ped_data += PRIVATEEPDATA_CLIENTTYPE_PAYLOAD.format(ct = ctc_sess.front_data['msn_client_type'])
+	if ctc_sess.front_data.get('msn_ep_state'):
+		ped_data += PRIVATEEPDATA_STATE_PAYLOAD.format(state = ctc_sess.front_data['msn_ep_state'])
+	
+	return ped_data
 
 #def gen_signedticket_xml(user: User, backend: Backend) -> str:
 #	circleticket_data = backend.user_service.msn_get_circleticket(user.uuid)
 #	return '<?xml version="1.0" encoding="utf-16"?>\r\n<SignedTicket xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" ver="1" keyVer="1">\r\n  <Data>{}</Data>\r\n  <Sig>{}</Sig>\r\n</SignedTicket>'.format(
 #		circleticket_data[0], circleticket_data[1],
 #	)
+
+def encode_payload(tmpl: str, **kwargs: Any) -> bytes:
+	return tmpl.format(**kwargs).replace('\n', '\r\n').encode('utf-8')
 
 def gen_chal_response(chal: str, id: str, id_key: str, *, msnp11: bool = False) -> str:
 	key_hash = md5((chal + id_key).encode())
@@ -254,6 +340,41 @@ PRIVATEEPDATA_IDLE_PAYLOAD = '<Idle>{idle}</Idle>'
 PRIVATEEPDATA_CLIENTTYPE_PAYLOAD = '<ClientType>{ct}</ClientType>'
 
 PRIVATEEPDATA_STATE_PAYLOAD = '<State>{state}</State>'
+
+NFY_PUT_PRESENCE = '''Routing: 1.0
+To: 1:{to}
+From: 1:{from_email}
+
+Reliability: 1.0
+
+Notification: 1.0
+NotifNum: 0
+Uri: /user
+NotifType: Partial
+Content-Type: application/user+xml
+Content-Length: {cl}
+
+{payload}'''
+
+NFY_PUT_PRESENCE_USER = '<user><s n="IM"><Status>{substatus}</Status>{cm}</s>{rst}</user>'
+
+NFY_PUT_PRESENCE_USER_S_CM = '<CurrentMedia>{cm}</CurrentMedia>'
+
+NFY_PUT_PRESENCE_USER_S_PE = '<s n="PE"><UserTileLocation>{msnobj}</UserTileLocation><FriendlyName>{name}</FriendlyName><PSM>{message}</PSM><DDP>{ddp}</DDP><ColorScheme>{colorscheme}</ColorScheme><Scene>{scene}</Scene><SignatureSound>{sigsound}</SignatureSound></s>'
+
+NFY_PUT_PRESENCE_USER_SEP_IM = '<sep n="IM"{epid_attrib}><Capabilities>{capabilities}</Capabilities></sep>'
+
+NFY_PUT_PRESENCE_USER_SEP_PE = '<sep n="PE"{epid_attrib}>{pe_data}</sep>'
+
+NFY_PUT_PRESENCE_USER_SEP_PE_VER = '<VER>{ver}</VER>'
+
+NFY_PUT_PRESENCE_USER_SEP_PE_TYP = '<TYP>{typ}</TYP>'
+
+NFY_PUT_PRESENCE_USER_SEP_PE_CAP = '<Capabilities>{pe_capabilities}</Capabilities>'
+
+NFY_PUT_PRESENCE_USER_SEP_PD = '<sep n="PD" epid="{mguid}">{ped_data}</sep>'
+
+NFY_PUT_PRESENCE_USER_SEP_EPID = ' epid="{mguid}"'
 
 #class CircleBackendEventHandler(event.BackendEventHandler):
 #	__slots__ = ('bs',)

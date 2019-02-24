@@ -5,7 +5,6 @@ from multidict import MultiDict
 import asyncio
 import time
 import binascii
-from email.message import Message as EmailMessage
 import struct
 
 from util.misc import Logger
@@ -1117,7 +1116,7 @@ class BackendEventHandler(event.BackendEventHandler):
 	def msn_on_notify_ab(self, owner_cid: str, ab_last_modified: str) -> None:
 		pass
 	
-	def msn_on_put_sent(self, message: EmailMessage, sender: User, *, pop_id_sender: Optional[str] = None, pop_id: Optional[str] = None) -> None:
+	def msn_on_put_sent(self, payload: bytes, sender: User, *, pop_id_sender: Optional[str] = None, pop_id: Optional[str] = None) -> None:
 		pass
 	
 	#def ymsg_on_p2p_msg_request(self, yahoo_data: Dict[str, Any]) -> None:

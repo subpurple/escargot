@@ -1,6 +1,5 @@
 from typing import TYPE_CHECKING, Callable, Optional, Dict, Any, List
 from abc import ABCMeta, abstractmethod
-from email.message import EmailMessage
 
 from .models import User, Contact, Lst, MessageData, TextWithData, Substatus, LoginOption
 
@@ -65,7 +64,7 @@ class BackendEventHandler(metaclass = ABCMeta):
 	def msn_on_notify_ab(self, owner_cid: str, ab_last_modified: str) -> None:
 		pass
 	
-	def msn_on_put_sent(self, message: EmailMessage, sender: User, *, pop_id_sender: Optional[str] = None, pop_id: Optional[str] = None) -> None:
+	def msn_on_put_sent(self, payload: bytes, sender: User, *, pop_id_sender: Optional[str] = None, pop_id: Optional[str] = None) -> None:
 		pass
 	
 	def msn_on_user_circle_presence(self, bs_other: 'BackendSession') -> None:
