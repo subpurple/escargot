@@ -3,7 +3,6 @@ from datetime import datetime
 
 from util import misc, hash
 from core.db import Session, User, ABStore, ABMetadata
-from front.msn.misc import cid_format
 
 def main(email: str, *, oldmsn: bool = False, yahoo: bool = False) -> None:
 	with Session() as sess:
@@ -31,12 +30,6 @@ def main(email: str, *, oldmsn: bool = False, yahoo: bool = False) -> None:
 			)
 			abstore.date_last_modified = now
 			sess.add(abstore)
-			
-			# TODO: Should be generated on-demand, not here
-			ticketxml = '<?xml version="1.0" encoding="utf-16"?>\r\n<Ticket xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">\r\n  <TS>{}</TS>\r\n  <CID>{}</CID>\r\n</Ticket>'.format(
-				now.isoformat()[0:19] + 'Z', cid_format(user.uuid, decimal = True)
-			)
-			user.set_front_data('msn', 'circleticket', misc.sign_with_new_key_and_b64(ticketxml))
 		else:
 			print("User exists, changing password...")
 		pw = getpass.getpass("Password: ")
