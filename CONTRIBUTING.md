@@ -120,7 +120,12 @@ if they forget to uninstall the root certificate).
 Take advantage of [mypy](https://mypy-lang.org) by adding type annotations.
 Run `mypy dev` to typecheck, and do your best to ensure your commits contain no typechecking errors.
 
+There should be no typechecking errors (i.e. `mypy dev` should not output anything) if you are submitting an MR
+or pushing to remote.
+
 ## Testing
+
+There are no actual tests right now. Contributions to the tests are greatly appreciated :p
 
 Run all tests:
 
