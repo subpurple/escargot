@@ -1,5 +1,9 @@
 # Developer Guide
 
+## New Developers
+
+Contributions are welcome via MR (Merge Requests). You don't need to request project member access; clone the repo instead!
+
 ## Setup 
 
 - you will need python 3.6+
