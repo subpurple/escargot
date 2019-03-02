@@ -88,10 +88,10 @@ def create_user(email: str, pw: str, name: str, message: str) -> User:
 		settings = {}, subscribed_ab_stores = ['00000000-0000-0000-0000-000000000000'],
 	)
 	# TODO: Should be generated on-demand, not here
-	ticketxml = '<?xml version="1.0" encoding="utf-16"?>\r\n<Ticket xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">\r\n  <TS>{}</TS>\r\n  <CID>{}</CID>\r\n</Ticket>'.format(
-		datetime.utcnow().isoformat()[0:19] + 'Z', cid_format(user.uuid, decimal = True)
-	)
-	user.set_front_data('msn', 'circleticket', misc.sign_with_new_key_and_b64(ticketxml))
+	#ticketxml = '<?xml version="1.0" encoding="utf-16"?>\r\n<Ticket xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">\r\n  <TS>{}</TS>\r\n  <CID>{}</CID>\r\n</Ticket>'.format(
+	#	datetime.utcnow().isoformat()[0:19] + 'Z', cid_format(user.uuid, decimal = True)
+	#)
+	#user.set_front_data('msn', 'circleticket', misc.sign_with_new_key_and_b64(ticketxml))
 	set_passwords(user, pw, support_old_msn = True, support_yahoo = True)
 	return user
 

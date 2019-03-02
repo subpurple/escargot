@@ -107,24 +107,24 @@ class ABStoreContact(Base):
 	is_messenger_user = sa.Column(sa.Boolean, nullable = False, default = False)
 	annotations = sa.Column(JSONType, nullable = False)
 
-#class ABStoreContactNetworkInfo(Base):
-#	__tablename__ = 't_ab_store_contact_networkinfo'
-#	
-#	id = sa.Column(sa.Integer, nullable = False, primary_key = True)
-#	contact_uuid = sa.Column(sa.String, nullable = False)
-#	ab_id = sa.Column(sa.String, nullable = False)
-#	ab_owner_uuid = sa.Column(sa.String, nullable = True)
-#	date_created = sa.Column(sa.DateTime, nullable = True, default = datetime.utcnow)
-#	date_last_modified = sa.Column(sa.DateTime, nullable = True, default = datetime.utcnow)
-#	domain_id = sa.Column(sa.Integer, nullable = False)
-#	source_id = sa.Column(sa.String, nullable = False)
-#	domain_tag = sa.Column(sa.String, nullable = False)
-#	display_name = sa.Column(sa.String, nullable = False)
-#	relationship_type = sa.Column(sa.Integer, nullable = False)
-#	relationship_role = sa.Column(sa.Integer, nullable = False)
-#	relationship_state = sa.Column(sa.Integer, nullable = False)
-#	relationship_state_date = sa.Column(sa.DateTime, nullable = True)
-#	invite_message = sa.Column(sa.String, nullable = True)
+class ABStoreContactNetworkInfo(Base):
+	__tablename__ = 't_ab_store_contact_networkinfo'
+	
+	id = sa.Column(sa.Integer, nullable = False, primary_key = True)
+	contact_uuid = sa.Column(sa.String, nullable = False)
+	ab_id = sa.Column(sa.String, nullable = False)
+	ab_owner_uuid = sa.Column(sa.String, nullable = True)
+	date_created = sa.Column(sa.DateTime, nullable = True, default = datetime.utcnow)
+	date_last_modified = sa.Column(sa.DateTime, nullable = True, default = datetime.utcnow)
+	domain_id = sa.Column(sa.Integer, nullable = False)
+	source_id = sa.Column(sa.String, nullable = False)
+	domain_tag = sa.Column(sa.String, nullable = False)
+	display_name = sa.Column(sa.String, nullable = False)
+	relationship_type = sa.Column(sa.Integer, nullable = False)
+	relationship_role = sa.Column(sa.Integer, nullable = False)
+	relationship_state = sa.Column(sa.Integer, nullable = False)
+	relationship_state_date = sa.Column(sa.DateTime, nullable = True)
+	invite_message = sa.Column(sa.String, nullable = True)
 
 #class CircleStore(Base):
 #	__tablename__ = 't_circle_store'

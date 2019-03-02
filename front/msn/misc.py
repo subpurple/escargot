@@ -54,7 +54,13 @@ def build_presence_notif(trid: Optional[str], ctc_head: User, user_me: User, dia
 		cm = None # type: Optional[str]
 		pop_id_ctc = None # type: Optional[str]
 		
-		if not is_offlineish:
+		substatus = status.substatus
+		
+		if is_offlineish and head is not user_me:
+			# In case `ctc` is going `HDN`; make sure other people don't receive `HDN` as status
+			substatus = Substatus.Offline
+		
+		if not substatus is Substatus.Offline:
 			assert ctc_sess is not None
 			
 			cm = NFY_PUT_PRESENCE_USER_S_CM.format(cm = encode_xml_he(status.media or '', dialect))
@@ -66,7 +72,7 @@ def build_presence_notif(trid: Optional[str], ctc_head: User, user_me: User, dia
 			if ctc_sess.front_data.get('msn_pop_id') is not None:
 				pop_id_ctc = '{' + ctc_sess.front_data['msn_pop_id'] + '}'
 			nfy_rst += NFY_PUT_PRESENCE_USER_SEP_IM.format(
-				epid_attrib = NFY_PUT_PRESENCE_USER_SEP_EPID.format(mguid = pop_id_ctc or ''), capabilities = encode_capabilities_capabilitiesex(((ctc_sess.front_data.get('msn_capabilities') or 0) if ctc_sess.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC), ctc_sess.front_data.get('msn_capabilitiesex') or 0),
+				epid_attrib = (NFY_PUT_PRESENCE_USER_SEP_EPID.format(mguid = pop_id_ctc or '') if pop_id_ctc is not None else ''), capabilities = encode_capabilities_capabilitiesex(((ctc_sess.front_data.get('msn_capabilities') or 0) if ctc_sess.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC), ctc_sess.front_data.get('msn_capabilitiesex') or 0),
 			)
 			if ctc_sess.front_data.get('msn_PE'):
 				pe_data = ''
@@ -74,7 +80,7 @@ def build_presence_notif(trid: Optional[str], ctc_head: User, user_me: User, dia
 				pe_data += NFY_PUT_PRESENCE_USER_SEP_PE_TYP.format(typ = ctc_sess.front_data.get('msn_PE_TYP') or '')
 				pe_data += NFY_PUT_PRESENCE_USER_SEP_PE_CAP.format(pe_capabilities = encode_capabilities_capabilitiesex(ctc_sess.front_data.get('msn_PE_capabilities') or 0, ctc_sess.front_data.get('msn_PE_capabilitiesex') or 0))
 				nfy_rst += NFY_PUT_PRESENCE_USER_SEP_PE.format(
-					epid_attrib = NFY_PUT_PRESENCE_USER_SEP_EPID.format(mguid = pop_id_ctc or ''), pe_data = pe_data,
+					epid_attrib = (NFY_PUT_PRESENCE_USER_SEP_EPID.format(mguid = pop_id_ctc or '') if pop_id_ctc is not None else ''), pe_data = pe_data,
 				)
 			if pop_id_ctc is not None:
 				nfy_rst += NFY_PUT_PRESENCE_USER_SEP_PD.format(
@@ -99,12 +105,6 @@ def build_presence_notif(trid: Optional[str], ctc_head: User, user_me: User, dia
 				nfy_rst += NFY_PUT_PRESENCE_USER_SEP_PD.format(
 					mguid = '{' + ctc_sess_other.front_data['msn_pop_id'] + '}', ped_data = _list_private_endpoint_data(ctc_sess_other)
 				)
-		
-		substatus = status.substatus
-		
-		if is_offlineish and head is not user_me:
-			# In case `ctc` is going `HDN`; make sure other people don't receive `HDN` as status
-			substatus = Substatus.Offline
 		
 		msn_status = MSNStatus.FromSubstatus(substatus)
 		

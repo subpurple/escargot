@@ -99,7 +99,7 @@ class ContactGroupEntry:
 		self.uuid = uuid
 
 class ABContact:
-	__slots__ = ('type', 'uuid', 'email', 'member_uuid', 'date_last_modified', 'name', 'groups', 'is_messenger_user', 'annotations')
+	__slots__ = ('type', 'uuid', 'email', 'member_uuid', 'date_last_modified', 'name', 'groups', 'is_messenger_user', 'networkinfos', 'annotations')
 	
 	type: str
 	uuid: str
@@ -109,10 +109,10 @@ class ABContact:
 	name: Optional[str]
 	groups: Set[str]
 	is_messenger_user: bool
-	#networkinfos: Dict['NetworkID', 'NetworkInfo']
+	networkinfos: Dict['NetworkID', 'NetworkInfo']
 	annotations: Dict[str, Any]
 	
-	def __init__(self, type: str, uuid: str, email: str, name: Optional[str], groups: Set[str], *, member_uuid: Optional[str] = None, is_messenger_user: Optional[bool] = None, annotations: Optional[Dict[str, Any]] = None, date_last_modified: Optional[datetime] = None) -> None:
+	def __init__(self, type: str, uuid: str, email: str, name: Optional[str], groups: Set[str], *, networkinfos: Optional[Dict['NetworkID', 'NetworkInfo']] = None, member_uuid: Optional[str] = None, is_messenger_user: Optional[bool] = None, annotations: Optional[Dict[str, Any]] = None, date_last_modified: Optional[datetime] = None) -> None:
 		self.type = type
 		self.uuid = uuid
 		self.email = email
@@ -121,44 +121,44 @@ class ABContact:
 		self.name = name
 		self.groups = groups
 		self.is_messenger_user = _default_if_none(is_messenger_user, False)
-		#self.networkinfos = networkinfos
+		self.networkinfos = _default_if_none(networkinfos, {})
 		self.annotations = _default_if_none(annotations, {})
 
-#class NetworkInfo:
-#	__slots__ = ('domain_id', 'source_id', 'domain_tag', 'display_name', 'relationship_info', 'invite_message', 'date_created', 'date_last_modified')
-#	
-#	domain_id: 'NetworkID'
-#	source_id: str
-#	domain_tag: str
-#	display_name: Optional[str]
-#	relationship_info: 'RelationshipInfo'
-#	invite_message: Optional[str]
-#	date_created: datetime
-#	date_last_modified: datetime
-#	
-#	def __init__(self, domain_id: 'NetworkID', source_id: str, domain_tag: str, display_name: Optional[str], relationship_info: 'RelationshipInfo', *, invite_message: Optional[str] = None, date_created: Optional[datetime] = None, date_last_modified: Optional[datetime] = None) -> None:
-#		self.domain_id = domain_id
-#		self.source_id = source_id
-#		self.domain_tag = domain_tag
-#		self.display_name = display_name
-#		self.relationship_info = relationship_info
-#		self.invite_message = invite_message
-#		self.date_created = _default_if_none(date_created, datetime.utcnow())
-#		self.date_last_modified = _default_if_none(date_last_modified, datetime.utcnow())
-#
-#class RelationshipInfo:
-#	__slots__ = ('relationship_type', 'relationship_role', 'relationship_state', 'relationship_state_date')
-#	
-#	relationship_type: 'ABRelationshipType'
-#	relationship_role: 'ABRelationshipRole'
-#	relationship_state: 'ABRelationshipState'
-#	relationship_state_date: datetime
-#	
-#	def __init__(self, relationship_type: 'ABRelationshipType', relationship_role: 'ABRelationshipRole', relationship_state: 'ABRelationshipState', relationship_state_date: Optional[datetime] = None) -> None:
-#		self.relationship_type = relationship_type
-#		self.relationship_role = relationship_role
-#		self.relationship_state = relationship_state
-#		self.relationship_state_date = _default_if_none(relationship_state_date, datetime.utcnow())
+class NetworkInfo:
+	__slots__ = ('domain_id', 'source_id', 'domain_tag', 'display_name', 'relationship_info', 'invite_message', 'date_created', 'date_last_modified')
+	
+	domain_id: 'NetworkID'
+	source_id: str
+	domain_tag: str
+	display_name: Optional[str]
+	relationship_info: 'RelationshipInfo'
+	invite_message: Optional[str]
+	date_created: datetime
+	date_last_modified: datetime
+	
+	def __init__(self, domain_id: 'NetworkID', source_id: str, domain_tag: str, display_name: Optional[str], relationship_info: 'RelationshipInfo', *, invite_message: Optional[str] = None, date_created: Optional[datetime] = None, date_last_modified: Optional[datetime] = None) -> None:
+		self.domain_id = domain_id
+		self.source_id = source_id
+		self.domain_tag = domain_tag
+		self.display_name = display_name
+		self.relationship_info = relationship_info
+		self.invite_message = invite_message
+		self.date_created = _default_if_none(date_created, datetime.utcnow())
+		self.date_last_modified = _default_if_none(date_last_modified, datetime.utcnow())
+
+class RelationshipInfo:
+	__slots__ = ('relationship_type', 'relationship_role', 'relationship_state', 'relationship_state_date')
+	
+	relationship_type: 'ABRelationshipType'
+	relationship_role: 'ABRelationshipRole'
+	relationship_state: 'ABRelationshipState'
+	relationship_state_date: datetime
+	
+	def __init__(self, relationship_type: 'ABRelationshipType', relationship_role: 'ABRelationshipRole', relationship_state: 'ABRelationshipState', relationship_state_date: Optional[datetime] = None) -> None:
+		self.relationship_type = relationship_type
+		self.relationship_role = relationship_role
+		self.relationship_state = relationship_state
+		self.relationship_state_date = _default_if_none(relationship_state_date, datetime.utcnow())
 
 class UserStatus:
 	__slots__ = ('substatus', 'name', '_message', '_persistent', 'media')
@@ -419,23 +419,23 @@ class NetworkID(IntEnum):
 	SMTP = 0x10 # Jaguire, Japanese mobile interop
 	YAHOO = 0x20
 
-#class ABRelationshipRole(IntEnum):
-#	Empty = 0
-#	Admin = 1
-#	AssistantAdmin = 2
-#	Member = 3
-#	StatePendingOutbound = 4
+class ABRelationshipRole(IntEnum):
+	Empty = 0
+	Admin = 1
+	AssistantAdmin = 2
+	Member = 3
+	StatePendingOutbound = 4
 
-#class ABRelationshipState(IntEnum):
-#	Empty = 0
-#	WaitingResponse = 1
-#	Left = 2
-#	Accepted = 3
-#	Rejected = 4
+class ABRelationshipState(IntEnum):
+	Empty = 0
+	WaitingResponse = 1
+	Left = 2
+	Accepted = 3
+	Rejected = 4
 
-#class ABRelationshipType(IntEnum):
-#	Regular = 3
-#	Circle = 5
+class ABRelationshipType(IntEnum):
+	Regular = 3
+	Circle = 5
 
 class Service:
 	__slots__ = ('host', 'port')

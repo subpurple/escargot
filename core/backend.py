@@ -178,7 +178,7 @@ class Backend:
 	
 	def _notify_self(self, bs: 'BackendSession') -> None:
 		uuid = bs.user.uuid
-		if uuid in self._worklist_notify:
+		if uuid in self._worklist_notify_self:
 			return
 		self._worklist_notify_self[uuid] = bs
 	

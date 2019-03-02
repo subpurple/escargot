@@ -7,8 +7,8 @@ from util.hash import hasher, hasher_md5, hasher_md5crypt, gen_salt
 from util import misc
 
 from . import error
-from .db import Session, User as DBUser, UserGroup as DBUserGroup, UserContact as DBUserContact, ABStore as DBABStore, ABStoreContact as DBABStoreContact, ABMetadata as DBABMetadata, OIM as DBOIM, YahooOIM as DBYahooOIM
-from .models import User, Contact, ContactGroupEntry, ABContact, UserStatus, UserDetail, NetworkID, Lst, Group, OIMMetadata, YahooOIM, MessageData
+from .db import Session, User as DBUser, UserGroup as DBUserGroup, UserContact as DBUserContact, ABStore as DBABStore, ABStoreContact as DBABStoreContact, ABStoreContactNetworkInfo as DBABStoreContactNetworkInfo, ABMetadata as DBABMetadata, OIM as DBOIM, YahooOIM as DBYahooOIM
+from .models import User, Contact, ContactGroupEntry, ABContact, ABRelationshipRole, ABRelationshipState, ABRelationshipType, NetworkInfo, RelationshipInfo, UserStatus, UserDetail, NetworkID, Lst, Group, OIMMetadata, YahooOIM, MessageData
 
 class UserService:
 	loop: asyncio.AbstractEventLoop
@@ -228,23 +228,18 @@ class UserService:
 			annotations = {} # type: Dict[Any, Any]
 			for annots in dbabstorecontact.annotations:
 				annotations.update(annots)
-			#dbabstorecontactnetworkinfos = sess.query(DBABStoreContactNetworkInfo).filter(DBABStoreContactNetworkInfo.contact_uuid == dbabstorecontact.contact_uuid, DBABStoreContactNetworkInfo.ab_id == dbabstorecontact.ab_id, DBABStoreContactNetworkInfo.ab_owner_uuid == (dbabstorecontact.ab_owner_uuid if ab_type == 'Individual' else None))
-			#networkinfos = {
-			#	NetworkID(dbabstorecontactnetworkinfo.domain_id): NetworkInfo(
-			#		NetworkID(dbabstorecontactnetworkinfo.domain_id), dbabstorecontactnetworkinfo.source_id, dbabstorecontactnetworkinfo.domain_tag,
-			#		dbabstorecontactnetworkinfo.display_name, RelationshipInfo(
-			#			ABRelationshipType(dbabstorecontactnetworkinfo.relationship_type), ABRelationshipRole(dbabstorecontactnetworkinfo.relationship_role), ABRelationshipState(dbabstorecontactnetworkinfo.relationship_state), relationship_state_date = dbabstorecontactnetworkinfo.relationship_state_date,
-			#		),
-			#		invite_message = dbabstorecontactnetworkinfo.invite_message, date_created = dbabstorecontactnetworkinfo.date_created, date_last_modified = dbabstorecontactnetworkinfo.date_last_modified,
-			#	) for dbabstorecontactnetworkinfo in dbabstorecontactnetworkinfos}
-			#return ABContact(
-			#	dbabstorecontact.type, dbabstorecontact.contact_uuid, dbabstorecontact.email, dbabstorecontact.name, set(dbabstorecontact.groups), networkinfos,
-			#	member_uuid = dbabstorecontact.contact_member_uuid, is_messenger_user = dbabstorecontact.is_messenger_user, annotations = annotations, date_last_modified = dbabstorecontact.date_last_modified,
-			#)
-			
+			dbabstorecontactnetworkinfos = sess.query(DBABStoreContactNetworkInfo).filter(DBABStoreContactNetworkInfo.contact_uuid == dbabstorecontact.contact_uuid, DBABStoreContactNetworkInfo.ab_id == dbabstorecontact.ab_id, DBABStoreContactNetworkInfo.ab_owner_uuid == (dbabstorecontact.ab_owner_uuid if ab_type == 'Individual' else None))
+			networkinfos = {
+				NetworkID(dbabstorecontactnetworkinfo.domain_id): NetworkInfo(
+					NetworkID(dbabstorecontactnetworkinfo.domain_id), dbabstorecontactnetworkinfo.source_id, dbabstorecontactnetworkinfo.domain_tag,
+					dbabstorecontactnetworkinfo.display_name, RelationshipInfo(
+						ABRelationshipType(dbabstorecontactnetworkinfo.relationship_type), ABRelationshipRole(dbabstorecontactnetworkinfo.relationship_role), ABRelationshipState(dbabstorecontactnetworkinfo.relationship_state), relationship_state_date = dbabstorecontactnetworkinfo.relationship_state_date,
+					),
+					invite_message = dbabstorecontactnetworkinfo.invite_message, date_created = dbabstorecontactnetworkinfo.date_created, date_last_modified = dbabstorecontactnetworkinfo.date_last_modified,
+				) for dbabstorecontactnetworkinfo in dbabstorecontactnetworkinfos}
 			return ABContact(
 				dbabstorecontact.type, dbabstorecontact.contact_uuid, dbabstorecontact.email, dbabstorecontact.name, set(dbabstorecontact.groups),
-				member_uuid = dbabstorecontact.contact_member_uuid, is_messenger_user = dbabstorecontact.is_messenger_user, annotations = annotations, date_last_modified = dbabstorecontact.date_last_modified,
+				networkinfos = networkinfos, member_uuid = dbabstorecontact.contact_member_uuid, is_messenger_user = dbabstorecontact.is_messenger_user, annotations = annotations, date_last_modified = dbabstorecontact.date_last_modified,
 			)
 	
 	def get_ab_contents(self, ab_id: str, user: User) -> Optional[Tuple[str, User, datetime, datetime, Dict[str, ABContact]]]:
@@ -325,26 +320,26 @@ class UserService:
 						c.date_last_modified = dbabstorecontact.date_last_modified
 						sess.add(dbabstorecontact)
 						
-						#for networkinfo in c.networkinfos.values():
-						#	dbabstorecontactnetworkinfo = sess.query(DBABStoreContactNetworkInfo).filter(DBABStoreContactNetworkInfo.contact_uuid == c.uuid, DBABStoreContactNetworkInfo.ab_id == ab_id, DBABStoreContactNetworkInfo.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None), DBABStoreContactNetworkInfo.domain_id == int(networkinfo.domain_id)).one_or_none()
-						#	if dbabstorecontactnetworkinfo is None:
-						#		dbabstorecontactnetworkinfo = DBABStoreContactNetworkInfo(
-						#			contact_uuid = c.uuid, ab_id = ab_id, ab_owner_uuid = (user.uuid if ab_type == 'Individual' else None),
-						#			domain_id = int(networkinfo.domain_id), source_id = networkinfo.source_id, domain_tag = networkinfo.domain_tag, display_name = networkinfo.display_name,
-						#			relationship_type = int(networkinfo.relationship_info.relationship_type), relationship_role = int(networkinfo.relationship_info.relationship_role), relationship_state = int(networkinfo.relationship_info.relationship_state),
-						#		)
-						#		dbabstorecontactnetworkinfo.relationship_state_date = datetime.utcnow()
-						#	else:
-						#		dbabstorecontactnetworkinfo.domain_tag = networkinfo.domain_tag
-						#		dbabstorecontactnetworkinfo.display_name = networkinfo.display_name
-						#		dbabstorecontactnetworkinfo.relationship_type = int(networkinfo.relationship_info.relationship_type)
-						#		dbabstorecontactnetworkinfo.relationship_role = int(networkinfo.relationship_info.relationship_role)
-						#		dbabstorecontactnetworkinfo.relationship_state = int(networkinfo.relationship_info.relationship_state)
-						#		dbabstorecontactnetworkinfo.relationship_state_date = datetime.utcnow()
-						#		dbabstorecontactnetworkinfo.invite_message = invite_message
-						#	dbabstorecontactnetworkinfo.date_last_modified = datetime.utcnow()
-						#	networkinfo.date_last_modified = dbabstorecontactnetworkinfo.date_last_modified
-						#	sess.add(dbabstorecontactnetworkinfo)
+						for networkinfo in c.networkinfos.values():
+							dbabstorecontactnetworkinfo = sess.query(DBABStoreContactNetworkInfo).filter(DBABStoreContactNetworkInfo.contact_uuid == c.uuid, DBABStoreContactNetworkInfo.ab_id == ab_id, DBABStoreContactNetworkInfo.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None), DBABStoreContactNetworkInfo.domain_id == int(networkinfo.domain_id)).one_or_none()
+							if dbabstorecontactnetworkinfo is None:
+								dbabstorecontactnetworkinfo = DBABStoreContactNetworkInfo(
+									contact_uuid = c.uuid, ab_id = ab_id, ab_owner_uuid = (user.uuid if ab_type == 'Individual' else None),
+									domain_id = int(networkinfo.domain_id), source_id = networkinfo.source_id, domain_tag = networkinfo.domain_tag, display_name = networkinfo.display_name,
+									relationship_type = int(networkinfo.relationship_info.relationship_type), relationship_role = int(networkinfo.relationship_info.relationship_role), relationship_state = int(networkinfo.relationship_info.relationship_state),
+								)
+								dbabstorecontactnetworkinfo.relationship_state_date = datetime.utcnow()
+							else:
+								dbabstorecontactnetworkinfo.domain_tag = networkinfo.domain_tag
+								dbabstorecontactnetworkinfo.display_name = networkinfo.display_name
+								dbabstorecontactnetworkinfo.relationship_type = int(networkinfo.relationship_info.relationship_type)
+								dbabstorecontactnetworkinfo.relationship_role = int(networkinfo.relationship_info.relationship_role)
+								dbabstorecontactnetworkinfo.relationship_state = int(networkinfo.relationship_info.relationship_state)
+								dbabstorecontactnetworkinfo.relationship_state_date = datetime.utcnow()
+								dbabstorecontactnetworkinfo.invite_message = networkinfo.invite_message
+							dbabstorecontactnetworkinfo.date_last_modified = datetime.utcnow()
+							networkinfo.date_last_modified = dbabstorecontactnetworkinfo.date_last_modified
+							sess.add(dbabstorecontactnetworkinfo)
 					updated = True
 				
 				if updated:

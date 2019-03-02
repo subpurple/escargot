@@ -558,6 +558,7 @@ class MSNPCtrlNS(MSNPCtrl):
 				if len(d_el.getchildren()) == 0:
 					self.send_reply(Err.XXLEmptyDomain, trid)
 					self.close(hard = True)
+					return
 			for d_el in d_els:
 				domain = d_el.get('n')
 				c_els = d_el.findall('c')
@@ -580,6 +581,8 @@ class MSNPCtrlNS(MSNPCtrl):
 				#		self.close(hard = True)
 				#		return
 				for c_el in c_els:
+					lsts = None
+					
 					if self.dialect == 21:
 						s_els = c_el.findall('s')
 						for s_el in s_els:
@@ -590,6 +593,7 @@ class MSNPCtrlNS(MSNPCtrl):
 									self.send_reply(Err.XXLInvalidPayload, trid)
 									self.close(hard = True)
 									return
+						if lsts is None: continue
 					else:
 						try:
 							lsts = Lst(int(c_el.get('l')))
@@ -638,6 +642,7 @@ class MSNPCtrlNS(MSNPCtrl):
 			for d_el in d_els:
 				for c_el in c_els:
 					ctc = None
+					lsts = None
 					
 					#networkid = NetworkID(int(c_el.get('t')))
 					username = c_el.get('n')
@@ -648,6 +653,7 @@ class MSNPCtrlNS(MSNPCtrl):
 						for s_el in s_els:
 							if s_el is not None and s_el.get('n') == 'IM':
 								lsts = Lst(int(s_el.get('l')))
+						if lsts is None: continue
 					else:
 						lsts = Lst(int(c_el.get('l')))
 					
@@ -699,6 +705,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		self.send_reply('ADL', trid, 'OK')
 	
 	def _m_rml(self, trid: str, data: bytes) -> None:
+		backend = self.backend
 		bs = self.bs
 		assert bs is not None
 		d_el = None
@@ -706,56 +713,87 @@ class MSNPCtrlNS(MSNPCtrl):
 		try:
 			rml_xml = parse_xml(data.decode('utf-8'))
 			d_els = rml_xml.findall('d')
-			if len(d_els) == 1:
-				d_el = d_els[0]
+			for d_el in d_els:
 				if len(d_el.getchildren()) == 0:
 					self.send_reply(Err.XXLEmptyDomain, trid)
 					self.close(hard = True)
-				elif len(d_el.getchildren()) > 1:
-					self.send_reply(Err.XXLInvalidPayload, trid)
-					self.close(hard = True)
-			else:
-				self.send_reply(Err.XXLInvalidPayload, trid)
-				self.close(hard = True)
+					return
 			
-			if d_el is not None:
+			for d_el in d_els:
 				domain = d_el.get('n')
-				c_el = d_el.find('c')
-				username = c_el.get('n')
-				email = '{}@{}'.format(username, domain)
-				
-				try:
-					lsts = Lst(int(c_el.get('l')))
+				c_els = d_el.findall('c')
+				for c_el in c_els:
+					lsts = None
 					
+					if self.dialect == 21:
+						s_els = c_el.findall('s')
+						for s_el in s_els:
+							if s_el is not None and s_el.get('n') == 'IM':
+								try:
+									lsts = Lst(int(s_el.get('l')))
+								except ValueError:
+									self.send_reply(Err.XXLInvalidPayload, trid)
+									self.close(hard = True)
+									return
+						if lsts is None: continue
+					else:
+						try:
+							networkid = NetworkID(int(c_el.get('t')))
+							
+							#if networkid in (NetworkID.OFFICE_COMMUNICATOR,NetworkID.TELEPHONE,NetworkID.MNI,NetworkID.SMTP):
+							#	self.send_reply(Err.InvalidUser2, trid)
+							#	return
+						except ValueError:
+							self.send_reply(Err.InvalidNetworkID, trid)
+							self.close(hard = True)
+							return
+						
+						try:
+							lsts = Lst(int(c_el.get('l')))
+						except ValueError:
+							self.send_reply(Err.XXLInvalidPayload, trid)
+							self.close(hard = True)
+							return
 					if lsts & (Lst.RL | Lst.PL):
 						self.send_reply(Err.XXLInvalidPayload, trid)
 						self.close(hard = True)
 						return
-				except ValueError:
-					self.send_reply(Err.XXLInvalidPayload, trid)
-					self.close(hard = True)
-				try:
-					networkid = NetworkID(int(c_el.get('t')))
 					
-					if networkid in (NetworkID.OFFICE_COMMUNICATOR,NetworkID.TELEPHONE,NetworkID.MNI,NetworkID.SMTP):
+					username = c_el.get('n')
+					email = '{}@{}'.format(username, domain)
+					
+					contact_uuid = backend.util_get_uuid_from_email(email)
+					if contact_uuid is None:
 						self.send_reply(Err.InvalidUser2, trid)
 						return
-				except ValueError:
-					self.send_reply(Err.InvalidNetworkID, trid)
-					self.close(hard = True)
 				
-				contact_uuid = self.backend.util_get_uuid_from_email(email)
-				if contact_uuid is None:
-					self.send_reply(Err.InvalidUser2, trid)
-					return
-				try:
-					bs.me_contact_remove(contact_uuid, lsts, remove_from_ab = False)
-				except Exception:
-					pass
+				for c_el in c_els:
+					lsts = None
+					
+					username = c_el.get('n')
+					email = '{}@{}'.format(username, domain)
+					
+					if self.dialect == 21:
+						s_els = c_el.findall('s')
+						for s_el in s_els:
+							if s_el is not None and s_el.get('n') == 'IM':
+								lsts = Lst(int(s_el.get('l')))
+						if lsts is None: continue
+					else:
+						lsts = Lst(int(c_el.get('l')))
+					
+					contact_uuid = self.backend.util_get_uuid_from_email(email)
+					
+					if contact_uuid is not None:
+						try:
+							bs.me_contact_remove(contact_uuid, lsts, remove_from_ab = False)
+						except Exception:
+							pass
 		except Exception as ex:
 			if isinstance(ex, XMLSyntaxError):
 				self.send_reply(Err.XXLInvalidPayload, trid)
 				self.close(hard = True)
+				return
 			else:
 				self.send_reply(Err.GetCodeForException(ex, self.dialect), trid)
 				return
@@ -1023,12 +1061,13 @@ class MSNPCtrlNS(MSNPCtrl):
 		#else:
 		#	ctc_uuid = backend.util_get_uuid_from_email(to[0])
 		
-		ctc_uuid = backend.util_get_uuid_from_email(to[0])
-		if ctc_uuid is None:
-			return
-		ctc = detail.contacts.get(ctc_uuid)
-		if ctc is None:
-			return
+		if to[0] != user.email:
+			ctc_uuid = backend.util_get_uuid_from_email(to[0])
+			if ctc_uuid is None:
+				return
+			ctc = detail.contacts.get(ctc_uuid)
+			if ctc is None:
+				return
 		
 		body = data[i:].decode()
 		payload_index = body.rfind('\r\n\r\n')
@@ -1163,12 +1202,11 @@ class MSNPCtrlNS(MSNPCtrl):
 					'notify_self': True,
 				})
 				
-				if self.iln_sent:
-					return
-				self.iln_sent = True
-				for ctc in detail.contacts.values():
-					for m in build_presence_notif(trid, ctc.head, user, self.dialect, self.backend):
-						self.send_reply(*m)
+				if not self.iln_sent:
+					self.iln_sent = True
+					for ctc in detail.contacts.values():
+						for m in build_presence_notif(trid, ctc.head, user, self.dialect, self.backend):
+							self.send_reply(*m)
 				
 				self.send_reply('PUT', trid, 'OK', b'')
 				return
@@ -1176,15 +1214,16 @@ class MSNPCtrlNS(MSNPCtrl):
 				self.close(hard = True)
 				return
 		
-		for ctc_sess in backend.util_get_sessions_by_user(ctc.head):
-			pop_id_other = ctc_sess.front_data.get('msn_pop_id')
-			if pop_id_other:
-				if to[2] is not None:
-					if pop_id_other.lower() != to[2][1:-1].lower():
-						continue
-					else:
-						pop_id_other = to[2][1:-1]
-			ctc_sess.evt.msn_on_put_sent(data, user, pop_id_sender = from_email[2], pop_id = pop_id_other)
+		if ctc is not None:
+			for ctc_sess in backend.util_get_sessions_by_user(ctc.head):
+				pop_id_other = ctc_sess.front_data.get('msn_pop_id')
+				if pop_id_other:
+					if to[2] is not None:
+						if pop_id_other.lower() != to[2][1:-1].lower():
+							continue
+						else:
+							pop_id_other = to[2][1:-1]
+				ctc_sess.evt.msn_on_put_sent(data, user, pop_id_sender = from_email[2], pop_id = pop_id_other)
 		
 		self.send_reply('PUT', trid, 'OK', b'')
 	

@@ -88,6 +88,7 @@ class MSNPWriter:
 		w(b'\r\n')
 		if data is not None:
 			w(data)
+			print(data)
 	
 	def flush(self) -> bytes:
 		data = self._buf.getvalue()
@@ -132,6 +133,7 @@ class MSNPReader:
 		m = [unquote(x) for x in m]
 		if body:
 			m.append(body)
+			print(body)
 		return m
 	
 	def _read_raw(self, n: int) -> bytes:
