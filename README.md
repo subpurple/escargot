@@ -15,7 +15,7 @@ Currently, MSNP2 through MSNP18 (with experimental MSNP21 support) are implement
 
 - `X has added you to their list` messages don't work on WLM 2009 and 2011. WLM 2012 hasn't been tested for this yet.
 
-- Authentication, contact lists, and presence work on MSNP21 (granted you don't use Windows 8 - 10, which encrypt RST requests). Statuses haven't been fully implemented, display pictures haven't been tested yet, and messaging and multiparties don't work.
+- Authentication, contact lists, and presence work on MSNP21 with WLM 2011 (granted you don't use Windows 8 - 10, which encrypt RST requests). Statuses haven't been fully implemented, display pictures haven't been tested yet, and messaging and multiparties don't work.
 
 YMSG:
 
