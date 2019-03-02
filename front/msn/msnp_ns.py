@@ -339,7 +339,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		if dialect < 10:
 			self.syn_ser = int(extra[0])
 			ser = self._ser()
-			if dialect < 6:
+			if dialect < 7:
 				self.send_reply('SYN', trid, ser)
 				for lst in (Lst.FL, Lst.AL, Lst.BL, Lst.RL):
 					cs = [c for c in contacts.values() if c.lists & lst]
