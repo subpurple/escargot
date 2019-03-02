@@ -355,7 +355,7 @@ def messagedata_from_msnp(sender: User, sender_pop_id: Optional[str], data: byte
 				type = MessageType.Typing
 				text = ''
 			elif content_type.startswith('text/x-msnmsgr-datacast'):
-				body = body.decode('utf-8')
+				body = data.decode('utf-8')
 				id_start = body.index('ID:') + 3
 				id_end = body.index('\r\n', id_start)
 				id = body[id_start:id_end].strip()
@@ -367,7 +367,7 @@ def messagedata_from_msnp(sender: User, sender_pop_id: Optional[str], data: byte
 					text = "(Unsupported MSNP Content-Type)"
 			elif content_type.startswith('text/plain'):
 				type = MessageType.Chat
-				text = body.decode('utf-8')
+				text = data.decode('utf-8')
 			else:
 				type = MessageType.Chat
 				text = "(Unsupported MSNP Content-Type)"

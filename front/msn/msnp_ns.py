@@ -148,13 +148,15 @@ class MSNPCtrlNS(MSNPCtrl):
 				return
 			if stage == 'S':
 				#>>> USR trid MD5 I md5_hash
+				token = None # type: Optional[str]
 				md5_hash = args[0]
 				usr_email = self.usr_email
 				assert usr_email is not None
 				uuid = backend.user_service.msn_login_md5(usr_email, md5_hash)
 				if uuid is not None:
 					self.bs = backend.login(uuid, self.client, BackendEventHandler(self), option = LoginOption.BootOthers)
-				self._util_usr_final(trid, None, None)
+					token = backend.auth_service.create_token('nb/login', uuid, lifetime = 86400)
+				self._util_usr_final(trid, token or '', None)
 				return
 		
 		if authtype in ('TWN', 'SSO'):
@@ -202,7 +204,7 @@ class MSNPCtrlNS(MSNPCtrl):
 						if 2 <= len(args) <= 3:
 							machineguid = (args[2] if len(args) >= 3 else args[1])
 					
-						if machineguid is not None and not re.match(r'^\{[A-Fa-f0-9]{8,8}-([A-Fa-f0-9]{4,4}-){3,3}[A-Fa-f0-9]{12,12}\}', machineguid):
+						if machineguid is not None and not re.match(r'^\{?[A-Fa-f0-9]{8,8}-([A-Fa-f0-9]{4,4}-){3,3}[A-Fa-f0-9]{12,12}\}?', machineguid):
 							self.send_reply(Err.AuthFail, trid)
 							self.close(hard = True)
 							return
@@ -213,7 +215,7 @@ class MSNPCtrlNS(MSNPCtrl):
 							bses_self = backend.util_get_sessions_by_user(user)
 							for bs_self in bses_self:
 								pop_id = bs_self.front_data.get('msn_pop_id')
-								if pop_id is not None and pop_id.lower() == machineguid.lower()[1:-1]:
+								if pop_id is not None and pop_id.lower() == machineguid.lower().replace('{', '').replace('}', ''):
 									option = LoginOption.BootOthers
 									break
 								if pop_id is None:
@@ -230,14 +232,14 @@ class MSNPCtrlNS(MSNPCtrl):
 					self.bs = bs
 					bs.front_data['msn'] = True
 					if dialect >= 16 and machineguid is not None:
-						bs.front_data['msn_pop_id'] = machineguid[1:-1].lower()
+						bs.front_data['msn_pop_id'] = machineguid.lower().replace('{', '').replace('}', '')
 					self._util_usr_final(trid, token, machineguid)
 				return
 		
 		self.send_reply(Err.AuthFail, trid)
 		self.close(hard = True)
 	
-	def _util_usr_final(self, trid: str, token: Optional[str], machineguid: Optional[str]) -> None:
+	def _util_usr_final(self, trid: str, token: str, machineguid: Optional[str]) -> None:
 		bs = self.bs
 		
 		if bs is None:
@@ -245,8 +247,7 @@ class MSNPCtrlNS(MSNPCtrl):
 			self.close(hard = True)
 			return
 		
-		if token:
-			self.backend.util_set_sess_token(bs, token)
+		self.backend.util_set_sess_token(bs, token)
 		
 		dialect = self.dialect
 		
@@ -350,7 +351,7 @@ class MSNPCtrlNS(MSNPCtrl):
 						self.send_reply('LST', trid, lst.name, ser, 0, 0)
 				self.send_reply('GTC', trid, ser, settings.get('GTC', 'A'))
 				self.send_reply('BLP', trid, ser, settings.get('BLP', 'AL'))
-			elif dialect < 8:
+			elif dialect == 7:
 				self.send_reply('SYN', trid, ser)
 				num_groups = len(detail._groups_by_id.values()) + 1
 				self.send_reply('LSG', trid, ser, 1, num_groups, '0', "Other Contacts", 0)
@@ -1219,10 +1220,10 @@ class MSNPCtrlNS(MSNPCtrl):
 				pop_id_other = ctc_sess.front_data.get('msn_pop_id')
 				if pop_id_other:
 					if to[2] is not None:
-						if pop_id_other.lower() != to[2][1:-1].lower():
+						if pop_id_other.lower() != to[2].lower().replace('{', '').replace('}', ''):
 							continue
 						else:
-							pop_id_other = to[2][1:-1]
+							pop_id_other = to[2].replace('{', '').replace('}', '')
 				ctc_sess.evt.msn_on_put_sent(data, user, pop_id_sender = from_email[2], pop_id = pop_id_other)
 		
 		self.send_reply('PUT', trid, 'OK', b'')
@@ -1518,9 +1519,12 @@ class BackendEventHandler(event.BackendEventHandler):
 		bs = ctrl.bs
 		assert bs is not None
 		
+		if ctrl.dialect < 13:
+			return
+		
 		if pop_id is not None and 'msn_pop_id' in bs.front_data:
 			pop_id_self = bs.front_data.get('msn_pop_id') or ''
-			if pop_id[1:-1].lower() != pop_id_self.lower(): return
+			if pop_id.lower().replace('{', '').replace('}', '') != pop_id_self.lower(): return
 		
 		if pop_id_sender is not None and pop_id is not None and ctrl.dialect >= 16:
 			email = '{};{}'.format(sender.email, '{' + pop_id_sender + '}')
@@ -1545,6 +1549,9 @@ class BackendEventHandler(event.BackendEventHandler):
 		bs = ctrl.bs
 		assert bs is not None
 		data = b''
+		
+		if ctrl.dialect < 18:
+			return
 		
 		message = Parser().parsestr(payload.decode('utf-8'))
 		del message['To']
