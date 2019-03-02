@@ -3,7 +3,6 @@ from datetime import datetime
 
 from util import misc, hash
 from core.db import Session, User, ABStore, ABMetadata
-from front.msn.misc import cid_format
 
 def main(email: str, *, oldmsn: bool = False, yahoo: bool = False) -> None:
 	with Session() as sess:

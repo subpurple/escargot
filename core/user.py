@@ -379,8 +379,8 @@ class UserService:
 	#	with Session() as sess:
 	#		dbuser = sess.query(DBUser).filter(DBUser.uuid == uuid).one_or_none()
 	#		if dbuser is not None:
-	#			ticket, ticket_sig = self.msn_build_circleticket(uuid, cid)
-	#			dbuser.set_front_data('msn', 'circleticket', [ticket, ticket_sig])
+	#			tik = self.msn_build_circleticket(uuid, cid)
+	#			dbuser.set_front_data('msn', 'circleticket', tik)
 	#			sess.add(dbuser)
 	#
 	#def msn_build_circleticket(self, uuid: str, cid: str) -> Optional[Tuple[str, str]]:
@@ -396,13 +396,20 @@ class UserService:
 	#	# - SHA-1 hash ticket XML (judging from the fact that `CircleTicket` is used in `USR SHA`, and MS seems to have a history of favouring SHA-1)
 	#	# - Signatures from samples were 256 bytes long, or 2048 bits long, possibly leading to RSA-2048
 	#	# - In that case, sign SHA-1 hash with RSA-2048
-	#	return *misc.sign_with_new_key_and_b64(ticketxml)
+	#	return misc.sign_with_new_key_and_b64(ticketxml)
 	#
-	#def msn_get_circleticket(self, uuid: str) -> Optional[List[str]]:
+	#def msn_get_circleticket(self, uuid: str) -> Optional[Tuple[str, str]]:
 	#	with Session() as sess:
 	#		dbuser = sess.query(DBUser).filter(DBUser.uuid == uuid).one_or_none()
 	#		if dbuser is None: return None
-	#		return dbuser.get_front_data('msn', 'circleticket')
+	#		tik = dbuser.get_front_data('msn', 'circleticket')
+	#		if tik is None:
+	#			from front.msn.misc import cid_format
+	#			cid = cid_format(uuid, decimal = True)
+	#			tik = self.msn_build_circleticket(uuid, cid)
+	#			dbuser.set_front_data('msn', 'circleticket', tik)
+	#			sess.add(dbuser)
+	#	return tik
 	
 	def msn_get_oim_batch(self, to_member_name: str) -> List[OIMMetadata]:
 		with Session() as sess:

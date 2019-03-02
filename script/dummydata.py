@@ -8,7 +8,6 @@ from core.models import Lst, NetworkID
 from core.db import Base, Session, User, UserGroup, UserContact, ABStore, ABStoreContact, ABMetadata, OIM, YahooOIM, engine
 
 from script.user import set_passwords
-from front.msn.misc import cid_format
 
 usercontacts_by_uuid_by_uuid = {} # type: Dict[str, Dict[str, UserContact]]
 user_groups_by_uuid_by_uuid = {} # type: Dict[str, Dict[str, UserGroup]]
@@ -71,7 +70,7 @@ def main() -> None:
 		sess.query(ABMetadata).delete()
 		sess.query(ABStore).delete()
 		sess.query(ABStoreContact).delete()
-		#sess.query(ABStoreContactNetworkInfo).delete()
+		sess.query(ABStoreContactNetworkInfo).delete()
 		#sess.query(CircleStore).delete()
 		#sess.query(CircleMembership).delete()
 		sess.query(OIM).delete()
