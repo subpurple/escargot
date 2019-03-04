@@ -23,6 +23,9 @@ def main(*, devmode: bool = False) -> None:
 	if settings.ENABLE_FRONT_IRC:
 		import front.irc
 		front.irc.register(loop, backend)
+	if settings.ENABLE_FRONT_API:
+		import front.api
+		front.api.register(http_app)
 	if settings.ENABLE_FRONT_BOT:
 		import front.bot
 		front.bot.register(loop, backend)

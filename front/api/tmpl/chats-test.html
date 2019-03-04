@@ -1,0 +1,37 @@
+<html>
+<body>
+<h1>IRC Chats</h1>
+<div id="chats">
+</div>
+<script>
+	var xhr = new XMLHttpRequest();
+	
+	xhr.open('GET', '/api/ircChats', true);
+	xhr.onreadystatechange = function() {
+		if (this.readyState == 4 && this.status == 200) {
+			chats_div = document.getElementById('chats');
+			
+			innerHtml = '';
+			response = JSON.parse(this.responseText);
+			for (channel in response) {
+				var properties = response[channel];
+				
+				users = properties['users'];
+				innerHtml += '<h3>' + channel + '</h3>';
+				innerHtml += '<br/>';
+				innerHtml += 'Total users: ' + users.length.toString();
+				innerHtml += '<br/><br/>';
+				innerHtml += 'Users:';
+				innerHtml += '<ul>';
+				for (i in users) {
+					innerHtml += '<li>' + users[i] + '</li>';
+				}
+				innerHtml += '</ul>';
+			}
+			chats_div.innerHTML = innerHtml;
+		}
+	}
+	xhr.send();
+</script>
+</body>
+</html>

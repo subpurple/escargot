@@ -152,6 +152,9 @@ class Backend:
 	def chat_get(self, scope: str, id: str) -> Optional['Chat']:
 		return self._chats_by_id.get((scope, id))
 	
+	def get_chats_by_scope(self, scope: str) -> Iterable['Chat']:
+		return [chat for (scope_other, _), chat in self._chats_by_id.items() if scope_other is scope]
+	
 	def _sync_contact_statuses(self, user: User) -> None:
 		detail = user.detail
 		if detail is None: return
