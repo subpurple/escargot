@@ -5,7 +5,7 @@ import time
 
 from util import misc
 from core.models import Lst, NetworkID
-from core.db import Base, Session, User, UserGroup, UserContact, ABStore, ABStoreContact, ABMetadata, OIM, YahooOIM, engine
+from core.db import Base, Session, User, UserGroup, UserContact, ABStore, ABStoreContact, ABStoreContactNetworkInfo, ABMetadata, OIM, YahooOIM, engine
 
 from script.user import set_passwords
 
