@@ -282,7 +282,7 @@ async def handle_abservice(req: web.Request) -> web.Response:
 			is_messenger_user = _find_element(contact, 'isMessengerUser')
 			ctc_ab = models.ABContact(
 				('Regular' if type == 'LivePending' else type), util.misc.gen_uuid(), email, email, groups,
-				member_uuid = contact_uuid, is_messenger_user = is_messenger_user, annotations = {name: value for name, value in annotations.items() if name.startswith('AB.') or name.startswith('Live.')},
+				member_uuid = contact_uuid, is_messenger_user = is_messenger_user, annotations = {name: value for name, value in annotations_dict.items() if name.startswith('AB.') or name.startswith('Live.')},
 			)
 			await backend.user_service.mark_ab_modified_async(ab_id, { 'contacts': [ctc_ab] }, user)
 			
