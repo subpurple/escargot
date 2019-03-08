@@ -570,7 +570,6 @@
 		</PartnerFeeds>
 		<PremiumAV Visibility="1" />
 		<PSTNOut Hidden="0" />
-		<PublicFederated><YahooNetwork Enabled="true" OfflineIM="true" /></PublicFederated>
 		<ReportAbuse>
 			<ReportAbuseSID />
 			<ReportAbuseURL>http://support.live.com/default.aspx?productkey=wlmessengerabuse</ReportAbuseURL>

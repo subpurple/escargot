@@ -469,7 +469,7 @@ async def handle_abservice(req: web.Request) -> web.Response:
 									if value == '':
 										gtc = GTCAnnotation.Empty
 									else:
-										gtc = GTCAnnotation(value)
+										gtc = GTCAnnotation(int(value))
 								except ValueError:
 									return web.HTTPInternalServerError()
 								
@@ -480,7 +480,7 @@ async def handle_abservice(req: web.Request) -> web.Response:
 									if value == '':
 										blp = BLPAnnotation.Empty
 									else:
-										blp = BLPAnnotation(value)
+										blp = BLPAnnotation(int(value))
 								except ValueError:
 									return web.HTTPInternalServerError()
 								
@@ -502,10 +502,11 @@ async def handle_abservice(req: web.Request) -> web.Response:
 								if value == '':
 									del ctc_ab.annotations[name]
 					# TODO: Contact details
-				if ctc_ab is not None and _find_element(contact_info, 'contactType') != 'Me':
-					contacts_to_update.append(ctc_ab)
-				else:
-					return web.HTTPInternalServerError()
+				if _find_element(contact_info, 'contactType') != 'Me':
+					if ctc_ab is not None:
+						contacts_to_update.append(ctc_ab)
+					else:
+						return web.HTTPInternalServerError()
 			bs.me_ab_contact_edit(contacts_to_update, ab_id)
 			
 			return render(req, 'msn:abservice/ABContactUpdateResponse.xml', {

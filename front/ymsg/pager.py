@@ -1082,6 +1082,7 @@ class BackendEventHandler(event.BackendEventHandler):
 		if on_contact_add: return
 		
 		if update_status:
+			if not ctc.lists & Lst.FL: return
 			if ctc.status.is_offlineish() and not old_substatus.is_offlineish():
 				service = YMSGService.LogOff
 			elif old_substatus.is_offlineish() and not ctc.status.is_offlineish():

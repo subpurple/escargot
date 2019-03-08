@@ -141,9 +141,6 @@
 		</MsnTodayConfig>
 		<OneCare Enabled="0"/>
 		<PSTNOut Hidden="1"/>
-		<PublicFederated>
-			<YahooNetwork Enabled="true" OfflineIM="true"/>
-		</PublicFederated>
 		<ReportAbuse>
 			<ReportAbuseSID/>
 			<ReportAbuseURL>https://escargot.log1p.xyz/report-abuse</ReportAbuseURL>

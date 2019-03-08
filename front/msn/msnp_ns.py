@@ -318,7 +318,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		
 		if dialect >= 13:
 			msg2 = encode_payload(PAYLOAD_MSG_2,
-				md = gen_mail_data(user, self.backend),
+				ct = 'text/x-msmsgsinitialmdatanotification', md = gen_mail_data(user, self.backend),
 			)
 			self.send_reply('MSG', 'Hotmail', 'Hotmail', msg2)
 	
@@ -1507,12 +1507,12 @@ class BackendEventHandler(event.BackendEventHandler):
 	
 	def msn_on_oim_sent(self, oim_uuid: str) -> None:
 		assert self.ctrl.bs is not None
-		self.ctrl.send_reply('MSG', 'Hotmail', 'Hotmail', encode_payload(PAYLOAD_MSG_3,
-			md = gen_mail_data(self.ctrl.bs.user, self.ctrl.backend, oim_uuid = oim_uuid, just_sent = True, e_node = False, q_node = False)
+		self.ctrl.send_reply('MSG', 'Hotmail', 'Hotmail', encode_payload(PAYLOAD_MSG_2,
+			ct = 'text/x-msmsgsoimnotification', md = gen_mail_data(self.ctrl.bs.user, self.ctrl.backend, oim_uuid = oim_uuid, just_sent = True, e_node = False, q_node = False)
 		))
 	
 	def msn_on_oim_deletion(self) -> None:
-		self.ctrl.send_reply('MSG', 'Hotmail', 'Hotmail', encode_payload(PAYLOAD_MSG_4))
+		self.ctrl.send_reply('MSG', 'Hotmail', 'Hotmail', encode_payload(PAYLOAD_MSG_3))
 	
 	def msn_on_uun_sent(self, sender: User, type: int, data: Optional[bytes], *, pop_id_sender: Optional[str] = None, pop_id: Optional[str] = None) -> None:
 		ctrl = self.ctrl
@@ -1539,7 +1539,7 @@ class BackendEventHandler(event.BackendEventHandler):
 		user = bs.user
 		
 		id_bits = _uuid_to_high_low(user.uuid)
-		self.ctrl.send_reply('NOT', encode_payload(PAYLOAD_MSG_6,
+		self.ctrl.send_reply('NOT', encode_payload(PAYLOAD_MSG_4,
 			member_low = binascii.hexlify(struct.pack('!I', id_bits[1])).decode('utf-8'), member_high = binascii.hexlify(struct.pack('!I', id_bits[0])).decode('utf-8'), email = user.email,
 			cid = owner_cid, last_modified = ab_last_modified,
 		))
@@ -1644,7 +1644,7 @@ LoginTime: {time}
 '''
 
 # MSNP3+
-PAYLOAD_MSG_1_1 = '''EmailEnabled: 1
+PAYLOAD_MSG_1_1 = '''EmailEnabled: 0
 MemberIdHigh: {high}
 MemberIdLow: {low}
 lang_preference: 1033
@@ -1675,22 +1675,14 @@ PAYLOAD_MSG_1_3 = '''ABCHMigrated: 1
 PAYLOAD_MSG_1_4 = '''MPOPEnabled: {mpop}
 '''
 
+# OIMs
 PAYLOAD_MSG_2 = '''MIME-Version: 1.0
-Content-Type: text/x-msmsgsinitialmdatanotification; charset=UTF-8
+Content-Type: {ct}; charset=UTF-8
 
 Mail-Data: {md}
-Inbox-URL: /cgi-bin/HoTMaiL
-Folders-URL: /cgi-bin/folders
-Post-URL: http://www.hotmail.com
 '''
 
 PAYLOAD_MSG_3 = '''MIME-Version: 1.0
-Content-Type: text/x-msmsgsoimnotification; charset=UTF-8
-
-Mail-Data: {md}
-'''
-
-PAYLOAD_MSG_4 = '''MIME-Version: 1.0
 Content-Type: text/x-msmsgsactivemailnotification; charset=UTF-8
 
 Src-Folder: .!!OIM
@@ -1698,22 +1690,7 @@ Dest-Folder: .!!trAsH
 Message-Delta: 1
 '''
 
-PAYLOAD_MSG_5 = '''Routing: 1.0
-To: {email_handle_to}
-From: {email_handle_from}
-
-Reliability: 1.0
-Stream: 0
-Segment: 0
-
-Publication: 1.0
-Uri: /circle
-Content-Type: application/circles+xml
-Content-Length: {pl_n}
-
-{pl}'''
-
-PAYLOAD_MSG_6 = '''<NOTIFICATION id="0" siteid="45705" siteurl="http://contacts.msn.com">
+PAYLOAD_MSG_4 = '''<NOTIFICATION id="0" siteid="45705" siteurl="http://contacts.msn.com">
 	<TO pid="0x{member_low}:0x{member_high}" name="{email}">
 		<VIA agent="messenger" />
 	</TO>
@@ -1730,6 +1707,21 @@ PAYLOAD_MSG_6 = '''<NOTIFICATION id="0" siteid="45705" siteurl="http://contacts.
 		</BODY>
 	</MSG>
 </NOTIFICATION>'''
+
+#PAYLOAD_MSG_4 = '''Routing: 1.0
+#To: {email_handle_to}
+#From: {email_handle_from}
+#
+#Reliability: 1.0
+#Stream: 0
+#Segment: 0
+#
+#Publication: 1.0
+#Uri: /circle
+#Content-Type: application/circles+xml
+#Content-Length: {pl_n}
+#
+#{pl}'''
 
 SHIELDS = '''<?xml version="1.0" encoding="utf-8" ?>
 <config>
