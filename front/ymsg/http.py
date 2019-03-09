@@ -27,11 +27,12 @@ def register(app: web.Application) -> None:
 	app.router.add_get('/ycontent/', handle_insider_ycontent)
 	
 	# Yahoo! Chat/Ads
-	app.router.add_route('*', '/c/msg/banad.html', handle_chat_banad)
+	app.router.add_route('*', '/us.yimg.com/i/msgr/chat/conf-banner.html', handle_chat_banad)
 	app.router.add_route('*', '/c/msg/tabs.html', handle_chat_tabad)
 	app.router.add_route('*', '/c/msg/chat.html', handle_chat_notice)
 	app.router.add_route('*', '/c/msg/alerts.html', handle_chat_alertad)
-	app.router.add_static('/c/msg/img', YAHOO_TMPL_DIR + '/c/msg/img')
+	app.router.add_route('*', '/etc/yahoo-placeholder', handle_placeholder)
+	app.router.add_static('/etc/img', YAHOO_TMPL_DIR + '/placeholders/img')
 	
 	# Yahoo!'s redirector to cookie-based services
 	#app.router.add_route('*', '/config/reset_cookies', handle_cookies_redirect)
@@ -82,14 +83,12 @@ async def handle_insider(req: web.Request) -> web.Response:
 async def handle_chat_banad(req: web.Request) -> web.Response:
 	query = req.query
 	
-	return render(req, 'ymsg:c/msg/banad.html', {
-		'spaceid': (query.get('spaceid') or 0),
-	})
+	return render(req, 'ymsg:placeholders/banad.html')
 
 async def handle_chat_tabad(req: web.Request) -> web.Response:
 	query = req.query
 	
-	return render(req, 'ymsg:c/msg/adsmall.html', {
+	return render(req, 'ymsg:placeholders/adsmall.html', {
 		'adtitle': 'banner ad',
 		'spaceid': (query.get('spaceid') or 0),
 	})
@@ -97,13 +96,16 @@ async def handle_chat_tabad(req: web.Request) -> web.Response:
 async def handle_chat_alertad(req: web.Request) -> web.Response:
 	query = req.query
 	
-	return render(req, 'ymsg:c/msg/adsmall.html', {
+	return render(req, 'ymsg:placeholders/adsmall.html', {
 		'adtitle': 'alert ad usmsgr',
 		'spaceid': (query.get('spaceid') or 0),
 	})
 
+async def handle_placeholder(req: web.Request) -> web.Response:
+	return render(req, 'ymsg:placeholders/generic.html')
+
 async def handle_chat_notice(req: web.Request) -> web.Response:
-	return render(req, 'ymsg:c/msg/chatpane.html')
+	return render(req, 'ymsg:placeholders/chatpane.html')
 
 async def handle_rd_yahoo(req: web.Request) -> web.Response:
 	return web.HTTPFound(req.query_string.replace(' ', '+'))
