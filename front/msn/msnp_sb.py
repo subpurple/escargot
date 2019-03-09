@@ -68,7 +68,7 @@ class MSNPCtrlSB(MSNPCtrl):
 		
 		bs, dialect = data
 		bs_pop_id = bs.front_data.get('msn_pop_id') or ''
-		if bs.user.email != email or (dialect >= 16 and pop_id is not None and bs_pop_id.lower() != pop_id[1:-1].lower()):
+		if bs.user.email != email or (dialect >= 16 and pop_id is not None and bs_pop_id.lower() != pop_id.replace('{', '').replace('}', '').lower()):
 			self.send_reply(Err.AuthFail, trid)
 			self.close(hard = True)
 			return
@@ -77,7 +77,7 @@ class MSNPCtrlSB(MSNPCtrl):
 		
 		try:
 			if pop_id is not None:
-				pop_id = pop_id[1:-1]
+				pop_id = pop_id.replace('{', '').replace('}', '')
 			cs = chat.join('msn', bs, ChatEventHandler(self), pop_id = pop_id)
 		except Exception as ex:
 			self.send_reply(Err.GetCodeForException(ex, self.dialect), trid)
@@ -112,7 +112,7 @@ class MSNPCtrlSB(MSNPCtrl):
 		
 		(bs, dialect, chat) = data
 		bs_pop_id = bs.front_data.get('msn_pop_id') or ''
-		if bs.user.email != email or (dialect >= 16 and pop_id is not None and bs_pop_id.lower() != pop_id[1:-1].lower()):
+		if bs.user.email != email or (dialect >= 16 and pop_id is not None and bs_pop_id.lower() != pop_id.replace('{', '').replace('}', '').lower()):
 			self.send_reply(Err.AuthFail, trid)
 			self.close(hard = True)
 			return
@@ -123,7 +123,7 @@ class MSNPCtrlSB(MSNPCtrl):
 		
 		try:
 			if pop_id is not None:
-				pop_id = pop_id[1:-1]
+				pop_id = pop_id.replace('{', '').replace('}', '')
 			cs = chat.join('msn', bs, ChatEventHandler(self), pop_id = pop_id)
 		except Exception as ex:
 			self.send_reply(Err.GetCodeForException(ex, dialect), trid)
