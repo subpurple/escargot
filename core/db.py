@@ -102,10 +102,45 @@ class ABStoreContact(Base):
 	date_last_modified = sa.Column(sa.DateTime, nullable = True, default = datetime.utcnow)
 	type = sa.Column(sa.String, nullable = False)
 	email = sa.Column(sa.String, nullable = False)
+	birthdate = sa.Column(sa.DateTime, nullable = True)
+	anniversary = sa.Column(sa.DateTime, nullable = True)
+	notes = sa.Column(sa.String, nullable = True)
 	name = sa.Column(sa.String, nullable = True)
+	first_name = sa.Column(sa.String, nullable = True)
+	middle_name = sa.Column(sa.String, nullable = True)
+	last_name = sa.Column(sa.String, nullable = True)
+	primary_email_type = sa.Column(sa.String, nullable = True)
+	personal_email = sa.Column(sa.String, nullable = True)
+	work_email = sa.Column(sa.String, nullable = True)
+	im_email = sa.Column(sa.String, nullable = True)
+	other_email = sa.Column(sa.String, nullable = True)
+	home_phone = sa.Column(sa.String, nullable = True)
+	work_phone = sa.Column(sa.String, nullable = True)
+	fax_phone = sa.Column(sa.String, nullable = True)
+	pager_phone = sa.Column(sa.String, nullable = True)
+	mobile_phone = sa.Column(sa.String, nullable = True)
+	other_phone = sa.Column(sa.String, nullable = True)
+	personal_website = sa.Column(sa.String, nullable = True)
+	business_website = sa.Column(sa.String, nullable = True)
 	groups = sa.Column(JSONType, nullable = False)
 	is_messenger_user = sa.Column(sa.Boolean, nullable = False, default = False)
-	annotations = sa.Column(JSONType, nullable = False)
+	# annotations = { "Annotation.Name": "Value", ... }
+	annotations = sa.Column(JSONType, nullable = False, default = {})
+
+class ABStoreContactLocation(Base):
+	__tablename__ = 't_ab_store_contact_location'
+	
+	id = sa.Column(sa.Integer, nullable = False, primary_key = True)
+	contact_uuid = sa.Column(sa.String, nullable = False)
+	ab_id = sa.Column(sa.String, nullable = False)
+	ab_owner_uuid = sa.Column(sa.String, nullable = True)
+	location_type = sa.Column(sa.String, nullable = False)
+	name = sa.Column(sa.String, nullable = True)
+	street = sa.Column(sa.String, nullable = True)
+	city = sa.Column(sa.String, nullable = True)
+	state = sa.Column(sa.String, nullable = True)
+	country = sa.Column(sa.String, nullable = True)
+	zip_code = sa.Column(sa.String, nullable = True)
 
 class ABStoreContactNetworkInfo(Base):
 	__tablename__ = 't_ab_store_contact_networkinfo'

@@ -5,7 +5,7 @@ import time
 
 from util import misc
 from core.models import Lst, NetworkID
-from core.db import Base, Session, User, UserGroup, UserContact, ABStore, ABStoreContact, ABStoreContactNetworkInfo, ABMetadata, OIM, YahooOIM, engine
+from core.db import Base, Session, User, UserGroup, UserContact, ABStore, ABStoreContact, ABStoreContactLocation, ABStoreContactNetworkInfo, ABMetadata, OIM, YahooOIM, engine
 
 from script.user import set_passwords
 
@@ -70,6 +70,7 @@ def main() -> None:
 		sess.query(ABMetadata).delete()
 		sess.query(ABStore).delete()
 		sess.query(ABStoreContact).delete()
+		sess.query(ABStoreContactLocation).delete()
 		sess.query(ABStoreContactNetworkInfo).delete()
 		#sess.query(CircleStore).delete()
 		#sess.query(CircleMembership).delete()

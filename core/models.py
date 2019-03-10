@@ -99,30 +99,90 @@ class ContactGroupEntry:
 		self.uuid = uuid
 
 class ABContact:
-	__slots__ = ('type', 'uuid', 'email', 'member_uuid', 'date_last_modified', 'name', 'groups', 'is_messenger_user', 'networkinfos', 'annotations')
+	__slots__ = ('type', 'uuid', 'email', 'birthdate', 'anniversary', 'member_uuid', 'date_last_modified', 'notes', 'name', 'first_name', 'middle_name', 'last_name', 'primary_email_type', 'personal_email', 'work_email', 'im_email', 'other_email', 'home_phone', 'work_phone', 'fax_phone', 'pager_phone', 'mobile_phone', 'other_phone', 'personal_website', 'business_website', 'locations', 'groups', 'is_messenger_user', 'networkinfos', 'annotations')
 	
 	type: str
 	uuid: str
 	email: str
+	birthdate: Optional[datetime]
+	anniversary: Optional[datetime]
 	member_uuid: Optional[str]
 	date_last_modified: datetime
+	notes: Optional[str]
 	name: Optional[str]
+	first_name: Optional[str]
+	middle_name: Optional[str]
+	last_name: Optional[str]
+	primary_email_type: Optional[str]
+	personal_email: Optional[str]
+	work_email: Optional[str]
+	im_email: Optional[str]
+	other_email: Optional[str]
+	home_phone: Optional[str]
+	work_phone: Optional[str]
+	fax_phone: Optional[str]
+	pager_phone: Optional[str]
+	mobile_phone: Optional[str]
+	other_phone: Optional[str]
+	personal_website: Optional[str]
+	business_website: Optional[str]
+	locations: Dict[str, 'ABContactLocation']
 	groups: Set[str]
 	is_messenger_user: bool
 	networkinfos: Dict['NetworkID', 'NetworkInfo']
 	annotations: Dict[str, Any]
 	
-	def __init__(self, type: str, uuid: str, email: str, name: Optional[str], groups: Set[str], *, networkinfos: Optional[Dict['NetworkID', 'NetworkInfo']] = None, member_uuid: Optional[str] = None, is_messenger_user: Optional[bool] = None, annotations: Optional[Dict[str, Any]] = None, date_last_modified: Optional[datetime] = None) -> None:
+	def __init__(self, type: str, uuid: str, email: str, name: Optional[str], groups: Set[str], *, birthdate: Optional[datetime] = None, anniversary: Optional[datetime] = None, notes: Optional[str] = None, first_name: Optional[str] = None, middle_name: Optional[str] = None, last_name: Optional[str] = None, primary_email_type: Optional[str] = None, personal_email: Optional[str] = None, work_email: Optional[str] = None, im_email: Optional[str] = None, other_email: Optional[str] = None, home_phone: Optional[str] = None, work_phone: Optional[str] = None, fax_phone: Optional[str] = None, pager_phone: Optional[str] = None, mobile_phone: Optional[str] = None, other_phone: Optional[str] = None, personal_website: Optional[str] = None, business_website: Optional[str] = None, locations: Optional[Dict[str, 'ABContactLocation']] = None, networkinfos: Optional[Dict['NetworkID', 'NetworkInfo']] = None, member_uuid: Optional[str] = None, is_messenger_user: Optional[bool] = None, annotations: Optional[Dict[str, Any]] = None, date_last_modified: Optional[datetime] = None) -> None:
 		self.type = type
 		self.uuid = uuid
 		self.email = email
+		self.birthdate = birthdate
+		self.anniversary = anniversary
 		self.member_uuid = member_uuid
 		self.date_last_modified = _default_if_none(date_last_modified, datetime.utcnow())
+		self.notes = notes
 		self.name = name
+		self.first_name = first_name
+		self.middle_name = middle_name
+		self.last_name = last_name
+		self.primary_email_type = primary_email_type
+		self.personal_email = personal_email
+		self.work_email = work_email
+		self.im_email = im_email
+		self.other_email = other_email
+		self.home_phone = home_phone
+		self.work_phone = work_phone
+		self.fax_phone = fax_phone
+		self.pager_phone = pager_phone
+		self.mobile_phone = mobile_phone
+		self.other_phone = other_phone
+		self.personal_website = personal_website
+		self.business_website = business_website
+		self.locations = _default_if_none(locations, {})
 		self.groups = groups
 		self.is_messenger_user = _default_if_none(is_messenger_user, False)
 		self.networkinfos = _default_if_none(networkinfos, {})
 		self.annotations = _default_if_none(annotations, {})
+
+class ABContactLocation:
+	__slots__ = ('type', 'name', 'street', 'city', 'state', 'country', 'zip_code')
+	
+	type: str
+	name: Optional[str]
+	street: Optional[str]
+	city: Optional[str]
+	state: Optional[str]
+	country: Optional[str]
+	zip_code: Optional[str]
+	
+	def __init__(self, type: str, *, name: Optional[str] = None, street: Optional[str] = None, city: Optional[str] = None, state: Optional[str] = None, country: Optional[str] = None, zip_code: Optional[str] = None) -> None:
+		self.type = type
+		self.name = name
+		self.street = street
+		self.city = city
+		self.state = state
+		self.country = country
+		self.zip_code = zip_code
 
 class NetworkInfo:
 	__slots__ = ('domain_id', 'source_id', 'domain_tag', 'display_name', 'relationship_info', 'invite_message', 'date_created', 'date_last_modified')

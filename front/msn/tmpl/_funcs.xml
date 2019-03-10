@@ -1,6 +1,80 @@
 {%- macro contact_entry(ab_id, contact, detail) -%}
 	<contactId>{{ contact.uuid }}</contactId>
 	<contactInfo>
+		{%- if contact.personal_email or contact.work_phone or contact.im_email or contact.other_email -%}
+			<emails>
+				{%- if contact.work_email -%}
+					{{ email_entry('ContactEmailBusiness', contact.work_email) }}
+				{%- endif -%}
+				{%- if contact.im_email -%}
+					{{ email_entry('ContactEmailMessenger', contact.im_email) }}
+				{%- endif -%}
+				{%- if contact.other_email -%}
+					{{ email_entry('ContactEmailOther', contact.other_email) }}
+				{%- endif -%}
+				{%- if contact.personal_email -%}
+					{{ email_entry('ContactEmailPersonal', contact.personal_email) }}
+				{%- endif -%}
+			</emails>
+		{%- endif -%}
+		{%- if contact.home_phone or contact.work_phone or contact.fax_phone or contact.pager_phone or contact.mobile_phone or contact.other_phone -%}
+			<phones>
+				{%- if contact.work_phone -%}
+					{{ phone_entry('ContactPhoneBusiness', contact.work_phone) }}
+				{%- endif -%}
+				{%- if contact.fax_phone -%}
+					{{ phone_entry('ContactPhoneFax', contact.fax_phone) }}
+				{%- endif -%}
+				{%- if contact.pager_phone -%}
+					{{ phone_entry('ContactPhonePager', contact.pager_phone) }}
+				{%- endif -%}
+				{%- if contact.mobile_phone -%}
+					{{ phone_entry('ContactPhoneMobile', contact.mobile_phone) }}
+				{%- endif -%}
+				{%- if contact.other_phone -%}
+					{{ phone_entry('ContactPhoneOther', contact.other_phone) }}
+				{%- endif -%}
+				{%- if contact.home_phone -%}
+					{{ phone_entry('ContactPhonePersonal', contact.home_phone) }}
+				{%- endif -%}
+			</phones>
+		{%- endif -%}
+		{%- if contact.locations -%}
+			<locations>
+				{%- for location in contact.locations.values() -%}
+					{%- if location.street or location.city or location.state or location.country or location.zip_code -%}
+						<ContactLocation>
+							<contactLocationType>{{ location.type }}</contactLocationType>
+							{%- if location.street -%}
+								<street>{{ location.street }}</street>
+							{%- endif -%}
+							{%- if location.city -%}
+								<city>{{ location.city }}</city>
+							{%- endif -%}
+							{%- if location.state -%}
+								<state>{{ location.state }}</state>
+							{%- endif -%}
+							{%- if location.country -%}
+								<country>{{ location.country }}</country>
+							{%- endif -%}
+							{%- if location.zip_code -%}
+								<postalCode>{{ location.zip_code }}</postalCode>
+							{%- endif -%}
+						</ContactLocation>
+					{%- endif -%}
+				{%- endfor -%}
+			</locations>
+		{%- endif -%}
+		{%- if contact.personal_website or contact.business_website -%}
+			<webSites>
+				{%- if contact.business_website -%}
+					{{ website_entry('ContactWebSiteBusiness', contact.business_website) }}
+				{%- endif -%}
+				{%- if contact.personal_website -%}
+					{{ website_entry('ContactWebSitePersonal', contact.personal_website) }}
+				{%- endif -%}
+			</webSites>
+		{%- endif -%}
 		{%- if contact.annotations -%}
 			<annotations>
 			{%- for name, value in contact.annotations.items() -%}
@@ -13,6 +87,15 @@
 		{%- endif -%}
 		<contactType>{{ contact.type }}</contactType>
 		<quickName>{{ contact.name or contact.email }}</quickName>
+		{%- if contact.first_name -%}
+			<firstName>{{ contact.first_name }}</firstName>
+		{%- endif -%}
+		{%- if contact.middle_name -%}
+			<MiddleName>{{ contact.middle_name }}</MiddleName>
+		{%- endif -%}
+		{%- if contact.last_name -%}
+			<lastName>{{ contact.last_name }}</lastName>
+		{%- endif -%}
 		<passportName>{{ contact.email }}</passportName>
 		<IsPassportNameHidden>false</IsPassportNameHidden>
 		<displayName>{{ contact.name or contact.email }}</displayName>
@@ -36,8 +119,14 @@
 		<isSmtp>false</isSmtp>
 		<hasSpace>false</hasSpace>
 		<spotWatchState>NoDevice</spotWatchState>
-		<birthdate>0001-01-01T00:00:00</birthdate>
-		<primaryEmailType>ContactEmailPersonal</primaryEmailType>
+		<birthdate>{%- if contact.birthdate -%}{{ date_format(contact.birthdate) }}{%- else -%}0001-01-01T00:00:00{%- endif -%}</birthdate>
+		{%- if contact.anniversary -%}
+			<Anniversary>{{ contact.anniversary.strftime('%Y/%m/%d') }}</Anniversary>
+		{%- endif -%}
+		{%- if contact.notes -%}
+			<comment>{{ contact.notes }}</comment>
+		{%- endif -%}
+		<primaryEmailType>{%- if contact.primary_email_type -%}{{ contact.primary_email_type }}{%- else -%}ContactEmailPersonal{%- endif -%}</primaryEmailType>
 		<PrimaryLocation>ContactLocationPersonal</PrimaryLocation>
 		<PrimaryPhone>ContactPhonePersonal</PrimaryPhone>
 		<IsPrivate>false</IsPrivate>
@@ -73,6 +162,31 @@
 	<propertiesChanged />
 	<fDeleted>false</fDeleted>
 	<lastChange>{{ date_format(contact.date_last_modified) }}</lastChange>
+{%- endmacro -%}
+
+{%- macro phone_entry(type, phone) -%}
+	<ContactPhone>
+		<contactPhoneType>{{ type }}</contactPhoneType>
+		<number>{{ phone }}</number>
+		<isMessengerEnabled>false</isMessengerEnabled>
+	</ContactPhone>
+{%- endmacro -%}
+
+{%- macro email_entry(type, email) -%}
+	<ContactEmail>
+		<contactEmailType>{{ type }}</contactEmailType>
+		<email>{{ email }}</email>
+		<isMessengerEnabled>false</isMessengerEnabled>
+		<Capability>0</Capability>
+		<MessengerEnabledExternally>false</MessengerEnabledExternally>
+	</ContactEmail>
+{%- endmacro -%}
+
+{%- macro website_entry(type, url) -%}
+	<ContactWebSite>
+		<contactWebSiteType>{{ type }}</contactWebSiteType>
+		<webURL>{{ url }}</webURL>
+	</ContactWebSite>
 {%- endmacro -%}
 
 {%- macro generate_me_entry(ab_id, user_creator, now) -%}

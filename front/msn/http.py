@@ -9,6 +9,7 @@ import secrets
 import base64
 import os
 import time
+from dateutil import parser as iso_parser
 from markupsafe import Markup
 from aiohttp import web
 
@@ -427,34 +428,102 @@ async def handle_abservice(req: web.Request) -> web.Response:
 					contact_uuid = _find_element(contact, 'contactId')
 				if not contact_uuid:
 					return web.HTTPInternalServerError()
-				properties_changed = _find_element(contact, 'propertiesChanged')
-				if not contact_uuid or not properties_changed:
+				if contact_uuid is not user.uuid:
+					ctc_ab = backend.user_service.ab_get_entry_by_uuid(ab_id, contact_uuid, user)
+					if not ctc_ab:
+						return web.HTTPInternalServerError()
+				properties_changed = contact.find('./{*}propertiesChanged')
+				if not properties_changed:
 					return web.HTTPInternalServerError()
 				properties_changed = str(properties_changed).strip().split(' ')
-				for i, contact_property in enumerate(properties_changed):
+				for contact_property in properties_changed:
 					if contact_property not in _CONTACT_PROPERTIES:
 						return web.HTTPInternalServerError()
+				
 				for contact_property in properties_changed:
-					if contact_property == 'DisplayName':
-						ctc_ab = backend.user_service.ab_get_entry_by_uuid(ab_id, contact_uuid, user)
-						if not ctc_ab:
+					if contact_property == 'Anniversary':
+						assert ctc_ab is not None
+						property = _find_element(contact_info, 'Anniversary')
+						# When `Anniversary` node isn't present, lxml returns `-1` instead of None. What gives?
+						try:
+							if property not in (None,-1):
+								property = str(property)
+								property = datetime.strptime(property, '%Y/%m/%d')
+						except:
 							return web.HTTPInternalServerError()
-						property = _find_element(contact, 'displayName')
-						ctc_ab.name = property
-						contacts_to_update.append(ctc_ab)
+					if contact_property == 'ContactBirthDate':
+						assert ctc_ab is not None
+						property = _find_element(contact_info, 'birthdate')
+						try:
+							if property is not None:
+								property = str(property)
+								if property != '0001-01-01T00:00:00':
+									if not property.endswith('Z'):
+										return web.HTTPInternalServerError()
+									property = iso_parser.parse(property)
+						except:
+							return web.HTTPInternalServerError()
+					if contact_property == 'ContactLocation':
+						assert ctc_ab is not None
+						contact_locations = contact_info.findall('.//{*}locations/{*}ContactLocation')
+						for contact_location in contact_locations:
+							if str(_find_element(contact_location, 'contactLocationType')) not in ('ContactLocationPersonal','ContactLocationBusiness'):
+								return web.HTTPInternalServerError()
+							location_properties_changed = _find_element(contact_location, 'Changes')
+							if location_properties_changed is None:
+								return web.HTTPInternalServerError()
+							location_properties_changed = str(location_properties_changed).strip().split(' ')
+							for location_property in location_properties_changed:
+								if location_property not in _CONTACT_LOCATION_PROPERTIES:
+									return web.HTTPInternalServerError()
+							for location_property in location_properties_changed:
+								if location_property == 'Name' and str(_find_element(contact_location, 'contactLocationType')) != 'ContactLocationBusiness':
+									return web.HTTPInternalServerError()
 					if contact_property == 'IsMessengerUser':
-						ctc_ab = backend.user_service.ab_get_entry_by_uuid(ab_id, contact_uuid, user)
-						if not ctc_ab:
-							return web.HTTPInternalServerError()
-						property = _find_element(contact, 'isMessengerUser')
+						assert ctc_ab is not None
+						property = _find_element(contact_info, 'isMessengerUser')
 						if property is None:
 							return web.HTTPInternalServerError()
-						ctc_ab.is_messenger_user = property
-						contacts_to_update.append(ctc_ab)
+					if contact_property == 'ContactEmail':
+						assert ctc_ab is not None
+						contact_emails = contact_info.findall('.//{*}emails/{*}ContactEmail')
+						for contact_email in contact_emails:
+							email_properties_changed = _find_element(contact_email, 'propertiesChanged')
+							if email_properties_changed is None:
+								return web.HTTPInternalServerError()
+							email_properties_changed = str(email_properties_changed).strip().split(' ')
+							for email_property in email_properties_changed:
+								if email_property not in _CONTACT_EMAIL_PROPERTIES:
+									return web.HTTPInternalServerError()
+							if str(_find_element(contact_email, 'contactEmailType')) not in ('ContactEmailPersonal','ContactEmailBusiness','ContactEmailMessenger','ContactEmailOther'):
+								return web.HTTPInternalServerError()
+					if contact_property == 'ContactPrimaryEmailType':
+						assert ctc_ab is not None
+						email_primary_type = str(_find_element(contact_info, 'primaryEmailType'))
+						if email_primary_type not in ('Passport','ContactEmailPersonal','ContactEmailBusiness','ContactEmailOther'):
+							return web.HTTPInternalServerError()
+					if contact_property == 'ContactPhone':
+						assert ctc_ab is not None
+						contact_phones = contact_info.findall('.//{*}phones/{*}ContactPhone')
+						for contact_phone in contact_phones:
+							phone_properties_changed = _find_element(contact_phone, 'propertiesChanged')
+							if phone_properties_changed is None:
+								return web.HTTPInternalServerError()
+							phone_properties_changed = str(phone_properties_changed).strip().split(' ')
+							for phone_property in phone_properties_changed:
+								if phone_property not in _CONTACT_PHONE_PROPERTIES:
+									return web.HTTPInternalServerError()
+							if str(_find_element(contact_phone, 'contactPhoneType')) not in ('ContactPhonePersonal','ContactPhoneBusiness','ContactPhoneMobile','ContactPhoneFax','ContactPhonePager','ContactPhoneOther'):
+								return web.HTTPInternalServerError()
+					if contact_property == 'ContactWebSite':
+						assert ctc_ab is not None
+						contact_websites = contact_info.findall('.//{*}webSites/{*}ContactWebSite')
+						for contact_website in contact_websites:
+							if str(_find_element(contact_website, 'contactWebSiteType')) not in ('ContactWebSitePersonal','ContactWebSiteBusiness'):
+								return web.HTTPInternalServerError()
 					if contact_property == 'Annotation':
 						if _find_element(contact_info, 'contactType') != 'Me':
-							ctc_ab = backend.user_service.ab_get_entry_by_uuid(ab_id, contact_uuid, user)
-							if not ctc_ab:
+							if ctc_ab is None:
 								return web.HTTPInternalServerError()
 						annotations = contact_info.findall('.//{*}annotations/{*}Annotation')
 						for annotation in annotations:
@@ -472,9 +541,6 @@ async def handle_abservice(req: web.Request) -> web.Response:
 										gtc = GTCAnnotation(int(value))
 								except ValueError:
 									return web.HTTPInternalServerError()
-								
-								if _find_element(contact_info, 'contactType') == 'Me':
-									bs.me_update({ 'gtc': None if gtc is GTCAnnotation.Empty else gtc.name })
 							if name == 'MSN.IM.BLP':
 								try:
 									if value == '':
@@ -483,6 +549,196 @@ async def handle_abservice(req: web.Request) -> web.Response:
 										blp = BLPAnnotation(int(value))
 								except ValueError:
 									return web.HTTPInternalServerError()
+					# TODO: Contact details
+				if _find_element(contact_info, 'contactType') != 'Me':
+					if ctc_ab is None:
+						return web.HTTPInternalServerError()
+			for contact in contacts:
+				updated = False
+				contact_info = _find_element(contact, 'contactInfo')
+				if _find_element(contact_info, 'contactType') == 'Me':
+					contact_uuid = user.uuid
+				else:
+					contact_uuid = _find_element(contact, 'contactId')
+				if contact_uuid is not user.uuid and contact_uuid is not None:
+					ctc_ab = backend.user_service.ab_get_entry_by_uuid(ab_id, contact_uuid, user)
+				properties_changed = str(contact.find('./{*}propertiesChanged')).strip().split(' ')
+				
+				for contact_property in properties_changed:
+					if contact_property == 'ContactFirstName':
+						assert ctc_ab is not None
+						property = _find_element(contact_info, 'firstName')
+						ctc_ab.first_name = property
+						print('First name:', property)
+						updated = True
+					if contact_property == 'ContactLastName':
+						assert ctc_ab is not None
+						property = _find_element(contact_info, 'lastName')
+						ctc_ab.last_name = property
+						print('Last name:', property)
+						updated = True
+					if contact_property == 'MiddleName':
+						assert ctc_ab is not None
+						property = _find_element(contact_info, 'MiddleName')
+						ctc_ab.middle_name = property
+						print('Middle name:', property)
+						updated = True
+					if contact_property == 'Anniversary':
+						assert ctc_ab is not None
+						property = _find_element(contact_info, 'Anniversary')
+						# When `Anniversary` node isn't present, lxml returns `-1` instead of None. What gives?
+						if property not in (None,-1):
+							property = str(property)
+							property = datetime.strptime(property, '%Y/%m/%d')
+						if property is -1:
+							property = None
+						ctc_ab.anniversary = property
+						updated = True
+					if contact_property == 'ContactBirthDate':
+						assert ctc_ab is not None
+						property = _find_element(contact_info, 'birthdate')
+						if property is not None:
+							property = str(property)
+							if property != '0001-01-01T00:00:00':
+								property = iso_parser.parse(property)
+							else:
+								property = None
+						ctc_ab.birthdate = property
+						updated = True
+					if contact_property == 'Comment':
+						assert ctc_ab is not None
+						property = _find_element(contact_info, 'comment')
+						if property is not None:
+							property = str(property)
+						ctc_ab.notes = property
+						updated = True
+					if contact_property == 'ContactLocation':
+						assert ctc_ab is not None
+						contact_locations = contact_info.findall('.//{*}locations/{*}ContactLocation')
+						for contact_location in contact_locations:
+							contact_location_type = str(_find_element(contact_location, 'contactLocationType'))
+							location_properties_changed = str(_find_element(contact_location, 'Changes')).strip().split(' ')
+							if contact_location_type not in ctc_ab.locations:
+								ctc_ab.locations[contact_location_type] = models.ABContactLocation(contact_location_type)
+							for location_property in location_properties_changed:
+								if location_property == 'Name':
+									ctc_ab.locations[contact_location_type].name = str(_find_element(contact_location, 'name'))
+									updated = True
+								if location_property == 'Street':
+									ctc_ab.locations[contact_location_type].street = str(_find_element(contact_location, 'street'))
+									updated = True
+								if location_property == 'City':
+									ctc_ab.locations[contact_location_type].city = str(_find_element(contact_location, 'city'))
+									updated = True
+								if location_property == 'State':
+									ctc_ab.locations[contact_location_type].state = str(_find_element(contact_location, 'state'))
+									updated = True
+								if location_property == 'Country':
+									ctc_ab.locations[contact_location_type].country = str(_find_element(contact_location, 'country'))
+									updated = True
+								if location_property == 'PostalCode':
+									ctc_ab.locations[contact_location_type].zip_code = str(_find_element(contact_location, 'postalCode'))
+									updated = True
+							if ctc_ab.locations[contact_location_type].street is None and ctc_ab.locations[contact_location_type].city is None and ctc_ab.locations[contact_location_type].state is None and ctc_ab.locations[contact_location_type].country is None and ctc_ab.locations[contact_location_type].zip_code is None:
+								del ctc_ab.locations[contact_location_type]
+								updated = True
+					if contact_property == 'DisplayName':
+						assert ctc_ab is not None
+						property = _find_element(contact_info, 'displayName')
+						if property is not None:
+							property = str(property)
+						ctc_ab.name = property
+						updated = True
+					if contact_property == 'IsMessengerUser':
+						assert ctc_ab is not None
+						property = _find_element(contact_info, 'isMessengerUser')
+						ctc_ab.is_messenger_user = property
+						updated = True
+					if contact_property == 'ContactEmail':
+						assert ctc_ab is not None
+						contact_emails = contact_info.findall('.//{*}emails/{*}ContactEmail')
+						for contact_email in contact_emails:
+							email_properties_changed = str(_find_element(contact_email, 'propertiesChanged')).strip().split(' ')
+							for email_property in email_properties_changed:
+								if email_property == 'Email':
+									email = contact_email.find('./{*}email')
+									if email is not None:
+										email = str(email)
+									if _find_element(contact_email, 'contactEmailType') == 'ContactEmailPersonal':
+										ctc_ab.personal_email = email
+									if _find_element(contact_email, 'contactEmailType') == 'ContactEmailBusiness':
+										ctc_ab.work_email = email
+									if _find_element(contact_email, 'contactEmailType') == 'ContactEmailMessenger':
+										ctc_ab.im_email = email
+									if _find_element(contact_email, 'contactEmailType') == 'ContactEmailOther':
+										ctc_ab.other_email = email
+									updated = True
+					if contact_property == 'ContactPrimaryEmailType':
+						assert ctc_ab is not None
+						email_primary_type = str(_find_element(contact_info, 'primaryEmailType'))
+						ctc_ab.primary_email_type = email_primary_type
+						updated = True
+					if contact_property == 'ContactPhone':
+						assert ctc_ab is not None
+						contact_phones = contact_info.findall('.//{*}phones/{*}ContactPhone')
+						for contact_phone in contact_phones:
+							phone_properties_changed = str(_find_element(contact_phone, 'propertiesChanged')).strip().split(' ')
+							for phone_property in phone_properties_changed:
+								if phone_property == 'Number':
+									phone_number = contact_phone.find('./{*}number')
+									if phone_number is not None:
+										phone_number = str(phone_number)
+									if _find_element(contact_phone, 'contactPhoneType') == 'ContactPhonePersonal':
+										ctc_ab.home_phone = phone_number
+									if _find_element(contact_phone, 'contactPhoneType') == 'ContactPhoneBusiness':
+										ctc_ab.work_phone = phone_number
+									if _find_element(contact_phone, 'contactPhoneType') == 'ContactPhoneFax':
+										ctc_ab.fax_phone = phone_number
+									if _find_element(contact_phone, 'contactPhoneType') == 'ContactPhonePager':
+										ctc_ab.pager_phone = phone_number
+									if _find_element(contact_phone, 'contactPhoneType') == 'ContactPhoneMobile':
+										ctc_ab.mobile_phone = phone_number
+									if _find_element(contact_phone, 'contactPhoneType') == 'ContactPhoneOther':
+										ctc_ab.other_phone = phone_number
+									updated = True
+					if contact_property == 'ContactWebSite':
+						assert ctc_ab is not None
+						contact_websites = contact_info.findall('.//{*}webSites/{*}ContactWebSite')
+						for contact_website in contact_websites:
+							contact_website_type = str(_find_element(contact_website, 'contactWebSiteType'))
+							website = str(_find_element(contact_website, 'webURL'))
+							if contact_website_type == 'ContactWebSitePersonal':
+								ctc_ab.personal_website = website
+							if contact_website_type == 'ContactWebSiteBusiness':
+								ctc_ab.business_website = website
+							updated = True
+					if contact_property == 'Annotation':
+						if contact_uuid is not None:
+							if _find_element(contact_info, 'contactType') != 'Me':
+								ctc_ab = backend.user_service.ab_get_entry_by_uuid(ab_id, contact_uuid, user)
+								if not ctc_ab:
+									continue
+						else:
+							continue
+						annotations = contact_info.findall('.//{*}annotations/{*}Annotation')
+						for annotation in annotations:
+							name = _find_element(annotation, 'Name')
+							value = _find_element(annotation, 'Value')
+							value = _bool_to_str(value) if isinstance(value, bool) else str(_find_element(annotation, 'Value'))
+							
+							if name == 'MSN.IM.GTC':
+								if value == '':
+									gtc = GTCAnnotation.Empty
+								else:
+									gtc = GTCAnnotation(int(value))
+								
+								if _find_element(contact_info, 'contactType') == 'Me':
+									bs.me_update({ 'gtc': None if gtc is GTCAnnotation.Empty else gtc.name })
+							if name == 'MSN.IM.BLP':
+								if value == '':
+									blp = BLPAnnotation.Empty
+								else:
+									blp = BLPAnnotation(int(value))
 								
 								if _find_element(contact_info, 'contactType') == 'Me':
 									bs.me_update({ 'blp': None if blp is BLPAnnotation.Empty else blp.name })
@@ -501,13 +757,13 @@ async def handle_abservice(req: web.Request) -> web.Response:
 								ctc_ab.annotations.update({name: value})
 								if value == '':
 									del ctc_ab.annotations[name]
+						updated = True
 					# TODO: Contact details
-				if _find_element(contact_info, 'contactType') != 'Me':
+				if _find_element(contact_info, 'contactType') != 'Me' and updated:
 					if ctc_ab is not None:
 						contacts_to_update.append(ctc_ab)
-					else:
-						return web.HTTPInternalServerError()
-			bs.me_ab_contact_edit(contacts_to_update, ab_id)
+			if contacts_to_update:
+				bs.me_ab_contact_edit(contacts_to_update, ab_id)
 			
 			return render(req, 'msn:abservice/ABContactUpdateResponse.xml', {
 				'cachekey': cachekey,
@@ -1601,14 +1857,26 @@ def _contact_is_favorite(groups: Dict[str, models.Group], ctc: models.ABContact)
 	return False
 
 _CONTACT_PROPERTIES = (
-	'Email', 'Number', 'Comment', 'DisplayName', 'ContactType', 'ContactEmail', 'ContactPhone', 'GroupName',
+	'Comment', 'DisplayName', 'ContactType', 'ContactFirstName', 'ContactLastName', 'MiddleName', 'Anniversary', 'ContactBirthDate', 'ContactEmail', 'ContactLocation', 'ContactWebSite', 'ContactPrimaryEmailType', 'ContactPhone', 'GroupName',
 	'IsMessengerEnabled', 'IsMessengerUser', 'IsFavorite', 'HasSpace',
 	'Annotation', 'Capability', 'MessengerMemberInfo',
 )
 
+_CONTACT_PHONE_PROPERTIES = (
+	'Number',
+)
+
+_CONTACT_EMAIL_PROPERTIES = (
+	'Email',
+)
+
+_CONTACT_LOCATION_PROPERTIES = (
+	'Name', 'Street', 'City', 'State', 'Country', 'PostalCode',
+)
+
 _ANNOTATION_NAMES = (
 	'MSN.IM.InviteMessage', 'MSN.IM.MPOP', 'MSN.IM.BLP', 'MSN.IM.GTC', 'MSN.IM.RoamLiveProperties',
-	'MSN.IM.MBEA', 'MSN.IM.BuddyType', 'AB.NickName', 'AB.Profession', 'Live.Locale', 'Live.Profile.Expression.LastChanged',
+	'MSN.IM.MBEA', 'MSN.IM.BuddyType', 'AB.NickName', 'AB.Profession', 'AB.Spouse', 'AB.JobTitle', 'Live.Locale', 'Live.Profile.Expression.LastChanged',
 	'Live.Passport.Birthdate', 'Live.Favorite.Order',
 )
 

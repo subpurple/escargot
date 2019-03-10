@@ -234,7 +234,7 @@ class MSNPCtrlNS(MSNPCtrl):
 					if dialect >= 16 and machineguid is not None:
 						bs.front_data['msn_pop_id'] = machineguid.lower().replace('{', '').replace('}', '')
 					self._util_usr_final(trid, token, machineguid)
-				return
+					return
 		
 		self.send_reply(Err.AuthFail, trid)
 		self.close(hard = True)
@@ -1001,8 +1001,8 @@ class MSNPCtrlNS(MSNPCtrl):
 				for m in build_presence_notif(trid, ctc.head, user, dialect, self.backend):
 					self.send_reply(*m)
 			# TODO: There's a weird timeout issue with the challenges on 8.x. Comment out for now
-			#if 8 <= self.dialect <= 10:
-			#	self._send_chl()
+			#if dialect >= 6:
+			#	self._send_chl(trid)
 			if self.backend.notify_maintenance:
 				bs.evt.on_system_message(1, self.backend.maintenance_mins)
 		
@@ -1033,7 +1033,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		
 		server_response = gen_chal_response(challenge, client_id, id_key, msnp11 = (self.dialect >= 11))
 		
-		if response.decode() != server_response and server_response is not 'PASS':
+		if response.decode() != server_response:
 			self.send_reply(Err.ChallengeResponseFailed, trid)
 			self.close(hard = True)
 			return

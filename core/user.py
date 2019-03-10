@@ -7,18 +7,22 @@ from util.hash import hasher, hasher_md5, hasher_md5crypt, gen_salt
 from util import misc
 
 from . import error
-from .db import Session, User as DBUser, UserGroup as DBUserGroup, UserContact as DBUserContact, ABStore as DBABStore, ABStoreContact as DBABStoreContact, ABStoreContactNetworkInfo as DBABStoreContactNetworkInfo, ABMetadata as DBABMetadata, OIM as DBOIM, YahooOIM as DBYahooOIM
-from .models import User, Contact, ContactGroupEntry, ABContact, ABRelationshipRole, ABRelationshipState, ABRelationshipType, NetworkInfo, RelationshipInfo, UserStatus, UserDetail, NetworkID, Lst, Group, OIMMetadata, YahooOIM, MessageData
+from .db import Session, User as DBUser, UserGroup as DBUserGroup, UserContact as DBUserContact, ABStore as DBABStore, ABStoreContact as DBABStoreContact, ABStoreContactLocation as DBABStoreContactLocation, ABStoreContactNetworkInfo as DBABStoreContactNetworkInfo, ABMetadata as DBABMetadata, OIM as DBOIM, YahooOIM as DBYahooOIM
+from .models import User, Contact, ContactGroupEntry, ABContact, ABContactLocation, ABRelationshipRole, ABRelationshipState, ABRelationshipType, NetworkInfo, RelationshipInfo, UserStatus, UserDetail, NetworkID, Lst, Group, OIMMetadata, YahooOIM, MessageData
 
 class UserService:
 	loop: asyncio.AbstractEventLoop
 	_cache_by_uuid: Dict[str, Optional[User]]
+	_individual_ab_ctc_cache_by_uuid_by_uuid_by_uuid: Dict[str, Dict[str, Dict[str, Optional[ABContact]]]]
+	_group_ab_ctc_cache_by_uuid_by_uuid: Dict[str, Dict[str, Optional[ABContact]]]
 	_worklist_sync_ab: Dict[int, Tuple[str, User, Dict[str, Any]]]
 	_working_ab_sync_ids: List[int]
 	
 	def __init__(self, loop: asyncio.AbstractEventLoop) -> None:
 		self.loop = loop
 		self._cache_by_uuid = {}
+		self._individual_ab_ctc_cache_by_uuid_by_uuid_by_uuid = {}
+		self._group_ab_ctc_cache_by_uuid_by_uuid = {}
 		self._worklist_sync_ab = {}
 		self._working_ab_sync_ids = []
 		
@@ -196,7 +200,7 @@ class UserService:
 			if dbabstorecontact is None:
 				return None
 			
-			return self._ab_get_entry(ab_type, dbabstorecontact)
+			return self._ab_get_entry(ab_type, dbabstorecontact.contact_uuid, user, ab_id)
 	
 	def ab_get_entry_by_email(self, ab_id: str, email: str, ctc_type: str, user: User) -> Optional[ABContact]:
 		with Session() as sess:
@@ -215,15 +219,52 @@ class UserService:
 								return c
 				return None
 			
-			return self._ab_get_entry(ab_type, dbabstorecontact)
+			return self._ab_get_entry(ab_type, dbabstorecontact.contact_uuid, user, ab_id)
 	
-	def _ab_get_entry(self, ab_type: str, dbabstorecontact: DBABStoreContact) -> Optional[ABContact]:
+	def _ab_get_entry(self, ab_type: str, contact_uuid: str, user: User, ab_id: str) -> Optional[ABContact]:
+		ctc_ab = None
+		
+		if ab_type == 'Individual':
+			if ab_id in self._individual_ab_ctc_cache_by_uuid_by_uuid_by_uuid:
+				if user.uuid in self._individual_ab_ctc_cache_by_uuid_by_uuid_by_uuid[ab_id]:
+					if contact_uuid in self._individual_ab_ctc_cache_by_uuid_by_uuid_by_uuid[ab_id][user.uuid]:
+						ctc_ab = self._individual_ab_ctc_cache_by_uuid_by_uuid_by_uuid[ab_id][user.uuid][contact_uuid]
+		else:
+			if ab_id in self._group_ab_ctc_cache_by_uuid_by_uuid:
+				if contact_uuid in self._group_ab_ctc_cache_by_uuid_by_uuid:
+					ctc_ab = self._group_ab_ctc_cache_by_uuid_by_uuid[ab_id][contact_uuid]
+		
+		if ctc_ab is None:
+			if ab_type == 'Individual':
+				if ab_id not in self._individual_ab_ctc_cache_by_uuid_by_uuid_by_uuid:
+					self._individual_ab_ctc_cache_by_uuid_by_uuid_by_uuid[ab_id] = {}
+				if user.uuid not in self._individual_ab_ctc_cache_by_uuid_by_uuid_by_uuid[ab_id]:
+					self._individual_ab_ctc_cache_by_uuid_by_uuid_by_uuid[ab_id][user.uuid] = {}
+			else:
+				if ab_id not in self._group_ab_ctc_cache_by_uuid_by_uuid:
+					self._group_ab_ctc_cache_by_uuid_by_uuid[ab_id] = {}
+			ctc_ab = self._ab_get_entry_uncached(ab_type, ab_id, contact_uuid, user)
+		
+		return ctc_ab
+	
+	def _ab_get_entry_uncached(self, ab_type: str, ab_id: str, contact_uuid: str, user: User) -> Optional[ABContact]:
 		head = None
 		
 		with Session() as sess:
+			dbabstorecontact = sess.query(DBABStoreContact).filter(DBABStoreContact.contact_uuid == contact_uuid, DBABStoreContact.ab_id == ab_id, DBABStoreContact.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None)).one_or_none()
+			
+			if dbabstorecontact is None:
+				return None
+			
 			if dbabstorecontact.contact_member_uuid is not None:
 				head = self.get(dbabstorecontact.contact_member_uuid)
 				if head is None: return None
+			
+			dbabstorecontactlocations = sess.query(DBABStoreContactLocation).filter(DBABStoreContactLocation.contact_uuid == dbabstorecontact.contact_uuid, DBABStoreContactLocation.ab_id == dbabstorecontact.ab_id, DBABStoreContactLocation.ab_owner_uuid == (dbabstorecontact.ab_owner_uuid if ab_type == 'Individual' else None))
+			locations = {
+				dbabstorecontactlocation.location_type: ABContactLocation(
+					dbabstorecontactlocation.location_type, name = dbabstorecontactlocation.name, street = dbabstorecontactlocation.street, city = dbabstorecontactlocation.city, state = dbabstorecontactlocation.state, country = dbabstorecontactlocation.country, zip_code = dbabstorecontactlocation.zip_code,
+			) for dbabstorecontactlocation in dbabstorecontactlocations}
 			
 			annotations = {} # type: Dict[Any, Any]
 			for annots in dbabstorecontact.annotations:
@@ -237,10 +278,16 @@ class UserService:
 					),
 					invite_message = dbabstorecontactnetworkinfo.invite_message, date_created = dbabstorecontactnetworkinfo.date_created, date_last_modified = dbabstorecontactnetworkinfo.date_last_modified,
 				) for dbabstorecontactnetworkinfo in dbabstorecontactnetworkinfos}
-			return ABContact(
+			abcontact = ABContact(
 				dbabstorecontact.type, dbabstorecontact.contact_uuid, dbabstorecontact.email, dbabstorecontact.name, set(dbabstorecontact.groups),
-				networkinfos = networkinfos, member_uuid = dbabstorecontact.contact_member_uuid, is_messenger_user = dbabstorecontact.is_messenger_user, annotations = annotations, date_last_modified = dbabstorecontact.date_last_modified,
+				birthdate = dbabstorecontact.birthdate, anniversary = dbabstorecontact.anniversary, notes = dbabstorecontact.notes, first_name = dbabstorecontact.first_name, middle_name = dbabstorecontact.middle_name, last_name = dbabstorecontact.last_name, home_phone = dbabstorecontact.home_phone, work_phone = dbabstorecontact.work_phone, fax_phone = dbabstorecontact.fax_phone, pager_phone = dbabstorecontact.pager_phone, mobile_phone = dbabstorecontact.mobile_phone, other_phone = dbabstorecontact.other_phone, personal_website = dbabstorecontact.personal_website, business_website = dbabstorecontact.business_website, locations = locations, primary_email_type = dbabstorecontact.primary_email_type, personal_email = dbabstorecontact.personal_email, work_email = dbabstorecontact.work_email, im_email = dbabstorecontact.im_email, other_email = dbabstorecontact.other_email, networkinfos = networkinfos, member_uuid = dbabstorecontact.contact_member_uuid, is_messenger_user = dbabstorecontact.is_messenger_user, annotations = annotations, date_last_modified = dbabstorecontact.date_last_modified,
 			)
+			if ab_type == 'Individual':
+				self._individual_ab_ctc_cache_by_uuid_by_uuid_by_uuid[ab_id][user.uuid][contact_uuid] = abcontact
+			else:
+				self._group_ab_ctc_cache_by_uuid_by_uuid[ab_id][contact_uuid] = abcontact
+			
+			return abcontact
 	
 	def get_ab_contents(self, ab_id: str, user: User) -> Optional[Tuple[str, User, datetime, datetime, Dict[str, ABContact]]]:
 		with Session() as sess:
@@ -256,7 +303,7 @@ class UserService:
 			
 			dbabstorecontacts = sess.query(DBABStoreContact).filter(DBABStoreContact.ab_id == ab_id, DBABStoreContact.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None))
 			for dbabstorecontact in dbabstorecontacts:
-				ctc = self._ab_get_entry(ab_type, dbabstorecontact)
+				ctc = self._ab_get_entry(ab_type, dbabstorecontact.contact_uuid, user, ab_id)
 				if ctc is None: continue
 				contacts[dbabstorecontact.contact_uuid] = ctc
 			return ab_type, head, dbabstore.date_created, dbabstore.date_last_modified, contacts
@@ -270,6 +317,22 @@ class UserService:
 			
 			dbabstorecontact = sess.query(DBABStoreContact).filter(DBABStoreContact.contact_uuid == ctc_uuid, DBABStoreContact.ab_id == ab_id, DBABStoreContact.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None)).one_or_none()
 			if dbabstorecontact is not None:
+				if ab_type == 'Individual':
+					if ab_id in self._individual_ab_ctc_cache_by_uuid_by_uuid_by_uuid:
+						if user.uuid in self._individual_ab_ctc_cache_by_uuid_by_uuid_by_uuid[ab_id]:
+							if dbabstorecontact.contact_uuid in self._individual_ab_ctc_cache_by_uuid_by_uuid_by_uuid[ab_id][user.uuid]:
+								del self._individual_ab_ctc_cache_by_uuid_by_uuid_by_uuid[ab_id][user.uuid][dbabstorecontact.contact_uuid]
+				else:
+					if ab_id in self._group_ab_ctc_cache_by_uuid_by_uuid:
+						if dbabstorecontact.contact_uuid in self._group_ab_ctc_cache_by_uuid_by_uuid[ab_id]:
+							del self._group_ab_ctc_cache_by_uuid_by_uuid[ab_id][dbabstorecontact.contact_uuid]
+				
+				dbabstorecontactlocations = sess.query(DBABStoreContactLocation).filter(DBABStoreContactLocation.contact_uuid == dbabstorecontact.contact_uuid, DBABStoreContactLocation.ab_id == dbabstorecontact.ab_id, DBABStoreContactLocation.ab_owner_uuid == (dbabstorecontact.ab_owner_uuid if ab_type == 'Individual' else None))
+				for dbabstorecontactlocation in dbabstorecontactlocations:
+					sess.delete(dbabstorecontactlocation)
+				dbabstorecontactnetworkinfos = sess.query(DBABStoreContactNetworkInfo).filter(DBABStoreContactNetworkInfo.contact_uuid == dbabstorecontact.contact_uuid, DBABStoreContactNetworkInfo.ab_id == dbabstorecontact.ab_id, DBABStoreContactNetworkInfo.ab_owner_uuid == (dbabstorecontact.ab_owner_uuid if ab_type == 'Individual' else None))
+				for dbabstorecontactnetworkinfo in dbabstorecontactnetworkinfos:
+					sess.delete(dbabstorecontactnetworkinfo)
 				sess.delete(dbabstorecontact)
 				
 				dbabstore.date_last_modified = datetime.utcnow()
@@ -284,6 +347,23 @@ class UserService:
 			
 			dbabstorecontact = sess.query(DBABStoreContact).filter(DBABStoreContact.email == email, DBABStoreContact.type == ctc_type, DBABStoreContact.ab_id == ab_id, DBABStoreContact.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None)).one_or_none()
 			if dbabstorecontact is not None:
+				if ab_type == 'Individual':
+					if ab_id in self._individual_ab_ctc_cache_by_uuid_by_uuid_by_uuid:
+						if user.uuid in self._individual_ab_ctc_cache_by_uuid_by_uuid_by_uuid[ab_id]:
+							if dbabstorecontact.contact_uuid in self._individual_ab_ctc_cache_by_uuid_by_uuid_by_uuid[ab_id][user.uuid]:
+								del self._individual_ab_ctc_cache_by_uuid_by_uuid_by_uuid[ab_id][user.uuid][dbabstorecontact.contact_uuid]
+				else:
+					if ab_id in self._group_ab_ctc_cache_by_uuid_by_uuid:
+						if dbabstorecontact.contact_uuid in self._group_ab_ctc_cache_by_uuid_by_uuid[ab_id]:
+							del self._group_ab_ctc_cache_by_uuid_by_uuid[ab_id][dbabstorecontact.contact_uuid]
+				
+				dbabstorecontactlocations = sess.query(DBABStoreContactLocation).filter(DBABStoreContactLocation.contact_uuid == dbabstorecontact.contact_uuid, DBABStoreContactLocation.ab_id == dbabstorecontact.ab_id, DBABStoreContactLocation.ab_owner_uuid == (dbabstorecontact.ab_owner_uuid if ab_type == 'Individual' else None))
+				for dbabstorecontactlocation in dbabstorecontactlocations:
+					sess.delete(dbabstorecontactlocation)
+				dbabstorecontactnetworkinfos = sess.query(DBABStoreContactNetworkInfo).filter(DBABStoreContactNetworkInfo.contact_uuid == dbabstorecontact.contact_uuid, DBABStoreContactNetworkInfo.ab_id == dbabstorecontact.ab_id, DBABStoreContactNetworkInfo.ab_owner_uuid == (dbabstorecontact.ab_owner_uuid if ab_type == 'Individual' else None))
+				for dbabstorecontactnetworkinfo in dbabstorecontactnetworkinfos:
+					sess.delete(dbabstorecontactnetworkinfo)
+				
 				sess.delete(dbabstorecontact)
 				
 				dbabstore.date_last_modified = datetime.utcnow()
@@ -304,21 +384,59 @@ class UserService:
 						if dbabstorecontact is None:
 							dbabstorecontact = DBABStoreContact(
 								ab_id = ab_id, ab_owner_uuid = (user.uuid if ab_type == 'Individual' else None),
-								contact_uuid = c.uuid, contact_member_uuid = c.member_uuid, type = c.type, email = c.email, name = c.name, groups = list(c.groups), is_messenger_user = c.is_messenger_user, annotations = [{
+								contact_uuid = c.uuid, contact_member_uuid = c.member_uuid, type = c.type, email = c.email, birthdate = c.birthdate, anniversary = c.anniversary, notes = c.notes, name = c.name, first_name = c.first_name, middle_name = c.middle_name, last_name = c.last_name, primary_email_type = c.primary_email_type, personal_email = c.personal_email, work_email = c.work_email, im_email = c.im_email, other_email = c.other_email, home_phone = c.home_phone, work_phone = c.work_phone, fax_phone = c.fax_phone, pager_phone = c.pager_phone, mobile_phone = c.mobile_phone, other_phone = c.other_phone, personal_website = c.personal_website, business_website = c.business_website, groups = list(c.groups), is_messenger_user = c.is_messenger_user, annotations = [{
 									name: value
 								} for name, value in c.annotations.items()],
 							)
 						else:
 							dbabstorecontact.email = c.email
+							dbabstorecontact.birthdate = c.birthdate
+							dbabstorecontact.anniversary = c.anniversary
+							dbabstorecontact.notes = c.notes
 							dbabstorecontact.name = c.name
+							dbabstorecontact.first_name = c.first_name
+							dbabstorecontact.middle_name = c.middle_name
+							dbabstorecontact.last_name = c.last_name
+							dbabstorecontact.primary_email_type = c.primary_email_type
+							dbabstorecontact.personal_email = c.personal_email
+							dbabstorecontact.work_email = c.work_email
+							dbabstorecontact.im_email = c.im_email
+							dbabstorecontact.other_email = c.other_email
+							dbabstorecontact.home_phone = c.home_phone
+							dbabstorecontact.work_phone = c.work_phone
+							dbabstorecontact.fax_phone = c.fax_phone
+							dbabstorecontact.pager_phone = c.pager_phone
+							dbabstorecontact.mobile_phone = c.mobile_phone
+							dbabstorecontact.other_phone = c.other_phone
+							dbabstorecontact.personal_website = c.personal_website
+							dbabstorecontact.business_website = c.business_website
 							dbabstorecontact.groups = list(c.groups)
 							dbabstorecontact.is_messenger_user = c.is_messenger_user
 							dbabstorecontact.annotations = [{
 								name: value
 							} for name, value in c.annotations.items()]
-						dbabstorecontact.date_last_modified = datetime.utcnow()
-						c.date_last_modified = dbabstorecontact.date_last_modified
-						sess.add(dbabstorecontact)
+						
+						dbabstorecontactlocations = sess.query(DBABStoreContactLocation).filter(DBABStoreContactLocation.contact_uuid == dbabstorecontact.contact_uuid, DBABStoreContactLocation.ab_id == dbabstorecontact.ab_id, DBABStoreContactLocation.ab_owner_uuid == (dbabstorecontact.ab_owner_uuid if ab_type == 'Individual' else None))
+						
+						for dbabstorecontactlocation in dbabstorecontactlocations:
+							if dbabstorecontactlocation.location_type not in c.locations:
+								sess.delete(dbabstorecontactlocation)
+						
+						for location in c.locations.values():
+							dbabstorecontactlocation = sess.query(DBABStoreContactLocation).filter(DBABStoreContactLocation.location_type == location.type, DBABStoreContactLocation.contact_uuid == dbabstorecontact.contact_uuid, DBABStoreContactLocation.ab_id == dbabstorecontact.ab_id, DBABStoreContactLocation.ab_owner_uuid == (dbabstorecontact.ab_owner_uuid if ab_type == 'Individual' else None)).one_or_none()
+							if dbabstorecontactlocation is None:
+								dbabstorecontactlocation = DBABStoreContactLocation(
+									contact_uuid = dbabstorecontact.contact_uuid, ab_id = ab_id, ab_owner_uuid = (user.uuid if ab_type == 'Individual' else None),
+									location_type = location.type, name = location.name, street = location.street, city = location.city, state = location.state, country = location.country, zip_code = location.zip_code,
+								)
+							else:
+								dbabstorecontactlocation.name = location.name
+								dbabstorecontactlocation.street = location.street
+								dbabstorecontactlocation.city = location.city
+								dbabstorecontactlocation.state = location.state
+								dbabstorecontactlocation.country = location.country
+								dbabstorecontactlocation.zip_code = location.zip_code
+							sess.add(dbabstorecontactlocation)
 						
 						for networkinfo in c.networkinfos.values():
 							dbabstorecontactnetworkinfo = sess.query(DBABStoreContactNetworkInfo).filter(DBABStoreContactNetworkInfo.contact_uuid == c.uuid, DBABStoreContactNetworkInfo.ab_id == ab_id, DBABStoreContactNetworkInfo.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None), DBABStoreContactNetworkInfo.domain_id == int(networkinfo.domain_id)).one_or_none()
@@ -340,6 +458,10 @@ class UserService:
 							dbabstorecontactnetworkinfo.date_last_modified = datetime.utcnow()
 							networkinfo.date_last_modified = dbabstorecontactnetworkinfo.date_last_modified
 							sess.add(dbabstorecontactnetworkinfo)
+							
+						dbabstorecontact.date_last_modified = datetime.utcnow()
+						c.date_last_modified = dbabstorecontact.date_last_modified
+						sess.add(dbabstorecontact)
 					updated = True
 				
 				if updated:
