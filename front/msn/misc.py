@@ -1,17 +1,21 @@
 from typing import Optional, Tuple, Any, Iterable, List, ClassVar, Dict
 from urllib.parse import quote
 from hashlib import md5
+from pytz import timezone
+from datetime import datetime
+import base64
 import binascii
 import sys
+from quopri import encodestring as quopri_encode
 import struct
 from enum import Enum, IntEnum
 
-from util.misc import first_in_iterable, last_in_iterable, DefaultDict
+from util.misc import first_in_iterable, last_in_iterable, date_format, DefaultDict
 from typing import Optional
 
 from core import error, event
 from core.backend import Backend, BackendSession
-from core.models import User, Contact, Lst, Substatus, NetworkID
+from core.models import User, Contact, Lst, OIM, Substatus, NetworkID
 
 def build_presence_notif(trid: Optional[str], ctc_head: User, user_me: User, dialect: int, backend: Backend, *, self_presence: bool = False, bs_other: Optional['BackendSession'] = None, circle_user_bs: Optional['BackendSession'] = None, circle_id: Optional[str] = None) -> Iterable[Tuple[Any, ...]]:
 	circle_owner = False
@@ -292,19 +296,22 @@ def gen_chal_response(chal: str, id: str, id_key: str, *, msnp11: bool = False) 
 
 def gen_mail_data(user: User, backend: Backend, *, oim_uuid: Optional[str] = None, just_sent: bool = False, on_ns: bool = True, e_node: bool = True, q_node: bool = True) -> str:
 	md_m_pl = ''
+	oim_collection = []
 	if just_sent:
-		oim_collection = backend.user_service.msn_get_oim_single(user.email, oim_uuid or '')
+		oim = backend.user_service.get_oim_single(user, oim_uuid or '')
+		if oim is not None:
+			oim_collection.append(oim)
 	else:
-		oim_collection = backend.user_service.msn_get_oim_batch(user.email)
+		oim_collection = backend.user_service.get_oim_batch(user)
 	if on_ns and len(oim_collection) > 25: return 'too-large'
 	
 	for oim in oim_collection:
 		md_m_pl += M_MAIL_DATA_PAYLOAD.format(
 			rt = (RT_M_MAIL_DATA_PAYLOAD.format(
-				senttime = (oim.last_oim_sent.isoformat()[:19] + 'Z')
-			) if not just_sent else ''), oimsz = oim.oim_content_length,
-			frommember = oim.from_member_name, guid = oim.run_id, fid = ('00000000-0000-0000-0000-000000000009' if not just_sent else '.!!OIM'),
-			fromfriendly = (oim.from_member_friendly if not just_sent else _format_friendly(oim.from_member_friendly)),
+				senttime = date_format(oim.sent)
+			) if not just_sent else ''), oimsz = len(format_oim(oim)),
+			frommember = oim.from_email, guid = oim.run_id, fid = ('00000000-0000-0000-0000-000000000009' if not just_sent else '.!!OIM'),
+			fromfriendly = _encode_friendly(oim.from_friendly, oim.from_friendly_charset, oim.from_friendly_encoding, space = True if just_sent else False),
 			su = ('<SU> </SU>' if just_sent else ''),
 		)
 	
@@ -314,10 +321,58 @@ def gen_mail_data(user: User, backend: Backend, *, oim_uuid: Optional[str] = Non
 		m = md_m_pl,
 	)
 
-def _format_friendly(friendlyname: str) -> str:
-	friendly_parts = friendlyname.split('?')
-	friendly_parts[3] += ' '
-	return '?'.join(friendly_parts)
+def format_oim(oim: OIM) -> str:
+	if not oim.headers:
+		oim_headers = OIM_HEADER_BASE.format(run_id = oim.run_id).replace('\n', '\r\n')
+	else:
+		oim_headers = '\r\n'.join(['{}: {}'.format(name, value) for name, value in oim.headers.items()])
+	
+	sent_email = oim.sent.astimezone(timezone('US/Pacific'))
+	
+	oim_msg = OIM_HEADER_PRE_0.format(
+		pst1 = sent_email.strftime('%a, %d %b %Y %H:%M:%S -0800'), friendly = _encode_friendly(oim.from_friendly, oim.from_friendly_charset, oim.from_friendly_encoding),
+		sender = oim.from_email, recipient = oim.to_email, ip = oim.origin_ip or '',
+	).replace('\n', '\r\n')
+	if oim.oim_proxy:
+		oim_msg += OIM_HEADER_PRE_1.format(oimproxy = oim.oim_proxy).replace('\n', '\r\n')
+	oim_msg += oim_headers
+	oim_msg += OIM_HEADER_REST.format(
+		utc = oim.sent.strftime('%d %b %Y %H:%M:%S.%f')[:25] + ' (UTC)', ft = _datetime_to_filetime(oim.sent),
+		pst2 = sent_email.strftime('%d %b %Y %H:%M:%S -0800'),
+	).replace('\n', '\r\n')
+	
+	oim_msg += '\r\n\r\n' + base64.b64encode(oim.message.encode('utf-8')).decode('utf-8')
+	
+	return oim_msg
+
+def _datetime_to_filetime(dt_time: datetime) -> str:
+	filetime_result = round(((dt_time.timestamp() * 10000000) + 116444736000000000) + (dt_time.microsecond * 10))
+	
+	# (DWORD)ll
+	filetime_high = filetime_result & 0xFFFFFFFF
+	filetime_low = filetime_result >> 32
+	
+	filetime_high_hex = hex(filetime_high)[2:]
+	filetime_high_hex = '0' * (8 % len(filetime_high_hex)) + filetime_high_hex
+	filetime_low_hex = hex(filetime_low)[2:]
+	filetime_low_hex = '0' * (8 % len(filetime_low_hex)) + filetime_low_hex
+	
+	return filetime_high_hex.upper() + ':' + filetime_low_hex.upper()
+
+def _encode_friendly(friendlyname: str, charset: str, encoding: str, *, space: bool = False) -> Optional[str]:
+	data_encoded = None
+	
+	data = friendlyname.encode(charset)
+	if encoding is 'B':
+		data_encoded = base64.b64encode(data)
+	elif encoding is 'Q':
+		data_encoded = quopri_encode(data)
+	if data_encoded is None:
+		return None
+	data_encoded_str = data_encoded.decode('utf-8')
+	if space:
+		data_encoded_str += ' '
+	return '=?{}?{}?{}?='.format(charset, encoding, data_encoded_str)
 
 MAIL_DATA_PAYLOAD = '<MD>{e}{q}{m}</MD>'
 
@@ -340,6 +395,33 @@ PRIVATEEPDATA_IDLE_PAYLOAD = '<Idle>{idle}</Idle>'
 PRIVATEEPDATA_CLIENTTYPE_PAYLOAD = '<ClientType>{ct}</ClientType>'
 
 PRIVATEEPDATA_STATE_PAYLOAD = '<State>{state}</State>'
+
+OIM_HEADER_PRE_0 = '''X-Message-Info: cwRBnLifKNE8dVZlNj6AiX8142B67OTjG9BFMLMyzuui1H4Xx7m3NQ==
+Received: from OIM-SSI02.phx.gbl ([65.54.237.206]) by oim1-f1.hotmail.com with Microsoft SMTPSVC(6.0.3790.211);
+	 {pst1}
+Received: from mail pickup service by OIM-SSI02.phx.gbl with Microsoft SMTPSVC;
+	 {pst1}
+From: {friendly} <{sender}>
+To: {recipient}
+Subject: 
+X-OIM-originatingSource: {ip}
+'''
+
+OIM_HEADER_PRE_1 = '''X-OIMProxy: {oimproxy}
+'''
+
+OIM_HEADER_BASE = '''Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: base64
+X-OIM-Message-Type: OfflineMessage
+X-OIM-Run-Id: {run_id}
+X-OIM-Sequence-Num: 1'''
+
+
+OIM_HEADER_REST = '''
+Message-ID: <OIM-SSI02zDv60gxapz00061a8b@OIM-SSI02.phx.gbl>
+X-OriginalArrivalTime: {utc} FILETIME=[{ft}]
+Date: {pst2}
+Return-Path: ndr@oim.messenger.msn.com'''
 
 NFY_PUT_PRESENCE = '''Routing: 1.0
 To: 1:{to}

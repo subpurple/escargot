@@ -95,6 +95,7 @@ class ABStoreContact(Base):
 	id = sa.Column(sa.Integer, nullable = False, primary_key = True)
 	ab_id = sa.Column(sa.String, nullable = False)
 	ab_owner_uuid = sa.Column(sa.String, nullable = True)
+	contact_id = sa.Column(sa.String, nullable = False)
 	# `contact_uuid` is a UUID that identifies the contact in the addressbook; unrelated to the UUID of the contact's account
 	# `contact_member_uuid` is the contact's account's UUID, indicating that the contact's a part of our network.
 	contact_uuid = sa.Column(sa.String, nullable = False)
@@ -109,6 +110,7 @@ class ABStoreContact(Base):
 	first_name = sa.Column(sa.String, nullable = True)
 	middle_name = sa.Column(sa.String, nullable = True)
 	last_name = sa.Column(sa.String, nullable = True)
+	nickname = sa.Column(sa.String, nullable = True)
 	primary_email_type = sa.Column(sa.String, nullable = True)
 	personal_email = sa.Column(sa.String, nullable = True)
 	work_email = sa.Column(sa.String, nullable = True)
@@ -183,18 +185,6 @@ class ABStoreContactNetworkInfo(Base):
 #	member_role = sa.Column(sa.Integer, nullable = False)
 #	member_state = sa.Column(sa.Integer, nullable = False)
 
-class OIM(Base):
-	__tablename__ = 't_oim'
-	
-	run_id = sa.Column(sa.String, nullable = False, unique = True, primary_key = True)
-	oim_num = sa.Column(sa.Integer, nullable = False)
-	from_member_name = sa.Column(sa.String, nullable = False)
-	from_member_friendly = sa.Column(sa.String, nullable = False)
-	to_member_name = sa.Column(sa.String, nullable = False)
-	oim_sent = sa.Column(sa.DateTime, nullable = False)
-	content = sa.Column(sa.String, nullable = False)
-	is_read = sa.Column(sa.Boolean, nullable = False)
-
 def _simplify_json_data(data: Any) -> Any:
 	if isinstance(data, dict):
 		d = {}
@@ -208,17 +198,6 @@ def _simplify_json_data(data: Any) -> Any:
 	if isinstance(data, (list, tuple)):
 		return [_simplify_json_data(x) for x in data]
 	return data
-
-class YahooOIM(Base):
-	__tablename__ = 't_yahoo_oim'
-	
-	id = sa.Column(sa.Integer, nullable = False, primary_key = True)
-	from_id = sa.Column(sa.String, nullable = False)
-	recipient_id = sa.Column(sa.String, nullable = False)
-	recipient_id_primary = sa.Column(sa.String, nullable = False)
-	sent = sa.Column(sa.DateTime, nullable = False)
-	message = sa.Column(sa.String, nullable = False)
-	utf8_kv = sa.Column(sa.Boolean, nullable = True)
 
 class Sound(Base):
 	__tablename__ = 't_sound'

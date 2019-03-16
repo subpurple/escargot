@@ -697,7 +697,7 @@ class BackendSession(Session):
 			ctc_ab = self.backend.user_service.ab_get_entry_by_email('00000000-0000-0000-0000-000000000000', ctc_head.email, 'Regular', user)
 			if ctc_ab is None:
 				ctc_ab = ABContact(
-					'Regular', gen_uuid(), ctc.head.email, '', set(),
+					'Regular', self.backend.user_service.gen_ab_entry_id('00000000-0000-0000-0000-000000000000', user), gen_uuid(), ctc.head.email, '', set(),
 					member_uuid = ctc_head.uuid, is_messenger_user = True,
 				)
 			ctc_ab.name = ctc.status.name

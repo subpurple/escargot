@@ -75,14 +75,16 @@
 				{%- endif -%}
 			</webSites>
 		{%- endif -%}
-		{%- if contact.annotations -%}
+		{%- if contact.annotations or contact.nickname -%}
 			<annotations>
-			{%- for name, value in contact.annotations.items() -%}
-				<Annotation>
-					<Name>{{ name }}</Name>
-					<Value>{{ value }}</Value>
-				</Annotation>
-			{%- endfor -%}
+			{%- if contact.nickname -%}
+				{{ annotation('AB.NickName', contact.nickname) }}
+			{%- endif -%}
+			{%- if contact.annotations -%}
+				{%- for name, value in contact.annotations.items() -%}
+					{{ annotation(name, value) }}
+				{%- endfor -%}
+			{%- endif -%}
 			</annotations>
 		{%- endif -%}
 		<contactType>{{ contact.type }}</contactType>
@@ -187,6 +189,13 @@
 		<contactWebSiteType>{{ type }}</contactWebSiteType>
 		<webURL>{{ url }}</webURL>
 	</ContactWebSite>
+{%- endmacro -%}
+
+{%- macro annotation(name, value) -%}
+	<Annotation>
+		<Name>{{ name }}</Name>
+		<Value>{{ value }}</Value>
+	</Annotation>
 {%- endmacro -%}
 
 {%- macro generate_me_entry(ab_id, user_creator, now) -%}

@@ -4,6 +4,7 @@ import asyncio
 import functools
 import itertools
 import traceback
+from datetime import datetime
 from uuid import uuid4
 import ssl
 import jinja2
@@ -157,6 +158,14 @@ def add_to_jinja_env(app: web.Application, prefix: str, tmpl_dir: str, *, global
 	jinja_env.loader.mapping[prefix] = jinja2.FileSystemLoader(tmpl_dir)
 	if globals:
 		jinja_env.globals.update(globals)
+
+def date_format(d: Optional[datetime]) -> Optional[str]:
+	if d is None:
+		return None
+	d_iso = '{}{}'.format(
+		d.isoformat()[0:19], 'Z',
+	)
+	return d_iso
 
 def server_temp_cleanup() -> None:
 	# For now, just clean up stuff in the Yahoo! HTTP file transfer storage folder

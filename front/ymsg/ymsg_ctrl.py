@@ -145,7 +145,7 @@ def _try_decode_ymsg(d: bytes, i: int) -> Tuple[DecodedYMSG, int]:
 	assert len(d[i:]) >= e
 	assert d[i:i+4] == PRE
 	header = d[i+4:i+e]
-	if header[0] != b'\x00':
+	if header[:2] in (b'\x08\x00',b'\x09\x00',b'\x0a\x00'):
 		version = struct.unpack('<H', header[:2])[0] # type: int
 	else:
 		version = struct.unpack('!H', header[:2])[0]

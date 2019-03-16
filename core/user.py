@@ -1,14 +1,16 @@
 from typing import Dict, Optional, List, Tuple, Set, Any
 from datetime import datetime
 from urllib.parse import quote
-import asyncio, traceback
+from dateutil import parser as iso_parser
+import asyncio, traceback, os
+import json
 
 from util.hash import hasher, hasher_md5, hasher_md5crypt, gen_salt
 from util import misc
 
 from . import error
-from .db import Session, User as DBUser, UserGroup as DBUserGroup, UserContact as DBUserContact, ABStore as DBABStore, ABStoreContact as DBABStoreContact, ABStoreContactLocation as DBABStoreContactLocation, ABStoreContactNetworkInfo as DBABStoreContactNetworkInfo, ABMetadata as DBABMetadata, OIM as DBOIM, YahooOIM as DBYahooOIM
-from .models import User, Contact, ContactGroupEntry, ABContact, ABContactLocation, ABRelationshipRole, ABRelationshipState, ABRelationshipType, NetworkInfo, RelationshipInfo, UserStatus, UserDetail, NetworkID, Lst, Group, OIMMetadata, YahooOIM, MessageData
+from .db import Session, User as DBUser, UserGroup as DBUserGroup, UserContact as DBUserContact, ABStore as DBABStore, ABStoreContact as DBABStoreContact, ABStoreContactLocation as DBABStoreContactLocation, ABStoreContactNetworkInfo as DBABStoreContactNetworkInfo, ABMetadata as DBABMetadata
+from .models import User, Contact, ContactGroupEntry, ABContact, ABContactLocation, ABRelationshipRole, ABRelationshipState, ABRelationshipType, NetworkInfo, RelationshipInfo, UserStatus, UserDetail, NetworkID, Lst, Group, OIM, MessageData
 
 class UserService:
 	loop: asyncio.AbstractEventLoop
@@ -221,6 +223,20 @@ class UserService:
 			
 			return self._ab_get_entry(ab_type, dbabstorecontact.contact_uuid, user, ab_id)
 	
+	def ab_get_entry_by_id(self, ab_id: str, ctc_id: str, user: User) -> Optional[ABContact]:
+		with Session() as sess:
+			tpl = self._get_ab_store(ab_id, uuid = user.uuid)
+			if tpl is None:
+				return None
+			ab_type, dbabstore = tpl
+			
+			dbabstorecontact = sess.query(DBABStoreContact).filter(DBABStoreContact.contact_id == ctc_id, DBABStoreContact.ab_id == ab_id, DBABStoreContact.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None)).one_or_none()
+			
+			if dbabstorecontact is None:
+				return None
+			
+			return self._ab_get_entry(ab_type, dbabstorecontact.contact_uuid, user, ab_id)
+	
 	def _ab_get_entry(self, ab_type: str, contact_uuid: str, user: User, ab_id: str) -> Optional[ABContact]:
 		ctc_ab = None
 		
@@ -279,8 +295,8 @@ class UserService:
 					invite_message = dbabstorecontactnetworkinfo.invite_message, date_created = dbabstorecontactnetworkinfo.date_created, date_last_modified = dbabstorecontactnetworkinfo.date_last_modified,
 				) for dbabstorecontactnetworkinfo in dbabstorecontactnetworkinfos}
 			abcontact = ABContact(
-				dbabstorecontact.type, dbabstorecontact.contact_uuid, dbabstorecontact.email, dbabstorecontact.name, set(dbabstorecontact.groups),
-				birthdate = dbabstorecontact.birthdate, anniversary = dbabstorecontact.anniversary, notes = dbabstorecontact.notes, first_name = dbabstorecontact.first_name, middle_name = dbabstorecontact.middle_name, last_name = dbabstorecontact.last_name, home_phone = dbabstorecontact.home_phone, work_phone = dbabstorecontact.work_phone, fax_phone = dbabstorecontact.fax_phone, pager_phone = dbabstorecontact.pager_phone, mobile_phone = dbabstorecontact.mobile_phone, other_phone = dbabstorecontact.other_phone, personal_website = dbabstorecontact.personal_website, business_website = dbabstorecontact.business_website, locations = locations, primary_email_type = dbabstorecontact.primary_email_type, personal_email = dbabstorecontact.personal_email, work_email = dbabstorecontact.work_email, im_email = dbabstorecontact.im_email, other_email = dbabstorecontact.other_email, networkinfos = networkinfos, member_uuid = dbabstorecontact.contact_member_uuid, is_messenger_user = dbabstorecontact.is_messenger_user, annotations = annotations, date_last_modified = dbabstorecontact.date_last_modified,
+				dbabstorecontact.type, dbabstorecontact.contact_id, dbabstorecontact.contact_uuid, dbabstorecontact.email, dbabstorecontact.name, set(dbabstorecontact.groups),
+				birthdate = dbabstorecontact.birthdate, anniversary = dbabstorecontact.anniversary, notes = dbabstorecontact.notes, first_name = dbabstorecontact.first_name, middle_name = dbabstorecontact.middle_name, last_name = dbabstorecontact.last_name, nickname = dbabstorecontact.nickname, home_phone = dbabstorecontact.home_phone, work_phone = dbabstorecontact.work_phone, fax_phone = dbabstorecontact.fax_phone, pager_phone = dbabstorecontact.pager_phone, mobile_phone = dbabstorecontact.mobile_phone, other_phone = dbabstorecontact.other_phone, personal_website = dbabstorecontact.personal_website, business_website = dbabstorecontact.business_website, locations = locations, primary_email_type = dbabstorecontact.primary_email_type, personal_email = dbabstorecontact.personal_email, work_email = dbabstorecontact.work_email, im_email = dbabstorecontact.im_email, other_email = dbabstorecontact.other_email, networkinfos = networkinfos, member_uuid = dbabstorecontact.contact_member_uuid, is_messenger_user = dbabstorecontact.is_messenger_user, annotations = annotations, date_last_modified = dbabstorecontact.date_last_modified,
 			)
 			if ab_type == 'Individual':
 				self._individual_ab_ctc_cache_by_uuid_by_uuid_by_uuid[ab_id][user.uuid][contact_uuid] = abcontact
@@ -369,6 +385,19 @@ class UserService:
 				dbabstore.date_last_modified = datetime.utcnow()
 				sess.add(dbabstore)
 	
+	def gen_ab_entry_id(self, ab_id: str, user: User) -> str:
+		tpl = self.get_ab_contents(ab_id, user)
+		assert tpl is not None
+		_, _, _, _, ab_contacts = tpl
+		
+		id = 2
+		
+		for i, _ in enumerate(ab_contacts):
+			if i+2 == id: continue
+		s = str(id)
+		
+		return s
+	
 	def save_batch_ab(self, batch: List[Tuple[int, str, User, Dict[str, Any]]]) -> None:
 		with Session() as sess:
 			for id, ab_id, user, fields in batch:
@@ -384,7 +413,7 @@ class UserService:
 						if dbabstorecontact is None:
 							dbabstorecontact = DBABStoreContact(
 								ab_id = ab_id, ab_owner_uuid = (user.uuid if ab_type == 'Individual' else None),
-								contact_uuid = c.uuid, contact_member_uuid = c.member_uuid, type = c.type, email = c.email, birthdate = c.birthdate, anniversary = c.anniversary, notes = c.notes, name = c.name, first_name = c.first_name, middle_name = c.middle_name, last_name = c.last_name, primary_email_type = c.primary_email_type, personal_email = c.personal_email, work_email = c.work_email, im_email = c.im_email, other_email = c.other_email, home_phone = c.home_phone, work_phone = c.work_phone, fax_phone = c.fax_phone, pager_phone = c.pager_phone, mobile_phone = c.mobile_phone, other_phone = c.other_phone, personal_website = c.personal_website, business_website = c.business_website, groups = list(c.groups), is_messenger_user = c.is_messenger_user, annotations = [{
+								contact_id = c.id, contact_uuid = c.uuid, contact_member_uuid = c.member_uuid, type = c.type, email = c.email, birthdate = c.birthdate, anniversary = c.anniversary, notes = c.notes, name = c.name, first_name = c.first_name, middle_name = c.middle_name, last_name = c.last_name, nickname = c.nickname, primary_email_type = c.primary_email_type, personal_email = c.personal_email, work_email = c.work_email, im_email = c.im_email, other_email = c.other_email, home_phone = c.home_phone, work_phone = c.work_phone, fax_phone = c.fax_phone, pager_phone = c.pager_phone, mobile_phone = c.mobile_phone, other_phone = c.other_phone, personal_website = c.personal_website, business_website = c.business_website, groups = list(c.groups), is_messenger_user = c.is_messenger_user, annotations = [{
 									name: value
 								} for name, value in c.annotations.items()],
 							)
@@ -397,6 +426,7 @@ class UserService:
 							dbabstorecontact.first_name = c.first_name
 							dbabstorecontact.middle_name = c.middle_name
 							dbabstorecontact.last_name = c.last_name
+							dbabstorecontact.nickname = c.nickname
 							dbabstorecontact.primary_email_type = c.primary_email_type
 							dbabstorecontact.personal_email = c.personal_email
 							dbabstorecontact.work_email = c.work_email
@@ -533,55 +563,93 @@ class UserService:
 	#			sess.add(dbuser)
 	#	return tik
 	
-	def msn_get_oim_batch(self, to_member_name: str) -> List[OIMMetadata]:
-		with Session() as sess:
-			query = sess.query(DBOIM).filter(DBOIM.to_member_name == to_member_name, DBOIM.is_read == False)
-			tmp_oims = [
-				OIMMetadata(
-					oim.run_id, oim.oim_num, oim.from_member_name, oim.from_member_friendly,
-					oim.to_member_name, oim.oim_sent, len(oim.content),
-				)
-				for oim in query
-			]
+	def get_oim_batch(self, user: User) -> List[OIM]:
+		tmp_oims = []
+		
+		path = _get_oim_path(user.uuid)
+		if os.path.exists(path):
+			oim_ids = [f for f in os.listdir(path) if os.path.isfile('{path}/{run_id}'.format(path = path, run_id = f))]
+			for oim_id in oim_ids:
+				oim = self.get_oim_single(user, oim_id)
+				if oim is None: continue
+				tmp_oims.append(oim)
 		return tmp_oims
 	
-	def msn_get_oim_single(self, to_member_name: str, run_id: str) -> List[OIMMetadata]:
-		with Session() as sess:
-			dboim = sess.query(DBOIM).filter(DBOIM.to_member_name == to_member_name, DBOIM.run_id == run_id).one_or_none()
-			if dboim is None: return []
-			return [OIMMetadata(
-				dboim.run_id, dboim.oim_num, dboim.from_member_name, dboim.from_member_friendly,
-				dboim.to_member_name, dboim.oim_sent, len(dboim.content),
-			)]
+	def get_oim_single(self, user: User, run_id: str, *, markAsRead: bool = False) -> Optional[OIM]:
+		json_oim = None # type: Optional[Dict[str, Any]]
+		oim_path = '{path}/{run_id}'.format(
+			path = _get_oim_path(user.uuid),
+			run_id = run_id,
+		)
+		
+		if not os.path.isfile(oim_path):
+			return None
+		
+		with open(oim_path, 'rb') as f:
+			json_oim = json.loads(f.read())
+			f.close()
+		
+		if json_oim is None: return None
+		
+		oim = OIM(
+			json_oim['run_id'], json_oim['from'], json_oim['from_friendly']['friendly_name'], user.email, iso_parser.parse(json_oim['sent']),
+			json_oim['message']['text'], json_oim['message']['utf8'],
+			headers = json_oim['headers'],
+			from_friendly_encoding = json_oim['from_friendly']['encoding'], from_friendly_charset = json_oim['from_friendly']['charset'], from_user_id = json_oim['from_user_id'],
+			origin_ip = json_oim['origin_ip'], oim_proxy = json_oim['proxy']
+		)
+		if markAsRead:
+			json_oim['is_read'] = True
+			with open(oim_path, 'w') as file:
+				file.write(json.dumps(json_oim))
+				file.close()
+		
+		return oim
 	
-	def msn_get_oim_message_by_uuid(self, to_member_name: str, run_id: str, markAsRead: bool) -> Optional[str]:
-		with Session() as sess:
-			dboim = sess.query(DBOIM).filter(DBOIM.to_member_name == to_member_name, DBOIM.run_id == run_id).one_or_none()
-			if dboim is None: return None
-			msg_content = dboim.content
-			if markAsRead:
-				dboim.is_read = True
-				sess.add(dboim)
-		return msg_content
+	def save_oim(self, run_id: str, recipient_uuid: str, from_email: str, from_friendly: str, origin_ip: str, message: str, utf8: bool, *, from_user_id: Optional[str] = None, from_friendly_charset: str = 'utf-8', from_friendly_encoding: str = 'B', headers: Dict[str, str] = {}, oim_proxy: Optional[str] = None) -> None:
+		path = _get_oim_path(recipient_uuid)
+		if not os.path.exists(path):
+			os.makedirs(path)
+		oim_path = '{path}/{run_id}'.format(
+			path = path,
+			run_id = run_id,
+		)
+		
+		if os.path.isfile(oim_path):
+			raise FileExistsError()
+		
+		oim_json = {} # type: Dict[str, Any]
+		oim_json['run_id'] = run_id
+		oim_json['from'] = from_email
+		oim_json['from_friendly'] = {
+			'friendly_name': from_friendly,
+			'encoding': from_friendly_encoding,
+			'charset': from_friendly_charset,
+		}
+		oim_json['from_user_id'] = from_user_id
+		oim_json['is_read'] = False
+		oim_json['sent'] = misc.date_format(datetime.utcnow())
+		oim_json['origin_ip'] = origin_ip
+		oim_json['proxy'] = oim_proxy
+		oim_json['headers'] = headers
+		oim_json['message'] = {
+			'text': message,
+			'utf8': utf8,
+		}
+		
+		with open(oim_path, 'w') as f:
+			f.write(json.dumps(oim_json))
+			f.close()
 	
-	def msn_save_oim(self, run_id: str, seq_num: int, content: str, from_member: str, from_member_friendly: str, recipient: str, sent: datetime) -> None:
-		with Session() as sess:
-			dboim = sess.query(DBOIM).filter(DBOIM.run_id == run_id).one_or_none()
-			if dboim is None:
-				dboim = DBOIM(run_id = run_id, from_member_name = from_member, to_member_name = recipient)
-			dboim.oim_num = seq_num
-			dboim.from_member_friendly = from_member_friendly
-			dboim.oim_sent = sent
-			dboim.content = content
-			dboim.is_read = False
-			sess.add(dboim)
-	
-	def msn_delete_oim(self, run_id: str) -> bool:
-		with Session() as sess:
-			dboim = sess.query(DBOIM).filter(DBOIM.run_id == run_id).one_or_none()
-			if dboim is None: return False
-			sess.delete(dboim)
-		return True
+	def delete_oim(self, recipient_uuid: str, run_id: str) -> None:
+		oim_path = '{path}/{run_id}'.format(
+			path = _get_oim_path(recipient_uuid),
+			run_id = run_id,
+		)
+		if not os.path.isfile(oim_path):
+			return None
+		
+		os.remove(oim_path)
 	
 	#def msn_create_circle(self, uuid: str, circle_name: str, owner_friendly: str, membership_access: int, request_membership_option: int, is_presence_enabled: bool) -> Optional[Tuple[str, str]]:
 	#	with Session() as sess:
@@ -674,27 +742,6 @@ class UserService:
 	#			circle_id, email, ABRelationshipRole(dbcirclemembership.member_role), ABRelationshipState(dbcirclemembership.member_state),
 	#		)
 	
-	def yahoo_get_oim_message_by_recipient(self, recipient_id: str) -> List[YahooOIM]:
-		with Session() as sess:
-			query = sess.query(DBYahooOIM).filter(DBYahooOIM.recipient_id_primary == recipient_id)
-			tmp_oims = []
-			for oim in query:
-				tmp_oims.append(
-					YahooOIM(
-						oim.from_id, oim.recipient_id, oim.sent, oim.message, oim.utf8_kv,
-					)
-				)
-				sess.delete(oim)
-		return tmp_oims
-	
-	def yahoo_save_oim(self, message: str, utf8_kv: Optional[bool], from_id: str, recipient_id: str, recipient_id_primary: str, sent: datetime) -> None:
-		with Session() as sess:
-			dbyahoooim = DBYahooOIM(
-				from_id = from_id, recipient_id = recipient_id, recipient_id_primary = recipient_id_primary, sent = sent,
-				message = message, utf8_kv = utf8_kv,
-			)
-			sess.add(dbyahoooim)
-	
 	def save_batch(self, to_save: List[Tuple[User, UserDetail]]) -> None:
 		with Session() as sess:
 			for user, detail in to_save:
@@ -758,3 +805,6 @@ def _get_persisted_status_message(status: UserStatus) -> str:
 	if not status._persistent:
 		return ''
 	return status.message
+
+def _get_oim_path(recipient_uuid: str) -> str:
+	return 'storage/oim/{}'.format(recipient_uuid)

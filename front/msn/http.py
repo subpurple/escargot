@@ -1,7 +1,8 @@
 from typing import Optional, Any, Dict, Tuple
 from datetime import datetime, timedelta
-from pytz import timezone
 from enum import IntEnum
+from email.parser import Parser
+from email.header import decode_header
 from urllib.parse import unquote
 import lxml
 import re
@@ -16,7 +17,7 @@ from aiohttp import web
 import settings
 from core import models, event
 from core.backend import Backend, BackendSession, MAX_GROUP_NAME_LENGTH
-from .misc import gen_mail_data, cid_format
+from .misc import gen_mail_data, format_oim, cid_format
 import util.misc
 
 LOGIN_PATH = '/login'
@@ -25,7 +26,7 @@ PP = 'Passport1.4 '
 
 def register(app: web.Application) -> None:
 	util.misc.add_to_jinja_env(app, 'msn', TMPL_DIR, globals = {
-		'date_format': _date_format,
+		'date_format': util.misc.date_format,
 		'cid_format': cid_format,
 		'bool_to_str': _bool_to_str,
 		'contact_is_favorite': _contact_is_favorite,
@@ -73,7 +74,7 @@ async def handle_abservice(req: web.Request) -> web.Response:
 	action_str = _get_tag_localname(action)
 	if _find_element(action, 'deltasOnly') or _find_element(action, 'DeltasOnly'):
 		return render(req, 'msn:abservice/Fault.fullsync.xml', { 'faultactor': action_str })
-	now_str = _date_format(datetime.utcnow())
+	now_str = util.misc.date_format(datetime.utcnow())
 	user = bs.user
 	detail = user.detail
 	cachekey = secrets.token_urlsafe(172)
@@ -231,6 +232,7 @@ async def handle_abservice(req: web.Request) -> web.Response:
 			
 			ctc_updated = False
 			head = None
+			nickname = None
 			
 			ab_id = _find_element(action, 'abId')
 			if ab_id is not None:
@@ -279,11 +281,14 @@ async def handle_abservice(req: web.Request) -> web.Response:
 					if name not in _ANNOTATION_NAMES:
 						return web.HTTPInternalServerError()
 					value = _find_element(annotation, 'Value')
-					annotations_dict[name] = value
+					if name is 'AB.NickName':
+						nickname = value
+					else:
+						annotations_dict[name] = value
 			is_messenger_user = _find_element(contact, 'isMessengerUser')
 			ctc_ab = models.ABContact(
-				('Regular' if type == 'LivePending' else type), util.misc.gen_uuid(), email, email, groups,
-				member_uuid = contact_uuid, is_messenger_user = is_messenger_user, annotations = {name: value for name, value in annotations_dict.items() if name.startswith('AB.') or name.startswith('Live.')},
+				('Regular' if type == 'LivePending' else type), backend.user_service.gen_ab_entry_id(ab_id, user), util.misc.gen_uuid(), email, email, groups,
+				member_uuid = contact_uuid, nickname = nickname, is_messenger_user = is_messenger_user, annotations = {name: value for name, value in annotations_dict.items() if name.startswith('AB.') or name.startswith('Live.')},
 			)
 			await backend.user_service.mark_ab_modified_async(ab_id, { 'contacts': [ctc_ab] }, user)
 			
@@ -304,7 +309,7 @@ async def handle_abservice(req: web.Request) -> web.Response:
 			#	
 			#	if ctc_me_ab is None:
 			#		ctc_me_ab = models.ABContact(
-			#			'LivePending', util.misc.gen_uuid(), user.email, user.email, set(),
+			#			'LivePending', backend.user_service.gen_ab_entry_id(ab_id, user), util.misc.gen_uuid(), user.email, user.email, set(),
 			#			member_uuid = user.uuid, is_messenger_user = is_messenger_user, annotations = annotations_me,
 			#		)
 			#		ctc_me_new = True
@@ -320,7 +325,7 @@ async def handle_abservice(req: web.Request) -> web.Response:
 			#	_, user_creator, _, ab_last_modified, _ = tpl
 			#	
 			#	for ctc_sess in backend.util_get_sessions_by_user(head):
-			#		ctc_sess.evt.msn_on_notify_ab(cid_format(head.uuid), str(_date_format(ab_last_modified or datetime.utcnow())))
+			#		ctc_sess.evt.msn_on_notify_ab(cid_format(head.uuid), str(util.misc.date_format(ab_last_modified or datetime.utcnow())))
 			
 			return render(req, 'msn:abservice/ABContactAddResponse.xml', {
 				'cachekey': cachekey,
@@ -387,7 +392,7 @@ async def handle_abservice(req: web.Request) -> web.Response:
 				return web.HTTPInternalServerError()
 			
 			ctc_ab = models.ABContact(
-				type, util.misc.gen_uuid(), contact_email, contact_email, set(),
+				type, backend.user_service.gen_ab_entry_id(ab_id, user), util.misc.gen_uuid(), contact_email, contact_email, set(),
 				member_uuid = contact_uuid, is_messenger_user = True,
 			)
 			
@@ -622,22 +627,40 @@ async def handle_abservice(req: web.Request) -> web.Response:
 								ctc_ab.locations[contact_location_type] = models.ABContactLocation(contact_location_type)
 							for location_property in location_properties_changed:
 								if location_property == 'Name':
-									ctc_ab.locations[contact_location_type].name = str(_find_element(contact_location, 'name'))
+									property = _find_element(contact_location, 'name')
+									if property is not None:
+										property = str(property)
+									ctc_ab.locations[contact_location_type].name = property
 									updated = True
 								if location_property == 'Street':
-									ctc_ab.locations[contact_location_type].street = str(_find_element(contact_location, 'street'))
+									property = _find_element(contact_location, 'street')
+									if property is not None:
+										property = str(property)
+									ctc_ab.locations[contact_location_type].street = property
 									updated = True
 								if location_property == 'City':
-									ctc_ab.locations[contact_location_type].city = str(_find_element(contact_location, 'city'))
+									property = _find_element(contact_location, 'city')
+									if property is not None:
+										property = str(property)
+									ctc_ab.locations[contact_location_type].city = property
 									updated = True
 								if location_property == 'State':
-									ctc_ab.locations[contact_location_type].state = str(_find_element(contact_location, 'state'))
+									property = _find_element(contact_location, 'state')
+									if property is not None:
+										property = str(property)
+									ctc_ab.locations[contact_location_type].state = property
 									updated = True
 								if location_property == 'Country':
-									ctc_ab.locations[contact_location_type].country = str(_find_element(contact_location, 'country'))
+									property = _find_element(contact_location, 'country')
+									if property is not None:
+										property = str(property)
+									ctc_ab.locations[contact_location_type].country = property
 									updated = True
 								if location_property == 'PostalCode':
-									ctc_ab.locations[contact_location_type].zip_code = str(_find_element(contact_location, 'postalCode'))
+									property = _find_element(contact_location, 'postalCode')
+									if property is not None:
+										property = str(property)
+									ctc_ab.locations[contact_location_type].zip_code = property
 									updated = True
 							if ctc_ab.locations[contact_location_type].street is None and ctc_ab.locations[contact_location_type].city is None and ctc_ab.locations[contact_location_type].state is None and ctc_ab.locations[contact_location_type].country is None and ctc_ab.locations[contact_location_type].zip_code is None:
 								del ctc_ab.locations[contact_location_type]
@@ -734,6 +757,7 @@ async def handle_abservice(req: web.Request) -> web.Response:
 								
 								if _find_element(contact_info, 'contactType') == 'Me':
 									bs.me_update({ 'gtc': None if gtc is GTCAnnotation.Empty else gtc.name })
+								continue
 							if name == 'MSN.IM.BLP':
 								if value == '':
 									blp = BLPAnnotation.Empty
@@ -742,12 +766,20 @@ async def handle_abservice(req: web.Request) -> web.Response:
 								
 								if _find_element(contact_info, 'contactType') == 'Me':
 									bs.me_update({ 'blp': None if blp is BLPAnnotation.Empty else blp.name })
+								continue
 							if name == 'MSN.IM.MPOP':
 								if _find_element(contact_info, 'contactType') == 'Me':
 									bs.me_update({ 'mpop': None if value in ('', None) else value })
+								continue
 							if name == 'MSN.IM.RoamLiveProperties':
 								if _find_element(contact_info, 'contactType') == 'Me':
 									bs.me_update({ 'rlp': value })
+								continue
+							if name == 'AB.NickName':
+								if ctc_ab:
+									ctc_ab.nickname = value
+									updated = True
+								continue
 							if name == 'Live.Profile.Expression.LastChanged':
 								# TODO: What's this used for?
 								continue
@@ -957,7 +989,7 @@ async def handle_abservice(req: web.Request) -> web.Response:
 				if ctc_ab is None:
 					assert ctc is not None
 					ctc_ab = models.ABContact(
-						('Regular' if type == 'LivePending' else type), util.misc.gen_uuid(), ctc.head.email, ctc.status.name, set(),
+						('Regular' if type == 'LivePending' else type), backend.user_service.gen_ab_entry_id(ab_id, user), util.misc.gen_uuid(), ctc.head.email, ctc.status.name, set(),
 						member_uuid = contact_uuid, is_messenger_user = is_messenger_user,
 					)
 				
@@ -1069,7 +1101,7 @@ async def handle_abservice(req: web.Request) -> web.Response:
 		#		# Add self to individual AB
 		#		# TODO: Proper hidden representative of circle creator (does this display them in the roster?)
 		#		#ctc_self_hidden_representative = models.ABContact(
-		#		#	'Circle', util.misc.gen_uuid(), user.email, user.status.name or user.email, set(), {
+		#		#	'Circle', backend.user_service.gen_ab_entry_id(ab_id, user), util.misc.gen_uuid(), user.email, user.status.name or user.email, set(), {
 		#		#		models.NetworkID.WINDOWS_LIVE: models.NetworkInfo(
 		#		#			models.NetworkID.WINDOWS_LIVE, 'WL', user.email,
 		#		#			user.status.name, models.RelationshipInfo(
@@ -1091,7 +1123,7 @@ async def handle_abservice(req: web.Request) -> web.Response:
 		#			})
 		#		finally:
 		#			_, _, _, ab_last_modified, _ = backend.user_service.get_ab_contents(circle_id, user)
-		#			bs.evt.msn_on_notify_ab(cid_format(user.uuid, decimal = True), _date_format(ab_last_modified))
+		#			bs.evt.msn_on_notify_ab(cid_format(user.uuid, decimal = True), util.misc.date_format(ab_last_modified))
 		#			
 		#			#circle_bs = backend.login(backend.util_get_uuid_from_email('{}@live.com'.format(circle_id), models.NetworkID.CIRCLE), None, CircleBackendEventHandler(), only_once = True)
 		#			#if circle_bs is not None:
@@ -1171,7 +1203,7 @@ async def handle_abservice(req: web.Request) -> web.Response:
 					if ctc_ab_contact:
 						return web.HTTPInternalServerError()
 					ctc_ab_contact = models.ABContact(
-						('Circle' if ab_id.startswith('00000000-0000-0000-0009') else 'LivePending'), util.misc.gen_uuid(), user.email, user.status.name or user.email, set(),
+						('Circle' if ab_id.startswith('00000000-0000-0000-0009') else 'LivePending'), backend.user_service.gen_ab_entry_id(ab_id, user), util.misc.gen_uuid(), user.email, user.status.name or user.email, set(),
 						networkinfos = {
 							models.NetworkID.WINDOWS_LIVE: models.NetworkInfo(
 								models.NetworkID.WINDOWS_LIVE, 'WL', user.email,
@@ -1189,7 +1221,7 @@ async def handle_abservice(req: web.Request) -> web.Response:
 						bs.other_subscribe_ab(ab_id, ctc_head)
 					
 					for ctc_sess in backend.util_get_sessions_by_user(ctc_head):
-						ctc_sess.evt.msn_on_notify_ab(cid_format(user_creator.uuid), str(_date_format(ctc_ab_last_modified or datetime.utcnow())))
+						ctc_sess.evt.msn_on_notify_ab(cid_format(user_creator.uuid), str(util.misc.date_format(ctc_ab_last_modified or datetime.utcnow())))
 			
 			return render(req, 'msn:abservice/ManageWLConnection/ManageWLConnection.xml', {
 				'cachekey': cachekey,
@@ -1265,7 +1297,7 @@ async def handle_storageservice(req: web.Request) -> web.Response:
 	header, action, bs, token = await _preprocess_soap(req)
 	assert bs is not None
 	action_str = _get_tag_localname(action)
-	now_str = _date_format(datetime.utcnow())
+	now_str = util.misc.date_format(datetime.utcnow())
 	timestamp = int(time.time())
 	user = bs.user
 	cachekey = secrets.token_urlsafe(172)
@@ -1341,16 +1373,17 @@ async def handle_rsi(req: web.Request) -> web.Response:
 	if action_str == 'GetMessage':
 		oim_uuid = _find_element(action, 'messageId')
 		oim_markAsRead = _find_element(action, 'alsoMarkAsRead')
-		oim_message = backend.user_service.msn_get_oim_message_by_uuid(user.email, oim_uuid, oim_markAsRead is True)
+		oim = backend.user_service.get_oim_single(user, oim_uuid, markAsRead = oim_markAsRead is True)
 		return render(req, 'msn:oim/GetMessageResponse.xml', {
-			'oim_data': oim_message,
+			'oim_data': format_oim(oim),
 		})
 	if action_str == 'DeleteMessages':
 		messageIds = action.findall('.//{*}messageId/{*}messageIds')
 		for messageId in messageIds:
-			isValidDeletion = backend.user_service.msn_delete_oim(messageId)
-			if not isValidDeletion:
+			if backend.user_service.get_oim_single(user, messageId) is None:
 				return render(req, 'msn:oim/Fault.validation.xml', status = 500)
+		for messageId in messageIds:
+			backend.user_service.msn_delete_oim(messageId)
 		bs.evt.msn_on_oim_deletion()
 		return render(req, 'msn:oim/DeleteMessagesResponse.xml')
 	
@@ -1364,10 +1397,9 @@ async def handle_oim(req: web.Request) -> web.Response:
 	
 	lockkey_result = header.find('.//{*}Ticket').get('lockkey')
 	
-	if bs is None or lockkey_result == '':
+	if bs is None or lockkey_result in (None,''):
 		return render(req, 'msn:oim/Fault.authfailed.xml', {
 			'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
-			'authTypeNode': (Markup('<TweenerChallenge xmlns="http://messenger.msn.com/ws/2004/09/oim/">ct=1,rver=1,wp=FS_40SEC_0_COMPACT,lc=1,id=1</TweenerChallenge>') if soapaction.startswith('http://messenger.msn.com/ws/2004/09/') else Markup('<SSOChallenge xmlns="http://messenger.live.com/ws/2006/09/oim/">?MBI_KEY_OLD</SSOChallenge>')),
 		}, status = 500)
 	
 	backend: Backend = req.app['backend']
@@ -1375,7 +1407,10 @@ async def handle_oim(req: web.Request) -> web.Response:
 	detail = user.detail
 	assert detail is not None
 	
-	friendlyname = header.find('.//{*}From').get('friendlyName')
+	friendlyname = None
+	friendly_charset = None
+	
+	friendlyname_mime = header.find('.//{*}From').get('friendlyName')
 	email = header.find('.//{*}From').get('memberName')
 	recipient = header.find('.//{*}To').get('memberName')
 	
@@ -1393,33 +1428,82 @@ async def handle_oim(req: web.Request) -> web.Response:
 	else:
 		host = '127.0.0.1'
 	
-	oim_msg_seq = _find_element(header, 'Sequence/MessageNumber')
+	oim_msg_seq = str(_find_element(header, 'Sequence/MessageNumber'))
+	if not oim_msg_seq.isnumeric():
+		return render(req, 'msn:oim/Fault.invalidcontent.xml', {
+			'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
+		}, status = 500)
+	
+	try:
+		friendlyname, friendly_charset = decode_header(friendlyname_mime)[0]
+	except:
+		return render(req, 'msn:oim/Fault.invalidcontent.xml', {
+			'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
+		}, status = 500)
+	
+	if friendly_charset is None:
+		friendly_charset = 'utf-8'
+	
+	friendlyname_str = friendlyname.decode(friendly_charset)
 	
 	oim_proxy_string = header.find('.//{*}From').get('proxy')
 	
-	oim_sent_date = datetime.utcnow()
-	oim_sent_date_email = oim_sent_date.astimezone(timezone('US/Pacific'))
+	try:
+		oim_mime = Parser().parsestr(body_content)
+	except:
+		return render(req, 'msn:oim/Fault.invalidcontent.xml', {
+			'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
+		}, status = 500)
 	
-	oim_content = body_content.strip().replace('\n', '\r\n')
-	
-	oim_run_id_start = (oim_content.find('X-OIM-Run-Id: ') + 15)
-	oim_run_id_stop = oim_run_id_start + 36
-	oim_run_id = oim_content[oim_run_id_start:oim_run_id_stop]
-	
-	oim_header_body = oim_content.split('\r\n\r\n')
-	oim_header_body[0] = OIM_HEADER_PRE.format(
-		pst1 = oim_sent_date_email.strftime('%a, %d %b %Y %H:%M:%S -0800'), friendly = friendlyname,
-		sender = user.email, recipient = recipient, ip = host, oimproxy = oim_proxy_string,
-	) + oim_header_body[0]
-	oim_header_body[0] += OIM_HEADER_REST.format(
-		utc = oim_sent_date.strftime('%d %b %Y %H:%M:%S.%f')[:25] + ' (UTC)', ft = _datetime_to_filetime(oim_sent_date),
-		pst2 = oim_sent_date_email.strftime('%d %b %Y %H:%M:%S -0800'),
-	)
-	
-	oim_content = '\r\n\r\n'.join(oim_header_body)
-	
-	backend.user_service.msn_save_oim(oim_run_id, int(oim_msg_seq), oim_content, user.email, friendlyname, recipient, oim_sent_date)
-	bs.me_contact_notify_oim(recipient_uuid, oim_run_id)
+	oim_run_id = str(oim_mime.get('X-OIM-Run-Id'))
+	if oim_run_id is None:
+		return render(req, 'msn:oim/Fault.invalidcontent.xml', {
+			'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
+		}, status = 500)
+	if not re.match(r'^\{?[A-Fa-f0-9]{8,8}-([A-Fa-f0-9]{4,4}-){3,3}[A-Fa-f0-9]{12,12}\}?', oim_run_id):
+		return render(req, 'msn:oim/Fault.invalidcontent.xml', {
+			'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
+		}, status = 500)
+	oim_run_id = oim_run_id.replace('{', '').replace('}', '').upper()
+	if ('X-Message-Info','Received','From','To','Subject','X-OIM-originatingSource','X-OIMProxy','Message-ID','X-OriginalArrivalTime','Date','Return-Path') in oim_mime.keys():
+		return render(req, 'msn:oim/Fault.invalidcontent.xml', {
+			'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
+		}, status = 500)
+	if str(oim_mime.get('Content-Type')) is not 'text/plain; charset=UTF-8':
+		return render(req, 'msn:oim/Fault.invalidcontent.xml', {
+			'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
+		}, status = 500)
+	if str(oim_mime.get('Content-Transfer-Encoding')) is not 'base64':
+		return render(req, 'msn:oim/Fault.invalidcontent.xml', {
+			'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
+		}, status = 500)
+	if str(oim_mime.get('X-OIM-Message-Type')) is not 'OfflineMessage':
+		return render(req, 'msn:oim/Fault.invalidcontent.xml', {
+			'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
+		}, status = 500)
+	oim_seq_num = str(oim_mime.get('X-OIM-Sequence-Num'))
+	if oim_seq_num is not oim_msg_seq:
+		return render(req, 'msn:oim/Fault.invalidcontent.xml', {
+			'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
+		}, status = 500)
+	oim_headers = {name: str(value) for name, value in oim_mime.items()}
+	try:
+		i = body_content.index('\r\n\r\n') + 4
+		oim_body = body_content[i:].replace('\r\n', '\n')
+		for oim_b64_line in oim_body.split('\n'):
+			if len(oim_b64_line) > 77:
+				return render(req, 'msn:oim/Fault.invalidcontent.xml', {
+					'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
+				}, status = 500)
+		oim_body_normal = oim_body.strip()
+		oim_body_normal = base64.b64decode(oim_body_normal).decode('utf-8')
+		
+		backend.user_service.save_oim(oim_run_id, recipient_uuid, user.email, friendlyname_str, host, oim_body_normal, True, from_friendly_charset = friendly_charset, headers = oim_headers, oim_proxy = oim_proxy_string)
+		bs.me_contact_notify_oim(recipient_uuid, oim_run_id)
+	except:
+		return render(req, 'msn:oim/Fault.invalidcontent.xml', {
+			'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
+		}, status = 500)
 	
 	return render(req, 'msn:oim/StoreResponse.xml', {
 		'seq': oim_msg_seq,
@@ -1441,20 +1525,6 @@ def _unknown_soap(req: web.Request, header: Any, action: Any, *, expected: bool 
 		print(_xml_to_string(header))
 		print(_xml_to_string(action))
 	return render(req, 'msn:Fault.unsupported.xml', { 'faultactor': action_str })
-
-def _datetime_to_filetime(dt_time: datetime) -> str:
-	filetime_result = round(((dt_time.timestamp() * 10000000) + 116444736000000000) + (dt_time.microsecond * 10))
-	
-	# (DWORD)ll
-	filetime_high = filetime_result & 0xFFFFFFFF
-	filetime_low = filetime_result >> 32
-	
-	filetime_high_hex = hex(filetime_high)[2:]
-	filetime_high_hex = '0' * (8 % len(filetime_high_hex)) + filetime_high_hex
-	filetime_low_hex = hex(filetime_low)[2:]
-	filetime_low_hex = '0' * (8 % len(filetime_low_hex)) + filetime_low_hex
-	
-	return filetime_high_hex.upper() + ':' + filetime_low_hex.upper()
 
 def _xml_to_string(xml: Any) -> str:
 	return lxml.etree.tostring(xml, pretty_print = True).decode('utf-8')
@@ -1684,9 +1754,9 @@ async def handle_rst(req: web.Request, rst2: bool = False) -> web.Response:
 	
 	if token is not None and uuid is not None:
 		day_before_expiry = datetime.utcfromtimestamp((backend.auth_service.get_token_expiry('nb/login', token) or 0) - 86400)
-		timez = _date_format(day_before_expiry)
-		tomorrowz = _date_format((day_before_expiry + timedelta(days = 1)))
-		time_5mz = _date_format((day_before_expiry + timedelta(minutes = 5)))
+		timez = util.misc.date_format(day_before_expiry)
+		tomorrowz = util.misc.date_format((day_before_expiry + timedelta(days = 1)))
+		time_5mz = util.misc.date_format((day_before_expiry + timedelta(minutes = 5)))
 		
 		# load PUID and CID, assume them to be the same for our purposes
 		cid = cid_format(uuid)
@@ -1742,7 +1812,7 @@ async def handle_rst(req: web.Request, rst2: bool = False) -> web.Response:
 		)
 	
 	return render(req, 'msn:RST/RST.error.xml', {
-		'timez': _date_format(datetime.utcnow()),
+		'timez': util.misc.date_format(datetime.utcnow()),
 	}, status = 403)
 
 def _get_storage_path(uuid: str) -> str:
@@ -1817,7 +1887,7 @@ def render(req: web.Request, tmpl_name: str, ctxt: Optional[Dict[str, Any]] = No
 	tmpl = req.app['jinja_env'].get_template(tmpl_name)
 	# This is only here because of `ABFindContactsPaged`, where WLM 2009 will encode the CircleTicket to Windows format (CR LF), and the ticket
 	# data is Unix (LF).
-	content = tmpl.render(**(ctxt or {})).replace('\n', '\r\n')
+	content = tmpl.render(**(ctxt or {}))
 	return web.Response(status = status, content_type = content_type, text = content)
 
 def _extract_pp_credentials(auth_str: str) -> Optional[Tuple[str, str]]:
@@ -1838,14 +1908,6 @@ def _login(req: web.Request, email: str, pwd: str, lifetime: int = 30) -> Option
 	uuid = backend.user_service.login(email, pwd)
 	if uuid is None: return None
 	return backend.auth_service.create_token('nb/login', uuid, lifetime = lifetime)
-
-def _date_format(d: Optional[datetime]) -> Optional[str]:
-	if d is None:
-		return None
-	d_iso = '{}{}'.format(
-		d.isoformat()[0:19], 'Z',
-	)
-	return d_iso
 
 def _bool_to_str(b: bool) -> str:
 	return 'true' if b else 'false'
@@ -1889,21 +1951,3 @@ class BLPAnnotation(IntEnum):
 	Empty = 0
 	AL = 1
 	BL = 2
-
-OIM_HEADER_PRE = '''X-Message-Info: cwRBnLifKNE8dVZlNj6AiX8142B67OTjG9BFMLMyzuui1H4Xx7m3NQ==
-Received: from OIM-SSI02.phx.gbl ([65.54.237.206]) by oim1-f1.hotmail.com with Microsoft SMTPSVC(6.0.3790.211);
-	 {pst1}
-Received: from mail pickup service by OIM-SSI02.phx.gbl with Microsoft SMTPSVC;
-	 {pst1}
-From: {friendly} <{sender}>
-To: {recipient}
-Subject: 
-X-OIM-originatingSource: {ip}
-X-OIMProxy: {oimproxy}
-'''
-
-OIM_HEADER_REST = '''
-Message-ID: <OIM-SSI02zDv60gxapz00061a8b@OIM-SSI02.phx.gbl>
-X-OriginalArrivalTime: {utc} FILETIME=[{ft}]
-Date: {pst2}
-Return-Path: ndr@oim.messenger.msn.com'''

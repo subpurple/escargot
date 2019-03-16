@@ -1,0 +1,4 @@
+<addressbook time="{{ epoch }}">
+<farm id="1646"/>
+{{ records }}
+</addressbook>

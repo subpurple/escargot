@@ -10,6 +10,7 @@ import shutil
 import re
 
 from core.backend import Backend, BackendSession
+from core.models import ABContact
 import util.misc
 from .ymsg_ctrl import _try_decode_ymsg
 from .misc import YMSGService, yahoo_id_to_uuid, yahoo_id
@@ -46,10 +47,88 @@ def register(app: web.Application) -> None:
 	app.router.add_route('*', '/tmp/file/{file_id}/{filename}', handle_yahoo_filedl)
 
 async def handle_insider_ycontent(req: web.Request) -> web.Response:
+	backend = req.app['backend']
+	
+	yab_received = False
+	yab_set = False
 	config_xml = []
 	for query_xml in req.query.keys():
 		# Ignore any `chatroom_##########` requests for now
 		if query_xml in UNUSED_QUERIES or query_xml.startswith('chatroom_'): continue
+		if query_xml in ('ab2','addab2'):
+			(_, bs) = _parse_cookies(req, backend)
+			if bs is not None:
+				user = bs.user
+				detail = user.detail
+				if detail is not None:
+					if '00000000-0000-0000-0000-000000000000' in detail.subscribed_ab_stores:
+						ab2_tmpl = req.app['jinja_env'].get_template('ymsg:Yinsider/Ycontent/Ycontent.ab2.xml')
+						if query_xml == 'ab2':
+							if yab_received or yab_set: continue
+							tpl = backend.user_service.get_ab_contents('00000000-0000-0000-0000-000000000000', user)
+							if tpl is not None:
+								_, _, _, _, ab_contacts = tpl
+								ab_ctcs = [ab_contact for ab_contact in ab_contacts.values() if ab_contact.type == 'Regular']
+								records = []
+								
+								for ab_ctc in ab_ctcs:
+									records.append(_gen_yab_record(ab_ctc))
+								config_xml.append(ab2_tmpl.render(epoch = round(time.time()), records = Markup('\n'.join(records))))
+						if query_xml == 'addab2':
+							edit_mode = False
+							email_member = None
+							
+							if yab_set or yab_received: continue
+							if req.query.get('ee') is '1' and req.query.get('ow') is '1':
+								edit_mode = True
+							
+							if edit_mode:
+								if req.query.get('id') is None:
+									continue
+								
+								entry_id = str(req.query['id'])
+								ab_ctc = backend.user_service.ab_get_entry_by_id('00000000-0000-0000-0000-000000000000', entry_id, user)
+							else:
+								yid = req.query.get('yid')
+								if yid is None: continue
+								
+								if '@' in yid:
+									if not yid.endswith('@yahoo.com'):
+										email_member = yid
+									else:
+										email_member = None
+								else:
+									email_member = '{}@yahoo.com'.format(yid)
+								
+								if email_member is None:
+									continue
+								entry_uuid = backend.util_get_uuid_from_email(email_member)
+								if entry_uuid is None:
+									continue
+								
+								ab_ctc = backend.user_service.ab_get_entry_by_email('00000000-0000-0000-0000-000000000000', email_member, 'Regular', user)
+								if ab_ctc is not None:
+									continue
+								
+								ab_ctc = ABContact(
+									'Regular', backend.user_service.gen_ab_entry_id('00000000-0000-0000-0000-000000000000', user), util.misc.gen_uuid(), email_member, '', set(),
+									member_uuid = email_member, is_messenger_user = True,
+								)
+							if req.query.get('pp') is not None:
+								if str(req.query['pp']) not in ('0','1','2'):
+									continue
+							ab_ctc.first_name = req.query.get('fn')
+							ab_ctc.last_name = req.query.get('ln')
+							ab_ctc.nickname = req.query.get('nn')
+							ab_ctc.personal_email = req.query.get('e')
+							ab_ctc.home_phone = req.query.get('hp')
+							ab_ctc.work_phone = req.query.get('wp')
+							ab_ctc.mobile_phone = req.query.get('mb')
+							
+							await backend.user_service.mark_ab_modified_async('00000000-0000-0000-0000-000000000000', { 'contacts': [ab_ctc] }, user)
+							
+							config_xml.append(ab2_tmpl.render(epoch = round(time.time()), records = Markup(_gen_yab_record(ab_ctc))))
+			continue
 		tmpl = req.app['jinja_env'].get_template('ymsg:Yinsider/Ycontent/Ycontent.' + query_xml + '.xml')
 		config_xml.append(tmpl.render())
 	
@@ -58,17 +137,46 @@ async def handle_insider_ycontent(req: web.Request) -> web.Response:
 		'configxml': Markup('\n'.join(config_xml)),
 	})
 
-# 'intl', 'os', and 'ver' are NOT queries to retrieve config XML files;
-# 'getwc' and 'getgp' are unsure of their use;
-# 'ab2' and all related query strings are used for the address book, which isn't implemented as of now
+# 'intl', 'os', 'ver', 'fn', 'ln', 'yid', 'nn', 'e', 'hp', 'wp', 'mp', 'pp', 'ee', 'ow', and 'id' are NOT queries to retrieve config XML files;
+# 'getwc' and 'getgp' are unsure of their use
 UNUSED_QUERIES = {
 	'intl', 'os', 'ver',
-	'getwc', 'getgp', 'ab2',
-	'fname', 'lname', 'yid',
-	'nname', 'email', 'hphone',
-	'wphone', 'mphone', 'pp',
-	'ee', 'ow', 'id',
+	'getwc', 'getgp', 'fn',
+	'ln', 'yid', 'nn',
+	'e', 'hp', 'wp',
+	'mb', 'pp', 'ee',
+	'ow', 'id',
 }
+
+def _gen_yab_record(ab_ctc: ABContact) -> str:
+	fname = None
+	lname = None
+	nname = None
+	email = None
+	hphone = None
+	wphone = None
+	mphone = None
+	if ab_ctc.first_name is not None:
+		fname = ' fname="{}"'.format(ab_ctc.first_name)
+	if ab_ctc.last_name is not None:
+		lname = ' lname="{}"'.format(ab_ctc.last_name)
+	if ab_ctc.nickname is not None:
+		nname = ' nname="{}"'.format(ab_ctc.nickname)
+	if ab_ctc.personal_email is not None:
+		email = ' email="{}"'.format(ab_ctc.personal_email)
+	if ab_ctc.home_phone is not None:
+		hphone = ' hphone="{}"'.format(ab_ctc.home_phone)
+	if ab_ctc.work_phone is not None:
+		wphone = ' wphone="{}"'.format(ab_ctc.work_phone)
+	if ab_ctc.mobile_phone is not None:
+		mphone = ' mphone="{}"'.format(ab_ctc.mobile_phone)
+	
+	return '<record userid="{yid}"{fname}{lname}{nname}{email}{hphone}{wphone}{mphone} dbid="{contact_id}"/>'.format(
+		yid = yahoo_id(ab_ctc.email),
+		fname = fname or '', lname = lname or '', nname = nname or '',
+		email = email or '', hphone = hphone or '', wphone = wphone or '', mphone = mphone or '',
+		contact_id = ab_ctc.id,
+	)
 
 async def handle_insider(req: web.Request) -> web.Response:
 	# For debug purposes
@@ -179,7 +287,7 @@ async def handle_ft_http(req: web.Request) -> web.Response:
 	ymsg_data = y_ft_pkt[5]
 	
 	yahoo_id_sender = ymsg_data.get('0') or ''
-	(yahoo_id, bs) = _parse_cookies(req, backend, yahoo_id_sender)
+	(yahoo_id, bs) = _parse_cookies(req, backend)
 	if bs is None or yahoo_id is None or (yahoo_id != yahoo_id_sender or not yahoo_id_to_uuid(backend, yahoo_id)):
 		raise web.HTTPInternalServerError
 	

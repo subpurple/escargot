@@ -6,7 +6,7 @@
 			<faultstring>Exception of type System.Web.Services.Protocols.SoapException was thrown.</faultstring>
 			<faultactor>https://eowsmsgrmsn.log1p.xyz/OimWS/oim.asmx</faultactor>
 			<detail>
-				{{ authTypeNode }}
+				<TweenerChallenge xmlns="http://messenger.msn.com/ws/2004/09/oim/">ct=1,rver=1,wp=FS_40SEC_0_COMPACT,lc=1,id=1</TweenerChallenge>
 				<LockKeyChallenge xmlns="{{ owsns }}">1850937852</LockKeyChallenge>
 			</detail>
 		</soap:Fault>

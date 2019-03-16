@@ -5,7 +5,7 @@ import time
 
 from util import misc
 from core.models import Lst, NetworkID
-from core.db import Base, Session, User, UserGroup, UserContact, ABStore, ABStoreContact, ABStoreContactLocation, ABStoreContactNetworkInfo, ABMetadata, OIM, YahooOIM, engine
+from core.db import Base, Session, User, UserGroup, UserContact, ABStore, ABStoreContact, ABStoreContactLocation, ABStoreContactNetworkInfo, ABMetadata, engine
 
 from script.user import set_passwords
 
@@ -74,8 +74,6 @@ def main() -> None:
 		sess.query(ABStoreContactNetworkInfo).delete()
 		#sess.query(CircleStore).delete()
 		#sess.query(CircleMembership).delete()
-		sess.query(OIM).delete()
-		sess.query(YahooOIM).delete()
 		sess.add(ABMetadata(
 			ab_id = '00000000-0000-0000-0000-000000000000', ab_type = 'Individual',
 		))
@@ -113,9 +111,9 @@ def create_abstore(uuid: str) -> ABStore:
 		member_uuid = uuid, ab_id = '00000000-0000-0000-0000-000000000000',
 	)
 
-def create_abstorecontact(contact_uuid: str, uuid: str, email: str, name: str) -> ABStoreContact:
+def create_abstorecontact(contact_uuid: str, contact_id: str, uuid: str, email: str, name: str) -> ABStoreContact:
 	return ABStoreContact(
-		ab_id = '00000000-0000-0000-0000-000000000000', ab_owner_uuid = uuid, contact_uuid = str(uuid4()), contact_member_uuid = contact_uuid,
+		ab_id = '00000000-0000-0000-0000-000000000000', ab_owner_uuid = uuid, contact_id = contact_id, contact_uuid = str(uuid4()), contact_member_uuid = contact_uuid,
 		type = 'Regular', email = email, name = name, groups = [],
 		is_messenger_user = True, annotations = {},
 	)
@@ -124,35 +122,37 @@ def set_contacts(user: User, contacts_by_group: Dict[str, List[User]]) -> None:
 	user.contacts = {}
 	user.groups = []
 	
+	contact_id = 2
 	for i, (group_name, group_users) in enumerate(contacts_by_group.items()):
 		group_id = str(i + 1)
 		group_uuid = str(uuid4())
 		if group_name:
 			user_groups_by_uuid_by_uuid[user.uuid][group_id] = create_usergroup(group_id, group_uuid, user.uuid, group_name)
 		for u in group_users:
-			contact, contact_abs = add_contact_twosided(user, u)
+			contact, contact_abs = add_contact_twosided(user, u, str(contact_id))
 			if group_name:
 				contact.groups.append({ 'id': group_id, 'uuid': group_uuid })
 				assert contact_abs is not None
 				contact_abs.groups.append(group_uuid)
 				contact_abs.date_last_modified = datetime.utcnow()
+			contact_id += 1
 
 def randomish(u: User) -> int:
 	return int(u.uuid[:8], 16)
 
-def add_contact_twosided(user: User, user_contact: User) -> Tuple[UserContact, Optional[ABStoreContact]]:
-	contact, contact_abs = add_contact_onesided(user, user_contact, Lst.AL | Lst.FL)
-	add_contact_onesided(user_contact, user, Lst.RL)
+def add_contact_twosided(user: User, user_contact: User, contact_id: str) -> Tuple[UserContact, Optional[ABStoreContact]]:
+	contact, contact_abs = add_contact_onesided(user, user_contact, contact_id, Lst.AL | Lst.FL)
+	add_contact_onesided(user_contact, user, None, Lst.RL)
 	return contact, contact_abs
 
-def add_contact_onesided(user: User, user_contact: User, lst: Lst) -> Tuple[UserContact, Optional[ABStoreContact]]:
+def add_contact_onesided(user: User, user_contact: User, contact_id: Optional[str], lst: Lst) -> Tuple[UserContact, Optional[ABStoreContact]]:
 	if user_contact.uuid not in usercontacts_by_uuid_by_uuid[user.uuid]:
 		usercontacts_by_uuid_by_uuid[user.uuid][user_contact.uuid] = create_usercontact(user.uuid, user_contact.uuid, user_contact.name, user_contact.message)
 	contact = usercontacts_by_uuid_by_uuid[user.uuid][user_contact.uuid]
 	contact.lists |= lst
 	
-	if user_contact.uuid not in ab_store_contacts_by_uuid_by_uuid[user.uuid] and lst & Lst.FL:
-		ab_store_contacts_by_uuid_by_uuid[user.uuid][user_contact.uuid] = create_abstorecontact(user_contact.uuid, user.uuid, user_contact.email, user_contact.name)
+	if user_contact.uuid not in ab_store_contacts_by_uuid_by_uuid[user.uuid] and lst & Lst.FL and contact_id is not None:
+		ab_store_contacts_by_uuid_by_uuid[user.uuid][user_contact.uuid] = create_abstorecontact(user_contact.uuid, contact_id, user.uuid, user_contact.email, user_contact.name)
 	contact_abs = ab_store_contacts_by_uuid_by_uuid[user.uuid].get(user_contact.uuid)
 	return contact, contact_abs
 

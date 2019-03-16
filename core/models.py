@@ -99,9 +99,10 @@ class ContactGroupEntry:
 		self.uuid = uuid
 
 class ABContact:
-	__slots__ = ('type', 'uuid', 'email', 'birthdate', 'anniversary', 'member_uuid', 'date_last_modified', 'notes', 'name', 'first_name', 'middle_name', 'last_name', 'primary_email_type', 'personal_email', 'work_email', 'im_email', 'other_email', 'home_phone', 'work_phone', 'fax_phone', 'pager_phone', 'mobile_phone', 'other_phone', 'personal_website', 'business_website', 'locations', 'groups', 'is_messenger_user', 'networkinfos', 'annotations')
+	__slots__ = ('type', 'id', 'uuid', 'email', 'birthdate', 'anniversary', 'member_uuid', 'date_last_modified', 'notes', 'name', 'first_name', 'middle_name', 'last_name', 'nickname', 'primary_email_type', 'personal_email', 'work_email', 'im_email', 'other_email', 'home_phone', 'work_phone', 'fax_phone', 'pager_phone', 'mobile_phone', 'other_phone', 'personal_website', 'business_website', 'locations', 'groups', 'is_messenger_user', 'networkinfos', 'annotations')
 	
 	type: str
+	id: str
 	uuid: str
 	email: str
 	birthdate: Optional[datetime]
@@ -113,6 +114,7 @@ class ABContact:
 	first_name: Optional[str]
 	middle_name: Optional[str]
 	last_name: Optional[str]
+	nickname: Optional[str]
 	primary_email_type: Optional[str]
 	personal_email: Optional[str]
 	work_email: Optional[str]
@@ -132,8 +134,9 @@ class ABContact:
 	networkinfos: Dict['NetworkID', 'NetworkInfo']
 	annotations: Dict[str, Any]
 	
-	def __init__(self, type: str, uuid: str, email: str, name: Optional[str], groups: Set[str], *, birthdate: Optional[datetime] = None, anniversary: Optional[datetime] = None, notes: Optional[str] = None, first_name: Optional[str] = None, middle_name: Optional[str] = None, last_name: Optional[str] = None, primary_email_type: Optional[str] = None, personal_email: Optional[str] = None, work_email: Optional[str] = None, im_email: Optional[str] = None, other_email: Optional[str] = None, home_phone: Optional[str] = None, work_phone: Optional[str] = None, fax_phone: Optional[str] = None, pager_phone: Optional[str] = None, mobile_phone: Optional[str] = None, other_phone: Optional[str] = None, personal_website: Optional[str] = None, business_website: Optional[str] = None, locations: Optional[Dict[str, 'ABContactLocation']] = None, networkinfos: Optional[Dict['NetworkID', 'NetworkInfo']] = None, member_uuid: Optional[str] = None, is_messenger_user: Optional[bool] = None, annotations: Optional[Dict[str, Any]] = None, date_last_modified: Optional[datetime] = None) -> None:
+	def __init__(self, type: str, id: str, uuid: str, email: str, name: Optional[str], groups: Set[str], *, birthdate: Optional[datetime] = None, anniversary: Optional[datetime] = None, notes: Optional[str] = None, first_name: Optional[str] = None, middle_name: Optional[str] = None, last_name: Optional[str] = None, nickname: Optional[str] = None, primary_email_type: Optional[str] = None, personal_email: Optional[str] = None, work_email: Optional[str] = None, im_email: Optional[str] = None, other_email: Optional[str] = None, home_phone: Optional[str] = None, work_phone: Optional[str] = None, fax_phone: Optional[str] = None, pager_phone: Optional[str] = None, mobile_phone: Optional[str] = None, other_phone: Optional[str] = None, personal_website: Optional[str] = None, business_website: Optional[str] = None, locations: Optional[Dict[str, 'ABContactLocation']] = None, networkinfos: Optional[Dict['NetworkID', 'NetworkInfo']] = None, member_uuid: Optional[str] = None, is_messenger_user: Optional[bool] = None, annotations: Optional[Dict[str, Any]] = None, date_last_modified: Optional[datetime] = None) -> None:
 		self.type = type
+		self.id = id
 		self.uuid = uuid
 		self.email = email
 		self.birthdate = birthdate
@@ -145,6 +148,7 @@ class ABContact:
 		self.first_name = first_name
 		self.middle_name = middle_name
 		self.last_name = last_name
+		self.nickname = nickname
 		self.primary_email_type = primary_email_type
 		self.personal_email = personal_email
 		self.work_email = work_email
@@ -376,41 +380,37 @@ class TextWithData:
 #		self.role = role
 #		self.state = state
 
-class OIMMetadata:
-	__slots__ = ('run_id', 'oim_num', 'from_member_name', 'from_member_friendly', 'to_member_name', 'last_oim_sent', 'oim_content_length')
+class OIM:
+	__slots__ = ('run_id', 'from_email', 'from_friendly', 'from_friendly_encoding', 'from_friendly_charset', 'from_user_id', 'to_email', 'sent', 'origin_ip', 'oim_proxy', 'headers', 'message', 'utf8')
 	
 	run_id: str
-	oim_num: int
-	from_member_name: str
-	from_member_friendly: str
-	to_member_name: str
-	last_oim_sent: datetime
-	oim_content_length: int
-	
-	def __init__(self, run_id: str, oim_num: int, from_member_name: str, from_member_friendly: str, to_member_name: str, last_oim_sent: datetime, oim_content_length: int) -> None:
-		self.run_id = run_id
-		self.oim_num = oim_num
-		self.from_member_name = from_member_name
-		self.from_member_friendly = from_member_friendly
-		self.to_member_name = to_member_name
-		self.last_oim_sent = last_oim_sent
-		self.oim_content_length = oim_content_length
-
-class YahooOIM:
-	__slots__ = ('from_id', 'recipient_id', 'sent', 'message', 'utf8_kv')
-	
-	from_id: str
-	recipient_id: str
+	from_email: str
+	from_friendly: str
+	from_friendly_encoding: str
+	from_friendly_charset: str
+	from_user_id: Optional[str]
+	to_email: str
 	sent: datetime
-	message: Optional[str]
-	utf8_kv: Optional[bool]
+	origin_ip: Optional[str]
+	oim_proxy: Optional[str]
+	headers: Dict[str, str]
+	message: str
+	utf8: bool
 	
-	def __init__(self, from_id: str, recipient_id: str, sent: datetime, message: Optional[str], utf8_kv: Optional[bool]):
-		self.from_id = from_id
-		self.recipient_id = recipient_id
+	def __init__(self, run_id: str, from_email: str, from_friendly: str, to_email: str, sent: datetime, message: str, utf8: bool, *, headers: Optional[Dict[str, str]] = None, from_friendly_encoding: Optional[str] = None, from_friendly_charset: Optional[str] = None, from_user_id: Optional[str] = None, origin_ip: Optional[str] = None, oim_proxy: Optional[str] = None) -> None:
+		self.run_id = run_id
+		self.from_email = from_email
+		self.from_friendly = from_friendly
+		self.from_friendly_encoding = _default_if_none(from_friendly_encoding, 'B')
+		self.from_friendly_charset = _default_if_none(from_friendly_charset, 'utf-8')
+		self.from_user_id = from_user_id
+		self.to_email = to_email
 		self.sent = sent
+		self.origin_ip = origin_ip
+		self.oim_proxy = oim_proxy
+		self.headers = _default_if_none(headers, {})
 		self.message = message
-		self.utf8_kv = utf8_kv
+		self.utf8 = utf8
 
 T = TypeVar('T')
 def _default_if_none(x: Optional[T], default: T) -> T:

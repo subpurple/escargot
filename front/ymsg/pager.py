@@ -7,7 +7,7 @@ import time
 import binascii
 import struct
 
-from util.misc import Logger
+from util.misc import Logger, gen_uuid
 
 from core import event, error
 from core.backend import Backend, BackendSession, Chat, ChatSession
@@ -160,7 +160,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		bs.front_data['ymsg'] = True
 		bs.front_data['ymsg_private_chats'] = {}
 		
-		self._get_oims(self.yahoo_id)
+		self._get_oims(user)
 		
 		self._update_buddy_list(cached_y = cached_y, cached_t = cached_t, after_login = True)
 		
@@ -454,7 +454,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		if int(ignore_mode) == 1:
 			contact = contacts.get(ignored_uuid)
 			if contact is not None:
-				if not contact._groups and (contact.lists & Lst.BL):
+				if contact.lists & Lst.BL:
 					ignore_reply_response.add('66', 2)
 					self.send_reply(YMSGService.Ignore, YMSGStatus.BRB, self.sess_id, ignore_reply_response)
 					return
@@ -465,14 +465,16 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		
 		self.send_reply(YMSGService.AddIgnore, YMSGStatus.BRB, self.sess_id, None)
 		ignore_reply_response.add('66', 0)
+		self._update_buddy_list()
 		self.send_reply(YMSGService.Ignore, YMSGStatus.BRB, self.sess_id, ignore_reply_response)
 	
 	def _y_000a(self, *args: Any) -> None:
 		# SERVICE_USERSTAT (0x0a); synchronize logged on user's status
 		bs = self.bs
 		assert bs is not None
+		user = bs.user
 		
-		self.send_reply(YMSGService.UserStat, bs.front_data.get('ymsg_status') or YMSGStatus.Available, self.sess_id, None)
+		self.send_reply(YMSGService.UserStat, bs.front_data.get('ymsg_status') or YMSGStatus.FromSubstatus(user.status.substatus), self.sess_id, None)
 		self._update_buddy_list()
 	
 	def _y_0055(self, *args: Any) -> None:
@@ -529,10 +531,13 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		if contact_uuid is None:
 			return
 		
-		cs, _ = self._get_private_chat_with(yahoo_id, contact_uuid)
-		if cs is not None:
-			cs.preferred_name = yahoo_id
-			cs.send_message_to_everyone(messagedata_from_ymsg(cs.user, yahoo_data, notify_type = notify_type, typing_flag = typing_flag))
+		try:
+			cs, _ = self._get_private_chat_with(yahoo_id, contact_uuid)
+			if cs is not None:
+				cs.preferred_name = yahoo_id
+				cs.send_message_to_everyone(messagedata_from_ymsg(cs.user, yahoo_data, notify_type = notify_type, typing_flag = typing_flag))
+		except error.ContactNotOnline:
+			pass
 	
 	def _y_0006(self, *args: Any) -> None:
 		# SERVICE_MESSAGE (0x06); send a message to a user
@@ -717,6 +722,10 @@ class YMSGCtrlPager(YMSGCtrlBase):
 	# Other functions
 	
 	def _message_common(self, yahoo_data: Dict[str, Any], contact_yahoo_id: str, yahoo_id: str) -> None:
+		bs = self.bs
+		assert bs is not None
+		user = bs.user
+		
 		assert self.yahoo_id is not None
 		if contact_yahoo_id == 'YahooHelper':
 			yhlper_msg_dict = MultiDict([
@@ -751,12 +760,20 @@ class YMSGCtrlPager(YMSGCtrlBase):
 			contact_user = self.backend._load_user_record(contact_uuid)
 			if contact_user is None:
 				return
+			contact_detail = self.backend._load_detail(contact_user)
+			if contact_detail is None:
+				return
+			ctc_self = contact_detail.contacts.get(user.uuid)
+			if ctc_self is not None:
+				if ctc_self.lists & Lst.BL:
+					return
 			md = messagedata_from_ymsg(contact_user, yahoo_data)
 			if md.type is MessageType.Chat:
-				self.backend.user_service.yahoo_save_oim(
-					md.text or '', (bool(int(md.front_cache['ymsg'].get('97'))) if md.front_cache['ymsg'].get('97') is not None else None),
-					yahoo_id, self.yahoo_id, contact_yahoo_id,
-					datetime.datetime.utcnow(),
+				(ip, _) = self.peername
+				
+				self.backend.user_service.save_oim(
+					gen_uuid().upper(), contact_uuid, user.email, self.yahoo_id, ip, md.text or '', False if md.front_cache['ymsg'].get('97') is '0' else True,
+					from_user_id = md.front_cache['ymsg'].get('1'),
 				)
 		except error.ContactNotOnList:
 			pass
@@ -779,6 +796,11 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		if other_user_ctc is not None and other_user_ctc.lists & Lst.BL:
 			raise error.ContactNotOnList()
 		if other_user_uuid not in bs.front_data['ymsg_private_chats'] and other_user.status.substatus is not Substatus.Offline:
+			other_user_detail = self.backend._load_detail(other_user)
+			if other_user_detail is None: raise error.ContactNotOnline()
+			ctc_self = other_user_detail.contacts.get(user.uuid)
+			if ctc_self is not None:
+				if ctc_self.lists & Lst.BL: raise error.ContactNotOnline()
 			chat = self.backend.chat_create()
 			chat.front_data['ymsg_twoway_only'] = True
 			
@@ -837,7 +859,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		if contact_list:
 			contact_group_list.append('(No Group):' + ','.join(contact_list) + '\n')
 		
-		ignore_list = [misc.yahoo_id(c.head.email) for c in cs if c.lists & Lst.BL and not c.lists & Lst.FL]
+		ignore_list = [misc.yahoo_id(c.head.email) for c in cs if c.lists & Lst.BL]
 		
 		list_reply_kvs = MultiDict([
 			('87', ''.join(contact_group_list)),
@@ -874,22 +896,22 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		
 		self.send_reply(YMSGService.LogOn, YMSGStatus.Available, self.sess_id, logon_payload)
 	
-	def _get_oims(self, yahoo_id: str) -> None:
-		oims = self.backend.user_service.yahoo_get_oim_message_by_recipient(yahoo_id)
+	def _get_oims(self, user: User) -> None:
+		oims = self.backend.user_service.get_oim_batch(user)
 		
 		for oim in oims:
 			oim_msg_dict = MultiDict([
 				('31', 6),
 				('32', 6),
-				('1', oim.from_id),
-				('5', oim.recipient_id),
-				('4', oim.from_id),
+				('1', oim.from_user_id or misc.yahoo_id(oim.from_email)),
+				('5', self.yahoo_id),
+				('4', oim.from_user_id or misc.yahoo_id(oim.from_email)),
 				('15', int(oim.sent.timestamp())),
 				('14', oim.message),
+				('97', 1 if oim.utf8 else 0),
 			]) # type: MultiDict[Any]
 			
-			if oim.utf8_kv is not None:
-				oim_msg_dict.add('97', int(oim.utf8_kv))
+			self.backend.user_service.delete_oim(user.uuid, oim.run_id)
 			
 			self.send_reply(YMSGService.Message, YMSGStatus.NotInOffice, self.sess_id, oim_msg_dict)
 	
