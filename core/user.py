@@ -393,7 +393,9 @@ class UserService:
 		id = 2
 		
 		for i, _ in enumerate(ab_contacts):
-			if i+2 == id: continue
+			if i+2 == id:
+				id += 1
+				continue
 		s = str(id)
 		
 		return s
