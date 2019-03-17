@@ -158,9 +158,9 @@ def _try_decode_ymsg(d: bytes, i: int) -> Tuple[DecodedYMSG, int]:
 		parts = payload.split(SEP)
 		del parts[-1]
 		assert len(parts) % 2 == 0
-		for i in range(1, len(parts), 2):
-			key = str(parts[i-1].decode())
-			kvs.add(key, parts[i].decode('utf-8'))
+		for j in range(1, len(parts), 2):
+			key = str(parts[j-1].decode())
+			kvs.add(key, parts[j].decode('utf-8'))
 		e += n
 	return ((YMSGService(service), version, vendor_id, YMSGStatus(status), session_id, kvs), e)
 
