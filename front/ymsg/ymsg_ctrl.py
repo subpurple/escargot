@@ -6,7 +6,7 @@ import binascii
 import struct
 import time
 
-from util.misc import Logger, MultiDict
+from util.misc import Logger, MultiDict, arbitrary_decode
 
 from .misc import YMSGStatus, YMSGService
 
@@ -84,7 +84,7 @@ class YMSGEncoder:
 		payload_list = []
 		if kvs is not None:
 			for k, v in kvs.items():
-				payload_list.extend([str(k).encode('utf-8'), SEP, str(v).encode('utf-8'), SEP])
+				payload_list.extend([str(k).encode('utf-8'), SEP, v, SEP])
 		payload = b''.join(payload_list)
 		# Have to call `int` on these because they might be an IntEnum, which
 		# get `repr`'d to `EnumName.ValueName`. Grr.
@@ -157,13 +157,13 @@ def _try_decode_ymsg(d: bytes, i: int) -> Tuple[DecodedYMSG, int]:
 		del parts[-1]
 		assert len(parts) % 2 == 0
 		for j in range(1, len(parts), 2):
-			key = str(parts[j-1].decode())
-			kvs.add(key, parts[j].decode('utf-8'))
+			key = arbitrary_decode(parts[j-1])
+			kvs.add(key, parts[j])
 		e += n
 	return ((YMSGService(service), version, vendor_id, YMSGStatus(status), session_id, kvs), e)
 
 def _truncated_log(logger: Logger, pre: str, y: DecodedYMSG, transport_type: str) -> None:
-	if y[0] in (YMSGService.List,YMSGService.P2PFileXfer,YMSGService.Message,YMSGService.ConfInvite,YMSGService.ConfAddInvite,YMSGService.ConfMsg,YMSGService.SkinName) or (y[0] in (YMSGService.FriendAdd,YMSGService.ContactDeny) and y[5].get('14') not in (None,'')) or (y[0] is YMSGService.ContactNew and y[3] in (YMSGStatus.NotAtHome,YMSGStatus.OnVacation) and y[5].get('14') not in (None,'')) or (y[0] is YMSGService.AuthResp and y[5].get('59') is not None):
+	if y[0] in (YMSGService.List,YMSGService.P2PFileXfer,YMSGService.Message,YMSGService.ConfInvite,YMSGService.ConfAddInvite,YMSGService.ConfMsg,YMSGService.SkinName) or (y[0] in (YMSGService.FriendAdd,YMSGService.ContactDeny) and y[5].get('14') not in (None,b'')) or (y[0] is YMSGService.ContactNew and y[3] in (YMSGStatus.NotAtHome,YMSGStatus.OnVacation) and y[5].get('14') not in (None,b'')) or (y[0] is YMSGService.AuthResp and y[5].get('59') is not None):
 		if transport_type == 'INCOMING':
 			logger.info(pre, 'YMSG' + str(y[1]), y[0], y[3], y[4])
 		elif transport_type == 'OUTGOING':

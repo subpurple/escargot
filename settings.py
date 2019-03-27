@@ -1,5 +1,6 @@
 DB = 'sqlite:///escargot.sqlite'
 STATS_DB = 'sqlite:///stats.sqlite'
+TARGET_HOST = 'm1.escargot.log1p.xyz'
 LOGIN_HOST = 'm1.escargot.log1p.xyz'
 YAHOO_FT_DL_HOST = 'http://yflstre.log1p.xyz'
 STORAGE_HOST = LOGIN_HOST

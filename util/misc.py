@@ -2,6 +2,7 @@ from typing import FrozenSet, Any, Iterable, Optional, TypeVar, List, Dict, Tupl
 from abc import ABCMeta, abstractmethod
 import asyncio
 import functools
+import binascii
 import itertools
 import traceback
 from datetime import datetime
@@ -158,6 +159,20 @@ def add_to_jinja_env(app: web.Application, prefix: str, tmpl_dir: str, *, global
 	jinja_env.loader.mapping[prefix] = jinja2.FileSystemLoader(tmpl_dir)
 	if globals:
 		jinja_env.globals.update(globals)
+
+def arbitrary_decode(raw_data: bytes) -> str:
+	if not raw_data: return ''
+	
+	raw_hex = binascii.hexlify(raw_data)
+	raw_ords = []
+
+	for i in range(0, len(raw_hex), 2):
+		raw_ords.append(int(raw_hex[i:i+2], 16))
+	
+	return ''.join(map(chr, raw_ords))
+
+def arbitrary_encode(s: str) -> bytes:
+	return bytes([ord(c) for c in s])
 
 def date_format(d: Optional[datetime]) -> Optional[str]:
 	if d is None:

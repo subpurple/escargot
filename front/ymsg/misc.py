@@ -3,7 +3,8 @@ from urllib.parse import quote_plus
 from enum import IntEnum
 import time
 
-from util.misc import first_in_iterable, DefaultDict, MultiDict
+from util.misc import first_in_iterable, DefaultDict, MultiDict, arbitrary_encode
+>>>>>>> ymsg: make parser more byte-friendly
 
 from core.backend import Backend, BackendSession, Chat, ChatSession
 from core.models import User, Lst, Contact, Substatus, NetworkID
@@ -128,7 +129,7 @@ def build_ft_packet(bs: BackendSession, xfer_dict: Dict[str, Any]) -> Iterable[E
 	user_to = bs.user
 	
 	ft_dict = MultiDict([
-		('5', yahoo_id(user_to.email)),
+		('5', yahoo_id(user_to.email).encode('utf-8')),
 		('4', xfer_dict.get('1'))
 	])
 	
@@ -137,11 +138,17 @@ def build_ft_packet(bs: BackendSession, xfer_dict: Dict[str, Any]) -> Iterable[E
 	if ft_type == '1':
 		ft_dict.add('27', xfer_dict.get('27'))
 		ft_dict.add('28', xfer_dict.get('28'))
-		url_filename = xfer_dict.get('53') or ''
+		url_filename = xfer_dict.get('53')
+		if url_filename is not None:
+			url_filename = url_filename.decode('utf-8')
+		
 		# When file name in HTTP string is sent to recipient by server, it is unescaped for some reason
 		# Replace it with `urllib.parse.quote()`'d version!
-		ft_dict.add('20', (xfer_dict.get('20') or '').replace(url_filename, quote_plus(url_filename, safe = '')))
-		ft_dict.add('53', url_filename)
+		key20_val = xfer_dict.get('20')
+		if key20_val is not None:
+			key20_val = key20_val.decode('utf-8')
+		ft_dict.add('20', (key20_val or '').replace(url_filename or '', quote_plus(url_filename, safe = '')).encode('utf-8'))
+		ft_dict.add('53', (url_filename or '').encode('utf-8'))
 		ft_dict.add('14', xfer_dict.get('14'))
 		ft_dict.add('54', xfer_dict.get('54'))
 	if ft_type in ('2','3'):
@@ -163,12 +170,12 @@ def build_http_ft_packet(bs: BackendSession, sender: str, url_path: str, upload_
 	user = bs.user
 	
 	yield (YMSGService.FileTransfer, YMSGStatus.BRB, MultiDict([
-		('1', yahoo_id(user.email)),
-		('5', sender),
-		('4', yahoo_id(user.email)),
-		('14', message),
-		('38', upload_time),
-		('20', settings.YAHOO_FT_DL_HOST + '/tmp/' + url_path),
+		('1', yahoo_id(user.email).encode('utf-8')),
+		('5', arbitrary_encode(sender)),
+		('4', yahoo_id(user.email).encode('utf-8')),
+		('14', arbitrary_encode(message)),
+		('38', str(upload_time).encode('utf-8')),
+		('20', '{}{}'.format(settings.YAHOO_FT_DL_HOST, url_path).encode('utf-8')),
 	]))
 
 def is_blocking(blocker: User, blockee: User) -> bool:

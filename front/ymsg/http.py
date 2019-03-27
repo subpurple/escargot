@@ -23,13 +23,12 @@ def register(app: web.Application) -> None:
 	util.misc.add_to_jinja_env(app, 'ymsg', YAHOO_TMPL_DIR)
 	
 	# Yahoo! Insider
-	# TODO: `*` routes need to also match on host
-	app.router.add_route('*', '/', handle_insider)
 	app.router.add_get('/ycontent/', handle_insider_ycontent)
 	
 	# Yahoo! Chat/Ads
 	app.router.add_route('*', '/us.yimg.com/i/msgr/chat/conf-banner.html', handle_chat_banad)
 	app.router.add_route('*', '/c/msg/tabs.html', handle_chat_tabad)
+	app.router.add_route('*', '/etc/yahoo-tab-ad', handle_chat_tabad)
 	app.router.add_route('*', '/c/msg/chat.html', handle_chat_notice)
 	app.router.add_route('*', '/c/msg/alerts.html', handle_chat_alertad)
 	app.router.add_route('*', '/etc/yahoo-placeholder', handle_placeholder)
@@ -44,7 +43,7 @@ def register(app: web.Application) -> None:
 	
 	# Yahoo HTTP file transfer fallback
 	app.router.add_post('/notifyft', handle_ft_http)
-	app.router.add_route('*', '/tmp/file/{file_id}/{filename}', handle_yahoo_filedl)
+	app.router.add_get('/tmp/file/{file_id}/{filename}', handle_yahoo_filedl)
 
 async def handle_insider_ycontent(req: web.Request) -> web.Response:
 	backend = req.app['backend']
@@ -62,7 +61,7 @@ async def handle_insider_ycontent(req: web.Request) -> web.Response:
 				detail = user.detail
 				if detail is not None:
 					if '00000000-0000-0000-0000-000000000000' in detail.subscribed_ab_stores:
-						ab2_tmpl = req.app['jinja_env'].get_template('ymsg:Yinsider/Ycontent/Ycontent.ab2.xml')
+						ab2_tmpl = req.app['jinja_env'].get_template('ymsg:Yinsider/Yinsider.ab2.xml')
 						if query_xml == 'ab2':
 							if yab_received or yab_set: continue
 							tpl = backend.user_service.get_ab_contents('00000000-0000-0000-0000-000000000000', user)
@@ -129,10 +128,10 @@ async def handle_insider_ycontent(req: web.Request) -> web.Response:
 							
 							config_xml.append(ab2_tmpl.render(epoch = round(time.time()), records = Markup(_gen_yab_record(ab_ctc))))
 			continue
-		tmpl = req.app['jinja_env'].get_template('ymsg:Yinsider/Ycontent/Ycontent.' + query_xml + '.xml')
+		tmpl = req.app['jinja_env'].get_template('ymsg:Yinsider/Yinsider.' + query_xml + '.xml')
 		config_xml.append(tmpl.render())
 	
-	return render(req, 'ymsg:Yinsider/Ycontent/Ycontent.xml', {
+	return render(req, 'ymsg:Yinsider/Yinsider.xml', {
 		'epoch': round(time.time()),
 		'configxml': Markup('\n'.join(config_xml)),
 	})
@@ -141,11 +140,11 @@ async def handle_insider_ycontent(req: web.Request) -> web.Response:
 # 'getwc' and 'getgp' are unsure of their use
 UNUSED_QUERIES = {
 	'intl', 'os', 'ver',
-	'getwc', 'getgp', 'fn',
-	'ln', 'yid', 'nn',
-	'e', 'hp', 'wp',
-	'mb', 'pp', 'ee',
-	'ow', 'id',
+	'getimv', 'getwc', 'getgp',
+	'fn', 'ln', 'yid',
+	'nn', 'e', 'hp',
+	'wp', 'mb', 'pp',
+	'ee', 'ow', 'id',
 }
 
 def _gen_yab_record(ab_ctc: ABContact) -> str:
@@ -177,16 +176,6 @@ def _gen_yab_record(ab_ctc: ABContact) -> str:
 		email = email or '', hphone = hphone or '', wphone = wphone or '', mphone = mphone or '',
 		contact_id = ab_ctc.id,
 	)
-
-async def handle_insider(req: web.Request) -> web.Response:
-	# For debug purposes
-	if req.host != 'insider.msg.yahoo.com': return web.HTTPNotFound()
-	
-	tmpl = req.app['jinja_env'].get_template('ymsg:Yinsider/Yinsider_content/insider_content.html')
-	
-	return render(req, 'ymsg:Yinsider/Yinsider.html', {
-		'insidercontent': Markup(tmpl.render()),
-	})
 
 async def handle_chat_banad(req: web.Request) -> web.Response:
 	query = req.query
@@ -330,7 +319,7 @@ async def handle_ft_http(req: web.Request) -> web.Response:
 	
 	for bs_other in bs.backend._sc.iter_sessions():
 		if bs_other.user.uuid == recipient_uuid:
-			bs_other.evt.ymsg_on_sent_ft_http(yahoo_id_sender, file_tmp_path[12:], upload_time, message)
+			bs_other.evt.ymsg_on_sent_ft_http(yahoo_id_sender, '/tmp/file/{}'.format(file_tmp_path[12:]), upload_time, message)
 	
 	# TODO: Sending HTTP FT acknowledgement crahes Yahoo! Messenger, and ultimately freezes the computer. Ignore for now.
 	#bs.evt.ymsg_on_upload_file_ft(yahoo_id_recipient, message)
@@ -345,8 +334,6 @@ async def _store_tmp_file_until_expiry(file_storage_path: str) -> None:
 async def handle_yahoo_filedl(req: web.Request) -> web.Response:
 	file_id = req.match_info['file_id']
 	
-	if req.method == 'HEAD':
-		return web.Response(status = 200)
 	if req.method == 'GET':
 		file_storage_path = _get_tmp_file_storage_path(id = file_id)
 		

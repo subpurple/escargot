@@ -1,12 +1,12 @@
 import binascii
 
-Y64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._'
+Y64 = b'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._'
 
-def Y64Encode(string_encode: bytes) -> str:
+def Y64Encode(string_encode: bytes) -> bytes:
 	string_hex = binascii.hexlify(string_encode)
 	limit = len(string_encode) - (len(string_encode) % 3)
 	pos = 0
-	out = ''
+	out = b''
 	buff = [0] * len(string_encode)
 	i = 0
 	hex_start = 0
@@ -21,23 +21,23 @@ def Y64Encode(string_encode: bytes) -> str:
 	i = 0
 	
 	while i < limit:
-		out += Y64[buff[i] >> 2]
-		out += Y64[((buff[i] << 4) & 0x30) | (buff[i + 1] >> 4)]
-		out += Y64[((buff[i + 1] << 2) & 0x3c) | (buff[i + 2] >> 6)]
-		out += Y64[buff[i + 2] & 0x3f]
+		out += bytes([Y64[buff[i] >> 2]])
+		out += bytes([Y64[((buff[i] << 4) & 0x30) | (buff[i + 1] >> 4)]])
+		out += bytes([Y64[((buff[i + 1] << 2) & 0x3c) | (buff[i + 2] >> 6)]])
+		out += bytes([Y64[buff[i + 2] & 0x3f]])
 		
 		i += 3
 	
 	i = limit
 	
 	if (len(string_encode) - i) == 1:
-		out += Y64[buff[i] >> 2]
-		out += Y64[((buff[i] << 4) & 0x30)]
-		out += "--"
+		out += bytes([Y64[buff[i] >> 2]])
+		out += bytes([Y64[((buff[i] << 4) & 0x30)]])
+		out += b"--"
 	elif (len(string_encode) - i) == 2:
-		out += Y64[buff[i] >> 2]
-		out += Y64[((buff[i] << 4) & 0x30) | (buff[i + 1] >> 4)]
-		out += Y64[((buff[i + 1] << 2) & 0x3c)]
-		out += "-"
+		out += bytes([Y64[buff[i] >> 2]])
+		out += bytes([Y64[((buff[i] << 4) & 0x30) | (buff[i + 1] >> 4)]])
+		out += bytes([Y64[((buff[i + 1] << 2) & 0x3c)]])
+		out += b"-"
 	
 	return out

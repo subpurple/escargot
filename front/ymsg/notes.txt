@@ -12,8 +12,8 @@ http://web.archive.org/web/20031205031525/venkydude.com/articles/yahoo.htm (Arch
 https://web.archive.org/web/20100615081758/http://www.venkydude.com/articles/yahoo.htm (Last archive of http://www.venkydude.com/articles/yahoo.htm from 2010, second revision)
 
 --- YMSG16 ---
-https://imfreedom.org/wiki/Yahoo
-http://web.archive.org/web/20090623064155/carbonize.co.uk/ymsg16.html (Original link died recently)
+http://web.archive.org/web/20110822022643/http://imfreedom.org/wiki/Yahoo (Original page 404s now)
+http://web.archive.org/web/20090623064155/carbonize.co.uk/ymsg16.html
 
 --- Yahoo! Messenger client archives ---
 http://www.oldversion.com/windows/yahoo-messenger/

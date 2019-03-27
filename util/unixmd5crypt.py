@@ -113,43 +113,41 @@ def unix_md5_crypt(pw: str, salt: str) -> bytes:
 		
 		final = ctx1.digest()
 	
-	final_hex = binascii.hexlify(final)
-	
 	# Final xform
 	
 	passwd = ''
 	
 	passwd = passwd + to64(
-		(int(final_hex[0:2], 16) << 16)
-		| (int(final_hex[12:14], 16) << 8)
-		| (int(final_hex[24:26], 16)), 4
+		(final[0] << 16)
+		| (final[6] << 8)
+		| (final[12]), 4
 	)
 	
 	passwd = passwd + to64(
-		(int(final_hex[2:4], 16) << 16)
-		| (int(final_hex[14:16], 16) << 8)
-		| (int(final_hex[26:28], 16)), 4
+		(final[1] << 16)
+		| (final[7] << 8)
+		| (final[13]), 4
 	)
 	
 	passwd = passwd + to64(
-		(int(final_hex[4:6], 16) << 16)
-		| (int(final_hex[16:18], 16) << 8)
-		| (int(final_hex[28:30], 16)), 4
+		(final[2] << 16)
+		| (final[8] << 8)
+		| (final[14]), 4
 	)
 	
 	passwd = passwd + to64(
-		(int(final_hex[6:8], 16) << 16)
-		| (int(final_hex[18:20], 16) << 8)
-		| (int(final_hex[30:32], 16)), 4
+		(final[3] << 16)
+		| (final[9] << 8)
+		| (final[15]), 4
 	)
 	
 	passwd = passwd + to64(
-		(int(final_hex[8:10], 16) << 16)
-		| (int(final_hex[20:22], 16) << 8)
-		| (int(final_hex[10:12], 16)), 4
+		(final[4] << 16)
+		| (final[10] << 8)
+		| (final[5]), 4
 	)
 	
-	passwd = passwd + to64((int(final_hex[22:24], 16)), 2)
+	passwd = passwd + to64(final[11], 2)
 	
 	return (MAGIC + salt + '$' + passwd).encode('utf-8')
 
