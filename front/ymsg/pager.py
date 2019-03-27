@@ -1,13 +1,12 @@
 from typing import Optional, Dict, Any, List, Iterable, Set, Tuple
 import secrets
 import datetime
-from multidict import MultiDict
 import asyncio
 import time
 import binascii
 import struct
 
-from util.misc import Logger, gen_uuid
+from util.misc import Logger, gen_uuid, MultiDict
 
 from core import event, error
 from core.backend import Backend, BackendSession, Chat, ChatSession
@@ -76,7 +75,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		if uuid is None or backend.user_service.is_user_relay(uuid):
 			kvs = MultiDict([
 				('66', int(YMSGStatus.NotAtHome))
-			]) # type: MultiDict[Any]
+			]) # type: MultiDict[str, Any]
 			self.send_reply(YMSGService.AuthResp, YMSGStatus.LoginError, 0, kvs)
 			return
 		
@@ -88,7 +87,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		
 		auth_dict = MultiDict([
 			('1', self.yahoo_id),
-		]) # type: MultiDict[Any]
+		]) # type: MultiDict[str, Any]
 		
 		if 9 <= self.dialect <= 10:
 			self.challenge = generate_challenge_v1()
@@ -144,7 +143,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		if not is_resp_correct:
 			kvs = MultiDict([
 				('66', int(YMSGStatus.Bad))
-			]) # type: MultiDict[Any]
+			]) # type: MultiDict[str, Any]
 			self.send_reply(YMSGService.AuthResp, YMSGStatus.LoginError, self.sess_id, kvs)
 	
 	def _util_authresp_final(self, status: YMSGStatus, *, cached_y: Optional[str] = None, cached_t: Optional[str] = None) -> None:
@@ -168,7 +167,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 			kvs = MultiDict([
 				('143', 60),
 				('144', 13)
-			]) # type: MultiDict[Any]
+			]) # type: MultiDict[str, Any]
 			self.send_reply(YMSGService.PingConfiguration, YMSGStatus.Available, self.sess_id, kvs)
 		
 		if self.backend.notify_maintenance:
@@ -203,7 +202,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		kvs = MultiDict([
 			('143', 60),
 			('144', 13)
-		]) # type: MultiDict[Any]
+		]) # type: MultiDict[str, Any]
 		self.send_reply(YMSGService.PingConfiguration, YMSGStatus.Available, self.sess_id, kvs)
 	
 	def _y_0016(self, *args: Any) -> None:
@@ -288,7 +287,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 			if not ctc_head.status.is_offlineish():
 				contact_struct = MultiDict([
 					('0', self.yahoo_id),
-				]) # type: Optional[MultiDict[Any]]
+				]) # type: Optional[MultiDict[str, Any]]
 				add_contact_status_to_data(contact_struct, ctc_head.status, ctc_head)
 			else:
 				contact_struct = None
@@ -369,7 +368,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 				('66', 0),
 				('67', new_group_name),
 				('65', group_name),
-			]) #type: MultiDict[Any]
+			]) #type: MultiDict[str, Any]
 			
 			self.send_reply(YMSGService.GroupRename, YMSGStatus.BRB, self.sess_id, group_rename_response)
 		
@@ -419,7 +418,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 			('66', 0),
 			('7', contact_id),
 			('65', buddy_group),
-		]) #type: MultiDict[Any]
+		]) #type: MultiDict[str, Any]
 		
 		self.send_reply(YMSGService.FriendRemove, YMSGStatus.BRB, self.sess_id, remove_buddy_response)
 		
@@ -732,7 +731,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 				('5', self.yahoo_id),
 				('4', 'YahooHelper'),
 				('14', YAHOO_HELPER_MSG),
-			]) # type: MultiDict[Any]
+			]) # type: MultiDict[str, Any]
 			
 			if yahoo_data.get('63') is not None:
 				yhlper_msg_dict.add('63', yahoo_data.get('63'))
@@ -865,7 +864,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 			('87', ''.join(contact_group_list)),
 			('88', ','.join(ignore_list)),
 			('89', self.yahoo_id),
-		]) # type: MultiDict[Any]
+		]) # type: MultiDict[str, Any]
 		
 		if cached_y is not None and cached_t is not None and backend.auth_service.get_token('ymsg/cookie', cached_y) and backend.auth_service.get_token('ymsg/cookie', cached_t):
 			list_reply_kvs.add('59', cached_y)
@@ -889,7 +888,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 			('0', self.yahoo_id),
 			('1', self.yahoo_id),
 			('8', len(cs_fl)),
-		]) # type: MultiDict[Any]
+		]) # type: MultiDict[str, Any]
 		
 		for c in cs_fl:
 			add_contact_status_to_data(logon_payload, c.status, c.head)
@@ -909,7 +908,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 				('15', int(oim.sent.timestamp())),
 				('14', oim.message),
 				('97', 1 if oim.utf8 else 0),
-			]) # type: MultiDict[Any]
+			]) # type: MultiDict[str, Any]
 			
 			self.backend.user_service.delete_oim(user.uuid, oim.run_id)
 			
@@ -1088,7 +1087,7 @@ class BackendEventHandler(event.BackendEventHandler):
 		kvs = MultiDict([
 			('14', msg),
 			('15', time.time()),
-		]) # type: MultiDict[Any]
+		]) # type: MultiDict[str, Any]
 		self.ctrl.send_reply(YMSGService.SystemMessage, YMSGStatus.BRB, self.sess_id, kvs)
 	
 	def on_maintenance_boot(self) -> None:
@@ -1115,7 +1114,7 @@ class BackendEventHandler(event.BackendEventHandler):
 				service = YMSGService.IsAway
 			
 			if not (ctc.status.is_offlineish() and old_substatus.is_offlineish()):
-				yahoo_data = MultiDict() # type: MultiDict[Any]
+				yahoo_data = MultiDict() # type: MultiDict[str, Any]
 				if service is not YMSGService.LogOff:
 					yahoo_data.add('0', self.ctrl.yahoo_id)
 				
@@ -1197,7 +1196,7 @@ class BackendEventHandler(event.BackendEventHandler):
 			('57', chat.ids['ymsg/conf']),
 			('50', inviter_id or misc.yahoo_id(inviter.email)),
 			('58', invite_msg)
-		]) # type: MultiDict[Any]
+		]) # type: MultiDict[str, Any]
 		
 		roster = list(chat.get_roster_single())
 		for cs in roster:
@@ -1225,7 +1224,7 @@ class BackendEventHandler(event.BackendEventHandler):
 		contact_request_data = MultiDict([
 			('1', misc.yahoo_id(user_me.email)),
 			('3', adder_id or misc.yahoo_id(user.email)),
-		]) # type: MultiDict[Any]
+		]) # type: MultiDict[str, Any]
 		
 		if message is not None:
 			contact_request_data.add('14', message.text)
@@ -1340,7 +1339,7 @@ class ChatEventHandler(event.ChatEventHandler):
 				('4', yahoo_data.get('1') or misc.yahoo_id(sender.email)),
 				('49', 'WEBCAMINVITE'),
 				('14', yahoo_data.get('14') or data.text),
-			]) # type: MultiDict[Any]
+			]) # type: MultiDict[str, Any]
 			self.ctrl.send_reply(YMSGService.Notify, YMSGStatus.BRB, self.ctrl.sess_id, kvs)
 	
 	def _send_when_user_joins(self, user_uuid: str, data: MessageData) -> None:

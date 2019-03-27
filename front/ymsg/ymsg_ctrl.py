@@ -2,17 +2,15 @@ import io
 from abc import ABCMeta, abstractmethod
 import asyncio
 from typing import Dict, List, Tuple, Any, Optional, Callable, Iterable
-from multidict import MultiDict
 import binascii
 import struct
 import time
 
-from util.misc import Logger
+from util.misc import Logger, MultiDict
 
 from .misc import YMSGStatus, YMSGService
 
-#KVS = MultiDict[str]
-KVS = Any
+KVS = MultiDict[str, str]
 
 class YMSGCtrlBase(metaclass = ABCMeta):
 	__slots__ = ('logger', 'decoder', 'encoder', 'peername', 'closed', 'close_callback', 'transport')
@@ -139,7 +137,7 @@ class YMSGDecoder:
 		return y
 
 def _try_decode_ymsg(d: bytes, i: int) -> Tuple[DecodedYMSG, int]:
-	kvs = MultiDict() # type: MultiDict[str]
+	kvs = MultiDict() # type: MultiDict[str, str]
 	
 	e = 20
 	assert len(d[i:]) >= e

@@ -1,4 +1,4 @@
-from typing import FrozenSet, Any, Iterable, Optional, TypeVar, List, Dict, Tuple
+from typing import FrozenSet, Any, Iterable, Optional, TypeVar, List, Dict, Tuple, Generic
 from abc import ABCMeta, abstractmethod
 import asyncio
 import functools
@@ -190,6 +190,28 @@ class DefaultDict(Dict[K, V]):
 		if v is None:
 			v = self._default
 		return v
+
+class MultiDict(Generic[K, V]):
+	_impl: Dict[K, List[V]]
+	
+	def __init__(self, data: Optional[Iterable[Tuple[K, V]]] = None) -> None:
+		super().__init__()
+		impl = {}
+		if data is not None:
+			for k, v in data:
+				impl[k] = [v]
+		self._impl = impl
+	
+	def add(self, key: K, value: V) -> None:
+		if key not in self._impl:
+			self._impl[key] = []
+		self._impl[key].append(value)
+	
+	def get(self, key: K) -> V:
+		return self._impl[key][0]
+	
+	def items(self) -> Iterable[Tuple[K, List[V]]]:
+		return self._impl.items()
 
 def sign_with_new_key_and_b64(text: str) -> Tuple[str, str]:
 	import base64

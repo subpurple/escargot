@@ -1,10 +1,9 @@
-from typing import Optional, Tuple, Any, Iterable, Dict, List, ClassVar, TYPE_CHECKING
+from typing import Optional, Tuple, Any, Iterable, Dict, List, ClassVar
 from urllib.parse import quote_plus
-from multidict import MultiDict
 from enum import IntEnum
 import time
 
-from util.misc import first_in_iterable, DefaultDict
+from util.misc import first_in_iterable, DefaultDict, MultiDict
 
 from core.backend import Backend, BackendSession, Chat, ChatSession
 from core.models import User, Lst, Contact, Substatus, NetworkID
@@ -122,10 +121,7 @@ _FromSubstatus = DefaultDict(YMSGStatus.Bad, {
 	Substatus.SteppedOut: YMSGStatus.SteppedOut,
 })
 
-if TYPE_CHECKING:
-	KVSType = MultiDict[Any]
-else:
-	KVSType = Any
+KVSType = MultiDict[str, Any]
 EncodedYMSG = Tuple[YMSGService, YMSGStatus, KVSType]
 
 def build_ft_packet(bs: BackendSession, xfer_dict: Dict[str, Any]) -> Iterable[EncodedYMSG]:
