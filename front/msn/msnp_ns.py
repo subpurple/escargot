@@ -10,7 +10,7 @@ import re
 import binascii
 import struct
 
-from util.misc import Logger, gen_uuid, first_in_iterable
+from util.misc import Logger, gen_uuid, first_in_iterable, MultiDict
 import settings
 
 from core import event
@@ -1573,7 +1573,7 @@ class BackendEventHandler(event.BackendEventHandler):
 		
 		self.ctrl.send_reply('NFY', 'PUT', data)
 	
-	def ymsg_on_xfer_init(self, yahoo_data: Dict[str, Any]) -> None:
+	def ymsg_on_xfer_init(self, yahoo_data: MultiDict[bytes, bytes]) -> None:
 		pass
 	
 	def ymsg_on_upload_file_ft(self, recipient: str, message: str) -> None:

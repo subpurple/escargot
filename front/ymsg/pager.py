@@ -60,7 +60,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 	def _y_004c(self, *args: Any) -> None:
 		# SERVICE_HANDSHAKE (0x4c); acknowledgement of the server
 		
-		self.client = Client('yahoo', 'YMSG' + str(args[0]), self.client.via)
+		self.client = Client('yahoo', 'YMSG{}'.format(str(args[0])), self.client.via)
 		self.dialect = int(args[0])
 		self.send_reply(YMSGService.Handshake, YMSGStatus.BRB, 0, None)
 	
@@ -68,7 +68,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		# SERVICE_AUTH (0x57); send a challenge string for the client to craft two response strings with
 		backend = self.backend
 		
-		arg1 = args[4].get('1')
+		arg1 = args[4].get(b'1')
 		assert isinstance(arg1, bytes)
 		self.yahoo_id = arbitrary_decode(arg1)
 		
@@ -76,28 +76,28 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		if uuid is None or backend.user_service.is_user_relay(uuid):
 			self.yahoo_id = None
 			kvs = MultiDict([
-				('66', str(int(YMSGStatus.NotAtHome)).encode('utf-8'))
-			]) # type: MultiDict[str, bytes]
+				(b'66', str(int(YMSGStatus.NotAtHome)).encode('utf-8'))
+			]) # type: MultiDict[bytes, bytes]
 			self.send_reply(YMSGService.AuthResp, YMSGStatus.LoginError, 0, kvs)
 			return
 		
 		if self.yahoo_id in PRE_SESSION_ID:
-			self.close(remove_sess_id = False)
+			self.close(remove_sess_id = True)
 			return
 		self.sess_id = secrets.randbelow(4294967294) + 1
 		PRE_SESSION_ID[self.yahoo_id] = self.sess_id
 		
 		auth_dict = MultiDict([
-			('1', self.yahoo_id.encode('utf-8')),
-		]) # type: MultiDict[str, bytes]
+			(b'1', self.yahoo_id.encode('utf-8')),
+		]) # type: MultiDict[bytes, bytes]
 		
 		if 9 <= self.dialect <= 10:
 			self.challenge = generate_challenge_v1()
-			auth_dict.add('94', self.challenge)
+			auth_dict.add(b'94', self.challenge)
 		elif self.dialect <= 11:
 			# Implement V2 challenge string generation later
-			auth_dict.add('94', '')
-			auth_dict.add('13', b'1')
+			auth_dict.add(b'94', b'')
+			auth_dict.add(b'13', b'1')
 		
 		self.send_reply(YMSGService.Auth, YMSGStatus.BRB, self.sess_id, auth_dict)
 	
@@ -111,13 +111,13 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		if status is YMSGStatus.WebLogin:
 			status = YMSGStatus.Available
 		
-		yahoo_id = args[4].get('1')
+		yahoo_id = args[4].get(b'1')
 		if yahoo_id is not None:
 			yahoo_id = arbitrary_decode(yahoo_id)
-		resp_6 = args[4].get('6')
-		resp_96 = args[4].get('96')
+		resp_6 = args[4].get(b'6')
+		resp_96 = args[4].get(b'96')
 		
-		version = args[4].get('135')
+		version = args[4].get(b'135')
 		if version is not None:
 			version = arbitrary_decode(version)
 		self.client = Client('yahoo', version, self.client.via)
@@ -136,11 +136,15 @@ class YMSGCtrlPager(YMSGCtrlBase):
 				# NOTE: Yahoo! Messenger *can* specify the `Y` and `T` cookies in this packet after multiple logins as long as it isn't
 				# terminated. Verify and store cookies if needed.
 				
-				if '59' in args[4]:
-					tpl = args[4].getall('59')
+				if b'59' in args[4]:
+					tpl = args[4].getall(b'59')
 					if len(tpl) != 2:
 						self.send_reply(YMSGService.LogOff, YMSGStatus.Available, 0, None)
 					y, t = tpl
+					if y is not None:
+						y = arbitrary_decode(y)
+					if t is not None:
+						t = arbitrary_decode(t)
 				bs = self.backend.login(uuid, self.client, BackendEventHandler(self.backend.loop, self), option = LoginOption.BootOthers)
 				if bs is None:
 					is_resp_correct = False
@@ -151,8 +155,8 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		if not is_resp_correct:
 			self.yahoo_id = None
 			kvs = MultiDict([
-				('66', str(int(YMSGStatus.Bad)).encode('utf-8'))
-			]) # type: MultiDict[str, bytes]
+				(b'66', str(int(YMSGStatus.Bad)).encode('utf-8'))
+			]) # type: MultiDict[bytes, bytes]
 			self.send_reply(YMSGService.AuthResp, YMSGStatus.LoginError, self.sess_id, kvs)
 	
 	def _util_authresp_final(self, status: YMSGStatus, *, cached_y: Optional[str] = None, cached_t: Optional[str] = None) -> None:
@@ -174,9 +178,9 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		
 		if self.dialect >= 10:
 			kvs = MultiDict([
-				('143', b'60'),
-				('144', b'13')
-			]) # type: MultiDict[str, bytes]
+				(b'143', b'60'),
+				(b'144', b'13')
+			]) # type: MultiDict[bytes, bytes]
 			self.send_reply(YMSGService.PingConfiguration, YMSGStatus.Available, self.sess_id, kvs)
 		
 		if self.backend.notify_maintenance:
@@ -200,18 +204,18 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		bs = self.bs
 		assert bs is not None
 		
-		new_status = YMSGStatus(int(args[4].get('10')))
-		message = arbitrary_decode(args[4].get('19') or b'')
-		is_away_message = (args[4].get('47') == b'1')
+		new_status = YMSGStatus(int(args[4].get(b'10')))
+		message = arbitrary_decode(args[4].get(b'19') or b'')
+		is_away_message = (args[4].get(b'47') == b'1')
 		me_status_update(bs, new_status, message = message, is_away_message = is_away_message)
 	
 	def _y_0012(self, *args: Any) -> None:
 		# SERVICE_PINGCONFIGURATION (0x12); set the "ticks" and "tocks" of a ping sent
 		
 		kvs = MultiDict([
-			('143', b'60'),
-			('144', b'13')
-		]) # type: MultiDict[str, bytes]
+			(b'143', b'60'),
+			(b'144', b'13')
+		]) # type: MultiDict[bytes, bytes]
 		self.send_reply(YMSGService.PingConfiguration, YMSGStatus.Available, self.sess_id, kvs)
 	
 	def _y_0016(self, *args: Any) -> None:
@@ -233,19 +237,19 @@ class YMSGCtrlPager(YMSGCtrlBase):
 	def _y_0083(self, *args: Any) -> None:
 		# SERVICE_FRIENDADD (0x83); add a friend to your contact list
 		
-		yahoo_id = args[4].get('1')
+		yahoo_id = args[4].get(b'1')
 		if yahoo_id is not None:
 			yahoo_id = arbitrary_decode(yahoo_id)
-		contact_yahoo_id = args[4].get('7')
+		contact_yahoo_id = args[4].get(b'7')
 		if contact_yahoo_id is not None:
 			contact_yahoo_id = arbitrary_decode(contact_yahoo_id)
-		message = args[4].get('14')
+		message = args[4].get(b'14')
 		if message is not None:
 			message = arbitrary_decode(message)
-		buddy_group = args[4].get('65')
+		buddy_group = args[4].get(b'65')
 		if buddy_group is not None:
 			buddy_group = arbitrary_decode(buddy_group)
-		utf8 = args[4].get('97')
+		utf8 = args[4].get(b'97')
 		if utf8 is not None:
 			utf8 = arbitrary_decode(utf8)
 		
@@ -253,16 +257,16 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		action_group_refresh = False
 		
 		add_request_response = MultiDict([
-			('1', arbitrary_encode(yahoo_id or '')),
-			('7', arbitrary_encode(contact_yahoo_id or '')),
-			('65', arbitrary_encode(buddy_group or ''))
-		])
+			(b'1', arbitrary_encode(yahoo_id or '')),
+			(b'7', arbitrary_encode(contact_yahoo_id or '')),
+			(b'65', arbitrary_encode(buddy_group or ''))
+		]) # type: MultiDict[bytes, bytes]
 		
 		# Yahoo! Messenger has a function that lets you add people by email address (a.k.a. stripping the "@domain.tld" part of the address and
 		# filling that out in the "Yahoo! ID" section of the contact add dialog). Treat as is.
 		contact_uuid = yahoo_id_to_uuid(self.backend, contact_yahoo_id)
 		if contact_uuid is None:
-			add_request_response.add('66', b'3')
+			add_request_response.add(b'66', b'3')
 			self.send_reply(YMSGService.FriendAdd, YMSGStatus.BRB, self.sess_id, add_request_response)
 			return
 		
@@ -281,12 +285,12 @@ class YMSGCtrlPager(YMSGCtrlBase):
 			if contact._groups:
 				for group_other in contact._groups.copy():
 					if detail._groups_by_id[group_other.id].name == buddy_group:
-						add_request_response.add('66', b'2')
+						add_request_response.add(b'66', b'2')
 						self.send_reply(YMSGService.FriendAdd, YMSGStatus.BRB, self.sess_id, add_request_response)
 						return
 			else:
 				if buddy_group == '(No Group)':
-					add_request_response.add('66', b'2')
+					add_request_response.add(b'66', b'2')
 					self.send_reply(YMSGService.FriendAdd, YMSGStatus.BRB, self.sess_id, add_request_response)
 					return
 		
@@ -305,8 +309,8 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		if not contact or (not contact.lists & Lst.FL and not contact.lists & Lst.BL):
 			if not ctc_head.status.is_offlineish():
 				contact_struct = MultiDict([
-					('0', (self.yahoo_id or '').encode('utf-8')),
-				]) # type: Optional[MultiDict[str, bytes]]
+					(b'0', (self.yahoo_id or '').encode('utf-8')),
+				]) # type: Optional[MultiDict[bytes, bytes]]
 				add_contact_status_to_data(contact_struct, ctc_head.status, ctc_head)
 			else:
 				contact_struct = None
@@ -315,7 +319,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 			
 			contact = bs.me_contact_add(ctc_head.uuid, Lst.FL, message = (TextWithData(message, utf8) if message is not None else None), adder_id = yahoo_id, needs_notify = True)[0]
 			bs.me_contact_add(contact.head.uuid, Lst.AL)
-		add_request_response.add('66', b'0')
+		add_request_response.add(b'66', b'0')
 		self.send_reply(YMSGService.FriendAdd, YMSGStatus.BRB, self.sess_id, add_request_response)
 		try:
 			# TODO: Moving/copying contacts to groups
@@ -345,10 +349,10 @@ class YMSGCtrlPager(YMSGCtrlBase):
 	def _y_0086(self, *args: Any) -> None:
 		# SERVICE_CONTACTDENY (0x86); deny a contact request
 		
-		adder_to_deny = args[4].get('7')
+		adder_to_deny = args[4].get(b'7')
 		if adder_to_deny is not None:
 			adder_to_deny = arbitrary_decode(adder_to_deny)
-		deny_message = args[4].get('14')
+		deny_message = args[4].get(b'14')
 		if deny_message is not None:
 			deny_message = arbitrary_decode(deny_message)
 		
@@ -361,13 +365,13 @@ class YMSGCtrlPager(YMSGCtrlBase):
 	def _y_0089(self, *args: Any) -> None:
 		# SERVICE_GROUPRENAME (0x89); rename a contact group
 		
-		yahoo_id = args[4].get('1')
+		yahoo_id = args[4].get(b'1')
 		if yahoo_id is not None:
 			yahoo_id = arbitrary_decode(yahoo_id)
-		group_name = args[4].get('65')
+		group_name = args[4].get(b'65')
 		if group_name is not None:
 			group_name = arbitrary_decode(group_name)
-		new_group_name = args[4].get('67')
+		new_group_name = args[4].get(b'67')
 		if new_group_name is not None:
 			new_group_name = arbitrary_decode(new_group_name)
 		bs = self.bs
@@ -393,11 +397,11 @@ class YMSGCtrlPager(YMSGCtrlBase):
 					pass
 			
 			group_rename_response = MultiDict([
-				('1', arbitrary_encode(yahoo_id or '')),
-				('66', b'0'),
-				('67', arbitrary_encode(new_group_name or '')),
-				('65', arbitrary_encode(group_name or '')),
-			]) # type: MultiDict[str, bytes]
+				(b'1', arbitrary_encode(yahoo_id or '')),
+				(b'66', b'0'),
+				(b'67', arbitrary_encode(new_group_name or '')),
+				(b'65', arbitrary_encode(group_name or '')),
+			]) # type: MultiDict[bytes, bytes]
 			
 			self.send_reply(YMSGService.GroupRename, YMSGStatus.BRB, self.sess_id, group_rename_response)
 		
@@ -406,13 +410,13 @@ class YMSGCtrlPager(YMSGCtrlBase):
 	def _y_0084(self, *args: Any) -> None:
 		# SERVICE_FRIENDREMOVE (0x84); remove a buddy from your list
 		
-		yahoo_id = args[4].get('1')
+		yahoo_id = args[4].get(b'1')
 		if yahoo_id is not None:
 			yahoo_id = arbitrary_decode(yahoo_id)
-		contact_id = args[4].get('7')
+		contact_id = args[4].get(b'7')
 		if contact_id is not None:
 			contact_id = arbitrary_decode(contact_id)
-		buddy_group = args[4].get('65')
+		buddy_group = args[4].get(b'65')
 		if buddy_group is not None:
 			buddy_group = arbitrary_decode(buddy_group)
 		
@@ -449,11 +453,11 @@ class YMSGCtrlPager(YMSGCtrlBase):
 			bs.me_contact_remove(contact_uuid, Lst.FL)
 		
 		remove_buddy_response = MultiDict([
-			('1', arbitrary_encode(yahoo_id or '')),
-			('66', b'0'),
-			('7', arbitrary_encode(contact_id or '')),
-			('65', arbitrary_encode(buddy_group or '')),
-		]) # type: MultiDict[str, bytes]
+			(b'1', arbitrary_encode(yahoo_id or '')),
+			(b'66', b'0'),
+			(b'7', arbitrary_encode(contact_id or '')),
+			(b'65', arbitrary_encode(buddy_group or '')),
+		]) # type: MultiDict[bytes, bytes]
 		
 		self.send_reply(YMSGService.FriendRemove, YMSGStatus.BRB, self.sess_id, remove_buddy_response)
 		
@@ -462,20 +466,20 @@ class YMSGCtrlPager(YMSGCtrlBase):
 	def _y_0085(self, *args: Any) -> None:
 		# SERVICE_IGNORE (0x85); add/remove someone from your ignore list
 		
-		yahoo_id = args[4].get('1')
+		yahoo_id = args[4].get(b'1')
 		if yahoo_id is not None:
 			yahoo_id = arbitrary_decode(yahoo_id)
-		ignored_yahoo_id = args[4].get('7')
+		ignored_yahoo_id = args[4].get(b'7')
 		if ignored_yahoo_id is not None:
 			ignored_yahoo_id = arbitrary_decode(ignored_yahoo_id)
-		ignore_mode = args[4].get('13')
+		ignore_mode = args[4].get(b'13')
 		if ignore_mode is not None:
 			ignore_mode = arbitrary_decode(ignore_mode)
 		
 		ignore_reply_response = MultiDict([
-			('0', arbitrary_encode(yahoo_id)),
-			('7', arbitrary_encode(ignored_yahoo_id)),
-			('13', arbitrary_encode(ignore_mode))
+			(b'0', arbitrary_encode(yahoo_id)),
+			(b'7', arbitrary_encode(ignored_yahoo_id)),
+			(b'13', arbitrary_encode(ignore_mode))
 		])
 		
 		bs = self.bs
@@ -487,7 +491,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		
 		ignored_uuid = yahoo_id_to_uuid(self.backend, ignored_yahoo_id)
 		if ignored_uuid is None:
-			ignore_reply_response.add('66', b'3')
+			ignore_reply_response.add(b'66', b'3')
 			self.send_reply(YMSGService.Ignore, YMSGStatus.BRB, self.sess_id, ignore_reply_response)
 			return
 		
@@ -495,7 +499,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 			contact = contacts.get(ignored_uuid)
 			if contact is not None:
 				if contact.lists & Lst.BL:
-					ignore_reply_response.add('66', b'2')
+					ignore_reply_response.add(b'66', b'2')
 					self.send_reply(YMSGService.Ignore, YMSGStatus.BRB, self.sess_id, ignore_reply_response)
 					return
 			
@@ -506,7 +510,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 			return
 		
 		self.send_reply(YMSGService.AddIgnore, YMSGStatus.BRB, self.sess_id, None)
-		ignore_reply_response.add('66', b'0')
+		ignore_reply_response.add(b'66', b'0')
 		self._update_buddy_list()
 		self.send_reply(YMSGService.Ignore, YMSGStatus.BRB, self.sess_id, ignore_reply_response)
 	
@@ -528,7 +532,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		# SERVICE_PING (0x8a); send a response ping after the client pings
 		assert self.yahoo_id is not None
 		self.send_reply(YMSGService.Ping, YMSGStatus.Available, self.sess_id, MultiDict([
-			('1', self.yahoo_id.encode('utf-8')),
+			(b'1', self.yahoo_id.encode('utf-8')),
 		]))
 	
 	def _y_0008(self, *args: Any) -> None:
@@ -544,20 +548,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 	def _y_004f(self, *args: Any) -> None:
 		# SERVICE_PEERTOPEER (0x4f); see if P2P messaging is possible
 		
-		#yid = args[4].get('1')
-		#yid_from = args[4].get('4')
-		#
-		#p2p_to_id = args[4].get('5')
-		#contact_uuid = yahoo_id_to_uuid(self.backend, p2p_to_id)
-		#if contact_uuid is None:
-		#	return
-		#
-		#bs = (self.bs if yid not in self.activated_alias_bses else self.activated_alias_bses[yid])
-		#assert bs is not None
-		#
-		#for bs_other in bs.backend._sc.iter_sessions():
-		#	if bs_other.user.uuid == contact_uuid:
-		#		bs_other.evt.ymsg_on_p2p_msg_request(args[4])
+		# P2P messaging would interfere with messaging users on other frontends; return on receiving this packet
 		
 		return
 	
@@ -568,11 +559,11 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		yahoo_id = yahoo_data.get('1')
 		if yahoo_id is not None:
 			yahoo_id = arbitrary_decode(yahoo_id)
-		notify_type = yahoo_data.get('49') # typing, games, etc.
-		typing_flag = yahoo_data.get('13')
+		notify_type = yahoo_data.get(b'49') # typing, games, etc.
+		typing_flag = yahoo_data.get(b'13')
 		if typing_flag is not None:
 			typing_flag = arbitrary_decode(typing_flag)
-		contact_yahoo_id = yahoo_data.get('5')
+		contact_yahoo_id = yahoo_data.get(b'5')
 		if contact_yahoo_id is not None:
 			contact_yahoo_id = arbitrary_decode(contact_yahoo_id)
 		contact_uuid = yahoo_id_to_uuid(self.backend, contact_yahoo_id)
@@ -589,10 +580,10 @@ class YMSGCtrlPager(YMSGCtrlBase):
 	
 	def _y_0006(self, *args: Any) -> None:
 		# SERVICE_MESSAGE (0x06); send a message to a user
-		yahoo_id = args[4].get('1')
+		yahoo_id = args[4].get(b'1')
 		if yahoo_id is not None:
 			yahoo_id = arbitrary_decode(yahoo_id)
-		contact_yahoo_id = args[4].get('5')
+		contact_yahoo_id = args[4].get(b'5')
 		if contact_yahoo_id is not None:
 			contact_yahoo_id = arbitrary_decode(contact_yahoo_id)
 		
@@ -602,7 +593,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		# SERVICE_MASSMESSAGE (0x17); send a message to multiple users
 		yahoo_id = args[4].get('1')
 		
-		contact_yahoo_ids = args[4].getall('5')
+		contact_yahoo_ids = args[4].getall(b'5')
 		for i, contact_yahoo_id in enumerate(contact_yahoo_ids):
 			contact_yahoo_ids[i] = arbitrary_decode(contact_yahoo_id)
 		if contact_yahoo_ids:
@@ -614,14 +605,14 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		#bs = self.bs
 		#assert bs is not None
 		#
-		#if not args[4].get('1'): return
+		#if not args[4].get(b'1'): return
 		#
-		#webcam_token = self.backend.auth_service.create_token('ymsg/webcam', args[4].get('1'), lifetime = 86400)
+		#webcam_token = self.backend.auth_service.create_token('ymsg/webcam', args[4].get(b'1'), lifetime = 86400)
 		#
 		#self.send_reply(YMSGService.VideoChat, YMSGStatus.BRB, self.sess_id, MultiDict([
-		#	('1', args[4].get('1')),
-		#	('5', args[4].get('1')),
-		#	('61', webcam_token),
+		#	(b'1', args[4].get(b'1')),
+		#	(b'5', args[4].get(b'1')),
+		#	(b'61', webcam_token),
 		#]))
 		
 		return
@@ -634,7 +625,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		bs = self.bs
 		assert bs is not None
 		
-		contact_id = yahoo_data.get('5')
+		contact_id = yahoo_data.get(b'5')
 		if contact_id is not None:
 			contact_id = arbitrary_decode(contact_id)
 		contact_uuid = yahoo_id_to_uuid(self.backend, contact_id)
@@ -649,17 +640,25 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		# SERVICE_CONFINVITE (0x18); send a conference invite to one or more people
 		
 		yahoo_data = args[4]
-		yahoo_id = yahoo_data.get('1')
-		conf_roster = yahoo_data.getall('52', None)
-		if conf_roster is None:
-			return
+		yahoo_id = yahoo_data.get(b'1')
+		conf_roster = yahoo_data.getall(b'52', None)
+		if conf_roster is not None:
+			for i, conf_member in enumerate(conf_roster):
+				conf_roster[i] = arbitrary_decode(conf_member)
 		# Comma-separated yahoo ids
-		conf_roster_2 = yahoo_data.get('51')
-		if conf_roster_2:
+		conf_roster_2 = yahoo_data.get(b'51')
+		if conf_roster_2 is not None:
+			conf_roster_2 = arbitrary_decode(conf_roster_2)
 			conf_roster.extend(conf_roster_2.split(','))
-		conf_id = yahoo_data.get('57')
-		invite_msg = yahoo_data.get('58')
-		voice_chat = yahoo_data.get('13')
+		conf_id = yahoo_data.get(b'57')
+		if conf_id is not None:
+			conf_id = arbitrary_decode(conf_id)
+		invite_msg = yahoo_data.get(b'58')
+		if invite_msg is not None:
+			invite_msg = arbitrary_decode(invite_msg)
+		voice_chat = yahoo_data.get(b'13')
+		if voice_chat is not None:
+			voice_chat = arbitrary_decode(voice_chat)
 		
 		chat = self._get_chat_by_id('ymsg/conf', conf_id, create = True)
 		assert chat is not None
@@ -679,28 +678,28 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		# SERVICE_CONFADDINVITE (0x1c); send a conference invite to an existing conference to one or more people
 		
 		yahoo_data = args[4]
-		yahoo_id = yahoo_data.get('1')
+		yahoo_id = yahoo_data.get(b'1')
 		if yahoo_id is not None:
 			yahoo_id = arbitrary_decode(yahoo_id)
-		conf_new_roster_str = yahoo_data.get('51')
+		conf_new_roster_str = yahoo_data.get(b'51')
 		if conf_new_roster_str is None:
 			return
 		conf_new_roster = arbitrary_decode(conf_new_roster_str).split(',')
-		conf_roster = yahoo_data.getall('52', None)
+		conf_roster = yahoo_data.getall(b'52', None)
 		if conf_roster is None:
-			conf_roster = yahoo_data.getall('53', None)
+			conf_roster = yahoo_data.getall(b'53', None)
 			if conf_roster is None:
 				conf_roster = []
 		for i, conf_member in enumerate(conf_roster):
 			conf_roster[i] = arbitrary_decode(conf_member)
-		conf_id = yahoo_data.get('57')
+		conf_id = yahoo_data.get(b'57')
 		if conf_id is None:
 			return
 		conf_id = arbitrary_decode(conf_id)
-		invite_msg = yahoo_data.get('58')
+		invite_msg = yahoo_data.get(b'58')
 		if invite_msg is not None:
 			invite_msg = arbitrary_decode(invite_msg)
-		voice_chat = yahoo_data.get('13')
+		voice_chat = yahoo_data.get(b'13')
 		if voice_chat is not None:
 			voice_chat = arbitrary_decode(voice_chat)
 		
@@ -721,14 +720,14 @@ class YMSGCtrlPager(YMSGCtrlBase):
 	def _y_0019(self, *args: Any) -> None:
 		# SERVICE_CONFLOGON (0x19); request for me to join a conference
 		
-		#inviter_ids = args[4].getall('3', None)
+		#inviter_ids = args[4].getall(b'3', None)
 		#if inviter_ids is None:
 		#	return
 		
-		yahoo_id = args[4].get('1')
+		yahoo_id = args[4].get(b'1')
 		if yahoo_id is not None:
 			yahoo_id = arbitrary_decode(yahoo_id)
-		conf_id = args[4].get('57')
+		conf_id = args[4].get(b'57')
 		if conf_id is None:
 			return
 		conf_id = arbitrary_decode(conf_id)
@@ -740,22 +739,22 @@ class YMSGCtrlPager(YMSGCtrlBase):
 	def _y_001a(self, *args: Any) -> None:
 		# SERVICE_CONFDECLINE (0x1a); decline a request to join a conference
 		
-		yahoo_id = args[4].get('1')
+		yahoo_id = args[4].get(b'1')
 		if yahoo_id is not None:
 			yahoo_id = arbitrary_decode(yahoo_id)
 		
 		bs = self.bs
 		assert bs is not None
 		
-		inviter_ids = args[4].getall('3', None)
+		inviter_ids = args[4].getall(b'3', None)
 		if inviter_ids is None:
 			return
 		for i, inviter_id in enumerate(inviter_ids):
 			inviter_ids[i] = arbitrary_decode(inviter_id)
-		conf_id = args[4].get('57')
+		conf_id = args[4].get(b'57')
 		if conf_id is not None:
 			conf_id = arbitrary_decode(conf_id)
-		deny_msg = args[4].get('14')
+		deny_msg = args[4].get(b'14')
 		if deny_msg is not None:
 			deny_msg = arbitrary_decode(deny_msg)
 		
@@ -771,15 +770,15 @@ class YMSGCtrlPager(YMSGCtrlBase):
 	def _y_001d(self, *args: Any) -> None:
 		# SERVICE_CONFMSG (0x1d); send a message in a conference
 		
-		#conf_user_ids = args[4].getall('53', None)
+		#conf_user_ids = args[4].getall(b'53', None)
 		#if conf_user_ids is None:
 		#	return
 		
 		yahoo_data = args[4]
-		yahoo_id = yahoo_data.get('1')
+		yahoo_id = yahoo_data.get(b'1')
 		if yahoo_id is not None:
 			yahoo_id = arbitrary_decode(yahoo_id)
-		conf_id = yahoo_data.get('57')
+		conf_id = yahoo_data.get(b'57')
 		if conf_id is not None:
 			conf_id = arbitrary_decode(conf_id)
 		
@@ -793,14 +792,14 @@ class YMSGCtrlPager(YMSGCtrlBase):
 	def _y_001b(self, *args: Any) -> None:
 		# SERVICE_CONFLOGOFF (0x1b); leave a conference
 		
-		#conf_roster = args[4].getall('3', None)
+		#conf_roster = args[4].getall(b'3', None)
 		#if conf_roster is None:
 		#	return
 		
-		yahoo_id = args[4].get('1')
+		yahoo_id = args[4].get(b'1')
 		if yahoo_id is not None:
 			yahoo_id = arbitrary_decode(yahoo_id)
-		conf_id = args[4].get('57')
+		conf_id = args[4].get(b'57')
 		if conf_id is not None:
 			conf_id = arbitrary_decode(conf_id)
 		chat = self._get_chat_by_id('ymsg/conf', conf_id)
@@ -812,7 +811,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 	
 	# Other functions
 	
-	def _message_common(self, yahoo_data: Dict[str, bytes], contact_yahoo_id: Optional[str]) -> None:
+	def _message_common(self, yahoo_data: MultiDict[bytes, bytes], contact_yahoo_id: Optional[str]) -> None:
 		bs = self.bs
 		assert bs is not None
 		user = bs.user
@@ -820,18 +819,18 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		assert self.yahoo_id is not None
 		if contact_yahoo_id == 'YahooHelper':
 			yhlper_msg_dict = MultiDict([
-				('5', yahoo_data.get('1') or b''),
-				('4', b'YahooHelper'),
-				('14', YAHOO_HELPER_MSG.encode('utf-8')),
-			]) # type: MultiDict[str, bytes]
+				(b'5', yahoo_data.get(b'1') or b''),
+				(b'4', b'YahooHelper'),
+				(b'14', YAHOO_HELPER_MSG.encode('utf-8')),
+			]) # type: MultiDict[bytes, bytes]
 			
-			if yahoo_data.get('63') is not None:
-				yhlper_msg_dict.add('63', yahoo_data.get('63'))
+			if yahoo_data.get(b'63') is not None:
+				yhlper_msg_dict.add(b'63', yahoo_data.get(b'63') or b'')
 			
-			if yahoo_data.get('64') is not None:
-				yhlper_msg_dict.add('64', yahoo_data.get('64'))
+			if yahoo_data.get(b'64') is not None:
+				yhlper_msg_dict.add(b'64', yahoo_data.get(b'64') or b'')
 			
-			yhlper_msg_dict.add('97', b'1')
+			yhlper_msg_dict.add(b'97', b'1')
 			
 			self.send_reply(YMSGService.Message, YMSGStatus.BRB, self.sess_id, yhlper_msg_dict)
 			return
@@ -863,12 +862,12 @@ class YMSGCtrlPager(YMSGCtrlBase):
 				(ip, _) = self.peername
 				from_user_id = None
 				
-				key1_val = md.front_cache['ymsg'].get('1')
+				key1_val = md.front_cache['ymsg'].get(b'1')
 				if key1_val is not None:
 					from_user_id = arbitrary_decode(key1_val)
 				
 				self.backend.user_service.save_oim(
-					gen_uuid().upper(), contact_uuid, user.email, self.yahoo_id, ip, md.text or '', False if md.front_cache['ymsg'].get('97') is b'0' else True,
+					gen_uuid().upper(), contact_uuid, user.email, self.yahoo_id, ip, md.text or '', False if md.front_cache['ymsg'].get(b'97') is b'0' else True,
 					from_user_id = from_user_id,
 				)
 		except error.ContactNotOnList:
@@ -958,34 +957,42 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		ignore_list = [misc.yahoo_id(c.head.email) for c in cs if c.lists & Lst.BL]
 		
 		list_reply_kvs = MultiDict([
-			('87', ''.join(contact_group_list).encode('utf-8')),
-			('88', ','.join(ignore_list).encode('utf-8')),
-			('89', (self.yahoo_id or '').encode('utf-8')),
-		]) # type: MultiDict[str, bytes]
+			(b'87', ''.join(contact_group_list).encode('utf-8')),
+			(b'88', ','.join(ignore_list).encode('utf-8')),
+			(b'89', (self.yahoo_id or '').encode('utf-8')),
+		]) # type: MultiDict[bytes, bytes]
 		
 		if cached_y is not None and cached_t is not None and backend.auth_service.get_token('ymsg/cookie', cached_y) and backend.auth_service.get_token('ymsg/cookie', cached_t):
-			list_reply_kvs.add('59', cached_y.encode('utf-8'))
-			list_reply_kvs.add('59', cached_t.encode('utf-8'))
+			list_reply_kvs.add(b'59', cached_y.encode('utf-8'))
+			list_reply_kvs.add(b'59', cached_t.encode('utf-8'))
 		else:
 			(y_cookie, t_cookie, cookie_expiry) = self._refresh_cookies()
-			list_reply_kvs.add('59', 'Y\t{}; expires={}; path=/; domain={}'.format(y_cookie, cookie_expiry, ('yahooloopback.log1p.xyz' if settings.DEBUG else settings.TARGET_HOST)).encode('utf-8'))
-			list_reply_kvs.add('59', 'T\t{}; expires={}; path=/; domain={}'.format(t_cookie, cookie_expiry, ('yahooloopback.log1p.xyz' if settings.DEBUG else settings.TARGET_HOST)).encode('utf-8'))
+			# <notice>
+			# can't use `yahooloopback.log1p.xyz` for cookies yet because that is intended for Switcher (Yahoo! sets the cookies on a static domain and it expects the cookie domain to encompass the domain it
+			# sets the cookie to, if the cookie domain doesn't match the domain of the URL Yahoo! uses, then it won't use the cookies). uncomment when development on Switcher is finished.
+			# 
+			#list_reply_kvs.add(b'59', 'Y\t{}; expires={}; path=/; domain={}'.format(y_cookie, cookie_expiry, ('yahooloopback.log1p.xyz' if settings.DEBUG else settings.TARGET_HOST)).encode('utf-8'))
+			#list_reply_kvs.add(b'59', 'T\t{}; expires={}; path=/; domain={}'.format(t_cookie, cookie_expiry, ('yahooloopback.log1p.xyz' if settings.DEBUG else settings.TARGET_HOST)).encode('utf-8'))
+			# 
+			# </notice>
+			list_reply_kvs.add(b'59', 'Y\t{}; expires={}; path=/; domain={}'.format(y_cookie, cookie_expiry, '.yahoo.com').encode('utf-8'))
+			list_reply_kvs.add(b'59', 'T\t{}; expires={}; path=/; domain={}'.format(t_cookie, cookie_expiry, '.yahoo.com').encode('utf-8'))
 		
-		list_reply_kvs.add('59', b'C\tmg=1')
-		list_reply_kvs.add('3', (self.yahoo_id or '').encode('utf-8'))
-		list_reply_kvs.add('90', b'1')
-		list_reply_kvs.add('100', b'0')
-		list_reply_kvs.add('101', b'')
-		list_reply_kvs.add('102', b'')
-		list_reply_kvs.add('93', b'86400')
+		list_reply_kvs.add(b'59', b'C\tmg=1')
+		list_reply_kvs.add(b'3', (self.yahoo_id or '').encode('utf-8'))
+		list_reply_kvs.add(b'90', b'1')
+		list_reply_kvs.add(b'100', b'0')
+		list_reply_kvs.add(b'101', b'')
+		list_reply_kvs.add(b'102', b'')
+		list_reply_kvs.add(b'93', b'86400')
 		
 		self.send_reply(YMSGService.List, YMSGStatus.Available, self.sess_id, list_reply_kvs)
 		
 		logon_payload = MultiDict([
-			('0', (self.yahoo_id or '').encode('utf-8')),
-			('1', (self.yahoo_id or '').encode('utf-8')),
-			('8', str(len(cs_fl)).encode('utf-8')),
-		]) # type: MultiDict[str, bytes]
+			(b'0', (self.yahoo_id or '').encode('utf-8')),
+			(b'1', (self.yahoo_id or '').encode('utf-8')),
+			(b'8', str(len(cs_fl)).encode('utf-8')),
+		]) # type: MultiDict[bytes, bytes]
 		
 		for c in cs_fl:
 			add_contact_status_to_data(logon_payload, c.status, c.head)
@@ -997,15 +1004,15 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		
 		for oim in oims:
 			oim_msg_dict = MultiDict([
-				('31', b'6'),
-				('32', b'6'),
-				('1', arbitrary_encode(oim.from_user_id or misc.yahoo_id(oim.from_email))),
-				('5', (self.yahoo_id or '').encode('utf-8')),
-				('4', arbitrary_encode(oim.from_user_id or misc.yahoo_id(oim.from_email))),
-				('15', str(int(oim.sent.timestamp())).encode('utf-8')),
-				('14', arbitrary_encode(oim.message)),
-				('97', b'1' if oim.utf8 else b'0'),
-			]) # type: MultiDict[str, bytes]
+				(b'31', b'6'),
+				(b'32', b'6'),
+				(b'1', arbitrary_encode(oim.from_user_id or misc.yahoo_id(oim.from_email))),
+				(b'5', (self.yahoo_id or '').encode('utf-8')),
+				(b'4', arbitrary_encode(oim.from_user_id or misc.yahoo_id(oim.from_email))),
+				(b'15', str(int(oim.sent.timestamp())).encode('utf-8')),
+				(b'14', arbitrary_encode(oim.message)),
+				(b'97', b'1' if oim.utf8 else b'0'),
+			]) # type: MultiDict[bytes, bytes]
 			
 			self.backend.user_service.delete_oim(user.uuid, oim.run_id)
 			
@@ -1143,20 +1150,20 @@ def add_contact_status_to_data(data: Any, status: UserStatus, contact: User, *, 
 		else:
 			key_11_val = '0'
 	
-	data.add('7', user_yahoo_id)
+	data.add(b'7', user_yahoo_id.encode('utf-8'))
 	
 	if is_offlineish or not status.message:
-		data.add('10', str(int(YMSGStatus.Available if is_offlineish else YMSGStatus.FromSubstatus(status.substatus))).encode('utf-8'))
-		data.add('11', key_11_val.encode('utf-8'))
+		data.add(b'10', str(int(YMSGStatus.Available if is_offlineish else YMSGStatus.FromSubstatus(status.substatus))).encode('utf-8'))
+		data.add(b'11', key_11_val.encode('utf-8'))
 	else:
-		data.add('10', str(int(YMSGStatus.Custom)).encode('utf-8'))
-		data.add('11', key_11_val.encode('utf-8'))
-		data.add('19', arbitrary_encode(status.message))
+		data.add(b'10', str(int(YMSGStatus.Custom)).encode('utf-8'))
+		data.add(b'11', key_11_val.encode('utf-8'))
+		data.add(b'19', arbitrary_encode(status.message))
 		is_away_message = (status.substatus is not Substatus.Online)
-		data.add('47', str(int(is_away_message)).encode('utf-8'))
+		data.add(b'47', str(int(is_away_message)).encode('utf-8'))
 	
-	data.add('17', b'0')
-	data.add('13', (b'0' if is_offlineish else b'1'))
+	data.add(b'17', b'0')
+	data.add(b'13', (b'0' if is_offlineish else b'1'))
 
 class BackendEventHandler(event.BackendEventHandler):
 	__slots__ = ('loop', 'ctrl', 'dialect', 'sess_id', 'bs')
@@ -1179,9 +1186,9 @@ class BackendEventHandler(event.BackendEventHandler):
 		else:
 			msg = message
 		kvs = MultiDict([
-			('14', msg.encode('utf-8')),
-			('15', str(time.time()).encode('utf-8')),
-		]) # type: # type: MultiDict[str, bytes]
+			(b'14', msg.encode('utf-8')),
+			(b'15', str(time.time()).encode('utf-8')),
+		]) # type: MultiDict[bytes, bytes]
 		self.ctrl.send_reply(YMSGService.SystemMessage, YMSGStatus.BRB, self.sess_id, kvs)
 	
 	def on_maintenance_boot(self) -> None:
@@ -1208,9 +1215,9 @@ class BackendEventHandler(event.BackendEventHandler):
 				service = YMSGService.IsAway
 			
 			if not (ctc.status.is_offlineish() and old_substatus.is_offlineish()):
-				yahoo_data = MultiDict() # type: MultiDict[str, Any]
+				yahoo_data = MultiDict() # type: MultiDict[bytes, bytes]
 				if service is not YMSGService.LogOff:
-					yahoo_data.add('0', (self.ctrl.yahoo_id or '').encode('utf-8'))
+					yahoo_data.add(b'0', (self.ctrl.yahoo_id or '').encode('utf-8'))
 				
 				add_contact_status_to_data(yahoo_data, ctc.status, ctc.head, old_substatus = old_substatus, sess_id = sess_id)
 				
@@ -1224,9 +1231,9 @@ class BackendEventHandler(event.BackendEventHandler):
 		assert bs is not None
 		
 		self.ctrl.send_reply(YMSGService.ContactNew, YMSGStatus.OnVacation, self.sess_id, MultiDict([
-			('1', misc.yahoo_id(bs.user.email).encode('utf-8')),
-			('3', arbitrary_encode(contact_id or misc.yahoo_id(user_added.email))),
-			('14', arbitrary_encode(message)),
+			(b'1', misc.yahoo_id(bs.user.email).encode('utf-8')),
+			(b'3', arbitrary_encode(contact_id or misc.yahoo_id(user_added.email))),
+			(b'14', arbitrary_encode(message)),
 		]))
 	
 	def msn_on_notify_ab(self, owner_cid: str, ab_last_modified: str) -> None:
@@ -1235,38 +1242,16 @@ class BackendEventHandler(event.BackendEventHandler):
 	def msn_on_put_sent(self, payload: bytes, sender: User, *, pop_id_sender: Optional[str] = None, pop_id: Optional[str] = None) -> None:
 		pass
 	
-	#def ymsg_on_p2p_msg_request(self, yahoo_data: Dict[str, Any]) -> None:
-	#	bs = self.bs
-	#	assert bs is not None
-	#	
-	#	p2p_conn_dict = MultiDict([
-	#		('5', yahoo_data.get('5')),
-	#		('4', yahoo_data.get('1')),
-	#	])
-	#	
-	#	if None not in (yahoo_data.get('2'),yahoo_data.get('13'),yahoo_data.get('12')):
-	#		p2p_conn_dict.add('2', yahoo_data.get('2'))
-	#		p2p_conn_dict.add('13', yahoo_data.get('13'))
-	#		p2p_conn_dict.add('12', yahoo_data.get('12'))
-	#	else:
-	#		return
-	#	
-	#	p2p_conn_dict.add('49', yahoo_data.get('49'))
-	#	if yahoo_data.get('60') is not None: p2p_conn_dict.add('60', yahoo_data.get('60'))
-	#	if yahoo_data.get('61') is not None: p2p_conn_dict.add('60', yahoo_data.get('61'))
-	#	
-	#	self.ctrl.send_reply(YMSGService.PeerToPeer, YMSGStatus.BRB, self.sess_id, p2p_conn_dict)
-	
-	def ymsg_on_xfer_init(self, yahoo_data: Dict[str, Any]) -> None:
+	def ymsg_on_xfer_init(self, yahoo_data: MultiDict[bytes, bytes]) -> None:
 		for y in misc.build_ft_packet(self.bs, yahoo_data):
 			self.ctrl.send_reply(y[0], y[1], self.sess_id, y[2])
 	
 	def ymsg_on_upload_file_ft(self, recipient: str, message: str) -> None:
 		self.ctrl.send_reply(YMSGService.FileTransfer, YMSGStatus.BRB, self.sess_id, MultiDict([
-			('1', misc.yahoo_id(self.bs.user.email).encode('utf-8')),
-			('5', arbitrary_encode(recipient)),
-			('4', misc.yahoo_id(self.bs.user.email).encode('utf-8')),
-			('14', arbitrary_encode(message)),
+			(b'1', misc.yahoo_id(self.bs.user.email).encode('utf-8')),
+			(b'5', arbitrary_encode(recipient)),
+			(b'4', misc.yahoo_id(self.bs.user.email).encode('utf-8')),
+			(b'14', arbitrary_encode(message)),
 		]))
 	
 	def ymsg_on_sent_ft_http(self, yahoo_id_sender: str, url_path: str, upload_time: float, message: str) -> None:
@@ -1286,19 +1271,19 @@ class BackendEventHandler(event.BackendEventHandler):
 		if 'ymsg/conf' not in chat.ids:
 			chat.add_id('ymsg/conf', chat.ids['main'])
 		conf_invite_dict = MultiDict([
-			('1', misc.yahoo_id(self.bs.user.email).encode('utf-8')),
-			('57', chat.ids['ymsg/conf'].encode('utf-8')),
-			('50', arbitrary_encode(inviter_id or misc.yahoo_id(inviter.email))),
-			('58', arbitrary_encode(invite_msg)),
-		]) # type: MultiDict[str, bytes]
+			(b'1', misc.yahoo_id(self.bs.user.email).encode('utf-8')),
+			(b'57', arbitrary_encode(chat.ids['ymsg/conf'])),
+			(b'50', arbitrary_encode(inviter_id or misc.yahoo_id(inviter.email))),
+			(b'58', arbitrary_encode(invite_msg)),
+		]) # type: MultiDict[bytes, bytes]
 		
 		roster = list(chat.get_roster_single())
 		for cs in roster:
 			if cs.user.uuid == inviter.uuid: continue
-			conf_invite_dict.add('52', arbitrary_encode(cs.preferred_name or misc.yahoo_id(cs.user.email)))
-			conf_invite_dict.add('53', arbitrary_encode(cs.preferred_name or misc.yahoo_id(cs.user.email)))
+			conf_invite_dict.add(b'52', arbitrary_encode(cs.preferred_name or misc.yahoo_id(cs.user.email)))
+			conf_invite_dict.add(b'53', arbitrary_encode(cs.preferred_name or misc.yahoo_id(cs.user.email)))
 		
-		conf_invite_dict.add('13', arbitrary_encode(chat.front_data.get('ymsg_voice_chat') or '0'))
+		conf_invite_dict.add(b'13', arbitrary_encode(chat.front_data.get('ymsg_voice_chat') or '0'))
 		
 		self.ctrl.send_reply(YMSGService.ConfAddInvite if len(roster) > 1 else YMSGService.ConfInvite, YMSGStatus.BRB, self.ctrl.sess_id, conf_invite_dict)
 	
@@ -1316,22 +1301,16 @@ class BackendEventHandler(event.BackendEventHandler):
 			if ctc.lists & Lst.BL: return
 		
 		contact_request_data = MultiDict([
-<<<<<<< HEAD
-			('1', misc.yahoo_id(user_me.email)),
-			('3', adder_id or misc.yahoo_id(user.email)),
-		]) # type: MultiDict[str, Any]
-=======
-			('1', misc.yahoo_id(user_me.email).encode('utf-8')),
-			('3', misc.yahoo_id(adder_id or misc.yahoo_id(user.email))),
-		]) # type: MultiDict[Any]
->>>>>>> ymsg: make parser more byte-friendly
+			(b'1', misc.yahoo_id(user_me.email).encode('utf-8')),
+			(b'3', arbitrary_encode(adder_id or misc.yahoo_id(user.email))),
+		]) # type: MultiDict[bytes, bytes]
 		
 		if message is not None:
-			contact_request_data.add('14', arbitrary_encode(message.text))
+			contact_request_data.add(b'14', arbitrary_encode(message.text))
 			if message.yahoo_utf8 is not None:
-				contact_request_data.add('97', arbitrary_encode(message.yahoo_utf8))
+				contact_request_data.add(b'97', arbitrary_encode(message.yahoo_utf8))
 		
-		contact_request_data.add('15', arbitrary_encode(str(time.time())))
+		contact_request_data.add(b'15', arbitrary_encode(str(time.time())))
 		
 		self.ctrl.send_reply(YMSGService.ContactNew, YMSGStatus.NotAtHome, self.sess_id, contact_request_data)
 	
@@ -1362,9 +1341,9 @@ class ChatEventHandler(event.ChatEventHandler):
 		if self.cs.chat.front_data.get('ymsg_twoway_only') or not first_pop:
 			return
 		self.ctrl.send_reply(YMSGService.ConfLogon, YMSGStatus.BRB, self.ctrl.sess_id, MultiDict([
-			('1', misc.yahoo_id(self.bs.user.email).encode('utf-8')),
-			('57', cs_other.chat.ids['ymsg/conf'].encode('utf-8')),
-			('53', arbitrary_encode(cs_other.preferred_name or misc.yahoo_id(cs_other.user.email))),
+			(b'1', misc.yahoo_id(self.bs.user.email).encode('utf-8')),
+			(b'57', arbitrary_encode(cs_other.chat.ids['ymsg/conf'])),
+			(b'53', arbitrary_encode(cs_other.preferred_name or misc.yahoo_id(cs_other.user.email))),
 		]))
 	
 	def on_participant_left(self, cs_other: ChatSession, idle: bool, last_pop: bool) -> None:
@@ -1374,17 +1353,17 @@ class ChatEventHandler(event.ChatEventHandler):
 		if not last_pop:
 			return
 		self.ctrl.send_reply(YMSGService.ConfLogoff, YMSGStatus.BRB, self.ctrl.sess_id, MultiDict([
-			('1', misc.yahoo_id(self.bs.user.email).encode('utf-8')),
-			('57', cs_other.chat.ids['ymsg/conf'].encode('utf-8')),
-			('56', cs_other.preferred_name or misc.yahoo_id(cs_other.user.email).encode('utf-8')),
+			(b'1', misc.yahoo_id(self.bs.user.email).encode('utf-8')),
+			(b'57', arbitrary_encode(cs_other.chat.ids['ymsg/conf'])),
+			(b'56', arbitrary_encode(cs_other.preferred_name or misc.yahoo_id(cs_other.user.email))),
 		]))
 	
 	def on_invite_declined(self, invited_user: User, *, invited_id: Optional[str] = None, message: str = '') -> None:
 		self.ctrl.send_reply(YMSGService.ConfDecline, YMSGStatus.BRB, self.ctrl.sess_id, MultiDict([
-			('1', misc.yahoo_id(self.bs.user.email).encode('utf-8')),
-			('57', self.cs.chat.ids['ymsg/conf'].encode('utf-8')),
-			('54', arbitrary_encode(invited_id or misc.yahoo_id(invited_user.email))),
-			('14', arbitrary_encode(message)),
+			(b'1', misc.yahoo_id(self.bs.user.email).encode('utf-8')),
+			(b'57', arbitrary_encode(self.cs.chat.ids['ymsg/conf'])),
+			(b'54', arbitrary_encode(invited_id or misc.yahoo_id(invited_user.email))),
+			(b'14', arbitrary_encode(message)),
 		]))
 	
 	def on_message(self, data: MessageData) -> None:
@@ -1397,49 +1376,49 @@ class ChatEventHandler(event.ChatEventHandler):
 		if data.type in (MessageType.Chat,MessageType.Nudge):
 			if self.cs.chat.front_data.get('ymsg_twoway_only'):
 				message_to_dict = MultiDict([
-					('5', yahoo_data.get('5') or misc.yahoo_id(bs.user.email).encode('utf-8')),
-					('4', yahoo_data.get('1') or misc.yahoo_id(sender.email).encode('utf-8')),
-					('14', yahoo_data.get('14') or arbitrary_encode(data.text or '')),
-				])
+					(b'5', yahoo_data.get(b'5') or misc.yahoo_id(bs.user.email).encode('utf-8')),
+					(b'4', yahoo_data.get(b'1') or misc.yahoo_id(sender.email).encode('utf-8')),
+					(b'14', yahoo_data.get(b'14') or arbitrary_encode(data.text or '')),
+				]) # type: MultiDict[bytes, bytes]
 				
-				if yahoo_data.get('63') is not None:
-					message_to_dict.add('63', yahoo_data.get('63'))
+				if yahoo_data.get(b'63') is not None:
+					message_to_dict.add(b'63', yahoo_data.get(b'63') or b'')
 				
-				if yahoo_data.get('64') is not None:
-					message_to_dict.add('64', yahoo_data.get('64'))
+				if yahoo_data.get(b'64') is not None:
+					message_to_dict.add(b'64', yahoo_data.get(b'64') or b'')
 				
-				if yahoo_data.get('97') is not None:
-					message_to_dict.add('97', yahoo_data.get('97'))
+				if yahoo_data.get(b'97') is not None:
+					message_to_dict.add(b'97', yahoo_data.get(b'97') or b'')
 				
 				self.ctrl.send_reply(YMSGService.Message, YMSGStatus.BRB, self.ctrl.sess_id, message_to_dict)
 			else:
 				if data.type is not MessageType.Nudge:
 					conf_message_dict = MultiDict([
-						('1', misc.yahoo_id(bs.user.email).encode('utf-8')),
-						('57', self.cs.chat.ids['ymsg/conf'].encode('utf-8')),
-						('3', yahoo_data.get('1') or misc.yahoo_id(sender.email).encode('utf-8')),
-						('14', yahoo_data.get('14') or arbitrary_encode(data.text or '')),
+						(b'1', misc.yahoo_id(bs.user.email).encode('utf-8')),
+						(b'57', arbitrary_encode(self.cs.chat.ids['ymsg/conf'])),
+						(b'3', yahoo_data.get(b'1') or misc.yahoo_id(sender.email).encode('utf-8')),
+						(b'14', yahoo_data.get(b'14') or arbitrary_encode(data.text or '')),
 					])
 					
-					if yahoo_data.get('97') is not None:
-						conf_message_dict.add('97', yahoo_data.get('97'))
+					if yahoo_data.get(b'97') is not None:
+						conf_message_dict.add(b'97', yahoo_data.get(b'97') or b'')
 					
 					self.ctrl.send_reply(YMSGService.ConfMsg, YMSGStatus.BRB, self.ctrl.sess_id, conf_message_dict)
 		elif data.type in (MessageType.Typing,MessageType.TypingDone) and self.cs.chat.front_data.get('ymsg_twoway_only'):
 			self.ctrl.send_reply(YMSGService.Notify, YMSGStatus.BRB, self.ctrl.sess_id, MultiDict([
-				('5', yahoo_data.get('5') or misc.yahoo_id(bs.user.email).encode('utf-8')),
-				('4', yahoo_data.get('1') or misc.yahoo_id(sender.email).encode('utf-8')),
-				('49', b'TYPING'),
-				('14', yahoo_data.get('14') or arbitrary_encode(data.text or ' ')),
-				('13', yahoo_data.get('13') or (b'0' if data.type is MessageType.TypingDone else b'1'))
+				(b'5', yahoo_data.get(b'5') or misc.yahoo_id(bs.user.email).encode('utf-8')),
+				(b'4', yahoo_data.get(b'1') or misc.yahoo_id(sender.email).encode('utf-8')),
+				(b'49', b'TYPING'),
+				(b'14', yahoo_data.get(b'14') or arbitrary_encode(data.text or ' ')),
+				(b'13', yahoo_data.get(b'13') or (b'0' if data.type is MessageType.TypingDone else b'1'))
 			]))
 		elif data.type is MessageType.Webcam:
 			kvs = MultiDict([
-				('5', yahoo_data.get('5') or misc.yahoo_id(bs.user.email).encode('utf-8')),
-				('4', yahoo_data.get('1') or misc.yahoo_id(sender.email).encode('utf-8')),
-				('49', b'WEBCAMINVITE'),
-				('14', yahoo_data.get('14') or arbitrary_encode(data.text or ' ')),
-			]) # type: MultiDict[str, Any]
+				(b'5', yahoo_data.get(b'5') or misc.yahoo_id(bs.user.email).encode('utf-8')),
+				(b'4', yahoo_data.get(b'1') or misc.yahoo_id(sender.email).encode('utf-8')),
+				(b'49', b'WEBCAMINVITE'),
+				(b'14', yahoo_data.get(b'14') or arbitrary_encode(data.text or ' ')),
+			]) # type: MultiDict[bytes, bytes]
 			self.ctrl.send_reply(YMSGService.Notify, YMSGStatus.BRB, self.ctrl.sess_id, kvs)
 	
 	def _send_when_user_joins(self, user_uuid: str, data: MessageData) -> None:
@@ -1467,8 +1446,8 @@ class ChatEventHandler(event.ChatEventHandler):
 				return True
 		return False
 
-def messagedata_from_ymsg(sender: User, data: Dict[str, Any], *, notify_type: Optional[bytes] = None, typing_flag: Optional[str] = None) -> MessageData:
-	text = arbitrary_decode(data.get('14') or b'')
+def messagedata_from_ymsg(sender: User, data: MultiDict[bytes, bytes], *, notify_type: Optional[bytes] = None, typing_flag: Optional[str] = None) -> MessageData:
+	text = arbitrary_decode(data.get(b'14') or b'')
 	
 	if notify_type is None:
 		if text == '<ding>':
@@ -1491,13 +1470,13 @@ def messagedata_from_ymsg(sender: User, data: Dict[str, Any], *, notify_type: Op
 	message.front_cache['ymsg'] = data
 	return message
 
-def messagedata_to_ymsg(data: MessageData) -> Dict[str, Any]:
+def messagedata_to_ymsg(data: MessageData) -> MultiDict[bytes, bytes]:
 	if 'ymsg' not in data.front_cache:
 		data.front_cache['ymsg'] = MultiDict([
-			('14', (b'<ding>' if data.type is MessageType.Nudge else arbitrary_encode(data.text or ''))),
-			('63', b';0'),
-			('64', b'0'),
-			('97', b'1'),
+			(b'14', (b'<ding>' if data.type is MessageType.Nudge else arbitrary_encode(data.text or ''))),
+			(b'63', b';0'),
+			(b'64', b'0'),
+			(b'97', b'1'),
 		])
 	return data.front_cache['ymsg']
 

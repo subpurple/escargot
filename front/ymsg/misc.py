@@ -3,8 +3,7 @@ from urllib.parse import quote_plus
 from enum import IntEnum
 import time
 
-from util.misc import first_in_iterable, DefaultDict, MultiDict, arbitrary_encode
->>>>>>> ymsg: make parser more byte-friendly
+from util.misc import first_in_iterable, DefaultDict, MultiDict, arbitrary_encode, arbitrary_decode
 
 from core.backend import Backend, BackendSession, Chat, ChatSession
 from core.models import User, Lst, Contact, Substatus, NetworkID
@@ -122,47 +121,45 @@ _FromSubstatus = DefaultDict(YMSGStatus.Bad, {
 	Substatus.SteppedOut: YMSGStatus.SteppedOut,
 })
 
-KVSType = MultiDict[str, Any]
+KVSType = MultiDict[bytes, bytes]
 EncodedYMSG = Tuple[YMSGService, YMSGStatus, KVSType]
 
-def build_ft_packet(bs: BackendSession, xfer_dict: Dict[str, Any]) -> Iterable[EncodedYMSG]:
+def build_ft_packet(bs: BackendSession, xfer_dict: KVSType) -> Iterable[EncodedYMSG]:
 	user_to = bs.user
 	
 	ft_dict = MultiDict([
-		('5', yahoo_id(user_to.email).encode('utf-8')),
-		('4', xfer_dict.get('1'))
+		(b'5', yahoo_id(user_to.email).encode('utf-8')),
+		(b'4', xfer_dict.get(b'1') or b'')
 	])
 	
-	ft_type = xfer_dict.get('13')
-	ft_dict.add('13', ft_type)
-	if ft_type == '1':
-		ft_dict.add('27', xfer_dict.get('27'))
-		ft_dict.add('28', xfer_dict.get('28'))
-		url_filename = xfer_dict.get('53')
-		if url_filename is not None:
-			url_filename = url_filename.decode('utf-8')
+	ft_type = xfer_dict.get(b'13')
+	if ft_type is not None: ft_dict.add(b'13', ft_type)
+	if ft_type == b'1':
+		if xfer_dict.get(b'27') is not None: ft_dict.add(b'27', xfer_dict.get(b'27') or b'')
+		if xfer_dict.get(b'28') is not None: ft_dict.add(b'28', xfer_dict.get(b'28') or b'')
 		
 		# When file name in HTTP string is sent to recipient by server, it is unescaped for some reason
 		# Replace it with `urllib.parse.quote()`'d version!
-		key20_val = xfer_dict.get('20')
-		if key20_val is not None:
-			key20_val = key20_val.decode('utf-8')
-		ft_dict.add('20', (key20_val or '').replace(url_filename or '', quote_plus(url_filename, safe = '')).encode('utf-8'))
-		ft_dict.add('53', (url_filename or '').encode('utf-8'))
-		ft_dict.add('14', xfer_dict.get('14'))
-		ft_dict.add('54', xfer_dict.get('54'))
-	if ft_type in ('2','3'):
+		key20_val = None
+		key20_val_raw = xfer_dict.get(b'20')
+		if key20_val_raw is not None:
+			key20_val = arbitrary_decode(key20_val_raw)
+			ft_dict.add(b'20', arbitrary_encode(quote_plus(key20_val or '', safe = '\\/')))
+		if xfer_dict.get(b'53') is not None: ft_dict.add(b'53', xfer_dict.get(b'53') or b'')
+		if xfer_dict.get(b'14') is not None: ft_dict.add(b'14', xfer_dict.get(b'14') or b'')
+		if xfer_dict.get(b'54') is not None: ft_dict.add(b'54', xfer_dict.get(b'54') or b'')
+	if ft_type in (b'2',b'3'):
 		# For shared files
-		if xfer_dict.get('27') is not None: ft_dict.add('27', xfer_dict.get('27'))
-		if xfer_dict.get('53') is not None: ft_dict.add('53', xfer_dict.get('53'))
+		if xfer_dict.get(b'27') is not None: ft_dict.add(b'27', xfer_dict.get(b'27') or b'')
+		if xfer_dict.get(b'53') is not None: ft_dict.add(b'53', xfer_dict.get(b'53') or b'')
 		
 		# For P2P messaging
-		if xfer_dict.get('2') is not None: ft_dict.add('2', xfer_dict.get('2'))
-		if xfer_dict.get('11') is not None: ft_dict.add('11', xfer_dict.get('11'))
-		if xfer_dict.get('12') is not None: ft_dict.add('12', xfer_dict.get('12'))
-		if xfer_dict.get('60') is not None: ft_dict.add('60', xfer_dict.get('60'))
-		if xfer_dict.get('61') is not None: ft_dict.add('61', xfer_dict.get('61'))
-	ft_dict.add('49', xfer_dict.get('49'))
+		if xfer_dict.get(b'2') is not None: ft_dict.add(b'2', xfer_dict.get(b'2') or b'')
+		if xfer_dict.get(b'11') is not None: ft_dict.add(b'11', xfer_dict.get(b'11') or b'')
+		if xfer_dict.get(b'12') is not None: ft_dict.add(b'12', xfer_dict.get(b'12') or b'')
+		if xfer_dict.get(b'60') is not None: ft_dict.add(b'60', xfer_dict.get(b'60') or b'')
+		if xfer_dict.get(b'61') is not None: ft_dict.add(b'61', xfer_dict.get(b'61') or b'')
+	if xfer_dict.get(b'49') is not None: ft_dict.add(b'49', xfer_dict.get(b'49') or b'')
 	
 	yield (YMSGService.P2PFileXfer, YMSGStatus.BRB, ft_dict)
 
@@ -170,12 +167,12 @@ def build_http_ft_packet(bs: BackendSession, sender: str, url_path: str, upload_
 	user = bs.user
 	
 	yield (YMSGService.FileTransfer, YMSGStatus.BRB, MultiDict([
-		('1', yahoo_id(user.email).encode('utf-8')),
-		('5', arbitrary_encode(sender)),
-		('4', yahoo_id(user.email).encode('utf-8')),
-		('14', arbitrary_encode(message)),
-		('38', str(upload_time).encode('utf-8')),
-		('20', '{}{}'.format(settings.YAHOO_FT_DL_HOST, url_path).encode('utf-8')),
+		(b'1', yahoo_id(user.email).encode('utf-8')),
+		(b'5', arbitrary_encode(sender)),
+		(b'4', yahoo_id(user.email).encode('utf-8')),
+		(b'14', arbitrary_encode(message)),
+		(b'38', str(upload_time).encode('utf-8')),
+		(b'20', arbitrary_encode('{}{}'.format(settings.YAHOO_FT_DL_HOST, url_path))),
 	]))
 
 def is_blocking(blocker: User, blockee: User) -> bool:

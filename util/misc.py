@@ -2,7 +2,6 @@ from typing import FrozenSet, Any, Iterable, Optional, TypeVar, List, Dict, Tupl
 from abc import ABCMeta, abstractmethod
 import asyncio
 import functools
-import binascii
 import itertools
 import traceback
 from datetime import datetime
@@ -160,16 +159,10 @@ def add_to_jinja_env(app: web.Application, prefix: str, tmpl_dir: str, *, global
 	if globals:
 		jinja_env.globals.update(globals)
 
-def arbitrary_decode(raw_data: bytes) -> str:
-	if not raw_data: return ''
+def arbitrary_decode(d: bytes) -> str:
+	if not d: return ''
 	
-	raw_hex = binascii.hexlify(raw_data)
-	raw_ords = []
-
-	for i in range(0, len(raw_hex), 2):
-		raw_ords.append(int(raw_hex[i:i+2], 16))
-	
-	return ''.join(map(chr, raw_ords))
+	return ''.join(map(chr, [b for b in d]))
 
 def arbitrary_encode(s: str) -> bytes:
 	return bytes([ord(c) for c in s])
@@ -207,26 +200,45 @@ class DefaultDict(Dict[K, V]):
 		return v
 
 class MultiDict(Generic[K, V]):
-	_impl: Dict[K, List[V]]
+	_impl: List[Dict[K, V]]
 	
 	def __init__(self, data: Optional[Iterable[Tuple[K, V]]] = None) -> None:
 		super().__init__()
-		impl = {}
+		impl = []
 		if data is not None:
 			for k, v in data:
-				impl[k] = [v]
+				impl.append({k: v})
 		self._impl = impl
 	
+	def __contains__(self, key: K) -> bool:
+		for d in self._impl:
+			if key in d:
+				return True
+		return False
+	
 	def add(self, key: K, value: V) -> None:
-		if key not in self._impl:
-			self._impl[key] = []
-		self._impl[key].append(value)
+		self._impl.append({key: value})
 	
-	def get(self, key: K) -> V:
-		return self._impl[key][0]
+	def get(self, key: K) -> Optional[V]:
+		for d in self._impl:
+			if key in d:
+				return d[key]
+		return None
 	
-	def items(self) -> Iterable[Tuple[K, List[V]]]:
-		return self._impl.items()
+	def getall(self, key: K, default: Any = None) -> Optional[Iterable[V]]:
+		values = [] # type: List[V]
+		
+		for d in self._impl:
+			if key in d:
+				values.append(d[key])
+		return values if values else default
+	
+	def items(self) -> Iterable[Tuple[K, V]]:
+		md_items = [] # type: List[Tuple[K, V]]
+		for d in self._impl:
+			for k, v in d.items():
+				md_items.append((k, v))
+		return md_items
 
 def sign_with_new_key_and_b64(text: str) -> Tuple[str, str]:
 	import base64

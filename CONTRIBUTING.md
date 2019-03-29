@@ -20,6 +20,7 @@ Contributions are welcome via MR (Merge Requests). You don't need to request pro
 		- YMSG:
 		```
 		ENABLE_FRONT_YMSG = True
+		DEBUG_YMSG = True
 		```
 		- IRC:
 		```
@@ -76,7 +77,6 @@ Contributions are welcome via MR (Merge Requests). You don't need to request pro
 ## Yahoo!
 
 - for version 5.5, use a **clean** install and patch the following registry values:
-	- `HKEY_CURRENT_USER\SOFTWARE\Yahoo\Pager\IPLookup` -> `127.0.0.1,127.0.0.1`
 	- `HKEY_CURRENT_USER\SOFTWARE\Yahoo\Pager\socket server` -> `localhost`
 	- `HKEY_CURRENT_USER\SOFTWARE\Yahoo\Pager\FileTransfer\Server Name` -> `localhost`
 

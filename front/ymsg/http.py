@@ -275,23 +275,25 @@ async def handle_ft_http(req: web.Request) -> web.Response:
 	
 	ymsg_data = y_ft_pkt[5]
 	
-	yahoo_id_sender = ymsg_data.get('0') or ''
+	yahoo_id_sender = util.misc.arbitrary_decode(ymsg_data.get(b'0') or b'')
 	(yahoo_id, bs) = _parse_cookies(req, backend)
-	if bs is None or yahoo_id is None or (yahoo_id != yahoo_id_sender or not yahoo_id_to_uuid(backend, yahoo_id)):
+	if bs is None or yahoo_id is None or not yahoo_id_to_uuid(backend, yahoo_id):
 		raise web.HTTPInternalServerError
 	
-	yahoo_id_recipient = ymsg_data.get('5') or ''
+	yahoo_id_recipient = util.misc.arbitrary_decode(ymsg_data.get(b'5') or b'')
 	recipient_uuid = yahoo_id_to_uuid(backend, yahoo_id_recipient)
 	if recipient_uuid is None:
 		raise web.HTTPInternalServerError
 	
-	message = ymsg_data.get('14') or ''
+	message = util.misc.arbitrary_decode(ymsg_data.get(b'14') or b'')
 	
-	file_path = ymsg_data.get('27')
-	file_len = ymsg_data.get('28') or 0
+	file_path_raw = ymsg_data.get(b'27') # type: Optional[bytes]
+	file_len = util.misc.arbitrary_decode(ymsg_data.get(b'28') or b'0')
 	
-	if file_path is None or len(stream) != int(file_len) or len(stream) > (2 * (1000 ** 3)):
+	if file_path_raw is None or str(len(stream)) != file_len or len(stream) > (2 * (1000 ** 3)):
 		raise web.HTTPInternalServerError
+	
+	file_path = util.misc.arbitrary_decode(file_path_raw)
 	
 	try:
 		filename = PurePath(file_path).name

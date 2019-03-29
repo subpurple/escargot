@@ -4,13 +4,14 @@ import asyncio
 from typing import Dict, List, Tuple, Any, Optional, Callable, Iterable
 import binascii
 import struct
+import settings
 import time
 
-from util.misc import Logger, MultiDict, arbitrary_decode
+from util.misc import Logger, MultiDict
 
 from .misc import YMSGStatus, YMSGService
 
-KVS = MultiDict[str, str]
+KVS = MultiDict[bytes, bytes]
 
 class YMSGCtrlBase(metaclass = ABCMeta):
 	__slots__ = ('logger', 'decoder', 'encoder', 'peername', 'closed', 'close_callback', 'transport')
@@ -79,17 +80,21 @@ class YMSGEncoder:
 		# version number and vendor id are replaced with 0x00000000
 		w(b'\x00\x00\x00\x00')
 		
-		_truncated_log(self._logger, '<<<', (service, 0, 0, status, session_id, kvs or MultiDict()), 'OUTGOING')
-		
 		payload_list = []
 		if kvs is not None:
+			k = None # type: Optional[bytes]
+			v = None # type: Optional[bytes]
 			for k, v in kvs.items():
-				payload_list.extend([str(k).encode('utf-8'), SEP, v, SEP])
+				payload_list.extend([k, SEP, v, SEP])
 		payload = b''.join(payload_list)
 		# Have to call `int` on these because they might be an IntEnum, which
 		# get `repr`'d to `EnumName.ValueName`. Grr.
 		w(struct.pack('!HHII', len(payload), int(service), int(status), session_id))
 		w(payload)
+		
+		self._logger.info('<<<', service, status, session_id)
+		if kvs:
+			_truncated_kvs(self._logger, service, kvs)
 	
 	def flush(self) -> bytes:
 		data = self._buf.getvalue()
@@ -133,11 +138,12 @@ class YMSGDecoder:
 		
 		self._data = self._data[e:]
 		self._i = 0
-		_truncated_log(self.logger, '>>>', y, 'INCOMING')
+		self.logger.info('>>>',  'YMSG{}'.format(str(y[1])), y[0], y[3], y[4])
+		_truncated_kvs(self.logger, y[0], y[5])
 		return y
 
 def _try_decode_ymsg(d: bytes, i: int) -> Tuple[DecodedYMSG, int]:
-	kvs = MultiDict() # type: MultiDict[str, str]
+	kvs = MultiDict() # type: KVS
 	
 	e = 20
 	assert len(d[i:]) >= e
@@ -157,22 +163,25 @@ def _try_decode_ymsg(d: bytes, i: int) -> Tuple[DecodedYMSG, int]:
 		del parts[-1]
 		assert len(parts) % 2 == 0
 		for j in range(1, len(parts), 2):
-			key = arbitrary_decode(parts[j-1])
-			kvs.add(key, parts[j])
+			kvs.add(parts[j-1], parts[j])
 		e += n
 	return ((YMSGService(service), version, vendor_id, YMSGStatus(status), session_id, kvs), e)
 
-def _truncated_log(logger: Logger, pre: str, y: DecodedYMSG, transport_type: str) -> None:
-	if y[0] in (YMSGService.List,YMSGService.P2PFileXfer,YMSGService.Message,YMSGService.ConfInvite,YMSGService.ConfAddInvite,YMSGService.ConfMsg,YMSGService.SkinName) or (y[0] in (YMSGService.FriendAdd,YMSGService.ContactDeny) and y[5].get('14') not in (None,b'')) or (y[0] is YMSGService.ContactNew and y[3] in (YMSGStatus.NotAtHome,YMSGStatus.OnVacation) and y[5].get('14') not in (None,b'')) or (y[0] is YMSGService.AuthResp and y[5].get('59') is not None):
-		if transport_type == 'INCOMING':
-			logger.info(pre, 'YMSG' + str(y[1]), y[0], y[3], y[4])
-		elif transport_type == 'OUTGOING':
-			logger.info(pre, y[0], y[3], y[4])
-	else:
-		if transport_type == 'INCOMING':
-			logger.info(pre, 'YMSG' + str(y[1]), y[0], y[3], y[4], y[5])
-		elif transport_type == 'OUTGOING':
-			logger.info(pre, y[0], y[3], y[4], y[5])
+def _truncated_kvs(logger: Logger, service: YMSGService, kvs: KVS) -> None:
+	restricted_keys = set()
+	
+	if service in (YMSGService.AuthResp,YMSGService.List):
+		restricted_keys.add(b'59')
+	if service in (YMSGService.Message,YMSGService.MassMessage,YMSGService.ContactNew,YMSGService.FriendAdd,YMSGService.ContactDeny,YMSGService.ConfDecline,YMSGService.ConfMsg,YMSGService.P2PFileXfer,YMSGService.FileTransfer):
+		restricted_keys.add(b'14')
+	if service in (YMSGService.ConfInvite,YMSGService.ConfAddInvite):
+		restricted_keys.add(b'58')
+	if service in (YMSGService.P2PFileXfer,YMSGService.FileTransfer):
+		restricted_keys.add(b'20')
+	
+	if settings.DEBUG and settings.DEBUG_YMSG:
+		for k, v in kvs.items():
+			 print('{} -> {}'.format(k, v if k not in restricted_keys else '<truncated>'))
 
 PRE = b'YMSG'
 SEP = b'\xC0\x80'

@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING, Callable, Optional, Dict, Any, List
 from abc import ABCMeta, abstractmethod
 
 from .models import User, Contact, Lst, MessageData, TextWithData, Substatus, LoginOption
+from util.misc import MultiDict
 
 if TYPE_CHECKING:
 	from .backend import BackendSession, Chat, ChatSession
@@ -70,10 +71,7 @@ class BackendEventHandler(metaclass = ABCMeta):
 	def msn_on_user_circle_presence(self, bs_other: 'BackendSession') -> None:
 		pass
 	
-	#def ymsg_on_p2p_msg_request(self, yahoo_data: Dict[str, Any]) -> None:
-	#	pass
-	
-	def ymsg_on_xfer_init(self, yahoo_data: Dict[str, Any]) -> None:
+	def ymsg_on_xfer_init(self, yahoo_data: MultiDict[bytes, bytes]) -> None:
 		pass
 	
 	def ymsg_on_upload_file_ft(self, recipient: str, message: str) -> None:
