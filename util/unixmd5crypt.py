@@ -44,7 +44,6 @@ apache_md5_crypt() provides a function compatible with Apache's
 """
 
 from hashlib import md5
-import binascii
 
 MAGIC = '$1$' # Magic string
 ITOA64 = './0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
