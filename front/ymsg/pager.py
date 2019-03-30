@@ -88,7 +88,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		PRE_SESSION_ID[self.yahoo_id] = self.sess_id
 		
 		auth_dict = MultiDict([
-			(b'1', self.yahoo_id.encode('utf-8')),
+			(b'1', arbitrary_encode(self.yahoo_id or '')),
 		]) # type: MultiDict[bytes, bytes]
 		
 		if 9 <= self.dialect <= 10:
@@ -111,6 +111,9 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		if status is YMSGStatus.WebLogin:
 			status = YMSGStatus.Available
 		
+		yahoo_id_actual = args[4].get(b'0')
+		if yahoo_id_actual is not None:
+			yahoo_id_actual = arbitrary_decode(yahoo_id_actual)
 		yahoo_id = args[4].get(b'1')
 		if yahoo_id is not None:
 			yahoo_id = arbitrary_decode(yahoo_id)
@@ -126,6 +129,11 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		assert 9 <= self.dialect <= 10
 		
 		assert self.challenge is not None
+		kvs_error = MultiDict([
+			(b'66', str(int(YMSGStatus.Bad)).encode('utf-8'))
+		]) # type: MultiDict[bytes, bytes]
+		if yahoo_id != self.yahoo_id or yahoo_id_actual != yahoo_id:
+			self.send_reply(YMSGService.AuthResp, YMSGStatus.LoginError, self.sess_id, kvs_error)
 		is_resp_correct = self._verify_challenge_v1(yahoo_id, resp_6, resp_96)
 		if is_resp_correct:
 			uuid = yahoo_id_to_uuid(self.backend, yahoo_id)
@@ -154,10 +162,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		
 		if not is_resp_correct:
 			self.yahoo_id = None
-			kvs = MultiDict([
-				(b'66', str(int(YMSGStatus.Bad)).encode('utf-8'))
-			]) # type: MultiDict[bytes, bytes]
-			self.send_reply(YMSGService.AuthResp, YMSGStatus.LoginError, self.sess_id, kvs)
+			self.send_reply(YMSGService.AuthResp, YMSGStatus.LoginError, self.sess_id, kvs_error)
 	
 	def _util_authresp_final(self, status: YMSGStatus, *, cached_y: Optional[str] = None, cached_t: Optional[str] = None) -> None:
 		bs = self.bs
@@ -309,7 +314,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		if not contact or (not contact.lists & Lst.FL and not contact.lists & Lst.BL):
 			if not ctc_head.status.is_offlineish():
 				contact_struct = MultiDict([
-					(b'0', (self.yahoo_id or '').encode('utf-8')),
+					(b'0', arbitrary_encode(self.yahoo_id or '')),
 				]) # type: Optional[MultiDict[bytes, bytes]]
 				add_contact_status_to_data(contact_struct, ctc_head.status, ctc_head)
 			else:
@@ -532,7 +537,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		# SERVICE_PING (0x8a); send a response ping after the client pings
 		assert self.yahoo_id is not None
 		self.send_reply(YMSGService.Ping, YMSGStatus.Available, self.sess_id, MultiDict([
-			(b'1', self.yahoo_id.encode('utf-8')),
+			(b'1', arbitrary_encode(self.yahoo_id)),
 		]))
 	
 	def _y_0008(self, *args: Any) -> None:
@@ -957,26 +962,26 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		ignore_list = [misc.yahoo_id(c.head.email) for c in cs if c.lists & Lst.BL]
 		
 		list_reply_kvs = MultiDict([
-			(b'87', ''.join(contact_group_list).encode('utf-8')),
+			(b'87', arbitrary_encode(''.join(contact_group_list))),
 			(b'88', ','.join(ignore_list).encode('utf-8')),
 			(b'89', (self.yahoo_id or '').encode('utf-8')),
 		]) # type: MultiDict[bytes, bytes]
 		
 		if cached_y is not None and cached_t is not None and backend.auth_service.get_token('ymsg/cookie', cached_y) and backend.auth_service.get_token('ymsg/cookie', cached_t):
-			list_reply_kvs.add(b'59', cached_y.encode('utf-8'))
-			list_reply_kvs.add(b'59', cached_t.encode('utf-8'))
+			list_reply_kvs.add(b'59', arbitrary_encode(cached_y))
+			list_reply_kvs.add(b'59', arbitrary_encode(cached_t))
 		else:
 			(y_cookie, t_cookie, cookie_expiry) = self._refresh_cookies()
 			# <notice>
 			# can't use `yahooloopback.log1p.xyz` for cookies yet because that is intended for Switcher (Yahoo! sets the cookies on a static domain and it expects the cookie domain to encompass the domain it
 			# sets the cookie to, if the cookie domain doesn't match the domain of the URL Yahoo! uses, then it won't use the cookies). uncomment when development on Switcher is finished.
 			# 
-			#list_reply_kvs.add(b'59', 'Y\t{}; expires={}; path=/; domain={}'.format(y_cookie, cookie_expiry, ('yahooloopback.log1p.xyz' if settings.DEBUG else settings.TARGET_HOST)).encode('utf-8'))
-			#list_reply_kvs.add(b'59', 'T\t{}; expires={}; path=/; domain={}'.format(t_cookie, cookie_expiry, ('yahooloopback.log1p.xyz' if settings.DEBUG else settings.TARGET_HOST)).encode('utf-8'))
+			list_reply_kvs.add(b'59', arbitrary_encode('Y\t{}; expires={}; path=/; domain={}'.format(y_cookie, cookie_expiry, ('yahooloopback.log1p.xyz' if settings.DEBUG else settings.TARGET_HOST))))
+			list_reply_kvs.add(b'59', arbitrary_encode('T\t{}; expires={}; path=/; domain={}'.format(t_cookie, cookie_expiry, ('yahooloopback.log1p.xyz' if settings.DEBUG else settings.TARGET_HOST))))
 			# 
 			# </notice>
-			list_reply_kvs.add(b'59', 'Y\t{}; expires={}; path=/; domain={}'.format(y_cookie, cookie_expiry, '.yahoo.com').encode('utf-8'))
-			list_reply_kvs.add(b'59', 'T\t{}; expires={}; path=/; domain={}'.format(t_cookie, cookie_expiry, '.yahoo.com').encode('utf-8'))
+			#list_reply_kvs.add(b'59', 'Y\t{}; expires={}; path=/; domain={}'.format(y_cookie, cookie_expiry, '.yahoo.com').encode('utf-8'))
+			#list_reply_kvs.add(b'59', 'T\t{}; expires={}; path=/; domain={}'.format(t_cookie, cookie_expiry, '.yahoo.com').encode('utf-8'))
 		
 		list_reply_kvs.add(b'59', b'C\tmg=1')
 		list_reply_kvs.add(b'3', (self.yahoo_id or '').encode('utf-8'))
@@ -989,8 +994,8 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		self.send_reply(YMSGService.List, YMSGStatus.Available, self.sess_id, list_reply_kvs)
 		
 		logon_payload = MultiDict([
-			(b'0', (self.yahoo_id or '').encode('utf-8')),
-			(b'1', (self.yahoo_id or '').encode('utf-8')),
+			(b'0', arbitrary_encode(self.yahoo_id or '')),
+			(b'1', arbitrary_encode(self.yahoo_id or '')),
 			(b'8', str(len(cs_fl)).encode('utf-8')),
 		]) # type: MultiDict[bytes, bytes]
 		
@@ -1007,7 +1012,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 				(b'31', b'6'),
 				(b'32', b'6'),
 				(b'1', arbitrary_encode(oim.from_user_id or misc.yahoo_id(oim.from_email))),
-				(b'5', (self.yahoo_id or '').encode('utf-8')),
+				(b'5', arbitrary_encode(self.yahoo_id or '')),
 				(b'4', arbitrary_encode(oim.from_user_id or misc.yahoo_id(oim.from_email))),
 				(b'15', str(int(oim.sent.timestamp())).encode('utf-8')),
 				(b'14', arbitrary_encode(oim.message)),
@@ -1217,7 +1222,7 @@ class BackendEventHandler(event.BackendEventHandler):
 			if not (ctc.status.is_offlineish() and old_substatus.is_offlineish()):
 				yahoo_data = MultiDict() # type: MultiDict[bytes, bytes]
 				if service is not YMSGService.LogOff:
-					yahoo_data.add(b'0', (self.ctrl.yahoo_id or '').encode('utf-8'))
+					yahoo_data.add(b'0', arbitrary_encode(self.ctrl.yahoo_id or ''))
 				
 				add_contact_status_to_data(yahoo_data, ctc.status, ctc.head, old_substatus = old_substatus, sess_id = sess_id)
 				
@@ -1231,7 +1236,7 @@ class BackendEventHandler(event.BackendEventHandler):
 		assert bs is not None
 		
 		self.ctrl.send_reply(YMSGService.ContactNew, YMSGStatus.OnVacation, self.sess_id, MultiDict([
-			(b'1', misc.yahoo_id(bs.user.email).encode('utf-8')),
+			(b'1', arbitrary_encode(self.ctrl.yahoo_id or '')),
 			(b'3', arbitrary_encode(contact_id or misc.yahoo_id(user_added.email))),
 			(b'14', arbitrary_encode(message)),
 		]))
@@ -1248,7 +1253,7 @@ class BackendEventHandler(event.BackendEventHandler):
 	
 	def ymsg_on_upload_file_ft(self, recipient: str, message: str) -> None:
 		self.ctrl.send_reply(YMSGService.FileTransfer, YMSGStatus.BRB, self.sess_id, MultiDict([
-			(b'1', misc.yahoo_id(self.bs.user.email).encode('utf-8')),
+			(b'1', arbitrary_encode(self.ctrl.yahoo_id or '')),
 			(b'5', arbitrary_encode(recipient)),
 			(b'4', misc.yahoo_id(self.bs.user.email).encode('utf-8')),
 			(b'14', arbitrary_encode(message)),
@@ -1271,7 +1276,7 @@ class BackendEventHandler(event.BackendEventHandler):
 		if 'ymsg/conf' not in chat.ids:
 			chat.add_id('ymsg/conf', chat.ids['main'])
 		conf_invite_dict = MultiDict([
-			(b'1', misc.yahoo_id(self.bs.user.email).encode('utf-8')),
+			(b'1', arbitrary_encode(self.ctrl.yahoo_id or '')),
 			(b'57', arbitrary_encode(chat.ids['ymsg/conf'])),
 			(b'50', arbitrary_encode(inviter_id or misc.yahoo_id(inviter.email))),
 			(b'58', arbitrary_encode(invite_msg)),
@@ -1301,7 +1306,7 @@ class BackendEventHandler(event.BackendEventHandler):
 			if ctc.lists & Lst.BL: return
 		
 		contact_request_data = MultiDict([
-			(b'1', misc.yahoo_id(user_me.email).encode('utf-8')),
+			(b'1', arbitrary_encode(self.ctrl.yahoo_id or '')),
 			(b'3', arbitrary_encode(adder_id or misc.yahoo_id(user.email))),
 		]) # type: MultiDict[bytes, bytes]
 		
@@ -1341,7 +1346,7 @@ class ChatEventHandler(event.ChatEventHandler):
 		if self.cs.chat.front_data.get('ymsg_twoway_only') or not first_pop:
 			return
 		self.ctrl.send_reply(YMSGService.ConfLogon, YMSGStatus.BRB, self.ctrl.sess_id, MultiDict([
-			(b'1', misc.yahoo_id(self.bs.user.email).encode('utf-8')),
+			(b'1', arbitrary_encode(self.ctrl.yahoo_id or '')),
 			(b'57', arbitrary_encode(cs_other.chat.ids['ymsg/conf'])),
 			(b'53', arbitrary_encode(cs_other.preferred_name or misc.yahoo_id(cs_other.user.email))),
 		]))
@@ -1353,14 +1358,14 @@ class ChatEventHandler(event.ChatEventHandler):
 		if not last_pop:
 			return
 		self.ctrl.send_reply(YMSGService.ConfLogoff, YMSGStatus.BRB, self.ctrl.sess_id, MultiDict([
-			(b'1', misc.yahoo_id(self.bs.user.email).encode('utf-8')),
+			(b'1', arbitrary_encode(self.ctrl.yahoo_id or '')),
 			(b'57', arbitrary_encode(cs_other.chat.ids['ymsg/conf'])),
 			(b'56', arbitrary_encode(cs_other.preferred_name or misc.yahoo_id(cs_other.user.email))),
 		]))
 	
 	def on_invite_declined(self, invited_user: User, *, invited_id: Optional[str] = None, message: str = '') -> None:
 		self.ctrl.send_reply(YMSGService.ConfDecline, YMSGStatus.BRB, self.ctrl.sess_id, MultiDict([
-			(b'1', misc.yahoo_id(self.bs.user.email).encode('utf-8')),
+			(b'1', arbitrary_encode(self.ctrl.yahoo_id or '')),
 			(b'57', arbitrary_encode(self.cs.chat.ids['ymsg/conf'])),
 			(b'54', arbitrary_encode(invited_id or misc.yahoo_id(invited_user.email))),
 			(b'14', arbitrary_encode(message)),
@@ -1376,7 +1381,7 @@ class ChatEventHandler(event.ChatEventHandler):
 		if data.type in (MessageType.Chat,MessageType.Nudge):
 			if self.cs.chat.front_data.get('ymsg_twoway_only'):
 				message_to_dict = MultiDict([
-					(b'5', yahoo_data.get(b'5') or misc.yahoo_id(bs.user.email).encode('utf-8')),
+					(b'5', yahoo_data.get(b'5') or arbitrary_encode(self.ctrl.yahoo_id or '')),
 					(b'4', yahoo_data.get(b'1') or misc.yahoo_id(sender.email).encode('utf-8')),
 					(b'14', yahoo_data.get(b'14') or arbitrary_encode(data.text or '')),
 				]) # type: MultiDict[bytes, bytes]
@@ -1394,7 +1399,7 @@ class ChatEventHandler(event.ChatEventHandler):
 			else:
 				if data.type is not MessageType.Nudge:
 					conf_message_dict = MultiDict([
-						(b'1', misc.yahoo_id(bs.user.email).encode('utf-8')),
+						(b'1', arbitrary_encode(self.ctrl.yahoo_id or '')),
 						(b'57', arbitrary_encode(self.cs.chat.ids['ymsg/conf'])),
 						(b'3', yahoo_data.get(b'1') or misc.yahoo_id(sender.email).encode('utf-8')),
 						(b'14', yahoo_data.get(b'14') or arbitrary_encode(data.text or '')),
@@ -1406,7 +1411,7 @@ class ChatEventHandler(event.ChatEventHandler):
 					self.ctrl.send_reply(YMSGService.ConfMsg, YMSGStatus.BRB, self.ctrl.sess_id, conf_message_dict)
 		elif data.type in (MessageType.Typing,MessageType.TypingDone) and self.cs.chat.front_data.get('ymsg_twoway_only'):
 			self.ctrl.send_reply(YMSGService.Notify, YMSGStatus.BRB, self.ctrl.sess_id, MultiDict([
-				(b'5', yahoo_data.get(b'5') or misc.yahoo_id(bs.user.email).encode('utf-8')),
+				(b'5', yahoo_data.get(b'5') or arbitrary_encode(self.ctrl.yahoo_id or '')),
 				(b'4', yahoo_data.get(b'1') or misc.yahoo_id(sender.email).encode('utf-8')),
 				(b'49', b'TYPING'),
 				(b'14', yahoo_data.get(b'14') or arbitrary_encode(data.text or ' ')),
@@ -1414,7 +1419,7 @@ class ChatEventHandler(event.ChatEventHandler):
 			]))
 		elif data.type is MessageType.Webcam:
 			kvs = MultiDict([
-				(b'5', yahoo_data.get(b'5') or misc.yahoo_id(bs.user.email).encode('utf-8')),
+				(b'5', yahoo_data.get(b'5') or arbitrary_encode(self.ctrl.yahoo_id or '')),
 				(b'4', yahoo_data.get(b'1') or misc.yahoo_id(sender.email).encode('utf-8')),
 				(b'49', b'WEBCAMINVITE'),
 				(b'14', yahoo_data.get(b'14') or arbitrary_encode(data.text or ' ')),
