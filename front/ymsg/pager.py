@@ -1214,7 +1214,7 @@ class BackendEventHandler(event.BackendEventHandler):
 				service = YMSGService.LogOff
 			elif old_substatus.is_offlineish() and not ctc.status.is_offlineish():
 				service = YMSGService.LogOn
-			elif ctc.status.substatus is Substatus.Online:
+			elif ctc.status.substatus is Substatus.Online and not ctc.status.message:
 				service = YMSGService.IsBack
 			else:
 				service = YMSGService.IsAway
