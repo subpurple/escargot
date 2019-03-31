@@ -204,7 +204,7 @@ class BackendEventHandler(event.BackendEventHandler):
 	def on_added_me(self, user: User, *, adder_id: Optional[str] = None, message: Optional[TextWithData] = None) -> None:
 		self.ctrl.send_reply('NOTICE', ":{} added you to their friend list".format(user.email), source = user.email)
 		if message:
-			self.ctrl.send_reply('NOTICE', ":\"{}\"".format(message), source = user.email)
+			self.ctrl.send_reply('NOTICE', ":\"{}\"".format(message.text), source = user.email)
 	
 	def on_contact_request_denied(self, user_added: User, message: Optional[str], *, contact_id: Optional[str] = None) -> None:
 		self.ctrl.send_reply('NOTICE', ":{} declined your friend request".format(user_added.email), source = user_added.email)
@@ -219,9 +219,6 @@ class BackendEventHandler(event.BackendEventHandler):
 			self.ctrl.send_reply('NOTICE', ":You are being booted because your account is used elsewhere.")
 		else:
 			self.ctrl.send_reply('NOTICE', ":Your account is being used elsewhere.")
-	
-	def ymsg_on_p2p_msg_request(self, yahoo_data: Dict[str, Any]) -> None:
-		pass
 	
 	def on_close(self) -> None:
 		self.ctrl.close()

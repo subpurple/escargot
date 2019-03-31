@@ -649,13 +649,13 @@ class BackendSession(Session):
 							'MOB': user.settings.get('MOB'),
 						})
 	
-	def me_contact_deny(self, adder_uuid: str, deny_message: Optional[str], *, adder_id: Optional[str] = None) -> None:
+	def me_contact_deny(self, adder_uuid: str, deny_message: Optional[str], *, addee_id: Optional[str] = None) -> None:
 		user_adder = self.backend._load_user_record(adder_uuid)
 		if user_adder is None:
 			raise error.UserDoesNotExist()
 		user = self.user
 		for sess_adder in self.backend._sc.get_sessions_by_user(user_adder):
-			sess_adder.evt.on_contact_request_denied(user, deny_message or '', contact_id = adder_id)
+			sess_adder.evt.on_contact_request_denied(user, deny_message or '', contact_id = addee_id)
 	
 	def _add_to_list(self, user: User, ctc_head: User, lst: Lst, add_to_ab: bool, name: Optional[str], group_id: Optional[str]) -> Contact:
 		# Add `ctc` to `user`'s `lst`

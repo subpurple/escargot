@@ -354,6 +354,9 @@ class YMSGCtrlPager(YMSGCtrlBase):
 	def _y_0086(self, *args: Any) -> None:
 		# SERVICE_CONTACTDENY (0x86); deny a contact request
 		
+		yahoo_id = args[4].get(b'1')
+		if yahoo_id is not None:
+			yahoo_id = arbitrary_decode(yahoo_id)
 		adder_to_deny = args[4].get(b'7')
 		if adder_to_deny is not None:
 			adder_to_deny = arbitrary_decode(adder_to_deny)
@@ -365,7 +368,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		assert adder_uuid is not None
 		bs = self.bs
 		assert bs is not None
-		bs.me_contact_deny(adder_uuid, deny_message)
+		bs.me_contact_deny(adder_uuid, deny_message, addee_id = yahoo_id)
 	
 	def _y_0089(self, *args: Any) -> None:
 		# SERVICE_GROUPRENAME (0x89); rename a contact group
@@ -976,12 +979,12 @@ class YMSGCtrlPager(YMSGCtrlBase):
 			# can't use `yahooloopback.log1p.xyz` for cookies yet because that is intended for Switcher (Yahoo! sets the cookies on a static domain and it expects the cookie domain to encompass the domain it
 			# sets the cookie to, if the cookie domain doesn't match the domain of the URL Yahoo! uses, then it won't use the cookies). uncomment when development on Switcher is finished.
 			# 
-			#list_reply_kvs.add(b'59', arbitrary_encode('Y\t{}; expires={}; path=/; domain={}'.format(y_cookie, cookie_expiry, ('yahooloopback.log1p.xyz' if settings.DEBUG else settings.TARGET_HOST))))
-			#list_reply_kvs.add(b'59', arbitrary_encode('T\t{}; expires={}; path=/; domain={}'.format(t_cookie, cookie_expiry, ('yahooloopback.log1p.xyz' if settings.DEBUG else settings.TARGET_HOST))))
+			list_reply_kvs.add(b'59', arbitrary_encode('Y\t{}; expires={}; path=/; domain={}'.format(y_cookie, cookie_expiry, ('yahooloopback.log1p.xyz' if settings.DEBUG else settings.TARGET_HOST))))
+			list_reply_kvs.add(b'59', arbitrary_encode('T\t{}; expires={}; path=/; domain={}'.format(t_cookie, cookie_expiry, ('yahooloopback.log1p.xyz' if settings.DEBUG else settings.TARGET_HOST))))
 			# 
 			# </notice>
-			list_reply_kvs.add(b'59', 'Y\t{}; expires={}; path=/; domain={}'.format(y_cookie, cookie_expiry, '.yahoo.com').encode('utf-8'))
-			list_reply_kvs.add(b'59', 'T\t{}; expires={}; path=/; domain={}'.format(t_cookie, cookie_expiry, '.yahoo.com').encode('utf-8'))
+			#list_reply_kvs.add(b'59', 'Y\t{}; expires={}; path=/; domain={}'.format(y_cookie, cookie_expiry, '.yahoo.com').encode('utf-8'))
+			#list_reply_kvs.add(b'59', 'T\t{}; expires={}; path=/; domain={}'.format(t_cookie, cookie_expiry, '.yahoo.com').encode('utf-8'))
 		
 		list_reply_kvs.add(b'59', b'C\tmg=1')
 		list_reply_kvs.add(b'3', (self.yahoo_id or '').encode('utf-8'))
