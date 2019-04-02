@@ -200,45 +200,34 @@ class DefaultDict(Dict[K, V]):
 		return v
 
 class MultiDict(Generic[K, V]):
-	_impl: List[Dict[K, V]]
+	_impl: List[Tuple[K, V]]
 	
 	def __init__(self, data: Optional[Iterable[Tuple[K, V]]] = None) -> None:
 		super().__init__()
-		impl = []
-		if data is not None:
-			for k, v in data:
-				impl.append({k: v})
-		self._impl = impl
+		self._impl = ([] if data is None else list(data))
 	
 	def __contains__(self, key: K) -> bool:
 		for d in self._impl:
-			if key in d:
-				return True
+			if d[0] == key: return True
 		return False
 	
 	def add(self, key: K, value: V) -> None:
-		self._impl.append({key: value})
+		self._impl.append((key, value))
 	
 	def get(self, key: K) -> Optional[V]:
 		for d in self._impl:
-			if key in d:
-				return d[key]
+			if d[0] == key: return d[1]
 		return None
 	
-	def getall(self, key: K, default: Any = None) -> Optional[Iterable[V]]:
+	def getall(self, key: K) -> Optional[Iterable[V]]:
 		values = [] # type: List[V]
-		
 		for d in self._impl:
-			if key in d:
-				values.append(d[key])
-		return values if values else default
+			if d[0] == key:
+				values.append(d[1])
+		return values if values else None
 	
 	def items(self) -> Iterable[Tuple[K, V]]:
-		md_items = [] # type: List[Tuple[K, V]]
-		for d in self._impl:
-			for k, v in d.items():
-				md_items.append((k, v))
-		return md_items
+		return self._impl
 
 def sign_with_new_key_and_b64(text: str) -> Tuple[str, str]:
 	import base64
