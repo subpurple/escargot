@@ -191,7 +191,10 @@ def yahoo_id(email: str) -> str:
 	else:
 		return email
 
-def yahoo_id_to_uuid(backend: Backend, yahoo_id: str) -> Optional[str]:
+def yahoo_id_to_uuid(backend: Backend, yahoo_id: Optional[str]) -> Optional[str]:
+	if not yahoo_id:
+		return None
+	
 	email = None # type: Optional[str]
 	
 	# Fun fact about foreign Yahoo! email addresses: they're just relays to the same account name but with

@@ -68,7 +68,9 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		# SERVICE_AUTH (0x57); send a challenge string for the client to craft two response strings with
 		backend = self.backend
 		
-		arg1 = args[4].get(b'1')
+		yahoo_data = args[4] # type: MultiDict[bytes, bytes]
+		
+		arg1 = yahoo_data.get(b'1')
 		assert isinstance(arg1, bytes)
 		self.yahoo_id = arbitrary_decode(arg1)
 		
@@ -111,18 +113,14 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		if status is YMSGStatus.WebLogin:
 			status = YMSGStatus.Available
 		
-		yahoo_id_actual = args[4].get(b'0')
-		if yahoo_id_actual is not None:
-			yahoo_id_actual = arbitrary_decode(yahoo_id_actual)
-		yahoo_id = args[4].get(b'1')
-		if yahoo_id is not None:
-			yahoo_id = arbitrary_decode(yahoo_id)
-		resp_6 = args[4].get(b'6')
-		resp_96 = args[4].get(b'96')
+		yahoo_data = args[4] # type: MultiDict[bytes, bytes]
 		
-		version = args[4].get(b'135')
-		if version is not None:
-			version = arbitrary_decode(version)
+		yahoo_id_actual = arbitrary_decode(args[4].get(b'0') or b'')
+		yahoo_id = arbitrary_decode( yahoo_data.get(b'1') or b'')
+		resp_6 = yahoo_data.get(b'6')
+		resp_96 = yahoo_data.get(b'96')
+		
+		version = arbitrary_decode(yahoo_data.get(b'135') or b'') or 'unknown'
 		self.client = Client('yahoo', version, self.client.via)
 		
 		# TODO: Dialect 11 not supported yet?
@@ -144,15 +142,12 @@ class YMSGCtrlPager(YMSGCtrlBase):
 				# NOTE: Yahoo! Messenger *can* specify the `Y` and `T` cookies in this packet after multiple logins as long as it isn't
 				# terminated. Verify and store cookies if needed.
 				
-				if b'59' in args[4]:
-					tpl = args[4].getall(b'59')
+				if b'59' in yahoo_data:
+					tpl = list(yahoo_data.getall(b'59') or [])
 					if len(tpl) != 2:
 						self.send_reply(YMSGService.LogOff, YMSGStatus.Available, 0, None)
-					y, t = tpl
-					if y is not None:
-						y = arbitrary_decode(y)
-					if t is not None:
-						t = arbitrary_decode(t)
+					y = arbitrary_decode(tpl[0])
+					t = arbitrary_decode(tpl[1])
 				bs = self.backend.login(uuid, self.client, BackendEventHandler(self.backend.loop, self), option = LoginOption.BootOthers)
 				if bs is None:
 					is_resp_correct = False
@@ -209,9 +204,11 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		bs = self.bs
 		assert bs is not None
 		
-		new_status = YMSGStatus(int(args[4].get(b'10')))
-		message = arbitrary_decode(args[4].get(b'19') or b'')
-		is_away_message = (args[4].get(b'47') == b'1')
+		yahoo_data = args[4] # type: MultiDict[bytes, bytes]
+		
+		new_status = YMSGStatus(int(yahoo_data.get(b'10') or b''))
+		message = arbitrary_decode(yahoo_data.get(b'19') or b'')
+		is_away_message = (yahoo_data.get(b'47') == b'1')
 		me_status_update(bs, new_status, message = message, is_away_message = is_away_message)
 	
 	def _y_0012(self, *args: Any) -> None:
@@ -242,29 +239,21 @@ class YMSGCtrlPager(YMSGCtrlBase):
 	def _y_0083(self, *args: Any) -> None:
 		# SERVICE_FRIENDADD (0x83); add a friend to your contact list
 		
-		yahoo_id = args[4].get(b'1')
-		if yahoo_id is not None:
-			yahoo_id = arbitrary_decode(yahoo_id)
-		contact_yahoo_id = args[4].get(b'7')
-		if contact_yahoo_id is not None:
-			contact_yahoo_id = arbitrary_decode(contact_yahoo_id)
-		message = args[4].get(b'14')
-		if message is not None:
-			message = arbitrary_decode(message)
-		buddy_group = args[4].get(b'65')
-		if buddy_group is not None:
-			buddy_group = arbitrary_decode(buddy_group)
-		utf8 = args[4].get(b'97')
-		if utf8 is not None:
-			utf8 = arbitrary_decode(utf8)
+		yahoo_data = args[4] # type: MultiDict[bytes, bytes]
+		
+		yahoo_id = arbitrary_decode(yahoo_data.get(b'1') or b'')
+		contact_yahoo_id = arbitrary_decode(yahoo_data.get(b'7') or b'')
+		message = arbitrary_decode(yahoo_data.get(b'14') or b'')
+		buddy_group = arbitrary_decode(yahoo_data.get(b'65') or b'')
+		utf8 = arbitrary_decode(yahoo_data.get(b'97') or b'')
 		
 		group = None
 		action_group_refresh = False
 		
 		add_request_response = MultiDict([
-			(b'1', arbitrary_encode(yahoo_id or '')),
-			(b'7', arbitrary_encode(contact_yahoo_id or '')),
-			(b'65', arbitrary_encode(buddy_group or ''))
+			(b'1', arbitrary_encode(yahoo_id)),
+			(b'7', arbitrary_encode(contact_yahoo_id)),
+			(b'65', arbitrary_encode(buddy_group))
 		]) # type: MultiDict[bytes, bytes]
 		
 		# Yahoo! Messenger has a function that lets you add people by email address (a.k.a. stripping the "@domain.tld" part of the address and
@@ -354,15 +343,11 @@ class YMSGCtrlPager(YMSGCtrlBase):
 	def _y_0086(self, *args: Any) -> None:
 		# SERVICE_CONTACTDENY (0x86); deny a contact request
 		
-		yahoo_id = args[4].get(b'1')
-		if yahoo_id is not None:
-			yahoo_id = arbitrary_decode(yahoo_id)
-		adder_to_deny = args[4].get(b'7')
-		if adder_to_deny is not None:
-			adder_to_deny = arbitrary_decode(adder_to_deny)
-		deny_message = args[4].get(b'14')
-		if deny_message is not None:
-			deny_message = arbitrary_decode(deny_message)
+		yahoo_data = args[4] # type: MultiDict[bytes, bytes]
+		
+		yahoo_id = arbitrary_decode(yahoo_data.get(b'1') or b'')
+		adder_to_deny = arbitrary_decode(yahoo_data.get(b'7') or b'')
+		deny_message = arbitrary_decode(yahoo_data.get(b'14') or b'')
 		
 		adder_uuid = yahoo_id_to_uuid(self.backend, adder_to_deny)
 		assert adder_uuid is not None
@@ -373,15 +358,11 @@ class YMSGCtrlPager(YMSGCtrlBase):
 	def _y_0089(self, *args: Any) -> None:
 		# SERVICE_GROUPRENAME (0x89); rename a contact group
 		
-		yahoo_id = args[4].get(b'1')
-		if yahoo_id is not None:
-			yahoo_id = arbitrary_decode(yahoo_id)
-		group_name = args[4].get(b'65')
-		if group_name is not None:
-			group_name = arbitrary_decode(group_name)
-		new_group_name = args[4].get(b'67')
-		if new_group_name is not None:
-			new_group_name = arbitrary_decode(new_group_name)
+		yahoo_data = args[4] # type: MultiDict[bytes, bytes]
+		
+		yahoo_id = arbitrary_decode(yahoo_data.get(b'1') or b'')
+		group_name = arbitrary_decode(yahoo_data.get(b'65') or b'')
+		new_group_name = arbitrary_decode(yahoo_data.get(b'67') or b'')
 		bs = self.bs
 		assert bs is not None
 		
@@ -418,15 +399,11 @@ class YMSGCtrlPager(YMSGCtrlBase):
 	def _y_0084(self, *args: Any) -> None:
 		# SERVICE_FRIENDREMOVE (0x84); remove a buddy from your list
 		
-		yahoo_id = args[4].get(b'1')
-		if yahoo_id is not None:
-			yahoo_id = arbitrary_decode(yahoo_id)
-		contact_id = args[4].get(b'7')
-		if contact_id is not None:
-			contact_id = arbitrary_decode(contact_id)
-		buddy_group = args[4].get(b'65')
-		if buddy_group is not None:
-			buddy_group = arbitrary_decode(buddy_group)
+		yahoo_data = args[4] # type: MultiDict[bytes, bytes]
+		
+		yahoo_id = arbitrary_decode(yahoo_data.get(b'1') or b'')
+		contact_id = arbitrary_decode(yahoo_data.get(b'7') or b'')
+		buddy_group = arbitrary_decode(yahoo_data.get(b'65') or b'')
 		
 		bs = self.bs
 		assert bs is not None
@@ -461,10 +438,10 @@ class YMSGCtrlPager(YMSGCtrlBase):
 			bs.me_contact_remove(contact_uuid, Lst.FL)
 		
 		remove_buddy_response = MultiDict([
-			(b'1', arbitrary_encode(yahoo_id or '')),
+			(b'1', arbitrary_encode(yahoo_id)),
 			(b'66', b'0'),
-			(b'7', arbitrary_encode(contact_id or '')),
-			(b'65', arbitrary_encode(buddy_group or '')),
+			(b'7', arbitrary_encode(contact_id)),
+			(b'65', arbitrary_encode(buddy_group)),
 		]) # type: MultiDict[bytes, bytes]
 		
 		self.send_reply(YMSGService.FriendRemove, YMSGStatus.BRB, self.sess_id, remove_buddy_response)
@@ -474,15 +451,11 @@ class YMSGCtrlPager(YMSGCtrlBase):
 	def _y_0085(self, *args: Any) -> None:
 		# SERVICE_IGNORE (0x85); add/remove someone from your ignore list
 		
-		yahoo_id = args[4].get(b'1')
-		if yahoo_id is not None:
-			yahoo_id = arbitrary_decode(yahoo_id)
-		ignored_yahoo_id = args[4].get(b'7')
-		if ignored_yahoo_id is not None:
-			ignored_yahoo_id = arbitrary_decode(ignored_yahoo_id)
-		ignore_mode = args[4].get(b'13')
-		if ignore_mode is not None:
-			ignore_mode = arbitrary_decode(ignore_mode)
+		yahoo_data = args[4] # type: MultiDict[bytes, bytes]
+		
+		yahoo_id = arbitrary_decode(yahoo_data.get(b'1') or b'')
+		ignored_yahoo_id = arbitrary_decode(yahoo_data.get(b'7') or b'')
+		ignore_mode = arbitrary_decode(yahoo_data.get(b'13') or b'')
 		
 		ignore_reply_response = MultiDict([
 			(b'0', arbitrary_encode(yahoo_id)),
@@ -588,38 +561,41 @@ class YMSGCtrlPager(YMSGCtrlBase):
 	
 	def _y_0006(self, *args: Any) -> None:
 		# SERVICE_MESSAGE (0x06); send a message to a user
-		yahoo_id = args[4].get(b'1')
-		if yahoo_id is not None:
-			yahoo_id = arbitrary_decode(yahoo_id)
-		contact_yahoo_id = args[4].get(b'5')
-		if contact_yahoo_id is not None:
-			contact_yahoo_id = arbitrary_decode(contact_yahoo_id)
 		
-		self._message_common(args[4], contact_yahoo_id)
+		yahoo_data = args[4] # type: MultiDict[bytes, bytes]
+		
+		yahoo_id = arbitrary_decode(yahoo_data.get(b'1') or b'')
+		contact_yahoo_id = arbitrary_decode(yahoo_data.get(b'5') or b'')
+		
+		self._message_common(yahoo_data, contact_yahoo_id)
 	
 	def _y_0017(self, *args: Any) -> None:
 		# SERVICE_MASSMESSAGE (0x17); send a message to multiple users
-		yahoo_id = args[4].get('1')
 		
-		contact_yahoo_ids = args[4].getall(b'5')
-		for i, contact_yahoo_id in enumerate(contact_yahoo_ids):
-			contact_yahoo_ids[i] = arbitrary_decode(contact_yahoo_id)
-		if contact_yahoo_ids:
-			for contact_yahoo_id in contact_yahoo_ids:
-				self._message_common(args[4], contact_yahoo_id)
+		yahoo_data = args[4] # type: MultiDict[bytes, bytes]
+		
+		#yahoo_id = yahoo_data.get(b'1')
+		
+		contact_yahoo_ids = [
+			arbitrary_decode(contact_yahoo_id)
+			for contact_yahoo_id in (yahoo_data.getall(b'5') or [])
+		]
+		for contact_yahoo_id in contact_yahoo_ids:
+			self._message_common(yahoo_data, contact_yahoo_id)
 	
 	def _y_0050(self, *args: Any) -> None:
 		# SERVICE_VIDEOCHAT (0x50); create a webcam token for authentication
 		#bs = self.bs
 		#assert bs is not None
 		#
-		#if not args[4].get(b'1'): return
+		#yahoo_data = args[4] # type: MultiDict[bytes, bytes]
+		#if not yahoo_data.get(b'1'): return
 		#
-		#webcam_token = self.backend.auth_service.create_token('ymsg/webcam', args[4].get(b'1'), lifetime = 86400)
+		#webcam_token = self.backend.auth_service.create_token('ymsg/webcam', yahoo_data.get(b'1'), lifetime = 86400)
 		#
 		#self.send_reply(YMSGService.VideoChat, YMSGStatus.BRB, self.sess_id, MultiDict([
-		#	(b'1', args[4].get(b'1')),
-		#	(b'5', args[4].get(b'1')),
+		#	(b'1', yahoo_data.get(b'1')),
+		#	(b'5', yahoo_data.get(b'1')),
 		#	(b'61', webcam_token),
 		#]))
 		
@@ -628,14 +604,12 @@ class YMSGCtrlPager(YMSGCtrlBase):
 	def _y_004d(self, *args: Any) -> None:
 		# SERVICE_P2PFILEXFER (0x4d); initiate P2P file transfer. Due to this service being present in 3rd-party libraries; we can implement it here
 		
-		yahoo_data = args[4]
+		yahoo_data = args[4] # type: MultiDict[bytes, bytes]
 		
 		bs = self.bs
 		assert bs is not None
 		
-		contact_id = yahoo_data.get(b'5')
-		if contact_id is not None:
-			contact_id = arbitrary_decode(contact_id)
+		contact_id = arbitrary_decode(yahoo_data.get(b'5') or b'')
 		contact_uuid = yahoo_id_to_uuid(self.backend, contact_id)
 		if contact_uuid is None:
 			return
@@ -647,26 +621,19 @@ class YMSGCtrlPager(YMSGCtrlBase):
 	def _y_0018(self, *args: Any) -> None:
 		# SERVICE_CONFINVITE (0x18); send a conference invite to one or more people
 		
-		yahoo_data = args[4]
-		yahoo_id = yahoo_data.get(b'1')
-		conf_roster = yahoo_data.getall(b'52', None)
-		if conf_roster is not None:
-			for i, conf_member in enumerate(conf_roster):
-				conf_roster[i] = arbitrary_decode(conf_member)
+		yahoo_data = args[4] # type: MultiDict[bytes, bytes]
+		yahoo_id = arbitrary_decode(yahoo_data.get(b'1') or b'')
+		conf_roster = [
+			arbitrary_decode(conf_member)
+			for conf_member in (yahoo_data.getall(b'52') or [])
+		]
 		# Comma-separated yahoo ids
 		conf_roster_2 = yahoo_data.get(b'51')
 		if conf_roster_2 is not None:
-			conf_roster_2 = arbitrary_decode(conf_roster_2)
-			conf_roster.extend(conf_roster_2.split(','))
-		conf_id = yahoo_data.get(b'57')
-		if conf_id is not None:
-			conf_id = arbitrary_decode(conf_id)
-		invite_msg = yahoo_data.get(b'58')
-		if invite_msg is not None:
-			invite_msg = arbitrary_decode(invite_msg)
-		voice_chat = yahoo_data.get(b'13')
-		if voice_chat is not None:
-			voice_chat = arbitrary_decode(voice_chat)
+			conf_roster.extend(arbitrary_decode(conf_roster_2).split(','))
+		conf_id = arbitrary_decode(yahoo_data.get(b'57') or b'')
+		invite_msg = arbitrary_decode(yahoo_data.get(b'58') or b'')
+		voice_chat = arbitrary_decode(yahoo_data.get(b'13') or b'')
 		
 		chat = self._get_chat_by_id('ymsg/conf', conf_id, create = True)
 		assert chat is not None
@@ -685,31 +652,21 @@ class YMSGCtrlPager(YMSGCtrlBase):
 	def _y_001c(self, *args: Any) -> None:
 		# SERVICE_CONFADDINVITE (0x1c); send a conference invite to an existing conference to one or more people
 		
-		yahoo_data = args[4]
-		yahoo_id = yahoo_data.get(b'1')
-		if yahoo_id is not None:
-			yahoo_id = arbitrary_decode(yahoo_id)
+		yahoo_data = args[4] # type: MultiDict[bytes, bytes]
+		yahoo_id = arbitrary_decode(yahoo_data.get(b'1') or b'')
 		conf_new_roster_str = yahoo_data.get(b'51')
 		if conf_new_roster_str is None:
 			return
 		conf_new_roster = arbitrary_decode(conf_new_roster_str).split(',')
-		conf_roster = yahoo_data.getall(b'52', None)
-		if conf_roster is None:
-			conf_roster = yahoo_data.getall(b'53', None)
-			if conf_roster is None:
-				conf_roster = []
-		for i, conf_member in enumerate(conf_roster):
-			conf_roster[i] = arbitrary_decode(conf_member)
-		conf_id = yahoo_data.get(b'57')
-		if conf_id is None:
+		conf_roster = [
+			arbitrary_decode(conf_member)
+			for conf_member in (yahoo_data.getall(b'52') or yahoo_data.getall(b'53') or [])
+		]
+		conf_id = arbitrary_decode(yahoo_data.get(b'57') or b'')
+		if not conf_id:
 			return
-		conf_id = arbitrary_decode(conf_id)
-		invite_msg = yahoo_data.get(b'58')
-		if invite_msg is not None:
-			invite_msg = arbitrary_decode(invite_msg)
-		voice_chat = yahoo_data.get(b'13')
-		if voice_chat is not None:
-			voice_chat = arbitrary_decode(voice_chat)
+		invite_msg = arbitrary_decode(yahoo_data.get(b'58') or b'')
+		voice_chat = arbitrary_decode(yahoo_data.get(b'13') or b'')
 		
 		chat = self._get_chat_by_id('ymsg/conf', conf_id)
 		assert chat is not None
@@ -728,17 +685,16 @@ class YMSGCtrlPager(YMSGCtrlBase):
 	def _y_0019(self, *args: Any) -> None:
 		# SERVICE_CONFLOGON (0x19); request for me to join a conference
 		
-		#inviter_ids = args[4].getall(b'3', None)
+		yahoo_data = args[4] # type: MultiDict[bytes, bytes]
+		
+		#inviter_ids = yahoo_data.getall(b'3')
 		#if inviter_ids is None:
 		#	return
 		
-		yahoo_id = args[4].get(b'1')
-		if yahoo_id is not None:
-			yahoo_id = arbitrary_decode(yahoo_id)
-		conf_id = args[4].get(b'57')
-		if conf_id is None:
+		yahoo_id = arbitrary_decode(yahoo_data.get(b'1') or b'')
+		conf_id = arbitrary_decode(yahoo_data.get(b'57') or b'')
+		if not conf_id:
 			return
-		conf_id = arbitrary_decode(conf_id)
 		chat = self._get_chat_by_id('ymsg/conf', conf_id)
 		assert chat is not None
 		cs = self._get_chat_session(yahoo_id, chat, create = True)
@@ -747,24 +703,20 @@ class YMSGCtrlPager(YMSGCtrlBase):
 	def _y_001a(self, *args: Any) -> None:
 		# SERVICE_CONFDECLINE (0x1a); decline a request to join a conference
 		
-		yahoo_id = args[4].get(b'1')
-		if yahoo_id is not None:
-			yahoo_id = arbitrary_decode(yahoo_id)
+		yahoo_data = args[4] # type: MultiDict[bytes, bytes]
+		
+		yahoo_id = arbitrary_decode(yahoo_data.get(b'1') or b'')
 		
 		bs = self.bs
 		assert bs is not None
 		
-		inviter_ids = args[4].getall(b'3', None)
-		if inviter_ids is None:
+		inviter_ids = [
+			arbitrary_decode(inviter_id) for inviter_id in (yahoo_data.getall(b'3') or [])
+		]
+		if not inviter_ids:
 			return
-		for i, inviter_id in enumerate(inviter_ids):
-			inviter_ids[i] = arbitrary_decode(inviter_id)
-		conf_id = args[4].get(b'57')
-		if conf_id is not None:
-			conf_id = arbitrary_decode(conf_id)
-		deny_msg = args[4].get(b'14')
-		if deny_msg is not None:
-			deny_msg = arbitrary_decode(deny_msg)
+		conf_id = arbitrary_decode(yahoo_data.get(b'57') or b'')
+		deny_msg = arbitrary_decode(yahoo_data.get(b'14') or b'')
 		
 		chat = self._get_chat_by_id('ymsg/conf', conf_id)
 		if chat is None:
@@ -778,17 +730,14 @@ class YMSGCtrlPager(YMSGCtrlBase):
 	def _y_001d(self, *args: Any) -> None:
 		# SERVICE_CONFMSG (0x1d); send a message in a conference
 		
-		#conf_user_ids = args[4].getall(b'53', None)
+		yahoo_data = args[4] # type: MultiDict[bytes, bytes]
+		
+		#conf_user_ids = yahoo_data.getall(b'53')
 		#if conf_user_ids is None:
 		#	return
 		
-		yahoo_data = args[4]
-		yahoo_id = yahoo_data.get(b'1')
-		if yahoo_id is not None:
-			yahoo_id = arbitrary_decode(yahoo_id)
-		conf_id = yahoo_data.get(b'57')
-		if conf_id is not None:
-			conf_id = arbitrary_decode(conf_id)
+		yahoo_id = arbitrary_decode(yahoo_data.get(b'1') or b'')
+		conf_id = arbitrary_decode(yahoo_data.get(b'57') or b'')
 		
 		chat = self._get_chat_by_id('ymsg/conf', conf_id)
 		assert chat is not None
@@ -800,16 +749,14 @@ class YMSGCtrlPager(YMSGCtrlBase):
 	def _y_001b(self, *args: Any) -> None:
 		# SERVICE_CONFLOGOFF (0x1b); leave a conference
 		
-		#conf_roster = args[4].getall(b'3', None)
+		yahoo_data = args[4] # type: MultiDict[bytes, bytes]
+		
+		#conf_roster = yahoo_data.getall(b'3')
 		#if conf_roster is None:
 		#	return
 		
-		yahoo_id = args[4].get(b'1')
-		if yahoo_id is not None:
-			yahoo_id = arbitrary_decode(yahoo_id)
-		conf_id = args[4].get(b'57')
-		if conf_id is not None:
-			conf_id = arbitrary_decode(conf_id)
+		yahoo_id = arbitrary_decode(yahoo_data.get(b'1') or b'')
+		conf_id = arbitrary_decode(yahoo_data.get(b'57') or b'')
 		chat = self._get_chat_by_id('ymsg/conf', conf_id)
 		if chat is None:
 			return
@@ -1026,8 +973,17 @@ class YMSGCtrlPager(YMSGCtrlBase):
 			
 			self.send_reply(YMSGService.Message, YMSGStatus.NotInOffice, self.sess_id, oim_msg_dict)
 	
-	def _verify_challenge_v1(self, yahoo_id: str, resp_6: bytes, resp_96: bytes) -> bool:
+	def _verify_challenge_v1(self, yahoo_id: Optional[str], resp_6: Optional[bytes], resp_96: Optional[bytes]) -> bool:
 		from hashlib import md5
+		
+		if not yahoo_id:
+			return False
+		
+		if not resp_6:
+			return False
+		
+		if not resp_96:
+			return False
 		
 		chal = self.challenge
 		if chal is None:
