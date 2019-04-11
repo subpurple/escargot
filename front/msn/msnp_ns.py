@@ -1592,7 +1592,7 @@ class BackendEventHandler(event.BackendEventHandler):
 	def on_oim_sent(self, oim: 'OIM') -> None:
 		assert self.ctrl.bs is not None
 		self.ctrl.send_reply('MSG', 'Hotmail', 'Hotmail', encode_payload(PAYLOAD_MSG_2,
-			ct = 'text/x-msmsgsoimnotification', md = gen_mail_data(self.ctrl.bs.user, self.ctrl.backend, oim_uuid = oim.uuid, just_sent = True, e_node = False, q_node = False)
+			ct = 'text/x-msmsgsoimnotification', md = gen_mail_data(self.ctrl.bs.user, self.ctrl.backend, oim = oim, just_sent = True, e_node = False, q_node = False)
 		))
 	
 	def msn_on_oim_deletion(self, oims_deleted: int) -> None:

@@ -294,11 +294,10 @@ def gen_chal_response(chal: str, id: str, id_key: str, *, msnp11: bool = False) 
 	# TODO: MSNP11 challenge/response procedure
 	return 'PASS'
 
-def gen_mail_data(user: User, backend: Backend, *, oim_uuid: Optional[str] = None, just_sent: bool = False, on_ns: bool = True, e_node: bool = True, q_node: bool = True) -> str:
+def gen_mail_data(user: User, backend: Backend, *, oim: Optional[OIM] = None, just_sent: bool = False, on_ns: bool = True, e_node: bool = True, q_node: bool = True) -> str:
 	md_m_pl = ''
 	oim_collection = []
 	if just_sent:
-		oim = backend.user_service.get_oim_single(user, oim_uuid or '')
 		if oim is not None:
 			oim_collection.append(oim)
 	else:
