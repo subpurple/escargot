@@ -23,9 +23,10 @@ from .misc import build_presence_notif, encode_msnobj, encode_payload, decode_ca
 
 MSNP_DIALECTS = ['MSNP{}'.format(d) for d in (
 	# Actually supported
-	21, 20,
-	19, 18, 17, 16, 15, 14, 13, 12, 11,
+	18, 17, 16, 15, 14, 13, 12, 11,
 	10, 9, 8, 7, 6, 5, 4, 3, 2,
+	# Not actually supported
+	19, 20, 21,
 )]
 
 class MSNPCtrlNS(MSNPCtrl):

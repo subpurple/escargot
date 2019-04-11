@@ -359,53 +359,53 @@ async def handle_abservice(req: web.Request) -> web.Response:
 				'host': settings.LOGIN_HOST,
 				'session_id': util.misc.gen_uuid(),
 			})
-		if action_str == 'CreateContact':
-			# Used as a step in Circle invites, but also used for regular contact adds in WLM 2011/2012
-			user = bs.user
-			detail = user.detail
-			assert detail is not None
-			
-			ab_id = _find_element(action, 'ABId')
-			if ab_id is not None:
-				ab_id = str(ab_id)
-			else:
-				ab_id = '00000000-0000-0000-0000-000000000000'
-			
-			if ab_id not in detail.subscribed_ab_stores:
-				return web.HTTPInternalServerError()
-			
-			contact_email = _find_element(action, 'Email')
-			
-			tpl = backend.user_service.get_ab_contents(ab_id, user)
-			assert tpl is not None
-			_, user_creator, _, _, _ = tpl
-			
-			contact_uuid = backend.util_get_uuid_from_email(contact_email)
-			if contact_uuid is None:
-				return web.HTTPInternalServerError()
-			
-			type = ('Circle' if ab_id.startswith('00000000-0000-0000-0009') else 'Regular')
-			
-			ctc_ab = backend.user_service.ab_get_entry_by_email(ab_id, contact_email, type, user)
-			if ctc_ab is not None:
-				# TODO: Error SOAP
-				return web.HTTPInternalServerError()
-			
-			ctc_ab = models.ABContact(
-				type, backend.user_service.gen_ab_entry_id(ab_id, user), util.misc.gen_uuid(), contact_email, contact_email, set(),
-				member_uuid = contact_uuid, is_messenger_user = True,
-			)
-			
-			await backend.user_service.mark_ab_modified_async(ab_id, { 'contacts': [ctc_ab] }, user)
-			
-			return render(req, 'msn:abservice/CreateContactResponse.xml', {
-				'cachekey': cachekey,
-				'host': settings.LOGIN_HOST,
-				'session_id': util.misc.gen_uuid(),
-				'ab_id': ab_id,
-				'contact': ctc_ab,
-				'user_creator_detail': user_creator.detail,
-			})
+		#if action_str == 'CreateContact':
+		#	# Used as a step in Circle invites, but also used for regular contact adds in WLM 2011/2012
+		#	user = bs.user
+		#	detail = user.detail
+		#	assert detail is not None
+		#	
+		#	ab_id = _find_element(action, 'ABId')
+		#	if ab_id is not None:
+		#		ab_id = str(ab_id)
+		#	else:
+		#		ab_id = '00000000-0000-0000-0000-000000000000'
+		#	
+		#	if ab_id not in detail.subscribed_ab_stores:
+		#		return web.HTTPInternalServerError()
+		#	
+		#	contact_email = _find_element(action, 'Email')
+		#	
+		#	tpl = backend.user_service.get_ab_contents(ab_id, user)
+		#	assert tpl is not None
+		#	_, user_creator, _, _, _ = tpl
+		#	
+		#	contact_uuid = backend.util_get_uuid_from_email(contact_email)
+		#	if contact_uuid is None:
+		#		return web.HTTPInternalServerError()
+		#	
+		#	type = ('Circle' if ab_id.startswith('00000000-0000-0000-0009') else 'Regular')
+		#	
+		#	ctc_ab = backend.user_service.ab_get_entry_by_email(ab_id, contact_email, type, user)
+		#	if ctc_ab is not None:
+		#		# TODO: Error SOAP
+		#		return web.HTTPInternalServerError()
+		#	
+		#	ctc_ab = models.ABContact(
+		#		type, backend.user_service.gen_ab_entry_id(ab_id, user), util.misc.gen_uuid(), contact_email, contact_email, set(),
+		#		member_uuid = contact_uuid, is_messenger_user = True,
+		#	)
+		#	
+		#	await backend.user_service.mark_ab_modified_async(ab_id, { 'contacts': [ctc_ab] }, user)
+		#	
+		#	return render(req, 'msn:abservice/CreateContactResponse.xml', {
+		#		'cachekey': cachekey,
+		#		'host': settings.LOGIN_HOST,
+		#		'session_id': util.misc.gen_uuid(),
+		#		'ab_id': ab_id,
+		#		'contact': ctc_ab,
+		#		'user_creator_detail': user_creator.detail,
+		#	})
 		if action_str == 'ABContactUpdate':
 			user = bs.user
 			detail = user.detail
