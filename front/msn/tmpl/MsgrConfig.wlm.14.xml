@@ -452,7 +452,7 @@
 			<oemdisplaylimit>1</oemdisplaylimit><oemtotallimit>1</oemtotallimit>
 		</msntabsettings>
 		<AbchCfg>
-			<abchconfig><url>https://ebyrdrctcsmsn.log1p.xyz/abservice/abservice.asmx</url></abchconfig>
+			<abchconfig><url>https://{targethost}/abservice/abservice.asmx</url></abchconfig>
 		</AbchCfg>
 	</TabConfig>
 	<LocalizedConfig Market="en-US">

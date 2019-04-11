@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING, Callable, Optional, Dict, Any, List
 from abc import ABCMeta, abstractmethod
 
-from .models import User, Contact, Lst, MessageData, TextWithData, Substatus, LoginOption
+from .models import User, Contact, Lst, OIM, MessageData, TextWithData, Substatus, LoginOption
 from util.misc import MultiDict
 
 if TYPE_CHECKING:
@@ -51,12 +51,12 @@ class BackendEventHandler(metaclass = ABCMeta):
 	@abstractmethod
 	def on_login_elsewhere(self, option: LoginOption) -> None: pass
 	
+	@abstractmethod
+	def on_oim_sent(self, oim: 'OIM') -> None: pass
+	
 	# TODO: Make these non-frontend-specific to allow interop
 	
-	def msn_on_oim_sent(self, oim_uuid: str) -> None:
-		pass
-	
-	def msn_on_oim_deletion(self) -> None:
+	def msn_on_oim_deletion(self, oims_deleted: int) -> None:
 		pass
 	
 	def msn_on_uun_sent(self, sender: User, type: int, data: Optional[bytes], *, pop_id_sender: Optional[str] = None, pop_id: Optional[str] = None) -> None:

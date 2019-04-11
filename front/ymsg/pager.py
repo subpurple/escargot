@@ -11,7 +11,7 @@ from util.misc import Logger, gen_uuid, MultiDict, arbitrary_decode, arbitrary_e
 
 from core import event, error
 from core.backend import Backend, BackendSession, Chat, ChatSession
-from core.models import Substatus, Lst, User, Contact, Group, TextWithData, MessageData, MessageType, UserStatus, LoginOption
+from core.models import Substatus, Lst, OIM, User, Contact, Group, TextWithData, MessageData, MessageType, UserStatus, LoginOption
 from core.client import Client
 from core.user import UserService
 from core.auth import AuthService
@@ -799,9 +799,6 @@ class YMSGCtrlPager(YMSGCtrlBase):
 			if None not in (cs, evt):
 				evt._send_when_user_joins(contact_uuid, messagedata_from_ymsg(cs.user, yahoo_data))
 		except error.ContactNotOnline as ex:
-			# Will probably never get to this stage due to the server-side quirks of the contact blocking scheme (which can make us
-			# think that someone who is offline might not be blocking us, even though when they actually are, their `UserDetail` isn't
-			# available to confirm), but we can make arrangements...
 			contact_user = self.backend._load_user_record(contact_uuid)
 			if contact_user is None:
 				return
@@ -812,6 +809,8 @@ class YMSGCtrlPager(YMSGCtrlBase):
 			if ctc_self is not None:
 				if ctc_self.lists & Lst.BL:
 					return
+			elif ctc_self is None and contact_user.settings.get('BLP', 'AL') == 'BL':
+				return
 			md = messagedata_from_ymsg(contact_user, yahoo_data)
 			if md.type is MessageType.Chat:
 				(ip, _) = self.peername
@@ -822,7 +821,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 					from_user_id = arbitrary_decode(key1_val)
 				
 				self.backend.user_service.save_oim(
-					gen_uuid().upper(), contact_uuid, user.email, self.yahoo_id, ip, md.text or '', False if md.front_cache['ymsg'].get(b'97') is b'0' else True,
+					bs, contact_uuid, gen_uuid(), ip, md.text or '', False if md.front_cache['ymsg'].get(b'97') is b'0' else True,
 					from_user_id = from_user_id,
 				)
 		except error.ContactNotOnList:
@@ -838,14 +837,10 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		other_user = self.backend._load_user_record(other_user_uuid)
 		if other_user is None:
 			raise error.ContactNotOnList()
-		# TODO: Users who appear offline (regardless of blocking you or not) can have a `UserDetail`, but when they're actually offline they don't,
-		# as if they were an unblocked contact who was offline. Due to this quirk, it's hard to tell if they blocked you for the purpose of
-		# determining if they can be sent OIMs. Find a better scheme for detecting this, as with this implementation it'd be impossible to
-		# send OIMs to anyone (people in Invisible mode are supposed to receive IMs as normal).
 		other_user_ctc = detail.contacts.get(other_user.uuid)
 		if other_user_ctc is not None and other_user_ctc.lists & Lst.BL:
 			raise error.ContactNotOnList()
-		if other_user_uuid not in bs.front_data['ymsg_private_chats'] and other_user.status.substatus is not Substatus.Offline:
+		if other_user_uuid not in bs.front_data['ymsg_private_chats'] and not other_user.status.is_offlineish():
 			other_user_detail = self.backend._load_detail(other_user)
 			if other_user_detail is None: raise error.ContactNotOnline()
 			ctc_self = other_user_detail.contacts.get(user.uuid)
@@ -859,7 +854,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 			cs = chat.join('yahoo', bs, evt)
 			bs.front_data['ymsg_private_chats'][other_user_uuid] = (cs, evt)
 			cs.invite(other_user)
-		elif other_user.status.substatus is Substatus.Offline:
+		elif other_user.status.is_offlineish():
 			raise error.ContactNotOnline()
 		return bs.front_data['ymsg_private_chats'].get(other_user_uuid)
 	
@@ -926,12 +921,12 @@ class YMSGCtrlPager(YMSGCtrlBase):
 			# can't use `yahooloopback.log1p.xyz` for cookies yet because that is intended for Switcher (Yahoo! sets the cookies on a static domain and it expects the cookie domain to encompass the domain it
 			# sets the cookie to, if the cookie domain doesn't match the domain of the URL Yahoo! uses, then it won't use the cookies). uncomment when development on Switcher is finished.
 			# 
-			#list_reply_kvs.add(b'59', arbitrary_encode('Y\t{}; expires={}; path=/; domain={}'.format(y_cookie, cookie_expiry, ('yahooloopback.log1p.xyz' if settings.DEBUG else settings.TARGET_HOST))))
-			#list_reply_kvs.add(b'59', arbitrary_encode('T\t{}; expires={}; path=/; domain={}'.format(t_cookie, cookie_expiry, ('yahooloopback.log1p.xyz' if settings.DEBUG else settings.TARGET_HOST))))
+			list_reply_kvs.add(b'59', arbitrary_encode('Y\t{}; expires={}; path=/; domain={}'.format(y_cookie, cookie_expiry, ('yahooloopback.log1p.xyz' if settings.DEBUG else settings.TARGET_HOST))))
+			list_reply_kvs.add(b'59', arbitrary_encode('T\t{}; expires={}; path=/; domain={}'.format(t_cookie, cookie_expiry, ('yahooloopback.log1p.xyz' if settings.DEBUG else settings.TARGET_HOST))))
 			# 
 			# </notice>
-			list_reply_kvs.add(b'59', 'Y\t{}; expires={}; path=/; domain={}'.format(y_cookie, cookie_expiry, '.yahoo.com').encode('utf-8'))
-			list_reply_kvs.add(b'59', 'T\t{}; expires={}; path=/; domain={}'.format(t_cookie, cookie_expiry, '.yahoo.com').encode('utf-8'))
+			#list_reply_kvs.add(b'59', 'Y\t{}; expires={}; path=/; domain={}'.format(y_cookie, cookie_expiry, '.yahoo.com').encode('utf-8'))
+			#list_reply_kvs.add(b'59', 'T\t{}; expires={}; path=/; domain={}'.format(t_cookie, cookie_expiry, '.yahoo.com').encode('utf-8'))
 		
 		list_reply_kvs.add(b'59', b'C\tmg=1')
 		list_reply_kvs.add(b'3', (self.yahoo_id or '').encode('utf-8'))
@@ -969,7 +964,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 				(b'97', b'1' if oim.utf8 else b'0'),
 			]) # type: MultiDict[bytes, bytes]
 			
-			self.backend.user_service.delete_oim(user.uuid, oim.run_id)
+			self.backend.user_service.delete_oim(user.uuid, oim.uuid)
 			
 			self.send_reply(YMSGService.Message, YMSGStatus.NotInOffice, self.sess_id, oim_msg_dict)
 	
@@ -1199,6 +1194,25 @@ class BackendEventHandler(event.BackendEventHandler):
 			(b'3', arbitrary_encode(contact_id or misc.yahoo_id(user_added.email))),
 			(b'14', arbitrary_encode(message)),
 		]))
+	
+	def on_oim_sent(self, oim: 'OIM') -> None:
+		bs = self.ctrl.bs
+		assert bs is not None
+		user = bs.user
+		backend = bs.backend
+		
+		message_dict = MultiDict([
+			(b'5', arbitrary_encode(self.ctrl.yahoo_id or '')),
+			(b'4', arbitrary_encode(oim.from_user_id or oim.from_email)),
+			(b'14', arbitrary_encode(oim.message or '')),
+			(b'63', b';0'),
+			(b'64', b'0'),
+			(b'97', (b'1' if oim.utf8 else b'0')),
+		]) # type: MultiDict[bytes, bytes]
+		
+		self.ctrl.send_reply(YMSGService.Message, YMSGStatus.BRB, self.ctrl.sess_id, message_dict)
+		
+		backend.user_service.delete_oim(user.uuid, oim.uuid)
 	
 	def msn_on_notify_ab(self, owner_cid: str, ab_last_modified: str) -> None:
 		pass

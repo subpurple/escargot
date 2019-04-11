@@ -65,7 +65,6 @@ Contributions are welcome via MR (Merge Requests). You don't need to request pro
 		127.0.0.1 login.live.com
 		127.0.0.1 gateway.messenger.hotmail.com
 		127.0.0.1 byrdr.omega.contacts.msn.com
-		127.0.0.1 ebyrdromegactcsmsn.log1p.xyz
 		127.0.0.1 config.messenger.msn.com
 		127.0.0.1 tkrdr.storage.msn.com
 		127.0.0.1 ows.messenger.msn.com

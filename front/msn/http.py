@@ -59,8 +59,8 @@ def register(app: web.Application) -> None:
 	app.router.add_post('/storageservice/SchematizedStore.asmx', handle_storageservice)
 	app.router.add_get('/storage/usertile/{uuid}/static', handle_usertile)
 	app.router.add_get('/storage/usertile/{uuid}/small', lambda req: handle_usertile(req, small = True))
-	#app.router.add_post('/rsi/rsi.asmx', handle_rsi)
-	#app.router.add_post('/OimWS/oim.asmx', handle_oim)
+	app.router.add_post('/rsi/rsi.asmx', handle_rsi)
+	app.router.add_post('/OimWS/oim.asmx', handle_oim)
 	
 	# Misc
 	app.router.add_get('/etc/debug', handle_debug)
@@ -1079,158 +1079,160 @@ async def handle_abservice(req: web.Request) -> web.Response:
 				'host': settings.LOGIN_HOST,
 				'session_id': util.misc.gen_uuid(),
 			})
-		#if action_str == 'CreateCircle':
+		if action_str == 'CreateCircle':
+			return render(req, 'msn:abservice/Fault.circlenolongersupported.xml', status = 500)
+			
+			#user = bs.user
+			#
+			#if _find_element(action, 'Domain') == 1 and _find_element(action, 'HostedDomain') == 'live.com' and _find_element(action, 'Type') == 2 and isinstance(_find_element(action, 'IsPresenceEnabled'), bool):
+			#	membership_access = int(_find_element(action, 'MembershipAccess'))
+			#	request_membership_option = int(_find_element(action, 'RequestMembershipOption'))
+			#	
+			#	circle_name = str(_find_element(action, 'DisplayName'))
+			#	circle_owner_friendly = str(_find_element(action, 'PublicDisplayName'))
+			#	
+			#	circle_id, circle_acc_uuid = backend.user_service.msn_create_circle(user.uuid, circle_name, circle_owner_friendly, membership_access, request_membership_option, _find_element(action, 'IsPresenceEnabled'))
+			#	if circle_id is None:
+			#		return web.HTTPInternalServerError()
+			#	
+			#	bs.me_subscribe_ab(circle_id)
+			#	# Add circle relay to contact list
+			#	bs.me_contact_add(circle_acc_uuid, models.Lst.FL, add_to_ab = False)
+			#	bs.me_contact_add(circle_acc_uuid, models.Lst.AL)
+			#	
+			#	# Add self to individual AB
+			#	# TODO: Proper hidden representative of circle creator (does this display them in the roster?)
+			#	#ctc_self_hidden_representative = models.ABContact(
+			#	#	'Circle', backend.user_service.gen_ab_entry_id(ab_id, user), util.misc.gen_uuid(), user.email, user.status.name or user.email, set(), {
+			#	#		models.NetworkID.WINDOWS_LIVE: models.NetworkInfo(
+			#	#			models.NetworkID.WINDOWS_LIVE, 'WL', user.email,
+			#	#			user.status.name, models.RelationshipInfo(
+			#	#				models.ABRelationshipType.Circle, models.ABRelationshipRole.Admin, models.ABRelationshipState.Accepted,
+			#	#			),
+			#	#		)
+			#	#	},
+			#	#	member_uuid = user.uuid, is_messenger_user = True,
+			#	#)
+			#	#await backend.user_service.mark_ab_modified_async('00000000-0000-0000-0000-000000000000', { 'contacts': [ctc_self_hidden_representative], }, user)
+			#	backend.user_service.msn_update_circleticket(user.uuid, cid_format(user.uuid, decimal = True))
+			#	
+			#	try:
+			#		return render(req, 'msn:abservice/CreateCircleResponse.xml', {
+			#			'cachekey': cachekey,
+			#			'host': settings.LOGIN_HOST,
+			#			'session_id': util.misc.gen_uuid(),
+			#			'circle_id': circle_id,
+			#		})
+			#	finally:
+			#		_, _, _, ab_last_modified, _ = backend.user_service.get_ab_contents(circle_id, user)
+			#		bs.evt.msn_on_notify_ab(cid_format(user.uuid, decimal = True), util.misc.date_format(ab_last_modified))
+			#		
+			#		#circle_bs = backend.login(backend.util_get_uuid_from_email('{}@live.com'.format(circle_id), models.NetworkID.CIRCLE), None, CircleBackendEventHandler(), only_once = True)
+			#		#if circle_bs is not None:
+			#		#	if bs.front_data.get('msn_circle_sessions') is None:
+			#		#		bs.front_data['msn_circle_sessions'] = { circle_bs }
+			#		#	else:
+			#		#		bs.front_data['msn_circle_sessions'].add(circle_bs)
+			#		#	circle_bs.front_data['msn_circle_roster'] = { bs }
+			#		#	circle_bs.me_update({ 'substatus': models.Substatus.Online })
+		#if action_str == 'ManageWLConnection':
+		#	#TODO: Finish `NetworkInfo` implementation for circles
 		#	user = bs.user
+		#	detail = user.detail
+		#	assert detail is not None
 		#	
-		#	if _find_element(action, 'Domain') == 1 and _find_element(action, 'HostedDomain') == 'live.com' and _find_element(action, 'Type') == 2 and isinstance(_find_element(action, 'IsPresenceEnabled'), bool):
-		#		membership_access = int(_find_element(action, 'MembershipAccess'))
-		#		request_membership_option = int(_find_element(action, 'RequestMembershipOption'))
-		#		
-		#		circle_name = str(_find_element(action, 'DisplayName'))
-		#		circle_owner_friendly = str(_find_element(action, 'PublicDisplayName'))
-		#		
-		#		circle_id, circle_acc_uuid = backend.user_service.msn_create_circle(user.uuid, circle_name, circle_owner_friendly, membership_access, request_membership_option, _find_element(action, 'IsPresenceEnabled'))
-		#		if circle_id is None:
+		#	ab_id = _find_element(action, 'ABId')
+		#	if ab_id is not None:
+		#		ab_id = str(ab_id)
+		#	else:
+		#		ab_id = '00000000-0000-0000-0000-000000000000'
+		#	
+		#	if ab_id not in detail.subscribed_ab_stores:
+		#		return web.HTTPInternalServerError()
+		#	
+		#	contact_uuid = _find_element(action, 'contactId')
+		#	assert contact_uuid is not None
+		#	
+		#	tpl = backend.user_service.get_ab_contents(ab_id, user)
+		#	assert tpl is not None
+		#	_, user_creator, _, _, _ = tpl
+		#	
+		#	ctc_ab = backend.user_service.ab_get_entry_by_uuid(ab_id, contact_uuid, user)
+		#	
+		#	if ctc_ab is None or ctc_ab.networkinfos.get(models.NetworkID.WINDOWS_LIVE) is not None:
+		#		return web.HTTPInternalServerError()
+		#	
+		#	if _find_element(action, 'connection') == True:
+		#		try:
+		#			relationship_type = models.ABRelationshipType(_find_element(action, 'relationshipType'))
+		#			relationship_role = _find_element(action, 'relationshipRole')
+		#			if relationship_role is not None:
+		#				relationship_role = models.ABRelationshipRole(relationship_role)
+		#			wl_action = int(_find_element(action, 'action'))
+		#		except ValueError:
 		#			return web.HTTPInternalServerError()
 		#		
-		#		bs.me_subscribe_ab(circle_id)
-		#		# Add circle relay to contact list
-		#		bs.me_contact_add(circle_acc_uuid, models.Lst.FL, add_to_ab = False)
-		#		bs.me_contact_add(circle_acc_uuid, models.Lst.AL)
+		#		if not ctc_ab.member_uuid:
+		#			return web.HTTPInternalServerError()
+		#		ctc_head = backend._load_user_record(ctc_ab.member_uuid)
+		#		if ctc_head is None:
+		#			return web.HTTPInternalServerError()
 		#		
-		#		# Add self to individual AB
-		#		# TODO: Proper hidden representative of circle creator (does this display them in the roster?)
-		#		#ctc_self_hidden_representative = models.ABContact(
-		#		#	'Circle', backend.user_service.gen_ab_entry_id(ab_id, user), util.misc.gen_uuid(), user.email, user.status.name or user.email, set(), {
-		#		#		models.NetworkID.WINDOWS_LIVE: models.NetworkInfo(
-		#		#			models.NetworkID.WINDOWS_LIVE, 'WL', user.email,
-		#		#			user.status.name, models.RelationshipInfo(
-		#		#				models.ABRelationshipType.Circle, models.ABRelationshipRole.Admin, models.ABRelationshipState.Accepted,
-		#		#			),
-		#		#		)
-		#		#	},
-		#		#	member_uuid = user.uuid, is_messenger_user = True,
-		#		#)
-		#		#await backend.user_service.mark_ab_modified_async('00000000-0000-0000-0000-000000000000', { 'contacts': [ctc_self_hidden_representative], }, user)
-		#		backend.user_service.msn_update_circleticket(user.uuid, cid_format(user.uuid, decimal = True))
+		#		tpl = backend.user_service.get_ab_contents(ab_id, ctc_head)
+		#		assert tpl is not None
+		#		_, ctc_creator_ab, _, ctc_ab_last_modified, _ = tpl
 		#		
-		#		try:
-		#			return render(req, 'msn:abservice/CreateCircleResponse.xml', {
-		#				'cachekey': cachekey,
-		#				'host': settings.LOGIN_HOST,
-		#				'session_id': util.misc.gen_uuid(),
-		#				'circle_id': circle_id,
-		#			})
-		#		finally:
-		#			_, _, _, ab_last_modified, _ = backend.user_service.get_ab_contents(circle_id, user)
-		#			bs.evt.msn_on_notify_ab(cid_format(user.uuid, decimal = True), util.misc.date_format(ab_last_modified))
+		#		if wl_action == 1:
+		#			if relationship_type == models.ABRelationshipType.Circle:
+		#				#membership_set = backend.user_service.msn_circle_set_user_membership(ab_id, ctc.email, member_role = models.ABRelationshipRole.StatePendingOutbound, member_state = models.ABRelationshipState.Accepted)
+		#				#if not membership_set:
+		#				#	return web.HTTPInternalServerError()
+		#				return web.HTTPInternalServerError()
 		#			
-		#			#circle_bs = backend.login(backend.util_get_uuid_from_email('{}@live.com'.format(circle_id), models.NetworkID.CIRCLE), None, CircleBackendEventHandler(), only_once = True)
-		#			#if circle_bs is not None:
-		#			#	if bs.front_data.get('msn_circle_sessions') is None:
-		#			#		bs.front_data['msn_circle_sessions'] = { circle_bs }
-		#			#	else:
-		#			#		bs.front_data['msn_circle_sessions'].add(circle_bs)
-		#			#	circle_bs.front_data['msn_circle_roster'] = { bs }
-		#			#	circle_bs.me_update({ 'substatus': models.Substatus.Online })
-		if action_str == 'ManageWLConnection':
-			#TODO: Finish `NetworkInfo` implementation for circles
-			user = bs.user
-			detail = user.detail
-			assert detail is not None
-			
-			ab_id = _find_element(action, 'ABId')
-			if ab_id is not None:
-				ab_id = str(ab_id)
-			else:
-				ab_id = '00000000-0000-0000-0000-000000000000'
-			
-			if ab_id not in detail.subscribed_ab_stores:
-				return web.HTTPInternalServerError()
-			
-			contact_uuid = _find_element(action, 'contactId')
-			assert contact_uuid is not None
-			
-			tpl = backend.user_service.get_ab_contents(ab_id, user)
-			assert tpl is not None
-			_, user_creator, _, _, _ = tpl
-			
-			ctc_ab = backend.user_service.ab_get_entry_by_uuid(ab_id, contact_uuid, user)
-			
-			if ctc_ab is None or ctc_ab.networkinfos.get(models.NetworkID.WINDOWS_LIVE) is not None:
-				return web.HTTPInternalServerError()
-			
-			if _find_element(action, 'connection') == True:
-				try:
-					relationship_type = models.ABRelationshipType(_find_element(action, 'relationshipType'))
-					relationship_role = _find_element(action, 'relationshipRole')
-					if relationship_role is not None:
-						relationship_role = models.ABRelationshipRole(relationship_role)
-					wl_action = int(_find_element(action, 'action'))
-				except ValueError:
-					return web.HTTPInternalServerError()
-				
-				if not ctc_ab.member_uuid:
-					return web.HTTPInternalServerError()
-				ctc_head = backend._load_user_record(ctc_ab.member_uuid)
-				if ctc_head is None:
-					return web.HTTPInternalServerError()
-				
-				tpl = backend.user_service.get_ab_contents(ab_id, ctc_head)
-				assert tpl is not None
-				_, ctc_creator_ab, _, ctc_ab_last_modified, _ = tpl
-				
-				if wl_action == 1:
-					if relationship_type == models.ABRelationshipType.Circle:
-						#membership_set = backend.user_service.msn_circle_set_user_membership(ab_id, ctc.email, member_role = models.ABRelationshipRole.StatePendingOutbound, member_state = models.ABRelationshipState.Accepted)
-						#if not membership_set:
-						#	return web.HTTPInternalServerError()
-						return web.HTTPInternalServerError()
-					
-					if relationship_role != None:
-						return web.HTTPInternalServerError()
-					
-					ctc_ab.networkinfos[models.NetworkID.WINDOWS_LIVE] = models.NetworkInfo(
-						models.NetworkID.WINDOWS_LIVE, 'WL', ctc_ab.email,
-						ctc_ab.name or ctc_ab.email, models.RelationshipInfo(
-							relationship_type, models.ABRelationshipRole.Empty, models.ABRelationshipState.WaitingResponse,
-						),
-					)
-					
-					ctc_ab_contact = backend.user_service.ab_get_entry_by_email('00000000-0000-0000-0000-000000000000', user.email, ('Circle' if ab_id.startswith('00000000-0000-0000-0009') else 'LivePending'), ctc_head)
-					if not ctc_ab_contact and not ab_id.startswith('00000000-0000-0000-0009'):
-						ctc_ab_contact = backend.user_service.ab_get_entry_by_email('00000000-0000-0000-0000-000000000000', user.email, 'Live', ctc_head)
-					if ctc_ab_contact:
-						return web.HTTPInternalServerError()
-					ctc_ab_contact = models.ABContact(
-						('Circle' if ab_id.startswith('00000000-0000-0000-0009') else 'LivePending'), backend.user_service.gen_ab_entry_id(ab_id, user), util.misc.gen_uuid(), user.email, user.status.name or user.email, set(),
-						networkinfos = {
-							models.NetworkID.WINDOWS_LIVE: models.NetworkInfo(
-								models.NetworkID.WINDOWS_LIVE, 'WL', user.email,
-								user.status.name, models.RelationshipInfo(
-									relationship_type, models.ABRelationshipRole.Empty, models.ABRelationshipState.WaitingResponse,
-								),
-							),
-						}, member_uuid = user.uuid, is_messenger_user = True,
-					)
-					
-					await backend.user_service.mark_ab_modified_async(ab_id, { 'contacts': [ctc_ab] }, user)
-					await backend.user_service.mark_ab_modified_async('00000000-0000-0000-0000-000000000000', { 'contacts': [ctc_ab_contact] }, ctc_head)
-				
-					if ab_id != '00000000-0000-0000-0000-000000000000':
-						bs.other_subscribe_ab(ab_id, ctc_head)
-					
-					for ctc_sess in backend.util_get_sessions_by_user(ctc_head):
-						ctc_sess.evt.msn_on_notify_ab(cid_format(user_creator.uuid), str(util.misc.date_format(ctc_ab_last_modified or datetime.utcnow())))
-			
-			return render(req, 'msn:abservice/ManageWLConnection/ManageWLConnection.xml', {
-				'cachekey': cachekey,
-				'host': settings.LOGIN_HOST,
-				'session_id': util.misc.gen_uuid(),
-				'ab_id': ab_id,
-				'contact': ctc_ab,
-				'user_creator_detail': user_creator.detail,
-			})
+		#			if relationship_role != None:
+		#				return web.HTTPInternalServerError()
+		#			
+		#			ctc_ab.networkinfos[models.NetworkID.WINDOWS_LIVE] = models.NetworkInfo(
+		#				models.NetworkID.WINDOWS_LIVE, 'WL', ctc_ab.email,
+		#				ctc_ab.name or ctc_ab.email, models.RelationshipInfo(
+		#					relationship_type, models.ABRelationshipRole.Empty, models.ABRelationshipState.WaitingResponse,
+		#				),
+		#			)
+		#			
+		#			ctc_ab_contact = backend.user_service.ab_get_entry_by_email('00000000-0000-0000-0000-000000000000', user.email, ('Circle' if ab_id.startswith('00000000-0000-0000-0009') else 'LivePending'), ctc_head)
+		#			if not ctc_ab_contact and not ab_id.startswith('00000000-0000-0000-0009'):
+		#				ctc_ab_contact = backend.user_service.ab_get_entry_by_email('00000000-0000-0000-0000-000000000000', user.email, 'Live', ctc_head)
+		#			if ctc_ab_contact:
+		#				return web.HTTPInternalServerError()
+		#			ctc_ab_contact = models.ABContact(
+		#				('Circle' if ab_id.startswith('00000000-0000-0000-0009') else 'LivePending'), backend.user_service.gen_ab_entry_id(ab_id, user), util.misc.gen_uuid(), user.email, user.status.name or user.email, set(),
+		#				networkinfos = {
+		#					models.NetworkID.WINDOWS_LIVE: models.NetworkInfo(
+		#						models.NetworkID.WINDOWS_LIVE, 'WL', user.email,
+		#						user.status.name, models.RelationshipInfo(
+		#							relationship_type, models.ABRelationshipRole.Empty, models.ABRelationshipState.WaitingResponse,
+		#						),
+		#					),
+		#				}, member_uuid = user.uuid, is_messenger_user = True,
+		#			)
+		#			
+		#			await backend.user_service.mark_ab_modified_async(ab_id, { 'contacts': [ctc_ab] }, user)
+		#			await backend.user_service.mark_ab_modified_async('00000000-0000-0000-0000-000000000000', { 'contacts': [ctc_ab_contact] }, ctc_head)
+		#		
+		#			if ab_id != '00000000-0000-0000-0000-000000000000':
+		#				bs.other_subscribe_ab(ab_id, ctc_head)
+		#			
+		#			for ctc_sess in backend.util_get_sessions_by_user(ctc_head):
+		#				ctc_sess.evt.msn_on_notify_ab(cid_format(user_creator.uuid), str(util.misc.date_format(ctc_ab_last_modified or datetime.utcnow())))
+		#	
+		#	return render(req, 'msn:abservice/ManageWLConnection/ManageWLConnection.xml', {
+		#		'cachekey': cachekey,
+		#		'host': settings.LOGIN_HOST,
+		#		'session_id': util.misc.gen_uuid(),
+		#		'ab_id': ab_id,
+		#		'contact': ctc_ab,
+		#		'user_creator_detail': user_creator.detail,
+		#	})
 		#if action_str == 'FindFriendsInCommon':
 		#	# Count the number of `Live` contacts from the target contact and compare then with the caller's contacts to see if both have the same contacts
 		#	
@@ -1357,18 +1359,13 @@ async def handle_rsi(req: web.Request) -> web.Response:
 		return render(req, 'msn:oim/Fault.validation.xml', status = 500)
 	action_str = _get_tag_localname(action)
 	
-	# Since valtron's MSIDCRL solution does not supply the ticket ('t='/'p='), we can't go any further with authentication or action supplication.
-	# Keep the code for when we can get the original MSIDCRL DLL modified for Escargot use.
-	# Return 'Fault.unsupported.xml' for now.
-	return render(req, 'msn:Fault.unsupported.xml', { 'faultactor': action_str })
-	
 	user = bs.user
 	
 	backend = req.app['backend']
 	
 	if action_str == 'GetMetadata':
 		return render(req, 'msn:oim/GetMetadataResponse.xml', {
-			'md': gen_mail_data(user, backend, on_ns = False, e_node = False).decode('utf-8'),
+			'md': gen_mail_data(user, backend, on_ns = False, e_node = False),
 		})
 	if action_str == 'GetMessage':
 		oim_uuid = _find_element(action, 'messageId')
@@ -1378,20 +1375,20 @@ async def handle_rsi(req: web.Request) -> web.Response:
 			'oim_data': format_oim(oim),
 		})
 	if action_str == 'DeleteMessages':
-		messageIds = action.findall('.//{*}messageId/{*}messageIds')
+		messageIds = action.findall('.//{*}messageIds/{*}messageId')
+		if not messageIds:
+			return render(req, 'msn:oim/Fault.validation.xml', status = 500)
 		for messageId in messageIds:
 			if backend.user_service.get_oim_single(user, messageId) is None:
 				return render(req, 'msn:oim/Fault.validation.xml', status = 500)
 		for messageId in messageIds:
-			backend.user_service.msn_delete_oim(messageId)
-		bs.evt.msn_on_oim_deletion()
+			backend.user_service.delete_oim(user.uuid, messageId)
+		bs.evt.msn_on_oim_deletion(len(messageIds))
 		return render(req, 'msn:oim/DeleteMessagesResponse.xml')
 	
 	return render(req, 'msn:Fault.unsupported.xml', { 'faultactor': action_str })
 
 async def handle_oim(req: web.Request) -> web.Response:
-	# However, the ticket is present when this service is used. Odd.
-	
 	header, body_msgtype, body_content, bs, token = await _preprocess_soap_oimws(req)
 	soapaction = req.headers.get('SOAPAction').strip('"')
 	
@@ -1408,6 +1405,7 @@ async def handle_oim(req: web.Request) -> web.Response:
 	assert detail is not None
 	
 	friendlyname = None
+	friendlyname_str = None
 	friendly_charset = None
 	
 	friendlyname_mime = header.find('.//{*}From').get('friendlyName')
@@ -1416,7 +1414,7 @@ async def handle_oim(req: web.Request) -> web.Response:
 	
 	recipient_uuid = backend.util_get_uuid_from_email(recipient)
 	
-	if email != user.email or recipient_uuid is None or not _is_on_al(recipient_uuid, user, detail):
+	if email != user.email or recipient_uuid is None or not _is_on_al(recipient_uuid, backend, user, detail):
 		return render(req, 'msn:oim/Fault.unavailable.xml', {
 			'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
 		}, status = 500)
@@ -1434,17 +1432,19 @@ async def handle_oim(req: web.Request) -> web.Response:
 			'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
 		}, status = 500)
 	
-	try:
-		friendlyname, friendly_charset = decode_header(friendlyname_mime)[0]
-	except:
-		return render(req, 'msn:oim/Fault.invalidcontent.xml', {
-			'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
-		}, status = 500)
+	if friendlyname_mime is not None:
+		try:
+			friendlyname, friendly_charset = decode_header(friendlyname_mime)[0]
+		except:
+			return render(req, 'msn:oim/Fault.invalidcontent.xml', {
+				'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
+			}, status = 500)
 	
 	if friendly_charset is None:
 		friendly_charset = 'utf-8'
 	
-	friendlyname_str = friendlyname.decode(friendly_charset)
+	if friendlyname is not None:
+		friendlyname_str = friendlyname.decode(friendly_charset)
 	
 	oim_proxy_string = header.find('.//{*}From').get('proxy')
 	
@@ -1464,32 +1464,37 @@ async def handle_oim(req: web.Request) -> web.Response:
 		return render(req, 'msn:oim/Fault.invalidcontent.xml', {
 			'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
 		}, status = 500)
-	oim_run_id = oim_run_id.replace('{', '').replace('}', '').upper()
+	oim_run_id = oim_run_id.replace('{', '').replace('}', '')
 	if ('X-Message-Info','Received','From','To','Subject','X-OIM-originatingSource','X-OIMProxy','Message-ID','X-OriginalArrivalTime','Date','Return-Path') in oim_mime.keys():
 		return render(req, 'msn:oim/Fault.invalidcontent.xml', {
 			'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
 		}, status = 500)
-	if str(oim_mime.get('Content-Type')) is not 'text/plain; charset=UTF-8':
+	if str(oim_mime.get('MIME-Version')) != '1.0':
 		return render(req, 'msn:oim/Fault.invalidcontent.xml', {
 			'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
 		}, status = 500)
-	if str(oim_mime.get('Content-Transfer-Encoding')) is not 'base64':
+	if not str(oim_mime.get('Content-Type')).startswith('text/plain'):
 		return render(req, 'msn:oim/Fault.invalidcontent.xml', {
 			'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
 		}, status = 500)
-	if str(oim_mime.get('X-OIM-Message-Type')) is not 'OfflineMessage':
+	if str(oim_mime.get('Content-Transfer-Encoding')) != 'base64':
+		return render(req, 'msn:oim/Fault.invalidcontent.xml', {
+			'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
+		}, status = 500)
+	if str(oim_mime.get('X-OIM-Message-Type')) != 'OfflineMessage':
 		return render(req, 'msn:oim/Fault.invalidcontent.xml', {
 			'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
 		}, status = 500)
 	oim_seq_num = str(oim_mime.get('X-OIM-Sequence-Num'))
-	if oim_seq_num is not oim_msg_seq:
+	if oim_seq_num != oim_msg_seq:
 		return render(req, 'msn:oim/Fault.invalidcontent.xml', {
 			'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
 		}, status = 500)
 	oim_headers = {name: str(value) for name, value in oim_mime.items()}
+	
 	try:
-		i = body_content.index('\r\n\r\n') + 4
-		oim_body = body_content[i:].replace('\r\n', '\n')
+		i = body_content.index('\n\n') + 2
+		oim_body = body_content[i:]
 		for oim_b64_line in oim_body.split('\n'):
 			if len(oim_b64_line) > 77:
 				return render(req, 'msn:oim/Fault.invalidcontent.xml', {
@@ -1498,8 +1503,7 @@ async def handle_oim(req: web.Request) -> web.Response:
 		oim_body_normal = oim_body.strip()
 		oim_body_normal = base64.b64decode(oim_body_normal).decode('utf-8')
 		
-		backend.user_service.save_oim(oim_run_id, recipient_uuid, user.email, friendlyname_str, host, oim_body_normal, True, from_friendly_charset = friendly_charset, headers = oim_headers, oim_proxy = oim_proxy_string)
-		bs.me_contact_notify_oim(recipient_uuid, oim_run_id)
+		backend.user_service.save_oim(bs, recipient_uuid, oim_run_id, host, oim_body_normal, True, from_friendly = friendlyname_str, from_friendly_charset = friendly_charset, headers = oim_headers, oim_proxy = oim_proxy_string)
 	except:
 		return render(req, 'msn:oim/Fault.invalidcontent.xml', {
 			'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
@@ -1510,12 +1514,22 @@ async def handle_oim(req: web.Request) -> web.Response:
 		'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
 	})
 
-def _is_on_al(uuid: str, user: models.User, detail: models.UserDetail) -> bool:
+def _is_on_al(uuid: str, backend: Backend, user: models.User, detail: models.UserDetail) -> bool:
 	contact = detail.contacts.get(uuid)
-	if user.settings.get('BLP', 'AL') is 'AL' and (contact is None or contact.lists != models.Lst.BL):
+	if user.settings.get('BLP', 'AL') == 'AL' and (contact is None or not contact.lists & models.Lst.BL):
 		return True
-	elif user.settings.get('BLP', 'AL') is 'BL' and contact is not None and contact.lists != models.Lst.BL:
+	if user.settings.get('BLP', 'AL') == 'BL' and contact is not None and not contact.lists & models.Lst.BL:
 		return True
+	
+	if contact is not None:
+		ctc_detail = backend._load_detail(contact.head)
+		assert ctc_detail is not None
+		
+		ctc_me = ctc_detail.contacts.get(user.uuid)
+		if ctc_me is None and contact.head.settings.get('BLP', 'AL') == 'AL':
+			return True
+		if ctc_me is not None and not ctc_me.lists & models.Lst.BL:
+			return True
 	return False
 
 def _unknown_soap(req: web.Request, header: Any, action: Any, *, expected: bool = False) -> web.Response:
@@ -1588,11 +1602,9 @@ async def _preprocess_soap_rsi(req: web.Request) -> Tuple[Any, Any, Optional[Bac
 	token_tag = root.find('.//{*}PassportCookie/{*}*[1]')
 	if _get_tag_localname(token_tag) is not 't':
 		token = None
-	# TODO: Due to valtron's MSIDCRL DLL not supplying the ticket on certain SOAP services, ignore ticket for now.
-	# Also, either implement the functions for those services or patch the original MSIDCRL.
 	token = token_tag.text
-	if token is not None and token[0:2] == 't=':
-		token = token[2:22]
+	if token is not None:
+		token = token[0:20]
 	
 	backend: Backend = req.app['backend']
 	bs = backend.util_get_sess_by_token(token)
@@ -1603,7 +1615,7 @@ async def _preprocess_soap_rsi(req: web.Request) -> Tuple[Any, Any, Optional[Bac
 	
 	return header, action, bs, token
 
-async def _preprocess_soap_oimws(req: web.Request) -> Tuple[Any, Any, Any, Optional[BackendSession], str]:
+async def _preprocess_soap_oimws(req: web.Request) -> Tuple[Any, str, str, Optional[BackendSession], str]:
 	from lxml.objectify import fromstring as parse_xml
 	
 	body = await req.read()
@@ -1617,8 +1629,8 @@ async def _preprocess_soap_oimws(req: web.Request) -> Tuple[Any, Any, Any, Optio
 	bs = backend.util_get_sess_by_token(token)
 	
 	header = _find_element(root, 'Header')
-	body_msgtype = _find_element(root, 'Body/MessageType')
-	body_content = _find_element(root, 'Body/Content')
+	body_msgtype = str(_find_element(root, 'Body/MessageType'))
+	body_content = str(_find_element(root, 'Body/Content')).replace('\r\n', '\n')
 	
 	return header, body_msgtype, body_content, bs, token
 
@@ -1659,19 +1671,20 @@ def _get_msgr_config(req: web.Request, body: Optional[bytes]) -> str:
 				config = fh.read()
 			with open(TMPL_DIR + '/MsgrConfig.tabs.xml') as fh:
 				config_tabs = fh.read()
-			result = envelope.format(MsgrConfig = config.format(tabs = config_tabs))
+			result = envelope.format(MsgrConfig = config.format(targethost = settings.TARGET_HOST, tabs = config_tabs))
 		elif 8 <= int(config_ver[0]) <= 9:
 			with open(TMPL_DIR + '/MsgrConfig.wlm.8.xml') as fh:
 				config = fh.read()
 			with open(TMPL_DIR + '/MsgrConfig.tabs.xml') as fh:
 				config_tabs = fh.read()
-			result = config.format(tabs = config_tabs)
+			result = config.format(targethost = settings.TARGET_HOST, tabs = config_tabs)
 		elif int(config_ver[0]) >= 14:
 			with open(TMPL_DIR + '/MsgrConfig.wlm.14.xml') as fh:
 				config = fh.read()
-			with open(TMPL_DIR + '/MsgrConfig.tabs.xml') as fh:
-				config_tabs = fh.read()
-			result = config.format(tabs = config_tabs)
+			# TODO: Tabs in WLM 2009+
+			#with open(TMPL_DIR + '/MsgrConfig.tabs.xml') as fh:
+			#	config_tabs = fh.read()
+			result = config.format(targethost = settings.TARGET_HOST)
 	elif body is not None:
 		with open(TMPL_DIR + '/MsgrConfig.msn.envelope.xml') as fh:
 			envelope = fh.read()
@@ -1679,7 +1692,7 @@ def _get_msgr_config(req: web.Request, body: Optional[bytes]) -> str:
 			config = fh.read()
 		with open(TMPL_DIR + '/MsgrConfig.tabs.xml') as fh:
 			config_tabs = fh.read()
-		result = envelope.format(MsgrConfig = config.format(tabs = config_tabs))
+		result = envelope.format(MsgrConfig = config.format(targethost = settings.TARGET_HOST, tabs = config_tabs))
 	
 	return result or ''
 
@@ -1885,8 +1898,6 @@ def render(req: web.Request, tmpl_name: str, ctxt: Optional[Dict[str, Any]] = No
 	else:
 		content_type = 'text/html'
 	tmpl = req.app['jinja_env'].get_template(tmpl_name)
-	# This is only here because of `ABFindContactsPaged`, where WLM 2009 will encode the CircleTicket to Windows format (CR LF), and the ticket
-	# data is Unix (LF).
 	content = tmpl.render(**(ctxt or {}))
 	return web.Response(status = status, content_type = content_type, text = content)
 

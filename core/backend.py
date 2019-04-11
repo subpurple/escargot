@@ -10,7 +10,7 @@ from .user import UserService
 from .auth import AuthService
 from .stats import Stats
 from .client import Client
-from .models import User, UserDetail, Group, Lst, Contact, ABContact, UserStatus, TextWithData, MessageData, Substatus, LoginOption
+from .models import User, UserDetail, Group, Lst, OIM, Contact, ABContact, UserStatus, TextWithData, MessageData, Substatus, LoginOption
 from . import error, event
 
 class Ack(IntFlag):
@@ -743,14 +743,14 @@ class BackendSession(Session):
 			self.backend._mark_modified(user, detail = detail)
 			self.backend._sync_contact_statuses(user)
 	
-	def me_contact_notify_oim(self, uuid: str, oim_uuid: str) -> None:
+	def me_contact_notify_oim(self, uuid: str, oim: 'OIM') -> None:
 		ctc_head = self.backend._load_user_record(uuid)
 		if ctc_head is None:
 			raise error.UserDoesNotExist()
 		
 		for sess_notify in self.backend._sc.get_sessions_by_user(ctc_head):
 			if sess_notify is self: continue
-			sess_notify.evt.msn_on_oim_sent(uuid)
+			sess_notify.evt.on_oim_sent(oim)
 	
 	def me_send_uun_invitation(self, uuid: str, type: int, data: Optional[bytes], *, pop_id_sender: Optional[str] = None, pop_id: Optional[str] = None) -> None:
 		ctc_head = self.backend._load_user_record(uuid)

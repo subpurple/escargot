@@ -3,7 +3,7 @@ import asyncio
 import random
 
 from core.client import Client
-from core.models import Substatus, Lst, Contact, User, NetworkID, TextWithData, MessageData, MessageType, LoginOption
+from core.models import Substatus, Lst, OIM, Contact, User, NetworkID, TextWithData, MessageData, MessageType, LoginOption
 from core.backend import Backend, BackendSession, Chat, ChatSession
 from core import event
 
@@ -59,6 +59,9 @@ class BackendEventHandler(event.BackendEventHandler):
 		pass
 	
 	def on_contact_request_denied(self, user_added: User, message: Optional[str], *, contact_id: Optional[str] = None) -> None:
+		pass
+	
+	def on_oim_sent(self, oim: 'OIM') -> None:
 		pass
 	
 	def ymsg_on_p2p_msg_request(self, yahoo_data: Dict[str, Any]) -> None:

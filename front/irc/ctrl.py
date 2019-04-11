@@ -6,7 +6,7 @@ from enum import IntEnum
 from util.misc import Logger
 
 from core import event
-from core.models import Contact, Substatus, User, TextWithData, MessageData, MessageType, Substatus, LoginOption, NetworkID
+from core.models import Contact, Substatus, User, TextWithData, OIM, MessageData, MessageType, Substatus, LoginOption, NetworkID
 from core.backend import Backend, BackendSession, Chat, ChatSession
 from core.client import Client
 
@@ -210,6 +210,9 @@ class BackendEventHandler(event.BackendEventHandler):
 		self.ctrl.send_reply('NOTICE', ":{} declined your friend request".format(user_added.email), source = user_added.email)
 		if message:
 			self.ctrl.send_reply('NOTICE', ":\"{}\"".format(message), source = user_added.email)
+	
+	def on_oim_sent(self, oim: 'OIM') -> None:
+		pass
 	
 	def msn_on_put_sent(self, payload: bytes, sender: User, *, pop_id_sender: Optional[str] = None, pop_id: Optional[str] = None) -> None:
 		pass

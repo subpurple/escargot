@@ -3,7 +3,6 @@ import binascii
 Y64 = b'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._'
 
 def Y64Encode(string_encode: bytes) -> bytes:
-	string_hex = binascii.hexlify(string_encode)
 	limit = len(string_encode) - (len(string_encode) % 3)
 	pos = 0
 	out = b''
@@ -13,7 +12,7 @@ def Y64Encode(string_encode: bytes) -> bytes:
 	hex_end = 2
 	
 	while i < len(string_encode):
-		buff[i] = int(string_hex[hex_start:hex_end], 16) & 0xff
+		buff[i] = string_encode[i] & 0xff
 		hex_start += 2
 		hex_end += 2
 		i += 1

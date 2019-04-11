@@ -381,8 +381,9 @@ class TextWithData:
 #		self.state = state
 
 class OIM:
-	__slots__ = ('run_id', 'from_email', 'from_friendly', 'from_friendly_encoding', 'from_friendly_charset', 'from_user_id', 'to_email', 'sent', 'origin_ip', 'oim_proxy', 'headers', 'message', 'utf8')
+	__slots__ = ('uuid', 'run_id', 'from_email', 'from_friendly', 'from_friendly_encoding', 'from_friendly_charset', 'from_user_id', 'to_email', 'sent', 'origin_ip', 'oim_proxy', 'headers', 'message', 'utf8')
 	
+	uuid: str
 	run_id: str
 	from_email: str
 	from_friendly: str
@@ -397,7 +398,8 @@ class OIM:
 	message: str
 	utf8: bool
 	
-	def __init__(self, run_id: str, from_email: str, from_friendly: str, to_email: str, sent: datetime, message: str, utf8: bool, *, headers: Optional[Dict[str, str]] = None, from_friendly_encoding: Optional[str] = None, from_friendly_charset: Optional[str] = None, from_user_id: Optional[str] = None, origin_ip: Optional[str] = None, oim_proxy: Optional[str] = None) -> None:
+	def __init__(self, uuid: str, run_id: str, from_email: str, from_friendly: str, to_email: str, sent: datetime, message: str, utf8: bool, *, headers: Optional[Dict[str, str]] = None, from_friendly_encoding: Optional[str] = None, from_friendly_charset: Optional[str] = None, from_user_id: Optional[str] = None, origin_ip: Optional[str] = None, oim_proxy: Optional[str] = None) -> None:
+		self.uuid = uuid
 		self.run_id = run_id
 		self.from_email = from_email
 		self.from_friendly = from_friendly

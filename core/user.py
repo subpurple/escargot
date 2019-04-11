@@ -1,4 +1,4 @@
-from typing import Dict, Optional, List, Tuple, Set, Any
+from typing import Dict, Optional, List, Tuple, Set, Any, TYPE_CHECKING
 from datetime import datetime
 from urllib.parse import quote
 from dateutil import parser as iso_parser
@@ -11,6 +11,9 @@ from util import misc
 from . import error
 from .db import Session, User as DBUser, UserGroup as DBUserGroup, UserContact as DBUserContact, ABStore as DBABStore, ABStoreContact as DBABStoreContact, ABStoreContactLocation as DBABStoreContactLocation, ABStoreContactNetworkInfo as DBABStoreContactNetworkInfo, ABMetadata as DBABMetadata
 from .models import User, Contact, ContactGroupEntry, ABContact, ABContactLocation, ABRelationshipRole, ABRelationshipState, ABRelationshipType, NetworkInfo, RelationshipInfo, UserStatus, UserDetail, NetworkID, Lst, Group, OIM, MessageData
+
+if TYPE_CHECKING:
+	from .backend import BackendSession
 
 class UserService:
 	loop: asyncio.AbstractEventLoop
@@ -570,18 +573,18 @@ class UserService:
 		
 		path = _get_oim_path(user.uuid)
 		if os.path.exists(path):
-			oim_ids = [f for f in os.listdir(path) if os.path.isfile('{path}/{run_id}'.format(path = path, run_id = f))]
+			oim_ids = [f for f in os.listdir(path) if os.path.isfile('{path}/{uuid}'.format(path = path, uuid = f))]
 			for oim_id in oim_ids:
 				oim = self.get_oim_single(user, oim_id)
 				if oim is None: continue
 				tmp_oims.append(oim)
 		return tmp_oims
 	
-	def get_oim_single(self, user: User, run_id: str, *, markAsRead: bool = False) -> Optional[OIM]:
+	def get_oim_single(self, user: User, uuid: str, *, markAsRead: bool = False) -> Optional[OIM]:
 		json_oim = None # type: Optional[Dict[str, Any]]
-		oim_path = '{path}/{run_id}'.format(
+		oim_path = '{path}/{uuid}'.format(
 			path = _get_oim_path(user.uuid),
-			run_id = run_id,
+			uuid = uuid,
 		)
 		
 		if not os.path.isfile(oim_path):
@@ -594,7 +597,7 @@ class UserService:
 		if json_oim is None: return None
 		
 		oim = OIM(
-			json_oim['run_id'], json_oim['from'], json_oim['from_friendly']['friendly_name'], user.email, iso_parser.parse(json_oim['sent']),
+			json_oim['uuid'], json_oim['run_id'], json_oim['from'], json_oim['from_friendly']['friendly_name'], user.email, iso_parser.parse(json_oim['sent']),
 			json_oim['message']['text'], json_oim['message']['utf8'],
 			headers = json_oim['headers'],
 			from_friendly_encoding = json_oim['from_friendly']['encoding'], from_friendly_charset = json_oim['from_friendly']['charset'], from_user_id = json_oim['from_user_id'],
@@ -608,25 +611,30 @@ class UserService:
 		
 		return oim
 	
-	def save_oim(self, run_id: str, recipient_uuid: str, from_email: str, from_friendly: str, origin_ip: str, message: str, utf8: bool, *, from_user_id: Optional[str] = None, from_friendly_charset: str = 'utf-8', from_friendly_encoding: str = 'B', headers: Dict[str, str] = {}, oim_proxy: Optional[str] = None) -> None:
+	def save_oim(self, bs: 'BackendSession', recipient_uuid: str, run_id: str, origin_ip: str, message: str, utf8: bool, *, from_friendly: Optional[str] = None, from_friendly_charset: str = 'utf-8', from_friendly_encoding: str = 'B', from_user_id: Optional[str] = None, headers: Dict[str, str] = {}, oim_proxy: Optional[str] = None) -> None:
+		assert bs is not None
+		user = bs.user
+		
 		path = _get_oim_path(recipient_uuid)
 		if not os.path.exists(path):
 			os.makedirs(path)
-		oim_path = '{path}/{run_id}'.format(
+		oim_uuid = misc.gen_uuid().upper()
+		oim_path = '{path}/{uuid}'.format(
 			path = path,
-			run_id = run_id,
+			uuid = oim_uuid,
 		)
 		
 		if os.path.isfile(oim_path):
-			raise FileExistsError()
+			return
 		
 		oim_json = {} # type: Dict[str, Any]
+		oim_json['uuid'] = oim_uuid
 		oim_json['run_id'] = run_id
-		oim_json['from'] = from_email
+		oim_json['from'] = user.email
 		oim_json['from_friendly'] = {
 			'friendly_name': from_friendly,
-			'encoding': from_friendly_encoding,
-			'charset': from_friendly_charset,
+			'encoding': (None if from_friendly is None else from_friendly_encoding),
+			'charset': (None if from_friendly is None else from_friendly_charset),
 		}
 		oim_json['from_user_id'] = from_user_id
 		oim_json['is_read'] = False
@@ -642,11 +650,21 @@ class UserService:
 		with open(oim_path, 'w') as f:
 			f.write(json.dumps(oim_json))
 			f.close()
+		
+		oim = OIM(
+			oim_json['uuid'], oim_json['run_id'], oim_json['from'], oim_json['from_friendly']['friendly_name'], user.email, iso_parser.parse(oim_json['sent']),
+			oim_json['message']['text'], oim_json['message']['utf8'],
+			headers = oim_json['headers'],
+			from_friendly_encoding = oim_json['from_friendly']['encoding'], from_friendly_charset = oim_json['from_friendly']['charset'], from_user_id = oim_json['from_user_id'],
+			origin_ip = oim_json['origin_ip'], oim_proxy = oim_json['proxy']
+		)
+		
+		bs.me_contact_notify_oim(recipient_uuid, oim)
 	
-	def delete_oim(self, recipient_uuid: str, run_id: str) -> None:
-		oim_path = '{path}/{run_id}'.format(
+	def delete_oim(self, recipient_uuid: str, uuid: str) -> None:
+		oim_path = '{path}/{uuid}'.format(
 			path = _get_oim_path(recipient_uuid),
-			run_id = run_id,
+			uuid = uuid,
 		)
 		if not os.path.isfile(oim_path):
 			return None

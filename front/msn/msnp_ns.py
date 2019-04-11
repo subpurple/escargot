@@ -10,12 +10,12 @@ import re
 import binascii
 import struct
 
-from util.misc import Logger, gen_uuid, first_in_iterable, MultiDict
+from util.misc import Logger, gen_uuid, first_in_iterable, arbitrary_decode, MultiDict
 import settings
 
 from core import event
 from core.backend import Backend, BackendSession, Chat
-from core.models import Substatus, Lst, NetworkID, User, Contact, TextWithData, MessageData, MessageType, LoginOption
+from core.models import Substatus, Lst, NetworkID, User, OIM, Contact, TextWithData, MessageData, MessageType, LoginOption
 from core.client import Client
 
 from .msnp import MSNPCtrl
@@ -584,24 +584,24 @@ class MSNPCtrlNS(MSNPCtrl):
 				for c_el in c_els:
 					lsts = None
 					
-					if self.dialect == 21:
-						s_els = c_el.findall('s')
-						for s_el in s_els:
-							if s_el is not None and s_el.get('n') == 'IM':
-								try:
-									lsts = Lst(int(s_el.get('l')))
-								except ValueError:
-									self.send_reply(Err.XXLInvalidPayload, trid)
-									self.close(hard = True)
-									return
-						if lsts is None: continue
-					else:
-						try:
-							lsts = Lst(int(c_el.get('l')))
-						except ValueError:
-							self.send_reply(Err.XXLInvalidPayload, trid)
-							self.close(hard = True)
-							return
+					#if self.dialect == 21:
+					#	s_els = c_el.findall('s')
+					#	for s_el in s_els:
+					#		if s_el is not None and s_el.get('n') == 'IM':
+					#			try:
+					#				lsts = Lst(int(s_el.get('l')))
+					#			except ValueError:
+					#				self.send_reply(Err.XXLInvalidPayload, trid)
+					#				self.close(hard = True)
+					#				return
+					#	if lsts is None: continue
+					
+					try:
+						lsts = Lst(int(c_el.get('l')))
+					except ValueError:
+						self.send_reply(Err.XXLInvalidPayload, trid)
+						self.close(hard = True)
+						return
 					
 					if lsts & (Lst.RL | Lst.PL):
 						self.send_reply(Err.XXLInvalidPayload, trid)
@@ -649,14 +649,14 @@ class MSNPCtrlNS(MSNPCtrl):
 					username = c_el.get('n')
 					email = '{}@{}'.format(username, domain)
 					
-					if self.dialect == 21:
-						s_els = c_el.findall('s')
-						for s_el in s_els:
-							if s_el is not None and s_el.get('n') == 'IM':
-								lsts = Lst(int(s_el.get('l')))
-						if lsts is None: continue
-					else:
-						lsts = Lst(int(c_el.get('l')))
+					#if self.dialect == 21:
+					#	s_els = c_el.findall('s')
+					#	for s_el in s_els:
+					#		if s_el is not None and s_el.get('n') == 'IM':
+					#			lsts = Lst(int(s_el.get('l')))
+					#	if lsts is None: continue
+					
+					lsts = Lst(int(c_el.get('l')))
 					
 					#if circle_mode:
 					#	contact_uuid = backend.util_get_msn_circle_acc_uuid_from_circle_id(username)
@@ -726,35 +726,35 @@ class MSNPCtrlNS(MSNPCtrl):
 				for c_el in c_els:
 					lsts = None
 					
-					if self.dialect == 21:
-						s_els = c_el.findall('s')
-						for s_el in s_els:
-							if s_el is not None and s_el.get('n') == 'IM':
-								try:
-									lsts = Lst(int(s_el.get('l')))
-								except ValueError:
-									self.send_reply(Err.XXLInvalidPayload, trid)
-									self.close(hard = True)
-									return
-						if lsts is None: continue
-					else:
-						try:
-							networkid = NetworkID(int(c_el.get('t')))
-							
-							#if networkid in (NetworkID.OFFICE_COMMUNICATOR,NetworkID.TELEPHONE,NetworkID.MNI,NetworkID.SMTP):
-							#	self.send_reply(Err.InvalidUser2, trid)
-							#	return
-						except ValueError:
-							self.send_reply(Err.InvalidNetworkID, trid)
-							self.close(hard = True)
-							return
+					#if self.dialect == 21:
+					#	s_els = c_el.findall('s')
+					#	for s_el in s_els:
+					#		if s_el is not None and s_el.get('n') == 'IM':
+					#			try:
+					#				lsts = Lst(int(s_el.get('l')))
+					#			except ValueError:
+					#				self.send_reply(Err.XXLInvalidPayload, trid)
+					#				self.close(hard = True)
+					#				return
+					#	if lsts is None: continue
+					
+					try:
+						networkid = NetworkID(int(c_el.get('t')))
 						
-						try:
-							lsts = Lst(int(c_el.get('l')))
-						except ValueError:
-							self.send_reply(Err.XXLInvalidPayload, trid)
-							self.close(hard = True)
-							return
+						#if networkid in (NetworkID.OFFICE_COMMUNICATOR,NetworkID.TELEPHONE,NetworkID.MNI,NetworkID.SMTP):
+						#	self.send_reply(Err.InvalidUser2, trid)
+						#	return
+					except ValueError:
+						self.send_reply(Err.InvalidNetworkID, trid)
+						self.close(hard = True)
+						return
+					try:
+						lsts = Lst(int(c_el.get('l')))
+					except ValueError:
+						self.send_reply(Err.XXLInvalidPayload, trid)
+						self.close(hard = True)
+						return
+					
 					if lsts & (Lst.RL | Lst.PL):
 						self.send_reply(Err.XXLInvalidPayload, trid)
 						self.close(hard = True)
@@ -774,14 +774,14 @@ class MSNPCtrlNS(MSNPCtrl):
 					username = c_el.get('n')
 					email = '{}@{}'.format(username, domain)
 					
-					if self.dialect == 21:
-						s_els = c_el.findall('s')
-						for s_el in s_els:
-							if s_el is not None and s_el.get('n') == 'IM':
-								lsts = Lst(int(s_el.get('l')))
-						if lsts is None: continue
-					else:
-						lsts = Lst(int(c_el.get('l')))
+					#if self.dialect == 21:
+					#	s_els = c_el.findall('s')
+					#	for s_el in s_els:
+					#		if s_el is not None and s_el.get('n') == 'IM':
+					#			lsts = Lst(int(s_el.get('l')))
+					#	if lsts is None: continue
+					
+					lsts = Lst(int(c_el.get('l')))
 					
 					contact_uuid = self.backend.util_get_uuid_from_email(email)
 					
@@ -1012,221 +1012,227 @@ class MSNPCtrlNS(MSNPCtrl):
 			})
 	
 	def _m_qry(self, trid: str, client_id: str, response: bytes) -> None:
-		if self.dialect == 21:
-			self.send_reply('QRY', trid)
-			return
+		#if self.dialect == 21:
+		#	self.send_reply('QRY', trid)
+		#	return
+		#
+		#challenge = self.challenge
+		#self.challenge = None
+		#
+		#if client_id not in _QRY_ID_CODES or not challenge:
+		#	self.send_reply(Err.ChallengeResponseFailed, trid)
+		#	self.close(hard = True)
+		#	return
+		#
+		#id_key, max_dialect = _QRY_ID_CODES[client_id]
+		#
+		#if self.dialect > max_dialect:
+		#	self.send_reply(Err.ChallengeResponseFailed, trid)
+		#	self.close(hard = True)
+		#	return
+		#
+		#server_response = gen_chal_response(challenge, client_id, id_key, msnp11 = (self.dialect >= 11))
+		#
+		#if response.decode() != server_response:
+		#	self.send_reply(Err.ChallengeResponseFailed, trid)
+		#	self.close(hard = True)
+		#	return
+		#
+		#self.send_reply('QRY', trid)
 		
-		challenge = self.challenge
-		self.challenge = None
-		
-		if client_id not in _QRY_ID_CODES or not challenge:
-			self.send_reply(Err.ChallengeResponseFailed, trid)
-			self.close(hard = True)
-			return
-		
-		id_key, max_dialect = _QRY_ID_CODES[client_id]
-		
-		if self.dialect > max_dialect:
-			self.send_reply(Err.ChallengeResponseFailed, trid)
-			self.close(hard = True)
-			return
-		
-		server_response = gen_chal_response(challenge, client_id, id_key, msnp11 = (self.dialect >= 11))
-		
-		if response.decode() != server_response:
-			self.send_reply(Err.ChallengeResponseFailed, trid)
-			self.close(hard = True)
-			return
-		
-		self.send_reply('QRY', trid)
+		return
 	
 	def _m_put(self, trid: str, data: bytes) -> None:
-		backend = self.backend
-		bs = self.bs
-		assert bs is not None
-		user = bs.user
-		detail = user.detail
-		assert detail is not None
+		# `PUT` only used for circles in MSNP18
 		
-		pop_id_other = None
-		presence = False
-		
-		i = data.index(b'\r\n\r\n') + 4
-		headers = Parser().parsestr(data[:i].decode('utf-8'))
-		
-		to = _split_email_put(str(headers['To']))
-		from_email = _split_email_put(str(headers['From']))
-		
-		#if to[1] is NetworkID.CIRCLE:
-		#	ctc_uuid = backend.util_get_msn_circle_acc_uuid_from_circle_id(to[0])
-		#else:
+		#backend = self.backend
+		#bs = self.bs
+		#assert bs is not None
+		#user = bs.user
+		#detail = user.detail
+		#assert detail is not None
+		#
+		#pop_id_other = None
+		#presence = False
+		#
+		#i = data.index(b'\r\n\r\n') + 4
+		#headers = Parser().parsestr(data[:i].decode('utf-8'))
+		#
+		#to = _split_email_put(str(headers['To']))
+		#from_email = _split_email_put(str(headers['From']))
+		#
+		##if to[1] is NetworkID.CIRCLE:
+		##	ctc_uuid = backend.util_get_msn_circle_acc_uuid_from_circle_id(to[0])
+		##else:
+		##	ctc_uuid = backend.util_get_uuid_from_email(to[0])
+		#
+		#if to[0] != user.email:
 		#	ctc_uuid = backend.util_get_uuid_from_email(to[0])
+		#	if ctc_uuid is None:
+		#		return
+		#	ctc = detail.contacts.get(ctc_uuid)
+		#	if ctc is None:
+		#		return
+		#
+		#body = data[i:].decode()
+		#payload_index = body.rfind('\r\n\r\n')
+		#payload = body[payload_index+4:]
+		#header_end = body.find('\r\n\r\n')
+		#other_headers = body[header_end+4:payload_index].split('\r\n\r\n')
+		#
+		#if headers.get('Content-Type') == 'application/user+xml':
+		#	presence = True
+		#for other_header in other_headers:
+		#	if 'application/user+xml' in other_header:
+		#		presence = True
+		#
+		#if presence:
+		#	try:
+		#		payload_xml = parse_xml(payload)
+		#		
+		#		if not (to[1] is NetworkID.WINDOWS_LIVE and to[0] == user.email and to[2] is None):
+		#			return
+		#		
+		#		name = None # type: Optional[str]
+		#		psm = None # type: Optional[str]
+		#		substatus = None # type: Optional[Substatus]
+		#		currentmedia = None # type: Optional[str]
+		#		capabilities = None # type: Optional[str]
+		#		capabilities_ex = None # type: Optional[str]
+		#		pe_capabilities = None # type: Optional[str]
+		#		pe_capabilitiesex = None # type: Optional[str]
+		#		
+		#		#TODO: Better notification flag criteria
+		#		
+		#		s_els = payload_xml.findall('s')
+		#		for s_el in s_els:
+		#			if s_el.get('n') == 'IM':
+		#				substatus_elm = s_el.find('Status')
+		#				if substatus_elm is not None:
+		#					try:
+		#						substatus = MSNStatus.ToSubstatus(getattr(MSNStatus, substatus_elm.text))
+		#					except ValueError:
+		#						self.close(hard = True)
+		#						return
+		#				currentmedia_elm = s_el.find('CurrentMedia')
+		#				if currentmedia_elm is not None:
+		#					currentmedia = currentmedia_elm.text
+		#			if s_el.get('n') == 'PE':
+		#				name_elm = s_el.find('FriendlyName')
+		#				if name_elm is not None:
+		#					name = name_elm.text
+		#				psm_elm = s_el.find('PSM')
+		#				if psm_elm is not None:
+		#					psm = psm_elm.text
+		#				utl_el = s_el.find('UserTileLocation')
+		#				if utl_el is not None:
+		#					bs.front_data['msn_msnobj'] = utl_el.text
+		#				ddp = s_el.find('DDP')
+		#				if ddp is not None:
+		#					bs.front_data['msn_msnobj_ddp'] = ddp.text
+		#				scene = s_el.find('Scene')
+		#				if scene is not None:
+		#					bs.front_data['msn_msnobj_scene'] = scene.text
+		#				colorscheme = s_el.find('ColorScheme')
+		#				if colorscheme is not None:
+		#					bs.front_data['msn_colorscheme'] = colorscheme.text
+		#		sep_elms = payload_xml.findall('sep')
+		#		for sep_elm in sep_elms:
+		#			if sep_elm.get('n') == 'IM':
+		#				capabilities_elm = sep_elm.find('Capabilities')
+		#				if capabilities_elm is not None:
+		#					if ':' in capabilities_elm.text:
+		#						capabilities, capabilitiesex = capabilities_elm.text.split(':', 1)
+		#					
+		#					try:
+		#						if capabilities is not None:
+		#							capabilities = str(int(capabilities))
+		#						if capabilitiesex is not None:
+		#							capabilitiesex = str(int(capabilitiesex))
+		#					except ValueError:
+		#						self.close(hard = True)
+		#						return
+		#					
+		#					bs.front_data['msn_capabilities'] = capabilities or 0
+		#					bs.front_data['msn_capabilitiesex'] = capabilitiesex or 0
+		#			if sep_elm.get('n') == 'PD':
+		#				client_type = sep_elm.find('ClientType')
+		#				if client_type is not None:
+		#					bs.front_data['msn_client_type'] = client_type.text or None
+		#				epname = sep_elm.find('EpName')
+		#				if epname is not None:
+		#					bs.front_data['msn_epname'] = epname.text or None
+		#				idle = sep_elm.find('Idle')
+		#				if idle is not None:
+		#					bs.front_data['msn_endpoint_idle'] = (True if idle.text == 'true' else False)
+		#				state = sep_elm.find('State')
+		#				if state is not None:
+		#					try:
+		#						bs.front_data['msn_ep_state'] = getattr(MSNStatus, state.text).name
+		#					except:
+		#						self.close(hard = True)
+		#						return
+		#			if sep_elm.get('n') == 'PE':
+		#				bs.front_data['msn_PE'] = True
+		#				ver = sep_elm.find('VER')
+		#				if ver is not None:
+		#					bs.front_data['msn_PE_VER'] = ver.text
+		#				typ = sep_elm.find('TYP')
+		#				if typ is not None:
+		#					bs.front_data['msn_PE_TYP'] = typ.text
+		#				pe_capabilities_elm = sep_elm.find('Capabilities')
+		#				if pe_capabilities_elm is not None:
+		#					if ':' in pe_capabilities_elm.text:
+		#						pe_capabilities, pe_capabilitiesex = pe_capabilities_elm.text.split(':', 1)
+		#					
+		#					try:
+		#						if pe_capabilities is not None:
+		#							pe_capabilities = str(int(pe_capabilities))
+		#						if pe_capabilitiesex is not None:
+		#							pe_capabilitiesex = str(int(pe_capabilitiesex))
+		#					except ValueError:
+		#						self.close(hard = True)
+		#						return
+		#					
+		#					bs.front_data['msn_PE_capabilities'] = pe_capabilities or 0
+		#					bs.front_data['msn_PE_capabilitiesex'] = pe_capabilitiesex or 0
+		#		
+		#		#TODO: Presence is a bit wonky
+		#		bs.me_update({
+		#			'name': name or user.email,
+		#			'message': psm,
+		#			'substatus': substatus,
+		#			'media': currentmedia,
+		#			'needs_notify': (False if user.status.substatus is Substatus.Offline and substatus is None else True),
+		#			'notify_self': True,
+		#		})
+		#		
+		#		if not self.iln_sent:
+		#			self.iln_sent = True
+		#			for ctc in detail.contacts.values():
+		#				for m in build_presence_notif(trid, ctc.head, user, self.dialect, self.backend):
+		#					self.send_reply(*m)
+		#		
+		#		self.send_reply('PUT', trid, 'OK', b'')
+		#		return
+		#	except XMLSyntaxError:
+		#		self.close(hard = True)
+		#		return
+		#
+		#if ctc is not None:
+		#	for ctc_sess in backend.util_get_sessions_by_user(ctc.head):
+		#		pop_id_other = ctc_sess.front_data.get('msn_pop_id')
+		#		if pop_id_other:
+		#			if to[2] is not None:
+		#				if pop_id_other.lower() != to[2].lower().replace('{', '').replace('}', ''):
+		#					continue
+		#				else:
+		#					pop_id_other = to[2].replace('{', '').replace('}', '')
+		#		ctc_sess.evt.msn_on_put_sent(data, user, pop_id_sender = from_email[2], pop_id = pop_id_other)
+		#
+		#self.send_reply('PUT', trid, 'OK', b'')
 		
-		if to[0] != user.email:
-			ctc_uuid = backend.util_get_uuid_from_email(to[0])
-			if ctc_uuid is None:
-				return
-			ctc = detail.contacts.get(ctc_uuid)
-			if ctc is None:
-				return
-		
-		body = data[i:].decode()
-		payload_index = body.rfind('\r\n\r\n')
-		payload = body[payload_index+4:]
-		header_end = body.find('\r\n\r\n')
-		other_headers = body[header_end+4:payload_index].split('\r\n\r\n')
-		
-		if headers.get('Content-Type') == 'application/user+xml':
-			presence = True
-		for other_header in other_headers:
-			if 'application/user+xml' in other_header:
-				presence = True
-		
-		if presence:
-			try:
-				payload_xml = parse_xml(payload)
-				
-				if not (to[1] is NetworkID.WINDOWS_LIVE and to[0] == user.email and to[2] is None):
-					return
-				
-				name = None # type: Optional[str]
-				psm = None # type: Optional[str]
-				substatus = None # type: Optional[Substatus]
-				currentmedia = None # type: Optional[str]
-				capabilities = None # type: Optional[str]
-				capabilities_ex = None # type: Optional[str]
-				pe_capabilities = None # type: Optional[str]
-				pe_capabilitiesex = None # type: Optional[str]
-				
-				#TODO: Better notification flag criteria
-				
-				s_els = payload_xml.findall('s')
-				for s_el in s_els:
-					if s_el.get('n') == 'IM':
-						substatus_elm = s_el.find('Status')
-						if substatus_elm is not None:
-							try:
-								substatus = MSNStatus.ToSubstatus(getattr(MSNStatus, substatus_elm.text))
-							except ValueError:
-								self.close(hard = True)
-								return
-						currentmedia_elm = s_el.find('CurrentMedia')
-						if currentmedia_elm is not None:
-							currentmedia = currentmedia_elm.text
-					if s_el.get('n') == 'PE':
-						name_elm = s_el.find('FriendlyName')
-						if name_elm is not None:
-							name = name_elm.text
-						psm_elm = s_el.find('PSM')
-						if psm_elm is not None:
-							psm = psm_elm.text
-						utl_el = s_el.find('UserTileLocation')
-						if utl_el is not None:
-							bs.front_data['msn_msnobj'] = utl_el.text
-						ddp = s_el.find('DDP')
-						if ddp is not None:
-							bs.front_data['msn_msnobj_ddp'] = ddp.text
-						scene = s_el.find('Scene')
-						if scene is not None:
-							bs.front_data['msn_msnobj_scene'] = scene.text
-						colorscheme = s_el.find('ColorScheme')
-						if colorscheme is not None:
-							bs.front_data['msn_colorscheme'] = colorscheme.text
-				sep_elms = payload_xml.findall('sep')
-				for sep_elm in sep_elms:
-					if sep_elm.get('n') == 'IM':
-						capabilities_elm = sep_elm.find('Capabilities')
-						if capabilities_elm is not None:
-							if ':' in capabilities_elm.text:
-								capabilities, capabilitiesex = capabilities_elm.text.split(':', 1)
-							
-							try:
-								if capabilities is not None:
-									capabilities = str(int(capabilities))
-								if capabilitiesex is not None:
-									capabilitiesex = str(int(capabilitiesex))
-							except ValueError:
-								self.close(hard = True)
-								return
-							
-							bs.front_data['msn_capabilities'] = capabilities or 0
-							bs.front_data['msn_capabilitiesex'] = capabilitiesex or 0
-					if sep_elm.get('n') == 'PD':
-						client_type = sep_elm.find('ClientType')
-						if client_type is not None:
-							bs.front_data['msn_client_type'] = client_type.text or None
-						epname = sep_elm.find('EpName')
-						if epname is not None:
-							bs.front_data['msn_epname'] = epname.text or None
-						idle = sep_elm.find('Idle')
-						if idle is not None:
-							bs.front_data['msn_endpoint_idle'] = (True if idle.text == 'true' else False)
-						state = sep_elm.find('State')
-						if state is not None:
-							try:
-								bs.front_data['msn_ep_state'] = getattr(MSNStatus, state.text).name
-							except:
-								self.close(hard = True)
-								return
-					if sep_elm.get('n') == 'PE':
-						bs.front_data['msn_PE'] = True
-						ver = sep_elm.find('VER')
-						if ver is not None:
-							bs.front_data['msn_PE_VER'] = ver.text
-						typ = sep_elm.find('TYP')
-						if typ is not None:
-							bs.front_data['msn_PE_TYP'] = typ.text
-						pe_capabilities_elm = sep_elm.find('Capabilities')
-						if pe_capabilities_elm is not None:
-							if ':' in pe_capabilities_elm.text:
-								pe_capabilities, pe_capabilitiesex = pe_capabilities_elm.text.split(':', 1)
-							
-							try:
-								if pe_capabilities is not None:
-									pe_capabilities = str(int(pe_capabilities))
-								if pe_capabilitiesex is not None:
-									pe_capabilitiesex = str(int(pe_capabilitiesex))
-							except ValueError:
-								self.close(hard = True)
-								return
-							
-							bs.front_data['msn_PE_capabilities'] = pe_capabilities or 0
-							bs.front_data['msn_PE_capabilitiesex'] = pe_capabilitiesex or 0
-				
-				#TODO: Presence is a bit wonky
-				bs.me_update({
-					'name': name or user.email,
-					'message': psm,
-					'substatus': substatus,
-					'media': currentmedia,
-					'needs_notify': (False if user.status.substatus is Substatus.Offline and substatus is None else True),
-					'notify_self': True,
-				})
-				
-				if not self.iln_sent:
-					self.iln_sent = True
-					for ctc in detail.contacts.values():
-						for m in build_presence_notif(trid, ctc.head, user, self.dialect, self.backend):
-							self.send_reply(*m)
-				
-				self.send_reply('PUT', trid, 'OK', b'')
-				return
-			except XMLSyntaxError:
-				self.close(hard = True)
-				return
-		
-		if ctc is not None:
-			for ctc_sess in backend.util_get_sessions_by_user(ctc.head):
-				pop_id_other = ctc_sess.front_data.get('msn_pop_id')
-				if pop_id_other:
-					if to[2] is not None:
-						if pop_id_other.lower() != to[2].lower().replace('{', '').replace('}', ''):
-							continue
-						else:
-							pop_id_other = to[2].replace('{', '').replace('}', '')
-				ctc_sess.evt.msn_on_put_sent(data, user, pop_id_sender = from_email[2], pop_id = pop_id_other)
-		
-		self.send_reply('PUT', trid, 'OK', b'')
+		return
 	
 	def _m_rea(self, trid: str, email: str, name: str) -> None:
 		if self.dialect >= 10:
@@ -1304,7 +1310,7 @@ class MSNPCtrlNS(MSNPCtrl):
 			self.send_reply(Err.InvalidParameter, trid)
 			return
 		
-		if not self.iln_sent or MSNStatus.FromSubstatus(bs.user.status.substatus) is MSNStatus.HDN:
+		if not self.iln_sent or (MSNStatus.FromSubstatus(bs.user.status.substatus) is MSNStatus.HDN and self.dialect < 13):
 			self.send_reply(Err.NotAllowedWhileHDN, trid)
 			return
 		dialect = self.dialect
@@ -1399,6 +1405,83 @@ class MSNPCtrlNS(MSNPCtrl):
 		pop_id_self = bs.front_data.get('msn_pop_id')
 		
 		bs.me_send_uun_invitation(contact_uuid, uun_type, data, pop_id_sender = pop_id_self, pop_id = pop_id)
+	
+	def _m_uum(self, trid: str, email: str, networkid: str, type: str, data: bytes) -> None:
+		# For federated messaging (with Yahoo!); also used in MSNP18+ for OIMs
+		
+		bs = self.bs
+		assert bs is not None
+		user = bs.user
+		
+		nid = None # type: Optional[NetworkID]
+		
+		message = None
+		
+		if type not in ('1','2','3','4'):
+			self.close(hard = True)
+			return
+		
+		try:
+			nid = NetworkID(int(networkid))
+		except ValueError:
+			self.close(hard = True)
+			return
+		
+		assert nid is not None
+		
+		if nid is NetworkID.WINDOWS_LIVE and self.dialect < 18:
+			self.close(hard = True)
+			return
+		
+		if nid is not NetworkID.WINDOWS_LIVE:
+			return
+		
+		if type != '1':
+			self.close(hard = True)
+			return
+		
+		contact_uuid = self.backend.util_get_uuid_from_email(email)
+		if contact_uuid is None:
+			return
+		
+		ctc_head = self.backend._load_user_record(contact_uuid or '')
+		assert ctc_head is not None
+		
+		if not ctc_head.status.is_offlineish():
+			return
+		
+		ctc_detail = self.backend._load_detail(ctc_head)
+		assert ctc_detail is not None
+		
+		ctc_me = ctc_detail.contacts.get(user.uuid)
+		if ctc_me is not None:
+			if ctc_me.lists & Lst.BL:
+				return
+		else:
+			if ctc_head.settings.get('BLP', 'AL') == 'BL':
+				return
+		
+		try:
+			message_mime = Parser().parsestr(data.decode('utf-8'))
+		except:
+			pass
+		
+		assert message_mime is not None
+		
+		if message_mime.get('Content-Type') is None or str(message_mime.get('Content-Type')).split(';')[0] != 'text/plain':
+			return
+		
+		if message_mime.get('Dest-Agent') != 'client':
+			return
+		
+		try:
+			i = data.index(b'\r\n\r\n') + 4
+			message = data[i:].decode('utf-8')
+			(ip, _) = self.peername
+			
+			self.backend.user_service.save_oim(bs, ctc_head.uuid, gen_uuid(), ip, message, True, from_friendly = user.status.name, oim_proxy = 'MSNMSGR')
+		except:
+			return
 	
 	def _send_chl(self, trid: str) -> None:
 		backend = self.backend
@@ -1505,14 +1588,14 @@ class BackendEventHandler(event.BackendEventHandler):
 	def on_contact_request_denied(self, user_added: User, message: Optional[str], *, contact_id: Optional[str] = None) -> None:
 		pass
 	
-	def msn_on_oim_sent(self, oim_uuid: str) -> None:
+	def on_oim_sent(self, oim: 'OIM') -> None:
 		assert self.ctrl.bs is not None
 		self.ctrl.send_reply('MSG', 'Hotmail', 'Hotmail', encode_payload(PAYLOAD_MSG_2,
-			ct = 'text/x-msmsgsoimnotification', md = gen_mail_data(self.ctrl.bs.user, self.ctrl.backend, oim_uuid = oim_uuid, just_sent = True, e_node = False, q_node = False)
+			ct = 'text/x-msmsgsoimnotification', md = gen_mail_data(self.ctrl.bs.user, self.ctrl.backend, oim_uuid = oim.uuid, just_sent = True, e_node = False, q_node = False)
 		))
 	
-	def msn_on_oim_deletion(self) -> None:
-		self.ctrl.send_reply('MSG', 'Hotmail', 'Hotmail', encode_payload(PAYLOAD_MSG_3))
+	def msn_on_oim_deletion(self, oims_deleted: int) -> None:
+		self.ctrl.send_reply('MSG', 'Hotmail', 'Hotmail', encode_payload(PAYLOAD_MSG_3, oims_deleted = str(oims_deleted)))
 	
 	def msn_on_uun_sent(self, sender: User, type: int, data: Optional[bytes], *, pop_id_sender: Optional[str] = None, pop_id: Optional[str] = None) -> None:
 		ctrl = self.ctrl
@@ -1545,33 +1628,35 @@ class BackendEventHandler(event.BackendEventHandler):
 		))
 	
 	def msn_on_put_sent(self, payload: bytes, sender: User, *, pop_id_sender: Optional[str] = None, pop_id: Optional[str] = None) -> None:
-		ctrl = self.ctrl
-		bs = ctrl.bs
-		assert bs is not None
-		data = b''
+		#ctrl = self.ctrl
+		#bs = ctrl.bs
+		#assert bs is not None
+		#data = b''
+		#
+		#if ctrl.dialect < 18:
+		#	return
+		#
+		#message = Parser().parsestr(payload.decode('utf-8'))
+		#del message['To']
+		#del message['From']
+		#message['To'] = _encode_networkid_email_pop('1:{}'.format(bs.user.email), pop_id)
+		#message['From'] = _encode_networkid_email_pop('1:{}'.format(bs.user.email), pop_id_sender)
+		#
+		#for variable, content in message.items():
+		#	data += '{}: {}\r\n'.format(
+		#		variable, content,
+		#	).encode('utf-8')
+		#data += b'\r\n'
+		#
+		#put_payload = message.get_payload()
+		#if isinstance(put_payload, str):
+		#	data += put_payload.encode('utf-8')
+		#elif isinstance(put_payload, bytes):
+		#	data += put_payload
+		#
+		#self.ctrl.send_reply('NFY', 'PUT', data)
 		
-		if ctrl.dialect < 18:
-			return
-		
-		message = Parser().parsestr(payload.decode('utf-8'))
-		del message['To']
-		del message['From']
-		message['To'] = _encode_networkid_email_pop('1:{}'.format(bs.user.email), pop_id)
-		message['From'] = _encode_networkid_email_pop('1:{}'.format(bs.user.email), pop_id_sender)
-		
-		for variable, content in message.items():
-			data += '{}: {}\r\n'.format(
-				variable, content,
-			).encode('utf-8')
-		data += b'\r\n'
-		
-		put_payload = message.get_payload()
-		if isinstance(put_payload, str):
-			data += put_payload.encode('utf-8')
-		elif isinstance(put_payload, bytes):
-			data += put_payload
-		
-		self.ctrl.send_reply('NFY', 'PUT', data)
+		return
 	
 	def ymsg_on_xfer_init(self, yahoo_data: MultiDict[bytes, bytes]) -> None:
 		pass
@@ -1614,13 +1699,13 @@ def _split_email_put(email: str) -> Tuple[str, NetworkID, Optional[str]]:
 			epid = email_epid[1][6:-1]
 	return (email, networkid, epid)
 
-def _encode_networkid_email_pop(networkid_email: str, pop_id: Optional[str]) -> str:
-	result = networkid_email
-	
-	if pop_id:
-		result = '{};epid={}'.format(result, '{' + pop_id + '}')
-	
-	return result
+#def _encode_networkid_email_pop(networkid_email: str, pop_id: Optional[str]) -> str:
+#	result = networkid_email
+#	
+#	if pop_id:
+#		result = '{};epid={}'.format(result, '{' + pop_id + '}')
+#	
+#	return result
 
 PAYLOAD_MSG_0 = '''Routing: 1.0
 To: 1:{email_address};epid={endpoint_ID}
@@ -1687,7 +1772,7 @@ Content-Type: text/x-msmsgsactivemailnotification; charset=UTF-8
 
 Src-Folder: .!!OIM
 Dest-Folder: .!!trAsH
-Message-Delta: 1
+Message-Delta: {oims_deleted}
 '''
 
 PAYLOAD_MSG_4 = '''<NOTIFICATION id="0" siteid="45705" siteurl="http://contacts.msn.com">

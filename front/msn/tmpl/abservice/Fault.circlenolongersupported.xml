@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+	<soap:Body>
+		<soap:Fault>
+			<faultcode>soap:Client</faultcode>
+			<faultstring>Circle no longer supported</faultstring>
+			<faultactor>http://www.msn.com/webservices/AddressBook/CreateCircle</faultactor>
+			<detail>
+				<errorcode xmlns="http://www.msn.com/webservices/AddressBook">CircleNoLongerSupported</errorcode>
+				<errorstring xmlns="http://www.msn.com/webservices/AddressBook">Circle no longer supported</errorstring>
+				<machineName xmlns="http://www.msn.com/webservices/AddressBook">BY2ABCHWB346</machineName>
+			</detail>
+		</soap:Fault>
+	</soap:Body>
+</soap:Envelope>
