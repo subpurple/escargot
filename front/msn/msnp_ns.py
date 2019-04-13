@@ -1814,14 +1814,12 @@ SHIELDS = '''<?xml version="1.0" encoding="utf-8" ?>
 	<shield><cli maj="7" min="0" minbld="0" maxbld="9999" deny=" " /></shield>
 	<block></block>
 </config>'''.encode('utf-8')
+# TODO: By MSNP18 `GCF` policies have a checksum. What do?
 SHIELDS_MSNP13 = '''<Policies>
-	<Policy type="SHIELDS">
-		<config>
-			<cli maj="7" min="0" minbld="0" maxbld="9999" deny=" " />
-		</config>
-		<block>
-		</block>
-	</Policy>
+	<Policy type="SHIELDS"><config> <cli maj="7" min="0" minbld="0" maxbld="9999" deny=" " /> <block> </block> </config></Policy>
+	<Policy type="ABCH" checksum="03DC55910A9CB79133F1576221A80346"><policy><set id="push" service="ABCH" priority="200"> <r id="pushstorage" threshold="180000" /> </set><set id="delaysup" service="ABCH" priority="150"> <r id="whatsnew" threshold="1800000" /> <r id="whatsnew_storage_ABCH_delay" timer="1800000" /> <r id="whatsnewt_link" threshold="900000" trigger="QueryActivities" /></set> <c id="PROFILE_Rampup">100</c></policy></Policy>
+	<Policy type="ERRORRESPONSETABLE" checksum="492FC3AB58364997FDDF44978227188C"><Policy> <Feature type="3" name="P2P"> <Entry hr="0x81000398" action="3"/> <Entry hr="0x82000020" action="3"/> </Feature> <Feature type="4"> <Entry hr="0x81000440" /> </Feature> <Feature type="6" name="TURN"> <Entry hr="0x8007274C" action="3" /> <Entry hr="0x82000020" action="3" /> </Feature></Policy></Policy>
+	<Policy type="P2P" checksum="815D4F1FF8E39A85F1F97C4B16C45177"><ObjStr SndDly="1" /></Policy>
 </Policies>'''.encode('utf-8')
 TIMESTAMP = '2000-01-01T00:00:00.0-00:00'
 
