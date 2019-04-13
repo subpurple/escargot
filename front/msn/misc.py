@@ -1,6 +1,7 @@
 from typing import Optional, Tuple, Any, Iterable, List, ClassVar, Dict
 from urllib.parse import quote
-from hashlib import md5
+from hashlib import md5, sha1
+import hmac
 from pytz import timezone
 from datetime import datetime
 import base64
@@ -293,6 +294,28 @@ def gen_chal_response(chal: str, id: str, id_key: str, *, msnp11: bool = False) 
 	
 	# TODO: MSNP11 challenge/response procedure
 	return 'PASS'
+
+def generate_rps_key(key: bytes, msg: bytes) -> bytes:
+	hash1 = hmac.new(key, msg, sha1).digest()
+	hash2 = hmac.new(key, (hash1 + msg), sha1).digest()
+	hash3 = hmac.new(key, hash1, sha1).digest()
+	hash4 = hmac.new(key, (hash3 + msg), sha1).digest()
+	
+	return (hash2[:20] + hash4[:4])
+
+def encrypt_with_key_and_iv_tripledes_cbc(key: bytes, iv: bytes, msg: bytes) -> bytes:
+	from cryptography.hazmat.primitives.ciphers import Cipher
+	from cryptography.hazmat.primitives.ciphers.algorithms import TripleDES
+	from cryptography.hazmat.primitives.ciphers.modes import CBC
+	from cryptography.hazmat.backends import default_backend
+	
+	tripledes_cbc_cipher = Cipher(TripleDES(key), mode = CBC(iv), backend = default_backend())
+	tripledes_cbc_encryptor = tripledes_cbc_cipher.encryptor()
+	
+	final = tripledes_cbc_encryptor.update(msg)
+	final += tripledes_cbc_encryptor.finalize()
+	
+	return final
 
 def gen_mail_data(user: User, backend: Backend, *, oim: Optional[OIM] = None, just_sent: bool = False, on_ns: bool = True, e_node: bool = True, q_node: bool = True) -> str:
 	md_m_pl = ''

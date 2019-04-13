@@ -27,7 +27,7 @@
 				</wsse:SecurityTokenReference>
 			</wst:RequestedUnattachedReference>
             <wst:RequestedProofToken>
-                <wst:BinarySecret>Z1OQ3mCLbrkCGvfRX0V8Ly/nSsbmv4La</wst:BinarySecret>
+                <wst:BinarySecret>{{ binarysecret }}</wst:BinarySecret>
             </wst:RequestedProofToken>
         </wst:RequestSecurityTokenResponse>
 

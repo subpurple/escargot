@@ -17,7 +17,7 @@
                 <wsse:Reference URI="#Compact{{ i }}"></wsse:Reference>
             </wst:RequestedTokenReference>
             <wst:RequestedProofToken>
-                <wst:BinarySecret>Z1OQ3mCLbrkCGvfRX0V8Ly/nSsbmv4La</wst:BinarySecret>
+                <wst:BinarySecret>{{ binarysecret }}</wst:BinarySecret>
             </wst:RequestedProofToken>
         </wst:RequestSecurityTokenResponse>
 

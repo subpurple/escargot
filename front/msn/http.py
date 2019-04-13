@@ -1761,7 +1761,7 @@ async def handle_rst(req: web.Request, rst2: bool = False) -> web.Response:
 	
 	backend: Backend = req.app['backend']
 	
-	token = _login(req, email, pwd, lifetime = 86400)
+	token = _login(req, email, pwd, binary_secret = True, lifetime = 86400)
 	
 	uuid = backend.util_get_uuid_from_email(email)
 	
@@ -1783,7 +1783,11 @@ async def handle_rst(req: web.Request, rst2: bool = False) -> web.Response:
 		
 		# get list of requested domains
 		domains = root.findall('.//{*}Address')
-		domains.pop(0) # ignore Passport token request
+		domains.remove('http://Passport.NET/tb') # ignore Passport token request
+		
+		tpl = backend.auth_service.get_token('nb/login', token) # type: Optional[Tuple[str, Optional[str]]]
+		assert tpl is not None
+		_, bsecret = tpl
 		
 		tmpl = req.app['jinja_env'].get_template(('msn:RST/RST2.token.xml' if rst2 else 'msn:RST/RST.token.xml'))
 		# collect tokens for requested domains
@@ -1793,6 +1797,7 @@ async def handle_rst(req: web.Request, rst2: bool = False) -> web.Response:
 			timez = timez,
 			tomorrowz = tomorrowz,
 			pptoken1 = token,
+			binarysecret = bsecret,
 		) for i, domain in enumerate(domains)]
 		
 		tmpl = req.app['jinja_env'].get_template(('msn:RST/RST2.xml' if rst2 else 'msn:RST/RST.xml'))
@@ -1914,11 +1919,12 @@ def _extract_pp_credentials(auth_str: str) -> Optional[Tuple[str, str]]:
 	pwd = auth['pwd']
 	return email, pwd
 
-def _login(req: web.Request, email: str, pwd: str, lifetime: int = 30) -> Optional[str]:
+def _login(req: web.Request, email: str, pwd: str, binary_secret: bool = False, lifetime: int = 30) -> Optional[str]:
 	backend: Backend = req.app['backend']
+	bsecret = None
 	uuid = backend.user_service.login(email, pwd)
 	if uuid is None: return None
-	return backend.auth_service.create_token('nb/login', uuid, lifetime = lifetime)
+	return backend.auth_service.create_token('nb/login', (uuid, base64.b64encode(secrets.token_bytes(24)).decode('ascii') if binary_secret else None), lifetime = lifetime)
 
 def _bool_to_str(b: bool) -> str:
 	return 'true' if b else 'false'
