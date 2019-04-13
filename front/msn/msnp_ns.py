@@ -208,58 +208,69 @@ class MSNPCtrlNS(MSNPCtrl):
 					uuid = tpl[0]
 					if uuid is not None:
 						response = None
-						if dialect >= 15 and len(args) > 1:
-							assert self.rps_challenge is not None
+						if dialect >= 15:
+							rps = False
+							if dialect >= 16:
+								if len(args) == 3:
+									rps = True
+							else:
+								if len(args) > 1:
+									rps = True
 							
-							response_b64 = args[1]
-							try:
-								response = base64.b64decode(response_b64)
-							except:
-								self.send_reply(Err.AuthFail, trid)
-								self.close(hard = True)
-								return
+							if settings.DEBUG and settings.DEBUG_MSNP: print('RPS authentication:', rps)
 							
-							if len(response) < 28:
-								self.send_reply(Err.AuthFail, trid)
-								self.close(hard = True)
-								return
-							
-							if struct.unpack('<I', response[0:4])[0] != 28 or struct.unpack('<I', response[4:8])[0] != 1 or struct.unpack('<I', response[8:12])[0] != 0x6603 or struct.unpack('<I', response[12:16])[0] != 0x8004 or struct.unpack('<I', response[16:20])[0] != 8 or struct.unpack('<I', response[20:24])[0] != 20 or struct.unpack('<I', response[24:28])[0] != 72:
-								self.send_reply(Err.AuthFail, trid)
-								self.close(hard = True)
-								return
-							
-							response_payload = response[28:]
-							
-							if not len(response_payload) == (8+20+72):
-								self.send_reply(Err.AuthFail, trid)
-								self.close(hard = True)
-								return
-							
-							response_iv = response_payload[0:8]
-							response_hash = response_payload[8:28]
-							response_cipher = response_payload[28:100]
-							
-							binarysecret_b64 = tpl[1]
-							
-							if binarysecret_b64 is None:
-								self.send_reply(Err.AuthFail, trid)
-								self.close(hard = True)
-								return
-							
-							binarysecret = base64.b64decode(binarysecret_b64)
-							
-							key2 = generate_rps_key(binarysecret, b'WS-SecureConversationSESSION KEY HASH')
-							key3 = generate_rps_key(binarysecret, b'WS-SecureConversationSESSION KEY ENCRYPTION')
-							
-							response_hash_server = hmac.new(key2, self.rps_challenge, sha1).digest()
-							
-							response_cipher_server = encrypt_with_key_and_iv_tripledes_cbc(key3, response_iv, (self.rps_challenge + b'\x08\x08\x08\x08\x08\x08\x08\x08'))
-							
-							if response_hash != response_hash_server or response_cipher != response_cipher_server:
-								self.send_reply(Err.AuthFail, trid)
-								self.close(hard = True)
-								return
+							if rps:
+								assert self.rps_challenge is not None
+								
+								response_b64 = args[1]
+								try:
+									response = base64.b64decode(response_b64)
+								except:
+									self.send_reply(Err.AuthFail, trid)
+									self.close(hard = True)
+									return
+								
+								if len(response) < 28:
+									self.send_reply(Err.AuthFail, trid)
+									self.close(hard = True)
+									return
+								
+								if struct.unpack('<I', response[0:4])[0] != 28 or struct.unpack('<I', response[4:8])[0] != 1 or struct.unpack('<I', response[8:12])[0] != 0x6603 or struct.unpack('<I', response[12:16])[0] != 0x8004 or struct.unpack('<I', response[16:20])[0] != 8 or struct.unpack('<I', response[20:24])[0] != 20 or struct.unpack('<I', response[24:28])[0] != 72:
+									self.send_reply(Err.AuthFail, trid)
+									self.close(hard = True)
+									return
+								
+								response_payload = response[28:]
+								
+								if not len(response_payload) == (8+20+72):
+									self.send_reply(Err.AuthFail, trid)
+									self.close(hard = True)
+									return
+								
+								response_iv = response_payload[0:8]
+								response_hash = response_payload[8:28]
+								response_cipher = response_payload[28:100]
+								
+								binarysecret_b64 = tpl[1]
+								
+								if binarysecret_b64 is None:
+									self.send_reply(Err.AuthFail, trid)
+									self.close(hard = True)
+									return
+								
+								binarysecret = base64.b64decode(binarysecret_b64)
+								
+								key2 = generate_rps_key(binarysecret, b'WS-SecureConversationSESSION KEY HASH')
+								key3 = generate_rps_key(binarysecret, b'WS-SecureConversationSESSION KEY ENCRYPTION')
+								
+								response_hash_server = hmac.new(key2, self.rps_challenge, sha1).digest()
+								
+								response_cipher_server = encrypt_with_key_and_iv_tripledes_cbc(key3, response_iv, (self.rps_challenge + b'\x08\x08\x08\x08\x08\x08\x08\x08'))
+								
+								if response_hash != response_hash_server or response_cipher != response_cipher_server:
+									self.send_reply(Err.AuthFail, trid)
+									self.close(hard = True)
+									return
 						if dialect >= 16:
 							# Only check the # of args since people could connect from either patched `msidcrl40.dll` or vanilla `msidcrl40.dll`
 							if 2 <= len(args) <= 3:
