@@ -194,8 +194,8 @@ class MSNPCtrlNS(MSNPCtrl):
 				return
 			if stage == 'S':
 				#>>> USR trid TWN S auth_token
-				#>>> USR trid SSO S auth_token [b64_response; not included when patched clients login]
-				#>>> USR trid SSO S auth_token [b64_response; not included when patched clients login] machineguid (MSNP >= 16)
+				#>>> USR trid SSO S auth_token [b64_response; not included when MSIDCRL-patched clients login]
+				#>>> USR trid SSO S auth_token [b64_response; not included when MSIDCRL-patched clients login] machineguid (MSNP >= 16)
 				token = args[0]
 				if token[0:2] == 't=':
 					token = token[2:22]

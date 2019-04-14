@@ -9,6 +9,7 @@ import re
 import secrets
 import base64
 import os
+import json
 import time
 from dateutil import parser as iso_parser
 from markupsafe import Markup
@@ -22,6 +23,7 @@ import util.misc
 
 LOGIN_PATH = '/login'
 TMPL_DIR = 'front/msn/tmpl'
+ETC_DIR = 'front/msn/etc'
 PP = 'Passport1.4 '
 
 def register(app: web.Application) -> None:
@@ -45,6 +47,7 @@ def register(app: web.Application) -> None:
 	app.router.add_post('/Config/MsgrConfig.asmx', handle_msgrconfig)
 	app.router.add_get('/config/MsgrConfig.asmx', handle_msgrconfig)
 	app.router.add_post('/config/MsgrConfig.asmx', handle_msgrconfig)
+	app.router.add_get('/etc/text-ad-service', handle_textad)
 	
 	# MSN >= 7.5
 	app.router.add_route('OPTIONS', '/NotRST.srf', handle_not_rst)
@@ -53,7 +56,7 @@ def register(app: web.Application) -> None:
 	app.router.add_post('/RST2.srf', lambda req: handle_rst(req, rst2 = True))
 	
 	# MSN 8.1.0178
-	# TODO: Use SOAP library for ABService, SharingService, and StorageService.
+	# TODO: Use SOAP library for SOAP services.
 	app.router.add_post('/abservice/SharingService.asmx', handle_abservice)
 	app.router.add_post('/abservice/abservice.asmx', handle_abservice)
 	app.router.add_post('/storageservice/SchematizedStore.asmx', handle_storageservice)
@@ -1645,6 +1648,23 @@ def _find_element(xml: Any, query: str) -> Any:
 		thing = bool(thing)
 	return thing
 
+async def handle_textad(req: web.Request) -> web.Response:
+	with open(ETC_DIR + '/textads.json') as f:
+		textads = json.loads(f.read())
+		f.close()
+	
+	ads_json = list(textads.values())
+	if len(ads_json) == 0: return web.HTTPOk()
+	
+	if len(ads_json) > 1:
+		ad = ads_json[secrets.randbelow((len(ads_json)-1))]
+	else:
+		ad = ads_json[0]
+	return render(req, 'msn:textad.xml', {
+		'caption': ad['caption'],
+		'hiturl': ad['hiturl'],
+	})
+
 async def handle_msgrconfig(req: web.Request) -> web.Response:
 	if req.method == 'POST':
 		body = await req.read() # type: Optional[bytes]
@@ -1671,20 +1691,20 @@ def _get_msgr_config(req: web.Request, body: Optional[bytes]) -> str:
 				config = fh.read()
 			with open(TMPL_DIR + '/MsgrConfig.tabs.xml') as fh:
 				config_tabs = fh.read()
-			result = envelope.format(MsgrConfig = config.format(targethost = settings.TARGET_HOST, tabs = config_tabs))
+			result = envelope.format(MsgrConfig = config.format(tabs = config_tabs))
 		elif 8 <= int(config_ver[0]) <= 9:
 			with open(TMPL_DIR + '/MsgrConfig.wlm.8.xml') as fh:
 				config = fh.read()
 			with open(TMPL_DIR + '/MsgrConfig.tabs.xml') as fh:
 				config_tabs = fh.read()
-			result = config.format(targethost = settings.TARGET_HOST, tabs = config_tabs)
+			result = config.format(tabs = config_tabs)
 		elif int(config_ver[0]) >= 14:
 			with open(TMPL_DIR + '/MsgrConfig.wlm.14.xml') as fh:
 				config = fh.read()
 			# TODO: Tabs in WLM 2009+
 			#with open(TMPL_DIR + '/MsgrConfig.tabs.xml') as fh:
 			#	config_tabs = fh.read()
-			result = config.format(targethost = settings.TARGET_HOST)
+			result = config.format()
 	elif body is not None:
 		with open(TMPL_DIR + '/MsgrConfig.msn.envelope.xml') as fh:
 			envelope = fh.read()
@@ -1692,7 +1712,7 @@ def _get_msgr_config(req: web.Request, body: Optional[bytes]) -> str:
 			config = fh.read()
 		with open(TMPL_DIR + '/MsgrConfig.tabs.xml') as fh:
 			config_tabs = fh.read()
-		result = envelope.format(MsgrConfig = config.format(targethost = settings.TARGET_HOST, tabs = config_tabs))
+		result = envelope.format(MsgrConfig = config.format(tabs = config_tabs))
 	
 	return result or ''
 

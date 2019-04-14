@@ -82,11 +82,15 @@
 		</msntabsettings>
 		<AbchCfg>
 			<abchconfig>
-				<url>https://{targethost}/abservice/abservice.asmx</url>
+				<url>https://m1.escargot.log1p.xyz/abservice/abservice.asmx</url>
 			</abchconfig>
 		</AbchCfg>
 	</TabConfig>
 	<LocalizedConfig Market="en-US">
+		<AdMainConfig>
+			<TextAdRefresh>1</TextAdRefresh>
+			<TextAdServer>https://m1.escargot.log1p.xyz/etc/text-ad-service</TextAdServer>
+		</AdMainConfig>
 		<Contacts>
 			<ABPendingRequests>
 				<url>http://spaces.live.com/PendingRequests.aspx?mkt=en-us&amp;partner=Messenger</url>

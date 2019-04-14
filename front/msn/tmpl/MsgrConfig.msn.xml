@@ -68,10 +68,14 @@
 			<oemdisplaylimit>1</oemdisplaylimit><oemtotallimit>1</oemtotallimit>
 		</msntabsettings>
 		<AbchCfg>
-			<abchconfig><url>https://{targethost}/abservice/abservice.asmx</url></abchconfig>
+			<abchconfig><url>https://m1.escargot.log1p.xyz/abservice/abservice.asmx</url></abchconfig>
 		</AbchCfg>
 	</TabConfig>
 	<LocalizedConfig Market="en-US">
+		<AdMainConfig>
+			<TextAdRefresh>1</TextAdRefresh>
+			<TextAdServer>https://m1.escargot.log1p.xyz/etc/text-ad-service</TextAdServer>
+		</AdMainConfig>
 		<ContactCard>
 			<ContactCardDisabled>false</ContactCardDisabled>
 			<GetItemVerUrl>http://storage.msn.com/storageservice/schematizedstore.asmx</GetItemVerUrl>

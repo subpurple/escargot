@@ -452,10 +452,15 @@
 			<oemdisplaylimit>1</oemdisplaylimit><oemtotallimit>1</oemtotallimit>
 		</msntabsettings>
 		<AbchCfg>
-			<abchconfig><url>https://{targethost}/abservice/abservice.asmx</url></abchconfig>
+			<abchconfig><url>https://m1.escargot.log1p.xyz/abservice/abservice.asmx</url></abchconfig>
 		</AbchCfg>
 	</TabConfig>
 	<LocalizedConfig Market="en-US">
+		<AdMainConfig>
+			<TextAdRotation>420</TextAdRotation>
+			<TextAdRefresh>1</TextAdRefresh>
+			<TextAdServer>https://m1.escargot.log1p.xyz/etc/text-ad-service</TextAdServer>
+		</AdMainConfig>
 		<Contacts>
 			<ABPendingRequests>
 				<SiteId>73625</SiteId>
