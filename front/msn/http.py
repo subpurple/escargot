@@ -1653,13 +1653,12 @@ async def handle_textad(req: web.Request) -> web.Response:
 		textads = json.loads(f.read())
 		f.close()
 	
-	ads_json = list(textads.values())
-	if len(ads_json) == 0: return web.HTTPOk()
+	if len(textads) == 0: return web.HTTPOk()
 	
-	if len(ads_json) > 1:
-		ad = ads_json[secrets.randbelow((len(ads_json)-1))]
+	if len(textads) > 1:
+		ad = textads[secrets.randbelow((len(textads)-1))]
 	else:
-		ad = ads_json[0]
+		ad = textads[0]
 	return render(req, 'msn:textad.xml', {
 		'caption': ad['caption'],
 		'hiturl': ad['hiturl'],
