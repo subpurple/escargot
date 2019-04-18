@@ -98,8 +98,8 @@ class ContactGroupEntry:
 		self.id = id
 		self.uuid = uuid
 
-class ABContact:
-	__slots__ = ('type', 'id', 'uuid', 'email', 'birthdate', 'anniversary', 'member_uuid', 'date_last_modified', 'notes', 'name', 'first_name', 'middle_name', 'last_name', 'nickname', 'primary_email_type', 'personal_email', 'work_email', 'im_email', 'other_email', 'home_phone', 'work_phone', 'fax_phone', 'pager_phone', 'mobile_phone', 'other_phone', 'personal_website', 'business_website', 'locations', 'groups', 'is_messenger_user', 'networkinfos', 'annotations')
+class AddressBookContact:
+	__slots__ = ('type', 'id', 'uuid', 'email', 'birthdate', 'anniversary', 'member_uuid', 'date_last_modified', 'notes', 'name', 'first_name', 'middle_name', 'last_name', 'nickname', 'primary_email_type', 'personal_email', 'work_email', 'im_email', 'other_email', 'home_phone', 'work_phone', 'fax_phone', 'pager_phone', 'mobile_phone', 'other_phone', 'personal_website', 'business_website', 'locations', 'groups', 'is_messenger_user', 'annotations')
 	
 	type: str
 	id: str
@@ -128,13 +128,12 @@ class ABContact:
 	other_phone: Optional[str]
 	personal_website: Optional[str]
 	business_website: Optional[str]
-	locations: Dict[str, 'ABContactLocation']
+	locations: Dict[str, 'AddressBookContactLocation']
 	groups: Set[str]
 	is_messenger_user: bool
-	networkinfos: Dict['NetworkID', 'NetworkInfo']
 	annotations: Dict[str, Any]
 	
-	def __init__(self, type: str, id: str, uuid: str, email: str, name: Optional[str], groups: Set[str], *, birthdate: Optional[datetime] = None, anniversary: Optional[datetime] = None, notes: Optional[str] = None, first_name: Optional[str] = None, middle_name: Optional[str] = None, last_name: Optional[str] = None, nickname: Optional[str] = None, primary_email_type: Optional[str] = None, personal_email: Optional[str] = None, work_email: Optional[str] = None, im_email: Optional[str] = None, other_email: Optional[str] = None, home_phone: Optional[str] = None, work_phone: Optional[str] = None, fax_phone: Optional[str] = None, pager_phone: Optional[str] = None, mobile_phone: Optional[str] = None, other_phone: Optional[str] = None, personal_website: Optional[str] = None, business_website: Optional[str] = None, locations: Optional[Dict[str, 'ABContactLocation']] = None, networkinfos: Optional[Dict['NetworkID', 'NetworkInfo']] = None, member_uuid: Optional[str] = None, is_messenger_user: Optional[bool] = None, annotations: Optional[Dict[str, Any]] = None, date_last_modified: Optional[datetime] = None) -> None:
+	def __init__(self, type: str, id: str, uuid: str, email: str, name: Optional[str], groups: Set[str], *, birthdate: Optional[datetime] = None, anniversary: Optional[datetime] = None, notes: Optional[str] = None, first_name: Optional[str] = None, middle_name: Optional[str] = None, last_name: Optional[str] = None, nickname: Optional[str] = None, primary_email_type: Optional[str] = None, personal_email: Optional[str] = None, work_email: Optional[str] = None, im_email: Optional[str] = None, other_email: Optional[str] = None, home_phone: Optional[str] = None, work_phone: Optional[str] = None, fax_phone: Optional[str] = None, pager_phone: Optional[str] = None, mobile_phone: Optional[str] = None, other_phone: Optional[str] = None, personal_website: Optional[str] = None, business_website: Optional[str] = None, locations: Optional[Dict[str, 'AddressBookContactLocation']] = None, member_uuid: Optional[str] = None, is_messenger_user: Optional[bool] = None, annotations: Optional[Dict[str, Any]] = None, date_last_modified: Optional[datetime] = None) -> None:
 		self.type = type
 		self.id = id
 		self.uuid = uuid
@@ -165,10 +164,9 @@ class ABContact:
 		self.locations = _default_if_none(locations, {})
 		self.groups = groups
 		self.is_messenger_user = _default_if_none(is_messenger_user, False)
-		self.networkinfos = _default_if_none(networkinfos, {})
 		self.annotations = _default_if_none(annotations, {})
 
-class ABContactLocation:
+class AddressBookContactLocation:
 	__slots__ = ('type', 'name', 'street', 'city', 'state', 'country', 'zip_code')
 	
 	type: str
@@ -187,42 +185,6 @@ class ABContactLocation:
 		self.state = state
 		self.country = country
 		self.zip_code = zip_code
-
-class NetworkInfo:
-	__slots__ = ('domain_id', 'source_id', 'domain_tag', 'display_name', 'relationship_info', 'invite_message', 'date_created', 'date_last_modified')
-	
-	domain_id: 'NetworkID'
-	source_id: str
-	domain_tag: str
-	display_name: Optional[str]
-	relationship_info: 'RelationshipInfo'
-	invite_message: Optional[str]
-	date_created: datetime
-	date_last_modified: datetime
-	
-	def __init__(self, domain_id: 'NetworkID', source_id: str, domain_tag: str, display_name: Optional[str], relationship_info: 'RelationshipInfo', *, invite_message: Optional[str] = None, date_created: Optional[datetime] = None, date_last_modified: Optional[datetime] = None) -> None:
-		self.domain_id = domain_id
-		self.source_id = source_id
-		self.domain_tag = domain_tag
-		self.display_name = display_name
-		self.relationship_info = relationship_info
-		self.invite_message = invite_message
-		self.date_created = _default_if_none(date_created, datetime.utcnow())
-		self.date_last_modified = _default_if_none(date_last_modified, datetime.utcnow())
-
-class RelationshipInfo:
-	__slots__ = ('relationship_type', 'relationship_role', 'relationship_state', 'relationship_state_date')
-	
-	relationship_type: 'ABRelationshipType'
-	relationship_role: 'ABRelationshipRole'
-	relationship_state: 'ABRelationshipState'
-	relationship_state_date: datetime
-	
-	def __init__(self, relationship_type: 'ABRelationshipType', relationship_role: 'ABRelationshipRole', relationship_state: 'ABRelationshipState', relationship_state_date: Optional[datetime] = None) -> None:
-		self.relationship_type = relationship_type
-		self.relationship_role = relationship_role
-		self.relationship_state = relationship_state
-		self.relationship_state_date = _default_if_none(relationship_state_date, datetime.utcnow())
 
 class UserStatus:
 	__slots__ = ('substatus', 'name', '_message', '_persistent', 'media')
@@ -252,15 +214,13 @@ class UserStatus:
 		return self.substatus.is_offlineish()
 
 class UserDetail:
-	__slots__ = ('subscribed_ab_stores', '_groups_by_id', '_groups_by_uuid', 'contacts')
+	__slots__ = ('_groups_by_id', '_groups_by_uuid', 'contacts')
 	
-	subscribed_ab_stores: Set[str]
 	_groups_by_id: Dict[str, 'Group']
 	_groups_by_uuid: Dict[str, 'Group']
 	contacts: Dict[str, 'Contact']
 	
-	def __init__(self, subscribed_ab_stores: Set[str]) -> None:
-		self.subscribed_ab_stores = subscribed_ab_stores
+	def __init__(self) -> None:
 		self._groups_by_id = {}
 		self._groups_by_uuid = {}
 		self.contacts = {}
@@ -371,10 +331,10 @@ class TextWithData:
 #	
 #	circle_id: str
 #	email: str
-#	role: 'ABRelationshipRole'
-#	state: 'ABRelationshipState'
+#	role: 'CircleRole'
+#	state: 'CircleState'
 #	
-#	def __init__(self, circle_id: str, email: str, role: 'ABRelationshipRole', state: 'ABRelationshipState'):
+#	def __init__(self, circle_id: str, email: str, role: 'CircleRole', state: 'CircleState'):
 #		self.circle_id = circle_id
 #		self.email = email
 #		self.role = role
@@ -481,23 +441,19 @@ class NetworkID(IntEnum):
 	SMTP = 0x10 # Jaguire, Japanese mobile interop
 	YAHOO = 0x20
 
-class ABRelationshipRole(IntEnum):
-	Empty = 0
-	Admin = 1
-	AssistantAdmin = 2
-	Member = 3
-	StatePendingOutbound = 4
-
-class ABRelationshipState(IntEnum):
-	Empty = 0
-	WaitingResponse = 1
-	Left = 2
-	Accepted = 3
-	Rejected = 4
-
-class ABRelationshipType(IntEnum):
-	Regular = 3
-	Circle = 5
+#class CircleRole(IntEnum):
+#	Empty = 0
+#	Admin = 1
+#	AssistantAdmin = 2
+#	Member = 3
+#	StatePendingOutbound = 4
+#
+#class CircleState(IntEnum):
+#	Empty = 0
+#	WaitingResponse = 1
+#	Left = 2
+#	Accepted = 3
+#	Rejected = 4
 
 class Service:
 	__slots__ = ('host', 'port')

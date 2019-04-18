@@ -2,7 +2,7 @@ import getpass
 from datetime import datetime
 
 from util import misc, hash
-from core.db import Session, User, ABStore, ABMetadata
+from core.db import Session, User, AddressBook
 
 def main(email: str, *, oldmsn: bool = False, yahoo: bool = False) -> None:
 	with Session() as sess:
@@ -15,21 +15,13 @@ def main(email: str, *, oldmsn: bool = False, yahoo: bool = False) -> None:
 				settings = {},
 			)
 			
-			user.subscribed_ab_stores = ['00000000-0000-0000-0000-000000000000']
-			abmetadata = sess.query(ABMetadata).filter(ABMetadata.ab_id == '00000000-0000-0000-0000-000000000000').one_or_none()
-			if not abmetadata:
-				abmetadata = ABMetadata(
-					ab_id = '00000000-0000-0000-0000-000000000000', ab_type = 'Individual',
-				)
-				sess.add(abmetadata)
-			
 			now = datetime.utcnow()
 			
-			abstore = ABStore(
-				member_uuid = user.uuid, ab_id = '00000000-0000-0000-0000-000000000000',
+			addressbook = AddressBook(
+				member_uuid = user.uuid,
 			)
-			abstore.date_last_modified = now
-			sess.add(abstore)
+			addressbook.date_last_modified = now
+			sess.add(addressbook)
 			
 			# TODO: Should be generated on-demand, not here
 			#ticketxml = '<?xml version="1.0" encoding="utf-16"?>\r\n<Ticket xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">\r\n  <TS>{}</TS>\r\n  <CID>{}</CID>\r\n</Ticket>'.format(

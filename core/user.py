@@ -9,8 +9,8 @@ from util.hash import hasher, hasher_md5, hasher_md5crypt, gen_salt
 from util import misc
 
 from . import error
-from .db import Session, User as DBUser, UserGroup as DBUserGroup, UserContact as DBUserContact, ABStore as DBABStore, ABStoreContact as DBABStoreContact, ABStoreContactLocation as DBABStoreContactLocation, ABStoreContactNetworkInfo as DBABStoreContactNetworkInfo, ABMetadata as DBABMetadata
-from .models import User, Contact, ContactGroupEntry, ABContact, ABContactLocation, ABRelationshipRole, ABRelationshipState, ABRelationshipType, NetworkInfo, RelationshipInfo, UserStatus, UserDetail, NetworkID, Lst, Group, OIM, MessageData
+from .db import Session, User as DBUser, UserGroup as DBUserGroup, UserContact as DBUserContact, AddressBook as DBAddressBook, AddressBookContact as DBAddressBookContact, AddressBookContactLocation as DBAddressBookContactLocation
+from .models import User, Contact, ContactGroupEntry, AddressBookContact, AddressBookContactLocation, UserStatus, UserDetail, NetworkID, Lst, Group, OIM, MessageData
 
 if TYPE_CHECKING:
 	from .backend import BackendSession
@@ -18,16 +18,14 @@ if TYPE_CHECKING:
 class UserService:
 	loop: asyncio.AbstractEventLoop
 	_cache_by_uuid: Dict[str, Optional[User]]
-	_individual_ab_ctc_cache_by_uuid_by_uuid_by_uuid: Dict[str, Dict[str, Dict[str, Optional[ABContact]]]]
-	_group_ab_ctc_cache_by_uuid_by_uuid: Dict[str, Dict[str, Optional[ABContact]]]
-	_worklist_sync_ab: Dict[int, Tuple[str, User, Dict[str, Any]]]
+	_ab_ctc_cache_by_uuid_by_uuid: Dict[str, Dict[str, Optional[AddressBookContact]]]
+	_worklist_sync_ab: Dict[int, Tuple[User, Dict[str, Any]]]
 	_working_ab_sync_ids: List[int]
 	
 	def __init__(self, loop: asyncio.AbstractEventLoop) -> None:
 		self.loop = loop
 		self._cache_by_uuid = {}
-		self._individual_ab_ctc_cache_by_uuid_by_uuid_by_uuid = {}
-		self._group_ab_ctc_cache_by_uuid_by_uuid = {}
+		self._ab_ctc_cache_by_uuid_by_uuid = {}
 		self._worklist_sync_ab = {}
 		self._working_ab_sync_ids = []
 		
@@ -119,7 +117,7 @@ class UserService:
 		with Session() as sess:
 			dbuser = sess.query(DBUser).filter(DBUser.uuid == uuid).one_or_none()
 			if dbuser is None: return None
-			detail = UserDetail(set(dbuser.subscribed_ab_stores))
+			detail = UserDetail()
 			groups = sess.query(DBUserGroup).filter(DBUserGroup.user_uuid == uuid)
 			for g in groups:
 				grp = Group(g.group_id, g.group_uuid, g.name, g.is_favorite, date_last_modified = g.date_last_modified)
@@ -150,248 +148,172 @@ class UserService:
 			keys = list(self._worklist_sync_ab.keys())[:100]
 			batch = []
 			for key in keys:
-				ab_id, user, fields = self._worklist_sync_ab.pop(key)
-				if not ab_id: continue
+				user, fields = self._worklist_sync_ab.pop(key)
 				self._working_ab_sync_ids.append(key)
-				batch.append((key,ab_id,user,fields))
+				batch.append((key,user,fields))
 			self.save_batch_ab(batch)
 		except:
 			traceback.print_exc()
 	
-	def check_ab(self, ab_id: str, *, uuid: Optional[str] = None) -> bool:
+	def create_ab(self, user: User) -> None:
 		with Session() as sess:
-			return self._get_ab_store(ab_id, uuid = uuid) is not None
-	
-	def create_ab(self, ab_id: str, type: str, user: User) -> None:
-		with Session() as sess:
-			dbabmetadata = sess.query(DBABMetadata).filter(DBABMetadata.ab_id == ab_id).one_or_none()
-			if not dbabmetadata:
-				dbabmetadata = DBABMetadata(
-					ab_id = ab_id, ab_type = type,
-				)
-				sess.add(dbabmetadata)
+			dbaddressbook = sess.query(DBAddressBook).filter(DBAddressBook.member_uuid == user.uuid).one_or_none()
 			
-			if dbabmetadata.ab_type == 'Individual':
-				dbabstore = sess.query(DBABStore).filter(DBABStore.member_uuid == user.uuid, DBABStore.ab_id == ab_id).one_or_none()
-			elif dbabmetadata.ab_type == 'Group':
-				dbabstore = sess.query(DBABStore).filter(DBABStore.ab_id == ab_id).one_or_none()
-			
-			if not dbabstore:
-				dbabstore = DBABStore(
-					member_uuid = user.uuid, ab_id = ab_id,
+			if not dbaddressbook:
+				dbaddressbook = DBAddressBook(
+					member_uuid = user.uuid,
 				)
-				sess.add(dbabstore)
+				sess.add(dbaddressbook)
 	
-	def mark_ab_modified(self, ab_id: str, fields: Dict[str, Any], user: User) -> int:
+	def mark_ab_modified(self, fields: Dict[str, Any], user: User) -> int:
 		id = len(self._worklist_sync_ab.keys())
-		self._worklist_sync_ab[id] = (ab_id, user, fields)
+		self._worklist_sync_ab[id] = (user, fields)
 		return id
 	
-	async def mark_ab_modified_async(self, ab_id: str, fields: Dict[str, Any], user: User) -> None:
-		id = self.mark_ab_modified(ab_id, fields, user)
+	async def mark_ab_modified_async(self, fields: Dict[str, Any], user: User) -> None:
+		id = self.mark_ab_modified(fields, user)
 		await asyncio.sleep(1)
 		while id in self._working_ab_sync_ids:
 			await asyncio.sleep(0.1)
 	
-	def ab_get_entry_by_uuid(self, ab_id: str, ctc_uuid: str, user: User) -> Optional[ABContact]:
+	def ab_get_entry_by_uuid(self, ctc_uuid: str, user: User) -> Optional[AddressBookContact]:
 		with Session() as sess:
-			tpl = self._get_ab_store(ab_id, uuid = user.uuid)
-			if tpl is None:
-				return None
-			ab_type, dbabstore = tpl
+			dbaddressbookcontact = sess.query(DBAddressBookContact).filter(DBAddressBookContact.contact_uuid == ctc_uuid, DBAddressBookContact.ab_origin_uuid == user.uuid).one_or_none()
 			
-			dbabstorecontact = sess.query(DBABStoreContact).filter(DBABStoreContact.contact_uuid == ctc_uuid, DBABStoreContact.ab_id == ab_id, DBABStoreContact.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None)).one_or_none()
-			
-			if dbabstorecontact is None:
+			if dbaddressbookcontact is None:
 				return None
 			
-			return self._ab_get_entry(ab_type, dbabstorecontact.contact_uuid, user, ab_id)
+			return self._ab_get_entry(dbaddressbookcontact.contact_uuid, user)
 	
-	def ab_get_entry_by_email(self, ab_id: str, email: str, ctc_type: str, user: User) -> Optional[ABContact]:
+	def ab_get_entry_by_email(self, email: str, ctc_type: str, user: User) -> Optional[AddressBookContact]:
 		with Session() as sess:
-			tpl = self._get_ab_store(ab_id, uuid = user.uuid)
-			if tpl is None:
-				return None
-			ab_type, dbabstore = tpl
+			dbaddressbookcontact = sess.query(DBAddressBookContact).filter(DBAddressBookContact.email == email, DBAddressBookContact.type == ctc_type, DBAddressBookContact.ab_origin_uuid == user.uuid).one_or_none()
 			
-			dbabstorecontact = sess.query(DBABStoreContact).filter(DBABStoreContact.email == email, DBABStoreContact.type == ctc_type, DBABStoreContact.ab_id == ab_id, DBABStoreContact.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None)).one_or_none()
-			
-			if dbabstorecontact is None:
-				for ab_id, user_other, fields in self._worklist_sync_ab.values():
-					if ab_id == ab_id and user_other is user:
+			if dbaddressbookcontact is None:
+				for user_other, fields in self._worklist_sync_ab.values():
+					if user_other is user:
 						for c in fields['contacts']:
 							if c.email == email and c.type == ctc_type:
 								return c
 				return None
 			
-			return self._ab_get_entry(ab_type, dbabstorecontact.contact_uuid, user, ab_id)
+			return self._ab_get_entry(dbaddressbookcontact.contact_uuid, user)
 	
-	def ab_get_entry_by_id(self, ab_id: str, ctc_id: str, user: User) -> Optional[ABContact]:
+	def ab_get_entry_by_id(self, ctc_id: str, user: User) -> Optional[AddressBookContact]:
 		with Session() as sess:
-			tpl = self._get_ab_store(ab_id, uuid = user.uuid)
-			if tpl is None:
-				return None
-			ab_type, dbabstore = tpl
+			dbaddressbookcontact = sess.query(DBAddressBookContact).filter(DBAddressBookContact.contact_id == ctc_id, DBAddressBookContact.ab_origin_uuid == user.uuid).one_or_none()
 			
-			dbabstorecontact = sess.query(DBABStoreContact).filter(DBABStoreContact.contact_id == ctc_id, DBABStoreContact.ab_id == ab_id, DBABStoreContact.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None)).one_or_none()
-			
-			if dbabstorecontact is None:
+			if dbaddressbookcontact is None:
 				return None
 			
-			return self._ab_get_entry(ab_type, dbabstorecontact.contact_uuid, user, ab_id)
+			return self._ab_get_entry(dbaddressbookcontact.contact_uuid, user)
 	
-	def _ab_get_entry(self, ab_type: str, contact_uuid: str, user: User, ab_id: str) -> Optional[ABContact]:
+	def _ab_get_entry(self, contact_uuid: str, user: User) -> Optional[AddressBookContact]:
 		ctc_ab = None
 		
-		if ab_type == 'Individual':
-			if ab_id in self._individual_ab_ctc_cache_by_uuid_by_uuid_by_uuid:
-				if user.uuid in self._individual_ab_ctc_cache_by_uuid_by_uuid_by_uuid[ab_id]:
-					if contact_uuid in self._individual_ab_ctc_cache_by_uuid_by_uuid_by_uuid[ab_id][user.uuid]:
-						ctc_ab = self._individual_ab_ctc_cache_by_uuid_by_uuid_by_uuid[ab_id][user.uuid][contact_uuid]
-		else:
-			if ab_id in self._group_ab_ctc_cache_by_uuid_by_uuid:
-				if contact_uuid in self._group_ab_ctc_cache_by_uuid_by_uuid:
-					ctc_ab = self._group_ab_ctc_cache_by_uuid_by_uuid[ab_id][contact_uuid]
+		if user.uuid in self._ab_ctc_cache_by_uuid_by_uuid:
+			if contact_uuid in self._ab_ctc_cache_by_uuid_by_uuid[user.uuid]:
+				ctc_ab = self._ab_ctc_cache_by_uuid_by_uuid[user.uuid][contact_uuid]
 		
 		if ctc_ab is None:
-			if ab_type == 'Individual':
-				if ab_id not in self._individual_ab_ctc_cache_by_uuid_by_uuid_by_uuid:
-					self._individual_ab_ctc_cache_by_uuid_by_uuid_by_uuid[ab_id] = {}
-				if user.uuid not in self._individual_ab_ctc_cache_by_uuid_by_uuid_by_uuid[ab_id]:
-					self._individual_ab_ctc_cache_by_uuid_by_uuid_by_uuid[ab_id][user.uuid] = {}
-			else:
-				if ab_id not in self._group_ab_ctc_cache_by_uuid_by_uuid:
-					self._group_ab_ctc_cache_by_uuid_by_uuid[ab_id] = {}
-			ctc_ab = self._ab_get_entry_uncached(ab_type, ab_id, contact_uuid, user)
+			if user.uuid not in self._ab_ctc_cache_by_uuid_by_uuid:
+				self._ab_ctc_cache_by_uuid_by_uuid[user.uuid] = {}
+			ctc_ab = self._ab_get_entry_uncached(contact_uuid, user)
 		
 		return ctc_ab
 	
-	def _ab_get_entry_uncached(self, ab_type: str, ab_id: str, contact_uuid: str, user: User) -> Optional[ABContact]:
+	def _ab_get_entry_uncached(self, contact_uuid: str, user: User) -> Optional[AddressBookContact]:
 		head = None
 		
 		with Session() as sess:
-			dbabstorecontact = sess.query(DBABStoreContact).filter(DBABStoreContact.contact_uuid == contact_uuid, DBABStoreContact.ab_id == ab_id, DBABStoreContact.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None)).one_or_none()
+			dbaddressbookcontact = sess.query(DBAddressBookContact).filter(DBAddressBookContact.contact_uuid == contact_uuid, DBAddressBookContact.ab_origin_uuid == user.uuid).one_or_none()
 			
-			if dbabstorecontact is None:
+			if dbaddressbookcontact is None:
 				return None
 			
-			if dbabstorecontact.contact_member_uuid is not None:
-				head = self.get(dbabstorecontact.contact_member_uuid)
+			if dbaddressbookcontact.contact_member_uuid is not None:
+				head = self.get(dbaddressbookcontact.contact_member_uuid)
 				if head is None: return None
 			
-			dbabstorecontactlocations = sess.query(DBABStoreContactLocation).filter(DBABStoreContactLocation.contact_uuid == dbabstorecontact.contact_uuid, DBABStoreContactLocation.ab_id == dbabstorecontact.ab_id, DBABStoreContactLocation.ab_owner_uuid == (dbabstorecontact.ab_owner_uuid if ab_type == 'Individual' else None))
+			dbaddressbookcontactlocations = sess.query(DBAddressBookContactLocation).filter(DBAddressBookContactLocation.contact_uuid == dbaddressbookcontact.contact_uuid, DBAddressBookContactLocation.ab_origin_uuid == dbaddressbookcontact.ab_origin_uuid)
 			locations = {
-				dbabstorecontactlocation.location_type: ABContactLocation(
-					dbabstorecontactlocation.location_type, name = dbabstorecontactlocation.name, street = dbabstorecontactlocation.street, city = dbabstorecontactlocation.city, state = dbabstorecontactlocation.state, country = dbabstorecontactlocation.country, zip_code = dbabstorecontactlocation.zip_code,
-			) for dbabstorecontactlocation in dbabstorecontactlocations}
+				dbaddressbookcontactlocation.location_type: AddressBookContactLocation(
+					dbaddressbookcontactlocation.location_type, name = dbaddressbookcontactlocation.name, street = dbaddressbookcontactlocation.street, city = dbaddressbookcontactlocation.city, state = dbaddressbookcontactlocation.state, country = dbaddressbookcontactlocation.country, zip_code = dbaddressbookcontactlocation.zip_code,
+			) for dbaddressbookcontactlocation in dbaddressbookcontactlocations}
 			
 			annotations = {} # type: Dict[Any, Any]
-			for annots in dbabstorecontact.annotations:
+			for annots in dbaddressbookcontact.annotations:
 				annotations.update(annots)
-			dbabstorecontactnetworkinfos = sess.query(DBABStoreContactNetworkInfo).filter(DBABStoreContactNetworkInfo.contact_uuid == dbabstorecontact.contact_uuid, DBABStoreContactNetworkInfo.ab_id == dbabstorecontact.ab_id, DBABStoreContactNetworkInfo.ab_owner_uuid == (dbabstorecontact.ab_owner_uuid if ab_type == 'Individual' else None))
-			networkinfos = {
-				NetworkID(dbabstorecontactnetworkinfo.domain_id): NetworkInfo(
-					NetworkID(dbabstorecontactnetworkinfo.domain_id), dbabstorecontactnetworkinfo.source_id, dbabstorecontactnetworkinfo.domain_tag,
-					dbabstorecontactnetworkinfo.display_name, RelationshipInfo(
-						ABRelationshipType(dbabstorecontactnetworkinfo.relationship_type), ABRelationshipRole(dbabstorecontactnetworkinfo.relationship_role), ABRelationshipState(dbabstorecontactnetworkinfo.relationship_state), relationship_state_date = dbabstorecontactnetworkinfo.relationship_state_date,
-					),
-					invite_message = dbabstorecontactnetworkinfo.invite_message, date_created = dbabstorecontactnetworkinfo.date_created, date_last_modified = dbabstorecontactnetworkinfo.date_last_modified,
-				) for dbabstorecontactnetworkinfo in dbabstorecontactnetworkinfos}
-			abcontact = ABContact(
-				dbabstorecontact.type, dbabstorecontact.contact_id, dbabstorecontact.contact_uuid, dbabstorecontact.email, dbabstorecontact.name, set(dbabstorecontact.groups),
-				birthdate = dbabstorecontact.birthdate, anniversary = dbabstorecontact.anniversary, notes = dbabstorecontact.notes, first_name = dbabstorecontact.first_name, middle_name = dbabstorecontact.middle_name, last_name = dbabstorecontact.last_name, nickname = dbabstorecontact.nickname, home_phone = dbabstorecontact.home_phone, work_phone = dbabstorecontact.work_phone, fax_phone = dbabstorecontact.fax_phone, pager_phone = dbabstorecontact.pager_phone, mobile_phone = dbabstorecontact.mobile_phone, other_phone = dbabstorecontact.other_phone, personal_website = dbabstorecontact.personal_website, business_website = dbabstorecontact.business_website, locations = locations, primary_email_type = dbabstorecontact.primary_email_type, personal_email = dbabstorecontact.personal_email, work_email = dbabstorecontact.work_email, im_email = dbabstorecontact.im_email, other_email = dbabstorecontact.other_email, networkinfos = networkinfos, member_uuid = dbabstorecontact.contact_member_uuid, is_messenger_user = dbabstorecontact.is_messenger_user, annotations = annotations, date_last_modified = dbabstorecontact.date_last_modified,
+			addressbookcontact = AddressBookContact(
+				dbaddressbookcontact.type, dbaddressbookcontact.contact_id, dbaddressbookcontact.contact_uuid, dbaddressbookcontact.email, dbaddressbookcontact.name, set(dbaddressbookcontact.groups),
+				birthdate = dbaddressbookcontact.birthdate, anniversary = dbaddressbookcontact.anniversary, notes = dbaddressbookcontact.notes, first_name = dbaddressbookcontact.first_name, middle_name = dbaddressbookcontact.middle_name, last_name = dbaddressbookcontact.last_name, nickname = dbaddressbookcontact.nickname, home_phone = dbaddressbookcontact.home_phone, work_phone = dbaddressbookcontact.work_phone, fax_phone = dbaddressbookcontact.fax_phone, pager_phone = dbaddressbookcontact.pager_phone, mobile_phone = dbaddressbookcontact.mobile_phone, other_phone = dbaddressbookcontact.other_phone, personal_website = dbaddressbookcontact.personal_website, business_website = dbaddressbookcontact.business_website, locations = locations, primary_email_type = dbaddressbookcontact.primary_email_type, personal_email = dbaddressbookcontact.personal_email, work_email = dbaddressbookcontact.work_email, im_email = dbaddressbookcontact.im_email, other_email = dbaddressbookcontact.other_email, member_uuid = dbaddressbookcontact.contact_member_uuid, is_messenger_user = dbaddressbookcontact.is_messenger_user, annotations = annotations, date_last_modified = dbaddressbookcontact.date_last_modified,
 			)
-			if ab_type == 'Individual':
-				self._individual_ab_ctc_cache_by_uuid_by_uuid_by_uuid[ab_id][user.uuid][contact_uuid] = abcontact
-			else:
-				self._group_ab_ctc_cache_by_uuid_by_uuid[ab_id][contact_uuid] = abcontact
+			self._ab_ctc_cache_by_uuid_by_uuid[user.uuid][contact_uuid] = addressbookcontact
 			
-			return abcontact
+			return addressbookcontact
 	
-	def get_ab_contents(self, ab_id: str, user: User) -> Optional[Tuple[str, User, datetime, datetime, Dict[str, ABContact]]]:
+	def get_ab_contents(self, user: User) -> Optional[Tuple[User, datetime, datetime, Dict[str, AddressBookContact]]]:
 		with Session() as sess:
-			tpl = self._get_ab_store(ab_id, uuid = user.uuid)
-			if tpl is None:
+			dbaddressbook = self._get_ab_store(user.uuid)
+			if dbaddressbook is None:
 				return None
-			ab_type, dbabstore = tpl
 			
-			head = self.get(dbabstore.member_uuid)
+			head = self.get(dbaddressbook.member_uuid)
 			if head is None: return None
 			
 			contacts = {}
 			
-			dbabstorecontacts = sess.query(DBABStoreContact).filter(DBABStoreContact.ab_id == ab_id, DBABStoreContact.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None))
-			for dbabstorecontact in dbabstorecontacts:
-				ctc = self._ab_get_entry(ab_type, dbabstorecontact.contact_uuid, user, ab_id)
+			dbaddressbookcontacts = sess.query(DBAddressBookContact).filter(DBAddressBookContact.ab_origin_uuid == user.uuid)
+			for dbaddressbookcontact in dbaddressbookcontacts:
+				ctc = self._ab_get_entry(dbaddressbookcontact.contact_uuid, user)
 				if ctc is None: continue
-				contacts[dbabstorecontact.contact_uuid] = ctc
-			return ab_type, head, dbabstore.date_created, dbabstore.date_last_modified, contacts
+				contacts[dbaddressbookcontact.contact_uuid] = ctc
+			return head, dbaddressbook.date_created, dbaddressbook.date_last_modified, contacts
 	
-	def ab_delete_entry(self, ab_id: str, ctc_uuid: str, user: User) -> None:
+	def ab_delete_entry(self, ctc_uuid: str, user: User) -> None:
 		with Session() as sess:
-			tpl = self._get_ab_store(ab_id, uuid = user.uuid)
-			if tpl is None:
+			dbaddressbook = self._get_ab_store(user.uuid)
+			if dbaddressbook is None:
 				return None
-			ab_type, dbabstore = tpl
 			
-			dbabstorecontact = sess.query(DBABStoreContact).filter(DBABStoreContact.contact_uuid == ctc_uuid, DBABStoreContact.ab_id == ab_id, DBABStoreContact.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None)).one_or_none()
-			if dbabstorecontact is not None:
-				if ab_type == 'Individual':
-					if ab_id in self._individual_ab_ctc_cache_by_uuid_by_uuid_by_uuid:
-						if user.uuid in self._individual_ab_ctc_cache_by_uuid_by_uuid_by_uuid[ab_id]:
-							if dbabstorecontact.contact_uuid in self._individual_ab_ctc_cache_by_uuid_by_uuid_by_uuid[ab_id][user.uuid]:
-								del self._individual_ab_ctc_cache_by_uuid_by_uuid_by_uuid[ab_id][user.uuid][dbabstorecontact.contact_uuid]
-				else:
-					if ab_id in self._group_ab_ctc_cache_by_uuid_by_uuid:
-						if dbabstorecontact.contact_uuid in self._group_ab_ctc_cache_by_uuid_by_uuid[ab_id]:
-							del self._group_ab_ctc_cache_by_uuid_by_uuid[ab_id][dbabstorecontact.contact_uuid]
+			dbaddressbookcontact = sess.query(DBAddressBookContact).filter(DBAddressBookContact.contact_uuid == ctc_uuid, DBAddressBookContact.ab_origin_uuid == user.uuid).one_or_none()
+			if dbaddressbookcontact is not None:
+				if user.uuid in self._ab_ctc_cache_by_uuid_by_uuid:
+					if dbaddressbookcontact.contact_uuid in self._ab_ctc_cache_by_uuid_by_uuid[user.uuid]:
+						del self._ab_ctc_cache_by_uuid_by_uuid[user.uuid][dbaddressbookcontact.contact_uuid]
 				
-				dbabstorecontactlocations = sess.query(DBABStoreContactLocation).filter(DBABStoreContactLocation.contact_uuid == dbabstorecontact.contact_uuid, DBABStoreContactLocation.ab_id == dbabstorecontact.ab_id, DBABStoreContactLocation.ab_owner_uuid == (dbabstorecontact.ab_owner_uuid if ab_type == 'Individual' else None))
-				for dbabstorecontactlocation in dbabstorecontactlocations:
-					sess.delete(dbabstorecontactlocation)
-				dbabstorecontactnetworkinfos = sess.query(DBABStoreContactNetworkInfo).filter(DBABStoreContactNetworkInfo.contact_uuid == dbabstorecontact.contact_uuid, DBABStoreContactNetworkInfo.ab_id == dbabstorecontact.ab_id, DBABStoreContactNetworkInfo.ab_owner_uuid == (dbabstorecontact.ab_owner_uuid if ab_type == 'Individual' else None))
-				for dbabstorecontactnetworkinfo in dbabstorecontactnetworkinfos:
-					sess.delete(dbabstorecontactnetworkinfo)
-				sess.delete(dbabstorecontact)
+				dbaddressbookcontactlocations = sess.query(DBAddressBookContactLocation).filter(DBAddressBookContactLocation.contact_uuid == dbaddressbookcontact.contact_uuid, DBAddressBookContactLocation.ab_origin_uuid == dbaddressbookcontact.ab_origin_uuid)
+				for dbaddressbookcontactlocation in dbaddressbookcontactlocations:
+					sess.delete(dbaddressbookcontactlocation)
+				sess.delete(dbaddressbookcontact)
 				
-				dbabstore.date_last_modified = datetime.utcnow()
-				sess.add(dbabstore)
+				dbaddressbook.date_last_modified = datetime.utcnow()
+				sess.add(dbaddressbook)
 	
-	def ab_delete_entry_by_email(self, ab_id: str, email: str, ctc_type: str, user: User) -> None:
+	def ab_delete_entry_by_email(self, email: str, ctc_type: str, user: User) -> None:
 		with Session() as sess:
-			tpl = self._get_ab_store(ab_id, uuid = user.uuid)
-			if tpl is None:
+			dbaddressbook = self._get_ab_store(user.uuid)
+			if dbaddressbook is None:
 				return None
-			ab_type, dbabstore = tpl
 			
-			dbabstorecontact = sess.query(DBABStoreContact).filter(DBABStoreContact.email == email, DBABStoreContact.type == ctc_type, DBABStoreContact.ab_id == ab_id, DBABStoreContact.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None)).one_or_none()
-			if dbabstorecontact is not None:
-				if ab_type == 'Individual':
-					if ab_id in self._individual_ab_ctc_cache_by_uuid_by_uuid_by_uuid:
-						if user.uuid in self._individual_ab_ctc_cache_by_uuid_by_uuid_by_uuid[ab_id]:
-							if dbabstorecontact.contact_uuid in self._individual_ab_ctc_cache_by_uuid_by_uuid_by_uuid[ab_id][user.uuid]:
-								del self._individual_ab_ctc_cache_by_uuid_by_uuid_by_uuid[ab_id][user.uuid][dbabstorecontact.contact_uuid]
-				else:
-					if ab_id in self._group_ab_ctc_cache_by_uuid_by_uuid:
-						if dbabstorecontact.contact_uuid in self._group_ab_ctc_cache_by_uuid_by_uuid[ab_id]:
-							del self._group_ab_ctc_cache_by_uuid_by_uuid[ab_id][dbabstorecontact.contact_uuid]
+			dbaddressbookcontact = sess.query(DBAddressBookContact).filter(DBAddressBookContact.email == email, DBAddressBookContact.type == ctc_type, DBAddressBookContact.ab_origin_uuid == user.uuid).one_or_none()
+			if dbaddressbookcontact is not None:
+				if user.uuid in self._ab_ctc_cache_by_uuid_by_uuid:
+					if dbaddressbookcontact.contact_uuid in self._ab_ctc_cache_by_uuid_by_uuid[user.uuid]:
+						del self._ab_ctc_cache_by_uuid_by_uuid[user.uuid][dbaddressbookcontact.contact_uuid]
 				
-				dbabstorecontactlocations = sess.query(DBABStoreContactLocation).filter(DBABStoreContactLocation.contact_uuid == dbabstorecontact.contact_uuid, DBABStoreContactLocation.ab_id == dbabstorecontact.ab_id, DBABStoreContactLocation.ab_owner_uuid == (dbabstorecontact.ab_owner_uuid if ab_type == 'Individual' else None))
-				for dbabstorecontactlocation in dbabstorecontactlocations:
-					sess.delete(dbabstorecontactlocation)
-				dbabstorecontactnetworkinfos = sess.query(DBABStoreContactNetworkInfo).filter(DBABStoreContactNetworkInfo.contact_uuid == dbabstorecontact.contact_uuid, DBABStoreContactNetworkInfo.ab_id == dbabstorecontact.ab_id, DBABStoreContactNetworkInfo.ab_owner_uuid == (dbabstorecontact.ab_owner_uuid if ab_type == 'Individual' else None))
-				for dbabstorecontactnetworkinfo in dbabstorecontactnetworkinfos:
-					sess.delete(dbabstorecontactnetworkinfo)
+				dbaddressbookcontactlocations = sess.query(DBAddressBookContactLocation).filter(DBAddressBookContactLocation.contact_uuid == dbaddressbookcontact.contact_uuid, DBAddressBookContactLocation.ab_origin_uuid == dbaddressbookcontact.ab_origin_uuid)
+				for dbaddressbookcontactlocation in dbaddressbookcontactlocations:
+					sess.delete(dbaddressbookcontactlocation)
+				sess.delete(dbaddressbookcontact)
 				
-				sess.delete(dbabstorecontact)
-				
-				dbabstore.date_last_modified = datetime.utcnow()
-				sess.add(dbabstore)
+				dbaddressbook.date_last_modified = datetime.utcnow()
+				sess.add(dbaddressbook)
 	
-	def gen_ab_entry_id(self, ab_id: str, user: User) -> str:
-		tpl = self.get_ab_contents(ab_id, user)
+	def gen_ab_entry_id(self, user: User) -> str:
+		tpl = self.get_ab_contents(user)
 		assert tpl is not None
-		_, _, _, _, ab_contacts = tpl
+		_, _, _, ab_contacts = tpl
 		
 		id = 2
 		
@@ -403,134 +325,90 @@ class UserService:
 		
 		return s
 	
-	def save_batch_ab(self, batch: List[Tuple[int, str, User, Dict[str, Any]]]) -> None:
+	def save_batch_ab(self, batch: List[Tuple[int, User, Dict[str, Any]]]) -> None:
 		with Session() as sess:
-			for id, ab_id, user, fields in batch:
+			for id, user, fields in batch:
 				updated = False
-				tpl = self._get_ab_store(ab_id, uuid = user.uuid)
-				if tpl is None:
+				dbaddressbook = self._get_ab_store(user.uuid)
+				if dbaddressbook is None:
 					return None
-				ab_type, dbabstore = tpl
 				
 				if 'contacts' in fields:
 					for c in fields['contacts']:
-						dbabstorecontact = sess.query(DBABStoreContact).filter(DBABStoreContact.contact_uuid == c.uuid, DBABStoreContact.ab_id == ab_id, DBABStoreContact.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None)).one_or_none()
-						if dbabstorecontact is None:
-							dbabstorecontact = DBABStoreContact(
-								ab_id = ab_id, ab_owner_uuid = (user.uuid if ab_type == 'Individual' else None),
+						dbaddressbookcontact = sess.query(DBAddressBookContact).filter(DBAddressBookContact.contact_uuid == c.uuid, DBAddressBookContact.ab_origin_uuid == user.uuid).one_or_none()
+						if dbaddressbookcontact is None:
+							dbaddressbookcontact = DBAddressBookContact(
+								ab_origin_uuid = user.uuid,
 								contact_id = c.id, contact_uuid = c.uuid, contact_member_uuid = c.member_uuid, type = c.type, email = c.email, birthdate = c.birthdate, anniversary = c.anniversary, notes = c.notes, name = c.name, first_name = c.first_name, middle_name = c.middle_name, last_name = c.last_name, nickname = c.nickname, primary_email_type = c.primary_email_type, personal_email = c.personal_email, work_email = c.work_email, im_email = c.im_email, other_email = c.other_email, home_phone = c.home_phone, work_phone = c.work_phone, fax_phone = c.fax_phone, pager_phone = c.pager_phone, mobile_phone = c.mobile_phone, other_phone = c.other_phone, personal_website = c.personal_website, business_website = c.business_website, groups = list(c.groups), is_messenger_user = c.is_messenger_user, annotations = [{
 									name: value
 								} for name, value in c.annotations.items()],
 							)
 						else:
-							dbabstorecontact.email = c.email
-							dbabstorecontact.birthdate = c.birthdate
-							dbabstorecontact.anniversary = c.anniversary
-							dbabstorecontact.notes = c.notes
-							dbabstorecontact.name = c.name
-							dbabstorecontact.first_name = c.first_name
-							dbabstorecontact.middle_name = c.middle_name
-							dbabstorecontact.last_name = c.last_name
-							dbabstorecontact.nickname = c.nickname
-							dbabstorecontact.primary_email_type = c.primary_email_type
-							dbabstorecontact.personal_email = c.personal_email
-							dbabstorecontact.work_email = c.work_email
-							dbabstorecontact.im_email = c.im_email
-							dbabstorecontact.other_email = c.other_email
-							dbabstorecontact.home_phone = c.home_phone
-							dbabstorecontact.work_phone = c.work_phone
-							dbabstorecontact.fax_phone = c.fax_phone
-							dbabstorecontact.pager_phone = c.pager_phone
-							dbabstorecontact.mobile_phone = c.mobile_phone
-							dbabstorecontact.other_phone = c.other_phone
-							dbabstorecontact.personal_website = c.personal_website
-							dbabstorecontact.business_website = c.business_website
-							dbabstorecontact.groups = list(c.groups)
-							dbabstorecontact.is_messenger_user = c.is_messenger_user
-							dbabstorecontact.annotations = [{
+							dbaddressbookcontact.email = c.email
+							dbaddressbookcontact.birthdate = c.birthdate
+							dbaddressbookcontact.anniversary = c.anniversary
+							dbaddressbookcontact.notes = c.notes
+							dbaddressbookcontact.name = c.name
+							dbaddressbookcontact.first_name = c.first_name
+							dbaddressbookcontact.middle_name = c.middle_name
+							dbaddressbookcontact.last_name = c.last_name
+							dbaddressbookcontact.nickname = c.nickname
+							dbaddressbookcontact.primary_email_type = c.primary_email_type
+							dbaddressbookcontact.personal_email = c.personal_email
+							dbaddressbookcontact.work_email = c.work_email
+							dbaddressbookcontact.im_email = c.im_email
+							dbaddressbookcontact.other_email = c.other_email
+							dbaddressbookcontact.home_phone = c.home_phone
+							dbaddressbookcontact.work_phone = c.work_phone
+							dbaddressbookcontact.fax_phone = c.fax_phone
+							dbaddressbookcontact.pager_phone = c.pager_phone
+							dbaddressbookcontact.mobile_phone = c.mobile_phone
+							dbaddressbookcontact.other_phone = c.other_phone
+							dbaddressbookcontact.personal_website = c.personal_website
+							dbaddressbookcontact.business_website = c.business_website
+							dbaddressbookcontact.groups = list(c.groups)
+							dbaddressbookcontact.is_messenger_user = c.is_messenger_user
+							dbaddressbookcontact.annotations = [{
 								name: value
 							} for name, value in c.annotations.items()]
 						
-						dbabstorecontactlocations = sess.query(DBABStoreContactLocation).filter(DBABStoreContactLocation.contact_uuid == dbabstorecontact.contact_uuid, DBABStoreContactLocation.ab_id == dbabstorecontact.ab_id, DBABStoreContactLocation.ab_owner_uuid == (dbabstorecontact.ab_owner_uuid if ab_type == 'Individual' else None))
+						dbaddressbookcontactlocations = sess.query(DBAddressBookContactLocation).filter(DBAddressBookContactLocation.contact_uuid == dbaddressbookcontact.contact_uuid, DBAddressBookContactLocation.ab_origin_uuid == dbaddressbookcontact.ab_origin_uuid)
 						
-						for dbabstorecontactlocation in dbabstorecontactlocations:
-							if dbabstorecontactlocation.location_type not in c.locations:
-								sess.delete(dbabstorecontactlocation)
+						for dbaddressbookcontactlocation in dbaddressbookcontactlocations:
+							if dbaddressbookcontactlocation.location_type not in c.locations:
+								sess.delete(dbaddressbookcontactlocation)
 						
 						for location in c.locations.values():
-							dbabstorecontactlocation = sess.query(DBABStoreContactLocation).filter(DBABStoreContactLocation.location_type == location.type, DBABStoreContactLocation.contact_uuid == dbabstorecontact.contact_uuid, DBABStoreContactLocation.ab_id == dbabstorecontact.ab_id, DBABStoreContactLocation.ab_owner_uuid == (dbabstorecontact.ab_owner_uuid if ab_type == 'Individual' else None)).one_or_none()
-							if dbabstorecontactlocation is None:
-								dbabstorecontactlocation = DBABStoreContactLocation(
-									contact_uuid = dbabstorecontact.contact_uuid, ab_id = ab_id, ab_owner_uuid = (user.uuid if ab_type == 'Individual' else None),
+							dbaddressbookcontactlocation = sess.query(DBAddressBookContactLocation).filter(DBAddressBookContactLocation.location_type == location.type, DBAddressBookContactLocation.contact_uuid == dbaddressbookcontact.contact_uuid, DBAddressBookContactLocation.ab_origin_uuid == dbaddressbookcontact.ab_origin_uuid).one_or_none()
+							if dbaddressbookcontactlocation is None:
+								dbaddressbookcontactlocation = DBAddressBookContactLocation(
+									contact_uuid = dbaddressbookcontact.contact_uuid, ab_origin_uuid = user.uuid,
 									location_type = location.type, name = location.name, street = location.street, city = location.city, state = location.state, country = location.country, zip_code = location.zip_code,
 								)
 							else:
-								dbabstorecontactlocation.name = location.name
-								dbabstorecontactlocation.street = location.street
-								dbabstorecontactlocation.city = location.city
-								dbabstorecontactlocation.state = location.state
-								dbabstorecontactlocation.country = location.country
-								dbabstorecontactlocation.zip_code = location.zip_code
-							sess.add(dbabstorecontactlocation)
+								dbaddressbookcontactlocation.name = location.name
+								dbaddressbookcontactlocation.street = location.street
+								dbaddressbookcontactlocation.city = location.city
+								dbaddressbookcontactlocation.state = location.state
+								dbaddressbookcontactlocation.country = location.country
+								dbaddressbookcontactlocation.zip_code = location.zip_code
+							sess.add(dbaddressbookcontactlocation)
 						
-						for networkinfo in c.networkinfos.values():
-							dbabstorecontactnetworkinfo = sess.query(DBABStoreContactNetworkInfo).filter(DBABStoreContactNetworkInfo.contact_uuid == c.uuid, DBABStoreContactNetworkInfo.ab_id == ab_id, DBABStoreContactNetworkInfo.ab_owner_uuid == (user.uuid if ab_type == 'Individual' else None), DBABStoreContactNetworkInfo.domain_id == int(networkinfo.domain_id)).one_or_none()
-							if dbabstorecontactnetworkinfo is None:
-								dbabstorecontactnetworkinfo = DBABStoreContactNetworkInfo(
-									contact_uuid = c.uuid, ab_id = ab_id, ab_owner_uuid = (user.uuid if ab_type == 'Individual' else None),
-									domain_id = int(networkinfo.domain_id), source_id = networkinfo.source_id, domain_tag = networkinfo.domain_tag, display_name = networkinfo.display_name,
-									relationship_type = int(networkinfo.relationship_info.relationship_type), relationship_role = int(networkinfo.relationship_info.relationship_role), relationship_state = int(networkinfo.relationship_info.relationship_state),
-								)
-								dbabstorecontactnetworkinfo.relationship_state_date = datetime.utcnow()
-							else:
-								dbabstorecontactnetworkinfo.domain_tag = networkinfo.domain_tag
-								dbabstorecontactnetworkinfo.display_name = networkinfo.display_name
-								dbabstorecontactnetworkinfo.relationship_type = int(networkinfo.relationship_info.relationship_type)
-								dbabstorecontactnetworkinfo.relationship_role = int(networkinfo.relationship_info.relationship_role)
-								dbabstorecontactnetworkinfo.relationship_state = int(networkinfo.relationship_info.relationship_state)
-								dbabstorecontactnetworkinfo.relationship_state_date = datetime.utcnow()
-								dbabstorecontactnetworkinfo.invite_message = networkinfo.invite_message
-							dbabstorecontactnetworkinfo.date_last_modified = datetime.utcnow()
-							networkinfo.date_last_modified = dbabstorecontactnetworkinfo.date_last_modified
-							sess.add(dbabstorecontactnetworkinfo)
-							
-						dbabstorecontact.date_last_modified = datetime.utcnow()
-						c.date_last_modified = dbabstorecontact.date_last_modified
-						sess.add(dbabstorecontact)
+						dbaddressbookcontact.date_last_modified = datetime.utcnow()
+						c.date_last_modified = dbaddressbookcontact.date_last_modified
+						sess.add(dbaddressbookcontact)
 					updated = True
 				
 				if updated:
-					dbabstore.date_last_modified = datetime.utcnow()
-					sess.add(dbabstore)
+					dbaddressbook.date_last_modified = datetime.utcnow()
+					sess.add(dbaddressbook)
 				self._working_ab_sync_ids.remove(id)
 	
-	def _get_ab_store(self, ab_id: str, *, uuid: Optional[str] = None) -> Optional[Tuple[str, DBABStore]]:
+	def _get_ab_store(self, uuid: str) -> Optional[DBAddressBook]:
 		with Session() as sess:
-			dbabmetadata = sess.query(DBABMetadata).filter(DBABMetadata.ab_id == ab_id).one_or_none()
-			
-			if dbabmetadata is None:
-				return None
-			
-			if dbabmetadata.ab_type == 'Individual':
-				if not uuid:
-					return None
-				
-				dbabstore = sess.query(DBABStore).filter(DBABStore.member_uuid == uuid, DBABStore.ab_id == ab_id).one_or_none()
-			elif dbabmetadata.ab_type == 'Group':
-				dbabstore = sess.query(DBABStore).filter(DBABStore.ab_id == ab_id).one_or_none()
+			dbaddressbook = sess.query(DBAddressBook).filter(DBAddressBook.member_uuid == uuid).one_or_none()
 		
-		return dbabmetadata.ab_type, dbabstore
-	
-	def set_ab_subscription(self, uuid: str, ab_id: str) -> None:
-		with Session() as sess:
-			dbuser = sess.query(DBUser).filter(DBUser.uuid == uuid).one_or_none()
-			if dbuser is None: return None
-			
-			if ab_id in dbuser.subscribed_ab_stores: return None
-			subscribed_ab_stores = set(dbuser.subscribed_ab_stores)
-			subscribed_ab_stores.add(ab_id)
-			dbuser.subscribed_ab_stores = list(subscribed_ab_stores)
-			sess.add(dbuser)
+		return dbaddressbook
 	
 	#def msn_update_circleticket(self, uuid: str, cid: str) -> None:
 	#	with Session() as sess:
@@ -700,7 +578,7 @@ class UserService:
 	#			lists = (Lst.FL | Lst.AL), groups = {},
 	#		)
 	#		
-	#		circleuser_abstore = DBABStore(
+	#		circleuser_abstore = DBAddressBook(
 	#			member_uuid = circledbuser.uuid, ab_id = '00000000-0000-0000-0000-000000000000',
 	#		)
 	#		circleuser_abstore.date_last_modified = datetime.utcnow()
@@ -708,20 +586,20 @@ class UserService:
 	#		circledbabmetadata = DBABMetadata(
 	#			ab_id = circle_id, ab_type = 'Group',
 	#		)
-	#		circledbabstore = DBABStore(
+	#		circledbaddressbook = DBAddressBook(
 	#			member_uuid = circledbuser.uuid, ab_id = circle_id,
 	#		)
-	#		self_circledbabcontact = DBABStoreContact(
+	#		self_circledbabcontact = DBAddressBookContact(
 	#			ab_id = circle_id, contact_uuid = misc.gen_uuid(), contact_member_uuid = head.uuid,
 	#			type = 'Circle', email = head.email, name = head.status.name or head.email,
 	#			groups = {}, is_messenger_user = True, annotations = {},
 	#		)
-	#		self_circledbabcontactnetworkinfo = DBABStoreContactNetworkInfo(
+	#		self_circledbabcontactnetworkinfo = DBAddressBookContactNetworkInfo(
 	#			contact_uuid = self_circledbabcontact.contact_uuid, ab_id = circle_id,
 	#			domain_id = int(NetworkID.WINDOWS_LIVE), domain_tag = 'WL', source_id = head.email, display_name = head.status.name or head.email,
 	#			relationship_type = int(ABRelationshipType.Circle), relationship_role = int(ABRelationshipRole.Admin), relationship_state = int(ABRelationshipState.Accepted), relationship_state_date = datetime.utcnow(),
 	#		)
-	#		sess.add_all([dbcirclestore, dbcirclemembership, circledbuser,  circledbuser_usercontact, circleuser_abstore, circledbabmetadata, circledbabstore, self_circledbabcontact, self_circledbabcontactnetworkinfo])
+	#		sess.add_all([dbcirclestore, dbcirclemembership, circledbuser,  circledbuser_usercontact, circleuser_abstore, circledbabmetadata, circledbaddressbook, self_circledbabcontact, self_circledbabcontactnetworkinfo])
 	#	return circle_id, circleuser_uuid
 	#
 	#def msn_get_circle_metadata(self, circle_id: str) -> Optional[CircleMetadata]:
@@ -772,7 +650,6 @@ class UserService:
 				dbuser.name = user.status.name
 				dbuser.message = _get_persisted_status_message(user.status)
 				dbuser.settings = user.settings
-				dbuser.subscribed_ab_stores = list(detail.subscribed_ab_stores)
 				sess.add(dbuser)
 				
 				dbusergroups = sess.query(DBUserGroup).filter(DBUserGroup.user_uuid == user.uuid)

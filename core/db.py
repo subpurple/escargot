@@ -28,7 +28,6 @@ class User(Base):
 	message = sa.Column(sa.String, nullable = False)
 	password = sa.Column(sa.String, nullable = False)
 	settings = sa.Column(JSONType, nullable = False)
-	subscribed_ab_stores = sa.Column(JSONType, nullable = False)
 	
 	# Data specific to front-ends; e.g. different types of password hashes
 	# E.g. front_data = { 'msn': { ... }, 'ymsg': { ... }, ... }
@@ -73,28 +72,19 @@ class UserContact(Base):
 	lists = sa.Column(sa.Integer, nullable = False)
 	groups = sa.Column(JSONType, nullable = False)
 
-class ABMetadata(Base):
-	__tablename__ = 't_ab_metadata'
-	
-	id = sa.Column(sa.Integer, nullable = False, primary_key = True)
-	ab_id = sa.Column(sa.String, nullable = False)
-	ab_type = sa.Column(sa.String, nullable = False)
-
-class ABStore(Base):
-	__tablename__ = 't_ab_store'
+class AddressBook(Base):
+	__tablename__ = 't_addressbook'
 	
 	id = sa.Column(sa.Integer, nullable = False, primary_key = True)
 	member_uuid = sa.Column(sa.String, nullable = False)
-	ab_id = sa.Column(sa.String, nullable = False)
 	date_created = sa.Column(sa.DateTime, nullable = True, default = datetime.utcnow)
 	date_last_modified = sa.Column(sa.DateTime, nullable = True)
 
-class ABStoreContact(Base):
-	__tablename__ = 't_ab_store_contact'
+class AddressBookContact(Base):
+	__tablename__ = 't_addressbook_contact'
 	
 	id = sa.Column(sa.Integer, nullable = False, primary_key = True)
-	ab_id = sa.Column(sa.String, nullable = False)
-	ab_owner_uuid = sa.Column(sa.String, nullable = True)
+	ab_origin_uuid = sa.Column(sa.String, nullable = False)
 	contact_id = sa.Column(sa.String, nullable = False)
 	# `contact_uuid` is a UUID that identifies the contact in the addressbook; unrelated to the UUID of the contact's account
 	# `contact_member_uuid` is the contact's account's UUID, indicating that the contact's a part of our network.
@@ -129,13 +119,12 @@ class ABStoreContact(Base):
 	# annotations = { "Annotation.Name": "Value", ... }
 	annotations = sa.Column(JSONType, nullable = False, default = {})
 
-class ABStoreContactLocation(Base):
-	__tablename__ = 't_ab_store_contact_location'
+class AddressBookContactLocation(Base):
+	__tablename__ = 't_addressbook_contact_location'
 	
 	id = sa.Column(sa.Integer, nullable = False, primary_key = True)
 	contact_uuid = sa.Column(sa.String, nullable = False)
-	ab_id = sa.Column(sa.String, nullable = False)
-	ab_owner_uuid = sa.Column(sa.String, nullable = True)
+	ab_origin_uuid = sa.Column(sa.String, nullable = False)
 	location_type = sa.Column(sa.String, nullable = False)
 	name = sa.Column(sa.String, nullable = True)
 	street = sa.Column(sa.String, nullable = True)
@@ -143,25 +132,6 @@ class ABStoreContactLocation(Base):
 	state = sa.Column(sa.String, nullable = True)
 	country = sa.Column(sa.String, nullable = True)
 	zip_code = sa.Column(sa.String, nullable = True)
-
-class ABStoreContactNetworkInfo(Base):
-	__tablename__ = 't_ab_store_contact_networkinfo'
-	
-	id = sa.Column(sa.Integer, nullable = False, primary_key = True)
-	contact_uuid = sa.Column(sa.String, nullable = False)
-	ab_id = sa.Column(sa.String, nullable = False)
-	ab_owner_uuid = sa.Column(sa.String, nullable = True)
-	date_created = sa.Column(sa.DateTime, nullable = True, default = datetime.utcnow)
-	date_last_modified = sa.Column(sa.DateTime, nullable = True, default = datetime.utcnow)
-	domain_id = sa.Column(sa.Integer, nullable = False)
-	source_id = sa.Column(sa.String, nullable = False)
-	domain_tag = sa.Column(sa.String, nullable = False)
-	display_name = sa.Column(sa.String, nullable = False)
-	relationship_type = sa.Column(sa.Integer, nullable = False)
-	relationship_role = sa.Column(sa.Integer, nullable = False)
-	relationship_state = sa.Column(sa.Integer, nullable = False)
-	relationship_state_date = sa.Column(sa.DateTime, nullable = True)
-	invite_message = sa.Column(sa.String, nullable = True)
 
 #class CircleStore(Base):
 #	__tablename__ = 't_circle_store'

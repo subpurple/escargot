@@ -10,7 +10,7 @@ import shutil
 import re
 
 from core.backend import Backend, BackendSession
-from core.models import ABContact
+from core.models import AddressBookContact
 import util.misc
 from .ymsg_ctrl import _try_decode_ymsg
 from .misc import YMSGService, yahoo_id_to_uuid, yahoo_id
@@ -60,73 +60,72 @@ async def handle_insider_ycontent(req: web.Request) -> web.Response:
 				user = bs.user
 				detail = user.detail
 				if detail is not None:
-					if '00000000-0000-0000-0000-000000000000' in detail.subscribed_ab_stores:
-						ab2_tmpl = req.app['jinja_env'].get_template('ymsg:Yinsider/Yinsider.ab2.xml')
-						if query_xml == 'ab2':
-							if yab_received or yab_set: continue
-							tpl = backend.user_service.get_ab_contents('00000000-0000-0000-0000-000000000000', user)
-							if tpl is not None:
-								_, _, _, _, ab_contacts = tpl
-								ab_ctcs = [ab_contact for ab_contact in ab_contacts.values() if ab_contact.type == 'Regular']
-								records = []
-								
-								for ab_ctc in ab_ctcs:
-									records.append(_gen_yab_record(ab_ctc))
-								config_xml.append(ab2_tmpl.render(epoch = round(time.time()), records = Markup('\n'.join(records))))
-						if query_xml == 'addab2':
-							edit_mode = False
-							email_member = None
+					ab2_tmpl = req.app['jinja_env'].get_template('ymsg:Yinsider/Yinsider.ab2.xml')
+					if query_xml == 'ab2':
+						if yab_received or yab_set: continue
+						tpl = backend.user_service.get_ab_contents(user)
+						if tpl is not None:
+							_, _, _, ab_contacts = tpl
+							ab_ctcs = [ab_contact for ab_contact in ab_contacts.values() if ab_contact.type == 'Regular']
+							records = []
 							
-							if yab_set or yab_received: continue
-							if req.query.get('ee') is '1' and req.query.get('ow') is '1':
-								edit_mode = True
+							for ab_ctc in ab_ctcs:
+								records.append(_gen_yab_record(ab_ctc))
+							config_xml.append(ab2_tmpl.render(epoch = round(time.time()), records = Markup('\n'.join(records))))
+					if query_xml == 'addab2':
+						edit_mode = False
+						email_member = None
+						
+						if yab_set or yab_received: continue
+						if req.query.get('ee') is '1' and req.query.get('ow') is '1':
+							edit_mode = True
+						
+						if edit_mode:
+							if req.query.get('id') is None:
+								continue
 							
-							if edit_mode:
-								if req.query.get('id') is None:
-									continue
-								
-								entry_id = str(req.query['id'])
-								ab_ctc = backend.user_service.ab_get_entry_by_id('00000000-0000-0000-0000-000000000000', entry_id, user)
-							else:
-								yid = req.query.get('yid')
-								if yid is None: continue
-								
-								if '@' in yid:
-									if not yid.endswith('@yahoo.com'):
-										email_member = yid
-									else:
-										email_member = None
+							entry_id = str(req.query['id'])
+							ab_ctc = backend.user_service.ab_get_entry_by_id(entry_id, user)
+						else:
+							yid = req.query.get('yid')
+							if yid is None: continue
+							
+							if '@' in yid:
+								if not yid.endswith('@yahoo.com'):
+									email_member = yid
 								else:
-									email_member = '{}@yahoo.com'.format(yid)
-								
-								if email_member is None:
-									continue
-								entry_uuid = backend.util_get_uuid_from_email(email_member)
-								if entry_uuid is None:
-									continue
-								
-								ab_ctc = backend.user_service.ab_get_entry_by_email('00000000-0000-0000-0000-000000000000', email_member, 'Regular', user)
-								if ab_ctc is not None:
-									continue
-								
-								ab_ctc = ABContact(
-									'Regular', backend.user_service.gen_ab_entry_id('00000000-0000-0000-0000-000000000000', user), util.misc.gen_uuid(), email_member, '', set(),
-									member_uuid = email_member, is_messenger_user = True,
-								)
-							if req.query.get('pp') is not None:
-								if str(req.query['pp']) not in ('0','1','2'):
-									continue
-							ab_ctc.first_name = req.query.get('fn')
-							ab_ctc.last_name = req.query.get('ln')
-							ab_ctc.nickname = req.query.get('nn')
-							ab_ctc.personal_email = req.query.get('e')
-							ab_ctc.home_phone = req.query.get('hp')
-							ab_ctc.work_phone = req.query.get('wp')
-							ab_ctc.mobile_phone = req.query.get('mb')
+									email_member = None
+							else:
+								email_member = '{}@yahoo.com'.format(yid)
 							
-							await backend.user_service.mark_ab_modified_async('00000000-0000-0000-0000-000000000000', { 'contacts': [ab_ctc] }, user)
+							if email_member is None:
+								continue
+							entry_uuid = backend.util_get_uuid_from_email(email_member)
+							if entry_uuid is None:
+								continue
 							
-							config_xml.append(ab2_tmpl.render(epoch = round(time.time()), records = Markup(_gen_yab_record(ab_ctc))))
+							ab_ctc = backend.user_service.ab_get_entry_by_email(email_member, 'Regular', user)
+							if ab_ctc is not None:
+								continue
+							
+							ab_ctc = AddressBookContact(
+								'Regular', backend.user_service.gen_ab_entry_id(user), util.misc.gen_uuid(), email_member, '', set(),
+								member_uuid = email_member, is_messenger_user = True,
+							)
+						if req.query.get('pp') is not None:
+							if str(req.query['pp']) not in ('0','1','2'):
+								continue
+						ab_ctc.first_name = req.query.get('fn')
+						ab_ctc.last_name = req.query.get('ln')
+						ab_ctc.nickname = req.query.get('nn')
+						ab_ctc.personal_email = req.query.get('e')
+						ab_ctc.home_phone = req.query.get('hp')
+						ab_ctc.work_phone = req.query.get('wp')
+						ab_ctc.mobile_phone = req.query.get('mb')
+						
+						await backend.user_service.mark_ab_modified_async({ 'contacts': [ab_ctc] }, user)
+						
+						config_xml.append(ab2_tmpl.render(epoch = round(time.time()), records = Markup(_gen_yab_record(ab_ctc))))
 			continue
 		tmpl = req.app['jinja_env'].get_template('ymsg:Yinsider/Yinsider.' + query_xml + '.xml')
 		config_xml.append(tmpl.render())
@@ -147,7 +146,7 @@ UNUSED_QUERIES = {
 	'ee', 'ow', 'id',
 }
 
-def _gen_yab_record(ab_ctc: ABContact) -> str:
+def _gen_yab_record(ab_ctc: AddressBookContact) -> str:
 	fname = None
 	lname = None
 	nname = None
