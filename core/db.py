@@ -13,26 +13,17 @@ import settings
 
 class Base(declarative_base()): # type: ignore
 	__abstract__ = True
+	
+	date_created = Col(sa.DateTime, nullable = True, default = datetime.utcnow)
+	date_modified = Col(sa.DateTime, nullable = True, default = datetime.utcnow, onupdate = datetime.utcnow)
 
-def Col(t: sa.types.TypeEngine, **kwargs: Any) -> sa.Column:
+def Col(*args: Any, **kwargs: Any) -> sa.Column:
 	if 'nullable' not in kwargs:
 		kwargs['nullable'] = False
-	return sa.Column(t, **kwargs)
+	return sa.Column(*args, **kwargs)
 
-class User(Base):
-	__tablename__ = 't_user'
-	
-	id = Col(sa.Integer, primary_key = True)
-	date_created = Col(sa.DateTime, nullable = True, default = datetime.utcnow)
-	date_login = Col(sa.DateTime, nullable = True)
-	uuid = Col(sa.String, unique = True)
-	email = Col(sa.String)
-	relay = Col(sa.Boolean, default = False)
-	verified = Col(sa.Boolean)
-	name = Col(sa.String, nullable = True)
-	message = Col(sa.String)
-	password = Col(sa.String)
-	settings = Col(JSONType)
+class WithFrontData(Base):
+	__abstract__ = True
 	
 	# Data specific to front-ends; e.g. different types of password hashes
 	# E.g. front_data = { 'msn': { ... }, 'ymsg': { ... }, ... }
@@ -55,88 +46,77 @@ class User(Base):
 		if not fd: return None
 		return fd.get(key)
 
-class UserGroup(Base):
+class User(WithFrontData):
+	__tablename__ = 't_user'
+	
+	id = Col(sa.Integer, primary_key = True)
+	date_login = Col(sa.DateTime, nullable = True)
+	uuid = Col(sa.String, unique = True)
+	email = Col(sa.String)
+	relay = Col(sa.Boolean, default = False)
+	verified = Col(sa.Boolean)
+	name = Col(sa.String, nullable = True)
+	message = Col(sa.String)
+	password = Col(sa.String)
+	settings = Col(JSONType)
+
+class UserGroup(WithFrontData):
 	__tablename__ = 't_user_group'
 	
 	id = Col(sa.Integer, primary_key = True)
-	user_uuid = Col(sa.String)
-	group_id = Col(sa.String)
-	group_uuid = Col(sa.String)
+	group_uuid = Col(sa.String) # TODO: unique, rename uuid
+	
+	user_id = Col(sa.Integer, sa.ForeignKey('t_user.id'))
 	name = Col(sa.String)
-	is_favorite = Col(sa.Boolean, default = False)
-	date_last_modified = Col(sa.DateTime, nullable = True, default = datetime.utcnow)
+	
+	group_id = Col(sa.String) # TODO: MSN only?
+	is_favorite = Col(sa.Boolean, default = False) # TODO: MSN only?
 
-class UserContact(Base):
+class UserContact(WithFrontData):
 	__tablename__ = 't_user_contact'
 	
-	id = Col(sa.Integer, primary_key = True)
-	user_uuid = Col(sa.String)
-	uuid = Col(sa.String)
-	name = Col(sa.String, nullable = True)
-	message = Col(sa.String, nullable = True)
+	user_id = Col(sa.Integer, sa.ForeignKey('t_user.id'), primary_key = True)
+	contact_id = Col(sa.Integer, sa.ForeignKey('t_user.id'), primary_key = True)
+	uuid = Col(sa.String, unique = True)
+	
+	user_uuid = Col(sa.String) # = User(self.user_id).uuid
+	contact_uuid = Col(sa.String) # = User(self.contact_id).uuid
+	name = Col(sa.String)
+	message = Col(sa.String)
 	lists = Col(sa.Integer)
 	groups = Col(JSONType)
-
-class AddressBook(Base):
-	__tablename__ = 't_addressbook'
 	
-	id = Col(sa.Integer, primary_key = True)
-	member_uuid = Col(sa.String)
-	date_created = Col(sa.DateTime, nullable = True, default = datetime.utcnow)
-	date_last_modified = Col(sa.DateTime, nullable = True)
-
-class AddressBookContact(Base):
-	__tablename__ = 't_addressbook_contact'
-	
-	id = Col(sa.Integer, primary_key = True)
-	ab_origin_uuid = Col(sa.String)
-	contact_id = Col(sa.String)
-	# `contact_uuid` is a UUID that identifies the contact in the addressbook; unrelated to the UUID of the contact's account
-	# `contact_member_uuid` is the contact's account's UUID, indicating that the contact's a part of our network.
-	contact_uuid = Col(sa.String)
-	contact_member_uuid = Col(sa.String, nullable = True)
-	date_last_modified = Col(sa.DateTime, nullable = True, default = datetime.utcnow)
+	# TODO: Fields from AddressBookContact
+	contact_id = Col(sa.String, nullable = True) # TODO: For yahoo, like group_id; need Unique(user_id, contact_id); needs new name
 	type = Col(sa.String)
 	email = Col(sa.String)
 	birthdate = Col(sa.DateTime, nullable = True)
 	anniversary = Col(sa.DateTime, nullable = True)
-	notes = Col(sa.String, nullable = True)
-	name = Col(sa.String, nullable = True)
-	first_name = Col(sa.String, nullable = True)
-	middle_name = Col(sa.String, nullable = True)
-	last_name = Col(sa.String, nullable = True)
-	nickname = Col(sa.String, nullable = True)
-	primary_email_type = Col(sa.String, nullable = True)
-	personal_email = Col(sa.String, nullable = True)
-	work_email = Col(sa.String, nullable = True)
-	im_email = Col(sa.String, nullable = True)
-	other_email = Col(sa.String, nullable = True)
-	home_phone = Col(sa.String, nullable = True)
-	work_phone = Col(sa.String, nullable = True)
-	fax_phone = Col(sa.String, nullable = True)
-	pager_phone = Col(sa.String, nullable = True)
-	mobile_phone = Col(sa.String, nullable = True)
-	other_phone = Col(sa.String, nullable = True)
-	personal_website = Col(sa.String, nullable = True)
-	business_website = Col(sa.String, nullable = True)
+	notes = Col(sa.String)
+	name = Col(sa.String)
+	first_name = Col(sa.String)
+	middle_name = Col(sa.String)
+	last_name = Col(sa.String)
+	nickname = Col(sa.String)
+	primary_email_type = Col(sa.String)
+	personal_email = Col(sa.String)
+	work_email = Col(sa.String)
+	im_email = Col(sa.String)
+	other_email = Col(sa.String)
+	home_phone = Col(sa.String)
+	work_phone = Col(sa.String)
+	fax_phone = Col(sa.String)
+	pager_phone = Col(sa.String)
+	mobile_phone = Col(sa.String)
+	other_phone = Col(sa.String)
+	personal_website = Col(sa.String)
+	business_website = Col(sa.String)
 	groups = Col(JSONType)
 	is_messenger_user = Col(sa.Boolean, default = False)
 	# annotations = { "Annotation.Name": "Value", ... }
 	annotations = Col(JSONType, default = {})
-
-class AddressBookContactLocation(Base):
-	__tablename__ = 't_addressbook_contact_location'
-	
-	id = Col(sa.Integer, primary_key = True)
-	contact_uuid = Col(sa.String)
-	ab_origin_uuid = Col(sa.String)
-	location_type = Col(sa.String)
-	name = Col(sa.String, nullable = True)
-	street = Col(sa.String, nullable = True)
-	city = Col(sa.String, nullable = True)
-	state = Col(sa.String, nullable = True)
-	country = Col(sa.String, nullable = True)
-	zip_code = Col(sa.String, nullable = True)
+	# locations = { '000-000': { 'name': "Foo", 'city': 'Bar' } }
+	locations = Col(JSONType, default = {})
 
 #class CircleStore(Base):
 #	__tablename__ = 't_circle_store'
@@ -149,7 +129,6 @@ class AddressBookContactLocation(Base):
 #	membership_access = Col(sa.Integer)
 #	request_membership_option = Col(sa.Integer)
 #	is_presence_enabled = Col(sa.Boolean)
-#	date_last_modified = Col(sa.DateTime, default = datetime.now)
 
 #class CircleMembership(Base):
 #	__tablename__ = 't_circle_membership'

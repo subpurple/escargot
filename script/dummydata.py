@@ -5,13 +5,12 @@ import time
 
 from util import misc
 from core.models import Lst, NetworkID
-from core.db import Base, Session, User, UserGroup, UserContact, AddressBook, AddressBookContact, AddressBookContactLocation, engine
+from core.db import Base, Session, User, UserGroup, UserContact, engine
 
 from script.user import set_passwords
 
 usercontacts_by_uuid_by_uuid = {} # type: Dict[str, Dict[str, UserContact]]
 user_groups_by_uuid_by_uuid = {} # type: Dict[str, Dict[str, UserGroup]]
-ab_contacts_by_uuid_by_uuid = {} # type: Dict[str, Dict[str, AddressBookContact]]
 
 def main() -> None:
 	U = []
@@ -22,19 +21,15 @@ def main() -> None:
 			name = "T{}{}".format(i, d)
 			user = create_user('{}@{}'.format(name.lower(), domain), '123456', name, "{} msg".format(name))
 			usercontacts_by_uuid_by_uuid[user.uuid] = {}
-			ab_contacts_by_uuid_by_uuid[user.uuid] = {}
 			user_groups_by_uuid_by_uuid[user.uuid] = {}
-			addressbook = create_addressbook(user.uuid)
-			U.append((user, addressbook))
+			U.append(user)
 	
 	for i in range(5):
 		name = "Bot{}".format(i)
 		user = create_user('{}@bot.log1p.xyz'.format(name.lower()), '123456', name, "{} msg".format(name))
 		usercontacts_by_uuid_by_uuid[user.uuid] = {}
-		ab_contacts_by_uuid_by_uuid[user.uuid] = {}
 		user_groups_by_uuid_by_uuid[user.uuid] = {}
-		addressbook = create_addressbook(user.uuid)
-		U.append((user, addressbook))
+		U.append(user)
 	
 	for i, (u, _) in enumerate(U):
 		contacts_by_group: Dict[str, List[User]] = {}
@@ -58,8 +53,6 @@ def main() -> None:
 		tables.append(u)
 		tables.extend(usercontacts_by_uuid_by_uuid[u.uuid].values())
 		tables.extend(user_groups_by_uuid_by_uuid[u.uuid].values())
-		tables.extend(ab_contacts_by_uuid_by_uuid[u.uuid].values())
-		ab_s.date_last_modified = datetime.utcnow()
 		tables.append(ab_s)
 	
 	Base.metadata.create_all(engine)
@@ -67,9 +60,6 @@ def main() -> None:
 		sess.query(User).delete()
 		sess.query(UserGroup).delete()
 		sess.query(UserContact).delete()
-		sess.query(AddressBook).delete()
-		sess.query(AddressBookContact).delete()
-		sess.query(AddressBookContactLocation).delete()
 		#sess.query(CircleStore).delete()
 		#sess.query(CircleMembership).delete()
 		sess.add_all(tables)
@@ -88,12 +78,21 @@ def create_user(email: str, pw: str, name: str, message: str) -> User:
 	set_passwords(user, pw, support_old_msn = True, support_yahoo = True)
 	return user
 
-def create_usercontact(user_uuid: str, uuid: str, name: str, message: str) -> UserContact:
-	return UserContact(
-		user_uuid = user_uuid, uuid = uuid,
-		name = name, message = message,
-		lists = Lst.Empty, groups = [],
-	)
+def set_contacts(user: User, contacts_by_group: Dict[str, List[User]]) -> None:
+	user.contacts = {}
+	user.groups = []
+	
+	yahoo_contact_id = 2
+	for i, (group_name, group_users) in enumerate(contacts_by_group.items()):
+		group_id = str(i + 1)
+		group_uuid = str(uuid4())
+		if group_name:
+			user_groups_by_uuid_by_uuid[user.uuid][group_id] = create_usergroup(group_id, group_uuid, user.uuid, group_name)
+		for u in group_users:
+			contact = add_contact_twosided(user, u, str(yahoo_contact_id))
+			if group_name:
+				contact.groups.append({ 'id': group_id, 'uuid': group_uuid })
+			yahoo_contact_id += 1
 
 def create_usergroup(group_id: str, group_uuid: str, uuid: str, name: str) -> UserGroup:
 	return UserGroup(
@@ -101,55 +100,33 @@ def create_usergroup(group_id: str, group_uuid: str, uuid: str, name: str) -> Us
 		name = name,
 	)
 
-def create_addressbook(uuid: str) -> AddressBook:
-	return AddressBook(
-		member_uuid = uuid,
-	)
-
-def create_addressbookcontact(contact_uuid: str, contact_id: str, uuid: str, email: str, name: str) -> AddressBookContact:
-	return AddressBookContact(
-		ab_origin_uuid = uuid, contact_id = contact_id, contact_uuid = str(uuid4()), contact_member_uuid = contact_uuid,
-		type = 'Regular', email = email, name = name, groups = [],
-		is_messenger_user = True, annotations = {},
-	)
-
-def set_contacts(user: User, contacts_by_group: Dict[str, List[User]]) -> None:
-	user.contacts = {}
-	user.groups = []
-	
-	contact_id = 2
-	for i, (group_name, group_users) in enumerate(contacts_by_group.items()):
-		group_id = str(i + 1)
-		group_uuid = str(uuid4())
-		if group_name:
-			user_groups_by_uuid_by_uuid[user.uuid][group_id] = create_usergroup(group_id, group_uuid, user.uuid, group_name)
-		for u in group_users:
-			contact, contact_abs = add_contact_twosided(user, u, str(contact_id))
-			if group_name:
-				contact.groups.append({ 'id': group_id, 'uuid': group_uuid })
-				assert contact_abs is not None
-				contact_abs.groups.append(group_uuid)
-				contact_abs.date_last_modified = datetime.utcnow()
-			contact_id += 1
-
 def randomish(u: User) -> int:
 	return int(u.uuid[:8], 16)
 
-def add_contact_twosided(user: User, user_contact: User, contact_id: str) -> Tuple[UserContact, Optional[AddressBookContact]]:
-	contact, contact_abs = add_contact_onesided(user, user_contact, contact_id, Lst.AL | Lst.FL)
+def add_contact_twosided(user: User, user_contact: User, yahoo_contact_id: str) -> UserContact:
+	contact = add_contact_onesided(user, user_contact, yahoo_contact_id, Lst.AL | Lst.FL)
 	add_contact_onesided(user_contact, user, None, Lst.RL)
-	return contact, contact_abs
+	return contact
 
-def add_contact_onesided(user: User, user_contact: User, contact_id: Optional[str], lst: Lst) -> Tuple[UserContact, Optional[AddressBookContact]]:
+def add_contact_onesided(user: User, user_contact: User, yahoo_contact_id: Optional[str], lst: Lst) -> UserContact:
 	if user_contact.uuid not in usercontacts_by_uuid_by_uuid[user.uuid]:
-		usercontacts_by_uuid_by_uuid[user.uuid][user_contact.uuid] = create_usercontact(user.uuid, user_contact.uuid, user_contact.name, user_contact.message)
+		usercontacts_by_uuid_by_uuid[user.uuid][user_contact.uuid] = create_usercontact(user, user_contact, yahoo_contact_id)
 	contact = usercontacts_by_uuid_by_uuid[user.uuid][user_contact.uuid]
 	contact.lists |= lst
-	
-	if user_contact.uuid not in ab_contacts_by_uuid_by_uuid[user.uuid] and lst & Lst.FL and contact_id is not None:
-		ab_contacts_by_uuid_by_uuid[user.uuid][user_contact.uuid] = create_addressbookcontact(user_contact.uuid, contact_id, user.uuid, user_contact.email, user_contact.name)
-	contact_abs = ab_contacts_by_uuid_by_uuid[user.uuid].get(user_contact.uuid)
-	return contact, contact_abs
+	return contact
+
+def create_usercontact(user: User, user_contact: User, yahoo_contact_id: Optional[str]) -> UserContact:
+	return UserContact(
+		user_id = user.id, user_uuid = user.uuid, contact_id = user_contact.id, contact_uuid = user_contact.uuid,
+		uuid = str(uuid4()),
+		name = user_contact.name, message = user_contact.message,
+		lists = Lst.Empty, groups = [],
+		
+		# TODO: From AddressBookContact
+		yahoo_contact_id = yahoo_contact_id,
+		type = 'Regular', email = user_contact.email,
+		is_messenger_user = True, annotations = {}, locations = {},
+	)
 
 if __name__ == '__main__':
 	main()

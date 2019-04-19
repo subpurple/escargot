@@ -2,7 +2,7 @@ import getpass
 from datetime import datetime
 
 from util import misc, hash
-from core.db import Session, User, AddressBook
+from core.db import Session, User
 
 def main(email: str, *, oldmsn: bool = False, yahoo: bool = False) -> None:
 	with Session() as sess:
@@ -14,14 +14,6 @@ def main(email: str, *, oldmsn: bool = False, yahoo: bool = False) -> None:
 				name = email, message = '',
 				settings = {},
 			)
-			
-			now = datetime.utcnow()
-			
-			addressbook = AddressBook(
-				member_uuid = user.uuid,
-			)
-			addressbook.date_last_modified = now
-			sess.add(addressbook)
 			
 			# TODO: Should be generated on-demand, not here
 			#ticketxml = '<?xml version="1.0" encoding="utf-16"?>\r\n<Ticket xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">\r\n  <TS>{}</TS>\r\n  <CID>{}</CID>\r\n</Ticket>'.format(

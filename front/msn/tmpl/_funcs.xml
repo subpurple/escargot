@@ -153,7 +153,7 @@
 					{%- endif -%}
 					<InviterCID>0</InviterCID>
 					<CreateDate>{{ date_format(networkinfo.date_created) }}</CreateDate>
-					<LastChanged>{{ date_format(networkinfo.date_last_modified) }}</LastChanged>
+					<LastChanged>{{ date_format(networkinfo.date_modified) }}</LastChanged>
 					<PropertiesChanged />
 					<Settings>0</Settings>
 				</NetworkInfo>
@@ -163,7 +163,7 @@
 	</contactInfo>
 	<propertiesChanged />
 	<fDeleted>false</fDeleted>
-	<lastChange>{{ date_format(contact.date_last_modified) }}</lastChange>
+	<lastChange>{{ date_format(contact.date_modified) }}</lastChange>
 {%- endmacro -%}
 
 {%- macro phone_entry(type, phone) -%}
@@ -278,7 +278,7 @@
 		</groupInfo>
 		<propertiesChanged />
 		<fDeleted>false</fDeleted>
-		<lastChange>{{ date_format(group.date_last_modified) }}</lastChange>
+		<lastChange>{{ date_format(group.date_modified) }}</lastChange>
 	</Group>
 {%- endmacro -%}
 

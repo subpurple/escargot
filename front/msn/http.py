@@ -275,8 +275,8 @@ async def handle_abservice(req: web.Request) -> web.Response:
 			
 			ctc = detail.contacts.get(contact_uuid)
 			if ctc:
-				groups = set([group.uuid for group in ctc._groups.copy()])
-			if not ctc:
+				groups = { group.uuid for group in ctc._groups }
+			else:
 				groups = set()
 			annotations = contact.findall('.//{*}annotations/{*}Annotation')
 			annotations_dict = {}
