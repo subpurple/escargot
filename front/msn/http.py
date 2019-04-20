@@ -4,11 +4,11 @@ from enum import IntEnum
 from email.parser import Parser
 from email.header import decode_header
 from urllib.parse import unquote
+from pathlib import Path
 import lxml
 import re
 import secrets
 import base64
-import os
 import json
 import time
 from dateutil import parser as iso_parser
@@ -1372,7 +1372,7 @@ async def handle_rsi(req: web.Request) -> web.Response:
 	if action_str == 'GetMessage':
 		oim_uuid = _find_element(action, 'messageId')
 		oim_markAsRead = _find_element(action, 'alsoMarkAsRead')
-		oim = backend.user_service.get_oim_single(user, oim_uuid, markAsRead = oim_markAsRead is True)
+		oim = backend.user_service.get_oim_single(user, oim_uuid, mark_read = oim_markAsRead is True)
 		return render(req, 'msn:oim/GetMessageResponse.xml', {
 			'oim_data': format_oim(oim),
 		})
@@ -1851,8 +1851,8 @@ async def handle_rst(req: web.Request, rst2: bool = False) -> web.Response:
 		'timez': util.misc.date_format(datetime.utcnow()),
 	}, status = 403)
 
-def _get_storage_path(uuid: str) -> str:
-	return 'storage/dp/{}/{}'.format(uuid[0:1], uuid[0:2])
+def _get_storage_path(uuid: str) -> Path:
+	return Path('storage/dp') / uuid[0:1] / uuid[0:2]
 
 def handle_create_document(req: web.Request, action: Any, user: models.User, cid: str, token: str, timestamp: int) -> web.Response:
 	from PIL import Image
@@ -1868,30 +1868,17 @@ def handle_create_document(req: web.Request, action: Any, user: models.User, cid
 		
 		# store display picture as file
 		path = _get_storage_path(user.uuid)
+		path.mkdir(exist_ok = True)
 		
-		if not os.path.exists(path):
-			os.makedirs(path)
+		image_path = path / '{uuid}.{mime}'.format(uuid = user.uuid, mime = mime)
 		
-		image_path = '{path}/{uuid}.{mime}'.format(
-			path = path,
-			uuid = user.uuid,
-			mime = mime
-		)
-		
-		fp = open(image_path, 'wb')
-		fp.write(data)
-		fp.close()
+		image_path.write_bytes(data)
 		
 		image = Image.open(image_path)
 		thumb = image.resize((21, 21))
 		
-		thumb_path = '{path}/{uuid}_thumb.{mime}'.format(
-			path=path,
-			uuid=user.uuid,
-			mime=mime
-		)
-		
-		thumb.save(thumb_path)
+		thumb_path = path / '{uuid}_thumb.{mime}'.format(uuid = user.uuid, mime = mime)
+		thumb.save(str(thumb_path))
 	
 	return render(req, 'msn:storageservice/CreateDocumentResponse.xml', {
 		'user': user,
@@ -1903,14 +1890,14 @@ def handle_create_document(req: web.Request, action: Any, user: models.User, cid
 async def handle_usertile(req: web.Request, small: bool = False) -> web.Response:
 	uuid = req.match_info['uuid']
 	storage_path = _get_storage_path(uuid)
+	files = list(storage_path.iterdir())
 	
-	try:
-		ext = os.listdir(storage_path)[0].split('.')[-1]
-		image_path = os.path.join(storage_path, '{}{}.{}'.format(uuid, '_thumb' if small else '', ext))
-		with open(image_path, 'rb') as file:
-			return web.HTTPOk(content_type = 'image/{}'.format(ext), body = file.read())
-	except FileNotFoundError:
+	if not files:
 		raise web.HTTPNotFound()
+	
+	ext = files[0].suffix
+	image_path = storage_path / '{}{}.{}'.format(uuid, '_thumb' if small else '', ext)
+	return web.HTTPOk(content_type = 'image/{}'.format(ext), body = image_path.read_bytes())
 
 async def handle_debug(req: web.Request) -> web.Response:
 	return render(req, 'msn:debug.html')

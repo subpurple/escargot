@@ -715,7 +715,7 @@ class BackendSession(Session):
 			self.backend._mark_modified(user, detail = detail)
 			self.backend._sync_contact_statuses(user)
 	
-	def me_contact_notify_oim(self, uuid: str, oim: 'OIM') -> None:
+	def me_contact_notify_oim(self, uuid: str, oim: OIM) -> None:
 		ctc_head = self.backend._load_user_record(uuid)
 		if ctc_head is None:
 			raise error.UserDoesNotExist()
