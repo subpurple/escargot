@@ -3,14 +3,12 @@ from aiohttp import web
 import asyncio
 from markupsafe import Markup
 from urllib.parse import unquote, unquote_plus, quote
-from pathlib import PurePath
-import os
+from pathlib import Path
 import datetime
 import shutil
 import re
 
 from core.backend import Backend, BackendSession
-from core.models import AddressBookContact
 import util.misc
 from .ymsg_ctrl import _try_decode_ymsg
 from .misc import YMSGService, yahoo_id_to_uuid, yahoo_id
@@ -295,70 +293,58 @@ async def handle_ft_http(req: web.Request) -> web.Response:
 	file_path = util.misc.arbitrary_decode(file_path_raw)
 	
 	try:
-		filename = PurePath(file_path).name
+		filename = Path(file_path).name
 	except:
 		raise web.HTTPInternalServerError
 	
 	path = _get_tmp_file_storage_path()
+	path.mkdir(exist_ok = True)
 	
-	if not os.path.exists(path):
-		os.makedirs(path)
-	
-	file_tmp_path = '{path}/{file}'.format(
-		path = path,
-		file = unquote_plus(filename),
-	)
-	
-	f = open(file_tmp_path, 'wb')
-	f.write(stream)
-	f.close()
+	file_tmp_path = path / unquote_plus(filename)
+	file_tmp_path.write_bytes(stream)
 	
 	upload_time = time.time()
 	
 	expiry_task = req.app.loop.create_task(_store_tmp_file_until_expiry(path))
-	_tasks_by_uuid_store[file_tmp_path[12:]] = expiry_task
+	_tasks_by_uuid_store[file_tmp_path.name[12:]] = expiry_task
 	
 	for bs_other in bs.backend._sc.iter_sessions():
 		if bs_other.user.uuid == recipient_uuid:
-			bs_other.evt.ymsg_on_sent_ft_http(yahoo_id_sender, '/tmp/file/{}'.format(file_tmp_path[12:]), upload_time, message)
+			bs_other.evt.ymsg_on_sent_ft_http(yahoo_id_sender, '/tmp/file/{}'.format(file_tmp_path.name[12:]), upload_time, message)
 	
 	# TODO: Sending HTTP FT acknowledgement crahes Yahoo! Messenger, and ultimately freezes the computer. Ignore for now.
 	#bs.evt.ymsg_on_upload_file_ft(yahoo_id_recipient, message)
 	
 	raise web.HTTPOk
 
-async def _store_tmp_file_until_expiry(file_storage_path: str) -> None:
+async def _store_tmp_file_until_expiry(file_storage_path: Path) -> None:
 	await asyncio.sleep(86400)
 	# When a day passes, delete the file (unless it has already been deleted by the downloader handler; it will cancel the according task then)
-	shutil.rmtree(file_storage_path, ignore_errors = True)
+	shutil.rmtree(str(file_storage_path), ignore_errors = True)
 
 async def handle_yahoo_filedl(req: web.Request) -> web.Response:
 	file_id = req.match_info['file_id']
 	
-	if req.method == 'GET':
-		file_storage_path = _get_tmp_file_storage_path(id = file_id)
-		
-		try:
-			filename = req.match_info['filename']
-			file_path = os.path.join(file_storage_path, unquote_plus(filename))
-			
-			with open(file_path, 'rb') as file:
-				file_stream = file.read()
-				file.close()
-				_tasks_by_uuid_store[file_id].cancel()
-				del _tasks_by_uuid_store[file_id]
-				shutil.rmtree(file_storage_path, ignore_errors = True)
-				return web.HTTPOk(body = file_stream)
-		except FileNotFoundError:
-			raise web.HTTPNotFound
-	raise web.HTTPMethodNotAllowed
+	if req.method != 'GET':
+		raise web.HTTPMethodNotAllowed
+	
+	file_storage_path = _get_tmp_file_storage_path(id = file_id)
+	filename = req.match_info['filename']
+	file_path = file_storage_path / unquote_plus(filename)
+	try:
+		file_stream = file_path.read_bytes()
+	except FileNotFoundError:
+		raise web.HTTPNotFound
+	_tasks_by_uuid_store[file_id].cancel()
+	del _tasks_by_uuid_store[file_id]
+	shutil.rmtree(file_storage_path, ignore_errors = True)
+	return web.HTTPOk(body = file_stream)
 
-def _get_tmp_file_storage_path(id: Optional[str] = None) -> str:
+def _get_tmp_file_storage_path(id: Optional[str] = None) -> Path:
 	if not id:
 		# Call `gen_uuid()` two times to make things more random =)
 		id = util.misc.gen_uuid()[0:6] + util.misc.gen_uuid()[-10:]
-	
-	return 'storage/yfs/{}'.format(id)
+	return Path('storage/yfs') / id
 
 def _parse_cookies(req: web.Request, backend: Backend, y: Optional[str] = None, t: Optional[str] = None) -> Tuple[Optional[str], Optional[BackendSession]]:
 	cookies = req.cookies
