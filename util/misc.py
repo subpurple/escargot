@@ -178,11 +178,14 @@ def date_format(d: Optional[datetime]) -> Optional[str]:
 def server_temp_cleanup() -> None:
 	# For now, just clean up stuff in the Yahoo! HTTP file transfer storage folder
 	
-	import os, shutil
+	import shutil
+	from pathlib import Path
 	
-	if os.path.exists('storage/yfs'):
-		for file_dir in os.listdir('storage/yfs'):
-			shutil.rmtree('storage/yfs/' + file_dir, ignore_errors = True)
+	path = Path('storage/yfs')
+	if not path.exists():
+		return
+	for file_dir in path.iterdir():
+		shutil.rmtree(str(file_dir), ignore_errors = True)
 
 K = TypeVar('K')
 V = TypeVar('V')

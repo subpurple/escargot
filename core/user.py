@@ -2,7 +2,8 @@ from typing import Dict, Optional, List, Tuple, Set, Any, TYPE_CHECKING
 from datetime import datetime
 from urllib.parse import quote
 from dateutil import parser as iso_parser
-import asyncio, traceback, os
+from pathlib import Path
+import asyncio, traceback
 import json
 
 from util.hash import hasher, hasher_md5, hasher_md5crypt, gen_salt
@@ -450,29 +451,23 @@ class UserService:
 		tmp_oims = []
 		
 		path = _get_oim_path(user.uuid)
-		if os.path.exists(path):
-			oim_ids = [f for f in os.listdir(path) if os.path.isfile('{path}/{uuid}'.format(path = path, uuid = f))]
-			for oim_id in oim_ids:
-				oim = self.get_oim_single(user, oim_id)
+		if path.exists():
+			for oim_path in path.iterdir():
+				if not oim_path.is_file(): continue
+				oim = self.get_oim_single(user, oim_path.name)
 				if oim is None: continue
 				tmp_oims.append(oim)
 		return tmp_oims
 	
-	def get_oim_single(self, user: User, uuid: str, *, markAsRead: bool = False) -> Optional[OIM]:
-		json_oim = None # type: Optional[Dict[str, Any]]
-		oim_path = '{path}/{uuid}'.format(
-			path = _get_oim_path(user.uuid),
-			uuid = uuid,
-		)
+	def get_oim_single(self, user: User, uuid: str, *, mark_read: bool = False) -> Optional[OIM]:
+		oim_path = _get_oim_path(user.uuid) / uuid
 		
-		if not os.path.isfile(oim_path):
+		if oim_path.is_file():
 			return None
 		
-		with open(oim_path, 'rb') as f:
-			json_oim = json.loads(f.read())
-			f.close()
-		
-		if json_oim is None: return None
+		json_oim = json.loads(oim_path.read_text())
+		if not isinstance(json_oim, dict):
+			return None
 		
 		oim = OIM(
 			json_oim['uuid'], json_oim['run_id'], json_oim['from'], json_oim['from_friendly']['friendly_name'], user.email, iso_parser.parse(json_oim['sent']),
@@ -481,11 +476,9 @@ class UserService:
 			from_friendly_encoding = json_oim['from_friendly']['encoding'], from_friendly_charset = json_oim['from_friendly']['charset'], from_user_id = json_oim['from_user_id'],
 			origin_ip = json_oim['origin_ip'], oim_proxy = json_oim['proxy']
 		)
-		if markAsRead:
+		if mark_read:
 			json_oim['is_read'] = True
-			with open(oim_path, 'w') as file:
-				file.write(json.dumps(json_oim))
-				file.close()
+			oim_path.write_text(json.dumps(json_oim))
 		
 		return oim
 	
@@ -494,15 +487,11 @@ class UserService:
 		user = bs.user
 		
 		path = _get_oim_path(recipient_uuid)
-		if not os.path.exists(path):
-			os.makedirs(path)
+		path.mkdir(exist_ok = True)
 		oim_uuid = misc.gen_uuid().upper()
-		oim_path = '{path}/{uuid}'.format(
-			path = path,
-			uuid = oim_uuid,
-		)
+		oim_path = path / oim_uuid
 		
-		if os.path.isfile(oim_path):
+		if oim_path.is_file():
 			return
 		
 		oim_json = {} # type: Dict[str, Any]
@@ -525,9 +514,7 @@ class UserService:
 			'utf8': utf8,
 		}
 		
-		with open(oim_path, 'w') as f:
-			f.write(json.dumps(oim_json))
-			f.close()
+		oim_path.write_text(json.dumps(oim_json))
 		
 		oim = OIM(
 			oim_json['uuid'], oim_json['run_id'], oim_json['from'], oim_json['from_friendly']['friendly_name'], user.email, iso_parser.parse(oim_json['sent']),
@@ -540,14 +527,10 @@ class UserService:
 		bs.me_contact_notify_oim(recipient_uuid, oim)
 	
 	def delete_oim(self, recipient_uuid: str, uuid: str) -> None:
-		oim_path = '{path}/{uuid}'.format(
-			path = _get_oim_path(recipient_uuid),
-			uuid = uuid,
-		)
-		if not os.path.isfile(oim_path):
-			return None
-		
-		os.remove(oim_path)
+		oim_path = _get_oim_path(recipient_uuid) / uuid
+		if not oim_path.is_file():
+			return
+		oim_path.unlink()
 	
 	#def msn_create_circle(self, uuid: str, circle_name: str, owner_friendly: str, membership_access: int, request_membership_option: int, is_presence_enabled: bool) -> Optional[Tuple[str, str]]:
 	#	with Session() as sess:
@@ -703,5 +686,5 @@ def _get_persisted_status_message(status: UserStatus) -> str:
 		return ''
 	return status.message
 
-def _get_oim_path(recipient_uuid: str) -> str:
-	return 'storage/oim/{}'.format(recipient_uuid)
+def _get_oim_path(recipient_uuid: str) -> Path:
+	return Path('storage/oim') / recipient_uuid
