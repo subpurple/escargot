@@ -14,10 +14,8 @@
 			innerHtml = '';
 			response = JSON.parse(this.responseText);
 			for (channel in response) {
-				var properties = response[channel];
-				
-				users = properties['users'];
-				innerHtml += '<h3>' + channel + '</h3>';
+				users = channel['users'];
+				innerHtml += '<h3>' + channel['channel'] + '</h3>';
 				innerHtml += '<br/>';
 				innerHtml += 'Total users: ' + users.length.toString();
 				innerHtml += '<br/><br/>';
