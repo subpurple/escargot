@@ -22,12 +22,13 @@ def register(app: web.Application) -> None:
 async def handle_ircchats(req: web.Request) -> web.Response:
 	backend = req.app['backend'] # type: Backend
 	
-	result = {} # type: Dict[str, Dict[str, Any]]
+	result = [] # type: List[Dict[str, Any]]
 	
 	for chat in backend.get_chats_by_scope('irc'):
 		nicks = [cs.user.email for cs in chat.get_roster_single()]
 		
-		result[chat.ids['irc']] = {
+		result.append({
+			'channel': chat.ids['irc'],
 			'users': nicks,
 		}
 	
