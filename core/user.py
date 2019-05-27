@@ -10,27 +10,19 @@ from util.hash import hasher, hasher_md5, hasher_md5crypt, gen_salt
 from util import misc
 
 from . import error
-from .db import Session, User as DBUser, UserGroup as DBUserGroup, UserContact as DBUserContact
-from .models import User, Contact, ContactGroupEntry, UserStatus, UserDetail, NetworkID, Lst, Group, OIM, MessageData
+from .db import Session, User as DBUser, UserContact as DBUserContact, GroupChat as DBGroupChat
+from .models import User, Contact, ContactDetail, ContactLocation, ContactGroupEntry, UserStatus, UserDetail, GroupChat, GroupChatMembership, GroupChatRole, GroupChatState, NetworkID, Lst, Group, OIM, MessageData
 
 if TYPE_CHECKING:
 	from .backend import BackendSession
 
 class UserService:
-	loop: asyncio.AbstractEventLoop
 	_cache_by_uuid: Dict[str, Optional[User]]
-	_ab_ctc_cache_by_uuid_by_uuid: Dict[str, Dict[str, Optional[AddressBookContact]]]
-	_worklist_sync_ab: Dict[int, Tuple[User, Dict[str, Any]]]
-	_working_ab_sync_ids: List[int]
+	_groupchat_cache_by_chat_id: Dict[str, Optional[GroupChat]]
 	
-	def __init__(self, loop: asyncio.AbstractEventLoop) -> None:
-		self.loop = loop
+	def __init__(self) -> None:
 		self._cache_by_uuid = {}
-		self._ab_ctc_cache_by_uuid_by_uuid = {}
-		self._worklist_sync_ab = {}
-		self._working_ab_sync_ids = []
-		
-		loop.create_task(self._worker_sync_ab())
+		self._groupchat_cache_by_chat_id = {}
 	
 	def login(self, email: str, pwd: str) -> Optional[str]:
 		with Session() as sess:
@@ -72,35 +64,11 @@ class UserService:
 				'date_login': datetime.utcnow(),
 			})
 	
-	def is_user_relay(self, uuid: str) -> Optional[bool]:
-		with Session() as sess:
-			tmp = sess.query(DBUser.relay).filter(DBUser.uuid == uuid).one_or_none()
-			if tmp is None: return None
-			return tmp and tmp[0]
-	
-	#def msn_is_user_circle(self, uuid: str) -> Optional[bool]:
-	#	with Session() as sess:
-	#		dbuser = sess.query(DBUser).filter(DBUser.uuid == uuid).one_or_none()
-	#		if dbuser is None: return None
-	#		if dbuser.get_front_data('msn', 'circle') is True:
-	#			return True
-	#	return False
-	
 	def get_uuid(self, email: str) -> Optional[str]:
 		with Session() as sess:
 			dbuser = sess.query(DBUser).filter(DBUser.email == email).one_or_none()
 			if dbuser is None: return None
-			#if dbuser.get_front_data('msn', 'circle') is True:
-			#	return None
 			return dbuser.uuid
-	
-	#def get_msn_circle_acc_uuid(self, circle_id: str) -> Optional[str]:
-	#	with Session() as sess:
-	#		dbuser = sess.query(DBUser).filter(DBUser.email == '{}@live.com'.format(circle_id)).one_or_none()
-	#		if dbuser is None: return None
-	#		if not dbuser.get_front_data('msn', 'circle'):
-	#			return None
-	#		return dbuser.uuid
 	
 	def get(self, uuid: str) -> Optional[User]:
 		if uuid not in self._cache_by_uuid:
@@ -119,301 +87,30 @@ class UserService:
 			dbuser = sess.query(DBUser).filter(DBUser.uuid == uuid).one_or_none()
 			if dbuser is None: return None
 			detail = UserDetail()
-			groups = sess.query(DBUserGroup).filter(DBUserGroup.user_id == dbuser.id)
-			for g in groups:
-				grp = Group(g.group_id, g.group_uuid, g.name, g.is_favorite, date_modified = g.date_modified)
+			for g in dbuser.groups:
+				grp = Group(**g)
 				detail._groups_by_id[grp.id] = grp
 				detail._groups_by_uuid[grp.uuid] = grp
 			contacts = sess.query(DBUserContact).filter(DBUserContact.user_id == dbuser.id)
 			for c in contacts:
-				ctc_head = self.get(c.contact_id)
+				ctc_head = self.get(c.uuid)
 				if ctc_head is None: continue
 				status = UserStatus(c.name, c.message)
 				ctc_groups = { ContactGroupEntry(
 					ctc_head.uuid, group_entry['id'], group_entry['uuid'],
 				) for group_entry in c.groups }
+				c_detail = ContactDetail(
+					c.id, birthdate = c.birthdate, anniversary = c.anniversary, notes = c.notes, first_name = c.first_name, middle_name = c.middle_name, last_name = c.last_name, nickname = c.nickname, primary_email_type = c.primary_email_type, personal_email = c.personal_email, work_email = c.work_email, im_email = c.im_email, other_email = c.other_email, home_phone = c.home_phone, work_phone = c.work_phone, fax_phone = c.fax_phone, pager_phone = c.pager_phone, mobile_phone = c.mobile_phone, other_phone = c.other_phone, personal_website = c.personal_website, business_website = c.business_website,
+				)
+				c_detail.locations = {
+					type: ContactLocation(type, name = location.get('name'), street = location.get('street'), city = location.get('city'), state = location.get('state'), country = location.get('country'), zip_code = location.get('zip_code')) for type, location in c.locations.items()
+				}
 				ctc = Contact(
-					ctc_head, ctc_groups, c.lists, status,
+					ctc_head, ctc_groups, c.lists, status, c_detail, is_messenger_user = c.is_messenger_user,
 				)
 				detail.contacts[ctc.head.uuid] = ctc
 		return detail
 	
-	async def _worker_sync_ab(self) -> None:
-		while True:
-			await asyncio.sleep(1)
-			self._sync_ab_impl()
-	
-	def _sync_ab_impl(self) -> None:
-		if not self._worklist_sync_ab: return
-		try:
-			keys = list(self._worklist_sync_ab.keys())[:100]
-			batch = []
-			for key in keys:
-				user, fields = self._worklist_sync_ab.pop(key)
-				self._working_ab_sync_ids.append(key)
-				batch.append((key,user,fields))
-			self.save_batch_ab(batch)
-		except:
-			traceback.print_exc()
-	
-	def create_ab(self, user: User) -> None:
-		with Session() as sess:
-			dbaddressbook = sess.query(DBAddressBook).filter(DBAddressBook.member_uuid == user.uuid).one_or_none()
-			
-			if not dbaddressbook:
-				dbaddressbook = DBAddressBook(
-					member_uuid = user.uuid,
-				)
-				sess.add(dbaddressbook)
-	
-	def mark_ab_modified(self, fields: Dict[str, Any], user: User) -> int:
-		id = len(self._worklist_sync_ab.keys())
-		self._worklist_sync_ab[id] = (user, fields)
-		return id
-	
-	async def mark_ab_modified_async(self, fields: Dict[str, Any], user: User) -> None:
-		id = self.mark_ab_modified(fields, user)
-		await asyncio.sleep(1)
-		while id in self._working_ab_sync_ids:
-			await asyncio.sleep(0.1)
-	
-	def ab_get_entry_by_uuid(self, ctc_uuid: str, user: User) -> Optional[AddressBookContact]:
-		with Session() as sess:
-			dbaddressbookcontact = sess.query(DBAddressBookContact).filter(DBAddressBookContact.uuid == ctc_uuid, DBAddressBookContact.user_uuid == user.uuid).one_or_none()
-			
-			if dbaddressbookcontact is None:
-				return None
-			
-			return self._ab_get_entry(dbaddressbookcontact.uuid, user)
-	
-	def ab_get_entry_by_email(self, email: str, ctc_type: str, user: User) -> Optional[AddressBookContact]:
-		with Session() as sess:
-			dbaddressbookcontact = sess.query(DBAddressBookContact).filter(DBAddressBookContact.email == email, DBAddressBookContact.type == ctc_type, DBAddressBookContact.user_uuid == user.uuid).one_or_none()
-			
-			if dbaddressbookcontact is None:
-				for user_other, fields in self._worklist_sync_ab.values():
-					if user_other is user:
-						for c in fields['contacts']:
-							if c.email == email and c.type == ctc_type:
-								return c
-				return None
-			
-			return self._ab_get_entry(dbaddressbookcontact.uuid, user)
-	
-	def ab_get_entry_by_id(self, ctc_id: str, user: User) -> Optional[AddressBookContact]:
-		with Session() as sess:
-			dbaddressbookcontact = sess.query(DBAddressBookContact).filter(DBAddressBookContact.contact_id == ctc_id, DBAddressBookContact.user_uuid == user.uuid).one_or_none()
-			
-			if dbaddressbookcontact is None:
-				return None
-			
-			return self._ab_get_entry(dbaddressbookcontact.uuid, user)
-	
-	def _ab_get_entry(self, contact_uuid: str, user: User) -> Optional[AddressBookContact]:
-		ctc_ab = None
-		
-		if user.uuid in self._ab_ctc_cache_by_uuid_by_uuid:
-			if contact_uuid in self._ab_ctc_cache_by_uuid_by_uuid[user.uuid]:
-				ctc_ab = self._ab_ctc_cache_by_uuid_by_uuid[user.uuid][contact_uuid]
-		
-		if ctc_ab is None:
-			if user.uuid not in self._ab_ctc_cache_by_uuid_by_uuid:
-				self._ab_ctc_cache_by_uuid_by_uuid[user.uuid] = {}
-			ctc_ab = self._ab_get_entry_uncached(contact_uuid, user)
-		
-		return ctc_ab
-	
-	def _ab_get_entry_uncached(self, contact_uuid: str, user: User) -> Optional[AddressBookContact]:
-		head = None
-		
-		with Session() as sess:
-			dbaddressbookcontact = sess.query(DBAddressBookContact).filter(DBAddressBookContact.uuid == contact_uuid, DBAddressBookContact.user_uuid == user.uuid).one_or_none()
-			
-			if dbaddressbookcontact is None:
-				return None
-			
-			if dbaddressbookcontact.contact_uuid is not None:
-				head = self.get(dbaddressbookcontact.contact_uuid)
-				if head is None: return None
-			
-			dbaddressbookcontactlocations = sess.query(DBAddressBookContactLocation).filter(DBAddressBookContactLocation.uuid == dbaddressbookcontact.uuid, DBAddressBookContactLocation.user_uuid == dbaddressbookcontact.user_uuid)
-			locations = {
-				dbaddressbookcontactlocation.location_type: AddressBookContactLocation(
-					dbaddressbookcontactlocation.location_type, name = dbaddressbookcontactlocation.name, street = dbaddressbookcontactlocation.street, city = dbaddressbookcontactlocation.city, state = dbaddressbookcontactlocation.state, country = dbaddressbookcontactlocation.country, zip_code = dbaddressbookcontactlocation.zip_code,
-			) for dbaddressbookcontactlocation in dbaddressbookcontactlocations}
-			
-			annotations = {} # type: Dict[Any, Any]
-			for annots in dbaddressbookcontact.annotations:
-				annotations.update(annots)
-			addressbookcontact = AddressBookContact(
-				dbaddressbookcontact.type, dbaddressbookcontact.contact_id, dbaddressbookcontact.uuid, dbaddressbookcontact.email, dbaddressbookcontact.name, set(dbaddressbookcontact.groups),
-				birthdate = dbaddressbookcontact.birthdate, anniversary = dbaddressbookcontact.anniversary, notes = dbaddressbookcontact.notes, first_name = dbaddressbookcontact.first_name, middle_name = dbaddressbookcontact.middle_name, last_name = dbaddressbookcontact.last_name, nickname = dbaddressbookcontact.nickname, home_phone = dbaddressbookcontact.home_phone, work_phone = dbaddressbookcontact.work_phone, fax_phone = dbaddressbookcontact.fax_phone, pager_phone = dbaddressbookcontact.pager_phone, mobile_phone = dbaddressbookcontact.mobile_phone, other_phone = dbaddressbookcontact.other_phone, personal_website = dbaddressbookcontact.personal_website, business_website = dbaddressbookcontact.business_website, locations = locations, primary_email_type = dbaddressbookcontact.primary_email_type, personal_email = dbaddressbookcontact.personal_email, work_email = dbaddressbookcontact.work_email, im_email = dbaddressbookcontact.im_email, other_email = dbaddressbookcontact.other_email, member_uuid = dbaddressbookcontact.contact_uuid, is_messenger_user = dbaddressbookcontact.is_messenger_user, annotations = annotations, date_modified = dbaddressbookcontact.date_modified,
-			)
-			self._ab_ctc_cache_by_uuid_by_uuid[user.uuid][contact_uuid] = addressbookcontact
-			
-			return addressbookcontact
-	
-	def get_ab_contents(self, user: User) -> Optional[Tuple[User, datetime, datetime, Dict[str, AddressBookContact]]]:
-		with Session() as sess:
-			dbaddressbook = self._get_ab_store(user.uuid)
-			if dbaddressbook is None:
-				return None
-			
-			head = self.get(dbaddressbook.member_uuid)
-			if head is None: return None
-			
-			contacts = {}
-			
-			dbaddressbookcontacts = sess.query(DBAddressBookContact).filter(DBAddressBookContact.user_uuid == user.uuid)
-			for dbaddressbookcontact in dbaddressbookcontacts:
-				ctc = self._ab_get_entry(dbaddressbookcontact.uuid, user)
-				if ctc is None: continue
-				contacts[dbaddressbookcontact.uuid] = ctc
-			return head, dbaddressbook.date_created, dbaddressbook.date_modified, contacts
-	
-	def ab_delete_entry(self, ctc_uuid: str, user: User) -> None:
-		with Session() as sess:
-			dbaddressbook = self._get_ab_store(user.uuid)
-			if dbaddressbook is None:
-				return None
-			
-			dbaddressbookcontact = sess.query(DBAddressBookContact).filter(DBAddressBookContact.uuid == ctc_uuid, DBAddressBookContact.user_uuid == user.uuid).one_or_none()
-			if dbaddressbookcontact is not None:
-				if user.uuid in self._ab_ctc_cache_by_uuid_by_uuid:
-					if dbaddressbookcontact.uuid in self._ab_ctc_cache_by_uuid_by_uuid[user.uuid]:
-						del self._ab_ctc_cache_by_uuid_by_uuid[user.uuid][dbaddressbookcontact.uuid]
-				
-				dbaddressbookcontactlocations = sess.query(DBAddressBookContactLocation).filter(DBAddressBookContactLocation.uuid == dbaddressbookcontact.uuid, DBAddressBookContactLocation.user_uuid == dbaddressbookcontact.user_uuid)
-				for dbaddressbookcontactlocation in dbaddressbookcontactlocations:
-					sess.delete(dbaddressbookcontactlocation)
-				sess.delete(dbaddressbookcontact)
-				
-				sess.add(dbaddressbook)
-	
-	def ab_delete_entry_by_email(self, email: str, ctc_type: str, user: User) -> None:
-		with Session() as sess:
-			dbaddressbook = self._get_ab_store(user.uuid)
-			if dbaddressbook is None:
-				return None
-			
-			dbaddressbookcontact = sess.query(DBAddressBookContact).filter(DBAddressBookContact.email == email, DBAddressBookContact.type == ctc_type, DBAddressBookContact.user_uuid == user.uuid).one_or_none()
-			if dbaddressbookcontact is not None:
-				if user.uuid in self._ab_ctc_cache_by_uuid_by_uuid:
-					if dbaddressbookcontact.uuid in self._ab_ctc_cache_by_uuid_by_uuid[user.uuid]:
-						del self._ab_ctc_cache_by_uuid_by_uuid[user.uuid][dbaddressbookcontact.uuid]
-				
-				dbaddressbookcontactlocations = sess.query(DBAddressBookContactLocation).filter(DBAddressBookContactLocation.uuid == dbaddressbookcontact.uuid, DBAddressBookContactLocation.user_uuid == dbaddressbookcontact.user_uuid)
-				for dbaddressbookcontactlocation in dbaddressbookcontactlocations:
-					sess.delete(dbaddressbookcontactlocation)
-				sess.delete(dbaddressbookcontact)
-				
-				sess.add(dbaddressbook)
-	
-	def gen_ab_entry_id(self, user: User) -> str:
-		tpl = self.get_ab_contents(user)
-		assert tpl is not None
-		_, _, _, ab_contacts = tpl
-		
-		id = 2
-		
-		for i, _ in enumerate(ab_contacts):
-			if i+2 == id:
-				id += 1
-				continue
-		s = str(id)
-		
-		return s
-	
-	def save_batch_ab(self, batch: List[Tuple[int, User, Dict[str, Any]]]) -> None:
-		with Session() as sess:
-			for id, user, fields in batch:
-				updated = False
-				dbaddressbook = self._get_ab_store(user.uuid)
-				if dbaddressbook is None:
-					return None
-				
-				if 'contacts' in fields:
-					for c in fields['contacts']:
-						dbaddressbookcontact = sess.query(DBAddressBookContact).filter(DBAddressBookContact.uuid == c.contact_uuid, DBAddressBookContact.user_uuid == user.uuid).one_or_none()
-						if dbaddressbookcontact is None:
-							dbaddressbookcontact = DBAddressBookContact(
-								user_uuid = user.uuid,
-								contact_id = c.id, contact_uuid = c.contact_uuid, contact_uuid = c.member_uuid, type = c.type, email = c.email, birthdate = c.birthdate, anniversary = c.anniversary, notes = c.notes, name = c.name, first_name = c.first_name, middle_name = c.middle_name, last_name = c.last_name, nickname = c.nickname, primary_email_type = c.primary_email_type, personal_email = c.personal_email, work_email = c.work_email, im_email = c.im_email, other_email = c.other_email, home_phone = c.home_phone, work_phone = c.work_phone, fax_phone = c.fax_phone, pager_phone = c.pager_phone, mobile_phone = c.mobile_phone, other_phone = c.other_phone, personal_website = c.personal_website, business_website = c.business_website, groups = list(c.groups), is_messenger_user = c.is_messenger_user, annotations = [{
-									name: value
-								} for name, value in c.annotations.items()],
-							)
-						else:
-							dbaddressbookcontact.email = c.email
-							dbaddressbookcontact.birthdate = c.birthdate
-							dbaddressbookcontact.anniversary = c.anniversary
-							dbaddressbookcontact.notes = c.notes
-							dbaddressbookcontact.name = c.name
-							dbaddressbookcontact.first_name = c.first_name
-							dbaddressbookcontact.middle_name = c.middle_name
-							dbaddressbookcontact.last_name = c.last_name
-							dbaddressbookcontact.nickname = c.nickname
-							dbaddressbookcontact.primary_email_type = c.primary_email_type
-							dbaddressbookcontact.personal_email = c.personal_email
-							dbaddressbookcontact.work_email = c.work_email
-							dbaddressbookcontact.im_email = c.im_email
-							dbaddressbookcontact.other_email = c.other_email
-							dbaddressbookcontact.home_phone = c.home_phone
-							dbaddressbookcontact.work_phone = c.work_phone
-							dbaddressbookcontact.fax_phone = c.fax_phone
-							dbaddressbookcontact.pager_phone = c.pager_phone
-							dbaddressbookcontact.mobile_phone = c.mobile_phone
-							dbaddressbookcontact.other_phone = c.other_phone
-							dbaddressbookcontact.personal_website = c.personal_website
-							dbaddressbookcontact.business_website = c.business_website
-							dbaddressbookcontact.groups = list(c.groups)
-							dbaddressbookcontact.is_messenger_user = c.is_messenger_user
-							dbaddressbookcontact.annotations = [{
-								name: value
-							} for name, value in c.annotations.items()]
-						
-						dbaddressbookcontactlocations = sess.query(DBAddressBookContactLocation).filter(DBAddressBookContactLocation.uuid == dbaddressbookcontact.uuid, DBAddressBookContactLocation.user_uuid == dbaddressbookcontact.user_uuid)
-						
-						for dbaddressbookcontactlocation in dbaddressbookcontactlocations:
-							if dbaddressbookcontactlocation.location_type not in c.locations:
-								sess.delete(dbaddressbookcontactlocation)
-						
-						for location in c.locations.values():
-							dbaddressbookcontactlocation = sess.query(DBAddressBookContactLocation).filter(DBAddressBookContactLocation.location_type == location.type, DBAddressBookContactLocation.uuid == dbaddressbookcontact.uuid, DBAddressBookContactLocation.user_uuid == dbaddressbookcontact.user_uuid).one_or_none()
-							if dbaddressbookcontactlocation is None:
-								dbaddressbookcontactlocation = DBAddressBookContactLocation(
-									uuid = dbaddressbookcontact.uuid, user_uuid = user.uuid,
-									location_type = location.type, name = location.name, street = location.street, city = location.city, state = location.state, country = location.country, zip_code = location.zip_code,
-								)
-							else:
-								dbaddressbookcontactlocation.name = location.name
-								dbaddressbookcontactlocation.street = location.street
-								dbaddressbookcontactlocation.city = location.city
-								dbaddressbookcontactlocation.state = location.state
-								dbaddressbookcontactlocation.country = location.country
-								dbaddressbookcontactlocation.zip_code = location.zip_code
-							sess.add(dbaddressbookcontactlocation)
-						
-						sess.add(dbaddressbookcontact)
-					updated = True
-				
-				if updated:
-					sess.add(dbaddressbook)
-				self._working_ab_sync_ids.remove(id)
-	
-	def _get_ab_store(self, uuid: str) -> Optional[DBAddressBook]:
-		with Session() as sess:
-			dbaddressbook = sess.query(DBAddressBook).filter(DBAddressBook.member_uuid == uuid).one_or_none()
-		
-		return dbaddressbook
-	
-	#def msn_update_circleticket(self, uuid: str, cid: str) -> None:
-	#	with Session() as sess:
-	#		dbuser = sess.query(DBUser).filter(DBUser.uuid == uuid).one_or_none()
-	#		if dbuser is not None:
-	#			tik = self.msn_build_circleticket(uuid, cid)
-	#			dbuser.set_front_data('msn', 'circleticket', tik)
-	#			sess.add(dbuser)
-	#
 	#def msn_build_circleticket(self, uuid: str, cid: str) -> Optional[Tuple[str, str]]:
 	#	detail = self.get_detail(uuid)
 	#	if detail is None: return None
@@ -428,19 +125,6 @@ class UserService:
 	#	# - Signatures from samples were 256 bytes long, or 2048 bits long, possibly leading to RSA-2048
 	#	# - In that case, sign SHA-1 hash with RSA-2048
 	#	return misc.sign_with_new_key_and_b64(ticketxml)
-	#
-	#def msn_get_circleticket(self, uuid: str) -> Optional[Tuple[str, str]]:
-	#	with Session() as sess:
-	#		dbuser = sess.query(DBUser).filter(DBUser.uuid == uuid).one_or_none()
-	#		if dbuser is None: return None
-	#		tik = dbuser.get_front_data('msn', 'circleticket')
-	#		if tik is None:
-	#			from front.msn.misc import cid_format
-	#			cid = cid_format(uuid, decimal = True)
-	#			tik = self.msn_build_circleticket(uuid, cid)
-	#			dbuser.set_front_data('msn', 'circleticket', tik)
-	#			sess.add(dbuser)
-	#	return tik
 	
 	def get_oim_batch(self, user: User) -> List[OIM]:
 		tmp_oims = []
@@ -482,7 +166,7 @@ class UserService:
 		user = bs.user
 		
 		path = _get_oim_path(recipient_uuid)
-		path.mkdir(exist_ok = True)
+		path.mkdir(parents = True, exist_ok = True)
 		oim_uuid = misc.gen_uuid().upper()
 		oim_path = path / oim_uuid
 		
@@ -527,148 +211,153 @@ class UserService:
 			return
 		oim_path.unlink()
 	
-	#def msn_create_circle(self, uuid: str, circle_name: str, owner_friendly: str, membership_access: int, request_membership_option: int, is_presence_enabled: bool) -> Optional[Tuple[str, str]]:
-	#	with Session() as sess:
-	#		head = self.get(uuid)
-	#		if head is None: return None
-	#		
-	#		circle_id = '00000000-0000-0000-0009-{}'.format(misc.gen_uuid()[-12:])
-	#		dbcirclestore = DBCircleStore(
-	#			circle_id = circle_id, circle_name = circle_name,
-	#			owner_email = head.email, owner_friendly = owner_friendly, membership_access = membership_access, request_membership_option = request_membership_option, is_presence_enabled = is_presence_enabled,
-	#		)
-	#		
-	#		dbcirclemembership = DBCircleMembership(
-	#			circle_id = circle_id, member_email = head.email, member_role = int(ABRelationshipRole.Admin), member_state = int(ABRelationshipState.Accepted),
-	#		)
-	#		
-	#		circleuser_uuid = misc.gen_uuid()
-	#		circledbuser = DBUser(
-	#			uuid = circleuser_uuid, email = '{}@live.com'.format(circle_id), relay = True, verified = False,
-	#			name = circle_name, message = '',
-	#			password = hasher.encode(gen_salt(length = 32)), settings = {}, subscribed_ab_stores = ['00000000-0000-0000-0000-000000000000', circle_id],
-	#		)
-	#		circledbuser.set_front_data('msn', 'circle', True)
-	#		
-	#		circledbuser_usercontact = DBUserContact(
-	#			user_uuid = circleuser_uuid, uuid = head.uuid,
-	#			name = head.email, message = '',
-	#			lists = (Lst.FL | Lst.AL), groups = {},
-	#		)
-	#		
-	#		circleuser_abstore = DBAddressBook(
-	#			member_uuid = circledbuser.uuid, ab_id = '00000000-0000-0000-0000-000000000000',
-	#		)
-	#		
-	#		circledbabmetadata = DBABMetadata(
-	#			ab_id = circle_id, ab_type = 'Group',
-	#		)
-	#		circledbaddressbook = DBAddressBook(
-	#			member_uuid = circledbuser.uuid, ab_id = circle_id,
-	#		)
-	#		self_circledbabcontact = DBAddressBookContact(
-	#			ab_id = circle_id, uuid = misc.gen_uuid(), contact_uuid = head.uuid,
-	#			type = 'Circle', email = head.email, name = head.status.name or head.email,
-	#			groups = {}, is_messenger_user = True, annotations = {},
-	#		)
-	#		self_circledbabcontactnetworkinfo = DBAddressBookContactNetworkInfo(
-	#			uuid = self_circledbabcontact.uuid, ab_id = circle_id,
-	#			domain_id = int(NetworkID.WINDOWS_LIVE), domain_tag = 'WL', source_id = head.email, display_name = head.status.name or head.email,
-	#			relationship_type = int(ABRelationshipType.Circle), relationship_role = int(ABRelationshipRole.Admin), relationship_state = int(ABRelationshipState.Accepted), relationship_state_date = datetime.utcnow(),
-	#		)
-	#		sess.add_all([dbcirclestore, dbcirclemembership, circledbuser,  circledbuser_usercontact, circleuser_abstore, circledbabmetadata, circledbaddressbook, self_circledbabcontact, self_circledbabcontactnetworkinfo])
-	#	return circle_id, circleuser_uuid
-	#
-	#def msn_get_circle_metadata(self, circle_id: str) -> Optional[CircleMetadata]:
-	#	with Session() as sess:
-	#		dbcirclestore = sess.query(DBCircleStore).filter(DBCircleStore.circle_id == circle_id).one_or_none()
-	#		if dbcirclestore is None: return None
-	#		
-	#		return CircleMetadata(
-	#			dbcirclestore.circle_id, dbcirclestore.owner_email, dbcirclestore.owner_friendly, dbcirclestore.circle_name, dbcirclestore.date_modified,
-	#			dbcirclestore.membership_access, dbcirclestore.request_membership_option, dbcirclestore.is_presence_enabled,
-	#		)
-	#
-	#def msn_circle_set_user_membership(self, circle_id: str, email: str, *, member_role: Optional[ABRelationshipRole] = None, member_state: Optional[ABRelationshipState] = None) -> bool:
-	#	with Session() as sess:
-	#		dbcirclemembership = sess.query(DBCircleMembership).filter(DBCircleMembership.circle_id == circle_id, DBCircleMembership.member_email == email).one_or_none()
-	#		
-	#		if dbcirclemembership is None:
-	#			if member_role is not None and member_state is not None:
-	#				dbcirclemembership = DBCircleMembership(
-	#					circle_id = circle_id, member_email = email, member_role = int(member_role), member_state = int(member_state),
-	#				)
-	#			else:
-	#				return False
-	#		else:
-	#			if member_role is not None:
-	#				dbcirclemembership.member_role = int(member_role)
-	#			if member_state is not None:
-	#				dbcirclemembership.member_state = int(member_state)
-	#		sess.add(dbcirclemembership)
-	#	return True
-	#
-	#def msn_get_circle_membership(self, circle_id: str, email: str) -> Optional[CircleMembership]:
-	#	with Session() as sess:
-	#		dbcirclemembership = sess.query(DBCircleMembership).filter(DBCircleMembership.circle_id == circle_id, DBCircleMembership.member_email == email).one_or_none()
-	#		if dbcirclemembership is None: return None
-	#		
-	#		return CircleMembership(
-	#			circle_id, email, ABRelationshipRole(dbcirclemembership.member_role), ABRelationshipState(dbcirclemembership.member_state),
-	#		)
+	def create_groupchat(self, user: User, name: str, owner_friendly: str, membership_access: int) -> str:
+		with Session() as sess:
+			chat_id = misc.gen_uuid()[-12:]
+			
+			dbgroupchat = DBGroupChat(
+				chat_id = chat_id, name = name,
+				owner_id = user.id, owner_uuid = user.uuid, owner_friendly = owner_friendly, membership_access = membership_access, request_membership_option = 0,
+			)
+			
+			dbgroupchat.add_membership(user.uuid, int(GroupChatRole.Admin), int(GroupChatState.Accepted))
+			
+			sess.add(dbgroupchat)
+		
+		return chat_id
+	
+	def get_groupchat(self, chat_id: str) -> Optional[GroupChat]:
+		if chat_id not in self._groupchat_cache_by_chat_id:
+			self._groupchat_cache_by_chat_id[chat_id] = self._get_groupchat_uncached(chat_id)
+		return self._groupchat_cache_by_chat_id[chat_id]
+	
+	def _get_groupchat_uncached(self, chat_id: str) -> Optional[GroupChat]:
+		with Session() as sess:
+			dbgroupchat = sess.query(DBGroupChat).filter(DBGroupChat.chat_id == chat_id).one_or_none()
+			if dbgroupchat is None: return None
+			
+			groupchat = GroupChat(
+				dbgroupchat.chat_id, dbgroupchat.name, dbgroupchat.owner_id, dbgroupchat.owner_uuid, dbgroupchat.owner_friendly,
+				 dbgroupchat.membership_access, dbgroupchat.request_membership_option,
+			)
+			
+			for uuid, member_properties in dbgroupchat._memberships.items():
+				head = self.get(uuid)
+				if head is None: continue
+				
+				groupchat.memberships[uuid] = GroupChatMembership(
+					dbgroupchat.chat_id, head,
+					GroupChatRole(member_properties['role']), GroupChatState(member_properties['state']),
+					inviter_uuid = member_properties.get('inviter_uuid'), inviter_email = member_properties.get('inviter_email'), inviter_name = member_properties.get('inviter_name'),
+				)
+		
+		return groupchat
+	
+	def get_all_groupchats(self) -> List[GroupChat]:
+		groupchats = []
+		
+		with Session() as sess:
+			dbgroupchats = sess.query(DBGroupChat)
+			
+			for dbgroupchat in dbgroupchats:
+				groupchat = self.get_groupchat(dbgroupchat.chat_id)
+				if groupchat is None: continue
+				
+				groupchats.append(groupchat)
+		
+		return groupchats
+	
+	def get_groupchat_batch(self, user: User) -> List[GroupChat]:
+		groupchats = []
+		
+		with Session() as sess:
+			dbgroupchats = sess.query(DBGroupChat)
+			
+			for dbgroupchat in dbgroupchats:
+				if dbgroupchat.get_membership(user.uuid) is not None:
+					groupchat = self.get_groupchat(dbgroupchat.chat_id)
+					if groupchat is None: continue
+					
+					groupchats.append(groupchat)
+		
+		return groupchats
+	
+	def save_groupchat_batch(self, to_save: List[Tuple[str, GroupChat]]) -> None:
+		with Session() as sess:
+			for chat_id, groupchat in to_save:
+				dbgroupchat = sess.query(DBGroupChat).filter(DBGroupChat.chat_id == chat_id).one()
+				dbgroupchat.name = groupchat.name
+				dbgroupchat.membership_access = groupchat.membership_access
+				dbgroupchat.request_membership_option = groupchat.request_membership_option
+				for membership in groupchat.memberships.values():
+					dbgroupchat.add_membership(membership.head.uuid, int(membership.role), int(membership.state), inviter_uuid = membership.inviter_uuid, inviter_email = membership.inviter_email, inviter_name = membership.inviter_name)
+				sess.add(dbgroupchat)
 	
 	def save_batch(self, to_save: List[Tuple[User, UserDetail]]) -> None:
 		with Session() as sess:
 			for user, detail in to_save:
 				dbusercontacts_to_add = []
-				dbusergroups_to_add = []
 				
 				dbuser = sess.query(DBUser).filter(DBUser.uuid == user.uuid).one()
 				dbuser.name = user.status.name
 				dbuser.message = _get_persisted_status_message(user.status)
+				dbuser.groups = [{
+					'id': g.id, 'uuid': g.uuid,
+					'name': g.name, 'is_favorite': g.is_favorite,
+				} for g in detail._groups_by_id.values()]
 				dbuser.settings = user.settings
 				sess.add(dbuser)
 				
-				dbusergroups = sess.query(DBUserGroup).filter(DBUserGroup.user_id == user.id)
-				for tmp in dbusergroups:
-					if tmp.group_id not in detail._groups_by_id:
-						sess.delete(tmp)
-				for g in detail._groups_by_id.values():
-					dbusergroup = sess.query(DBUserGroup).filter(DBUserGroup.user_id == user.id, DBUserGroup.group_id == g.id, DBUserGroup.group_uuid == g.uuid).one_or_none()
-					if dbusergroup is None:
-						dbusergroup = DBUserGroup(
-							user_uuid = user.uuid, group_id = g.id, group_uuid = g.uuid,
-							name = g.name, is_favorite = g.is_favorite,
-						)
-					else:
-						dbusergroup.name = g.name
-						dbusergroup.is_favorite = g.is_favorite
-					dbusergroups_to_add.append(dbusergroup)
-				if dbusergroups_to_add:
-					sess.add_all(dbusergroups_to_add)
-				
 				dbusercontacts = sess.query(DBUserContact).filter(DBUserContact.user_id == user.id)
 				for tmp in dbusercontacts:
-					if tmp.contact_uuid not in detail.contacts:
+					if tmp.uuid not in detail.contacts:
 						sess.delete(tmp)
 				for c in detail.contacts.values():
 					dbusercontact = sess.query(DBUserContact).filter(DBUserContact.user_id == user.id, DBUserContact.contact_id == c.head.id).one_or_none()
 					status_message = _get_persisted_status_message(c.status)
 					if dbusercontact is None:
 						dbusercontact = DBUserContact(
-							user_id = user.id, contact_id = c.head.id, contact_uuid = c.head.uuid,
+							user_id = user.id, contact_id = c.head.id, user_uuid = user.uuid, uuid = c.head.uuid,
 							name = c.status.name, message = status_message,
 							lists = c.lists, groups = [{
 								'id': group.id, 'uuid': group.uuid,
-							} for group in c._groups.copy()],
+							} for group in c._groups.copy()], is_messenger_user = c.is_messenger_user,
+							id = c.detail.id,
 						)
-					else:
-						dbusercontact.name = c.status.name
-						dbusercontact.message = status_message
-						dbusercontact.lists = c.lists
-						dbusercontact.groups = [{
-							'id': group.id, 'uuid': group.uuid,
-						} for group in c._groups.copy()]
+					
+					dbusercontact.name = c.status.name
+					dbusercontact.message = status_message
+					dbusercontact.lists = c.lists
+					dbusercontact.groups = [{
+						'id': group.id, 'uuid': group.uuid,
+					} for group in c._groups.copy()]
+					dbusercontact.is_messenger_user = c.is_messenger_user
+					dbusercontact.birthdate = c.detail.birthdate
+					dbusercontact.anniversary = c.detail.anniversary
+					dbusercontact.notes = c.detail.notes
+					dbusercontact.first_name = c.detail.first_name
+					dbusercontact.middle_name = c.detail.middle_name
+					dbusercontact.last_name = c.detail.last_name
+					dbusercontact.nickname = c.detail.nickname
+					dbusercontact.primary_email_type = c.detail.primary_email_type
+					dbusercontact.personal_email = c.detail.personal_email
+					dbusercontact.work_email = c.detail.work_email
+					dbusercontact.im_email = c.detail.im_email
+					dbusercontact.other_email = c.detail.other_email
+					dbusercontact.home_phone = c.detail.home_phone
+					dbusercontact.work_phone = c.detail.work_phone
+					dbusercontact.fax_phone = c.detail.fax_phone
+					dbusercontact.pager_phone = c.detail.pager_phone
+					dbusercontact.mobile_phone = c.detail.mobile_phone
+					dbusercontact.other_phone = c.detail.other_phone
+					dbusercontact.personal_website = c.detail.personal_website
+					dbusercontact.business_website = c.detail.business_website
+					dbusercontact.locations = {
+						location.type: {
+							'name': location.name, 'street': location.street, 'city': location.city, 'state': location.state, 'country': location.country, 'zip_code': location.zip_code,
+						} for location in c.detail.locations.values()
+					}
+					
 					dbusercontacts_to_add.append(dbusercontact)
 				if dbusercontacts_to_add:
 					sess.add_all(dbusercontacts_to_add)

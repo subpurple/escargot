@@ -129,6 +129,7 @@
 			<Device VID="0x041e" PID="0x4086" />
 		</USBDevices>
 		<VoiceVideo><Log PeerLogDisable="1" /></VoiceVideo>
+		<CirclesWeb General="http://cid-$CIRCLECID$.groups.live.com/" General-SiteId="73625" Management="http://cid-$CIRCLECID$.groups.live.com/options/" Management-SiteId="73625" Membership="http://cid-$CIRCLECID$.groups.live.com/membership/" Membership-SiteId="73625" Leave="http://cid-$CIRCLECID$.groups.live.com/options/leavegroup/" Leave-SiteId="73625" />
 		<AnonymousIMSettings><SettingsPage URL="http://settings.messenger.live.com/applications/WebSettings.aspx" SiteID="76215" /></AnonymousIMSettings>
 		<SAC SiteID="73625" />
 		<InlineFlashEnabled>1</InlineFlashEnabled>

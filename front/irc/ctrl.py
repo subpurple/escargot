@@ -6,7 +6,7 @@ from enum import IntEnum
 from util.misc import Logger
 
 from core import event
-from core.models import Contact, Substatus, User, TextWithData, OIM, MessageData, MessageType, Substatus, LoginOption, NetworkID
+from core.models import Contact, Substatus, User, GroupChat, TextWithData, OIM, MessageData, MessageType, Substatus, LoginOption, NetworkID
 from core.backend import Backend, BackendSession, Chat, ChatSession
 from core.client import Client
 
@@ -192,8 +192,11 @@ class BackendEventHandler(event.BackendEventHandler):
 	def on_maintenance_boot(self) -> None:
 		pass
 	
-	def on_presence_notification(self, bs_other: Optional[BackendSession], ctc: Contact, old_substatus: Substatus, on_contact_add: bool, *, trid: Optional[str] = None, update_status: bool = True, send_status_on_bl: bool = False, visible_notif: bool = True, sess_id: Optional[int] = None, updated_phone_info: Optional[Dict[str, Any]] = None, circle_user_bs: Optional[BackendSession] = None, circle_id: Optional[str] = None) -> None:
+	def on_presence_notification(self, bs_other: Optional[BackendSession], ctc: Contact, on_contact_add: bool, *, trid: Optional[str] = None, update_status: bool = True, send_status_on_bl: bool = False, visible_notif: bool = True, sess_id: Optional[int] = None, updated_phone_info: Optional[Dict[str, Any]] = None) -> None:
 		self.ctrl.send_reply('NOTICE', ":{} is now {}".format(ctc.head.email, ctc.status.substatus))
+	
+	def on_groupchat_presence_notification(self, groupchat: GroupChat, user_other: User) -> None:
+		pass
 	
 	def on_presence_self_notification(self) -> None:
 		pass
@@ -245,6 +248,9 @@ class ChatEventHandler(event.ChatEventHandler):
 	def on_participant_left(self, cs_other: ChatSession, idle: bool, last_pop: bool) -> None:
 		if last_pop:
 			self.ctrl.send_reply('PART', self.cs.chat.ids['irc'], source = cs_other.user.email)
+	
+	def on_chat_user_status_updated(self, cs_other: ChatSession) -> None:
+		pass
 	
 	def on_invite_declined(self, invited_user: User, *, invited_id: Optional[str] = None, message: str = '') -> None:
 		self.ctrl.send_reply('NOTICE', ":{} declined the invitation".format(invited_user.email), source = invited_user.email)

@@ -16,6 +16,7 @@ class User:
 	date_created: datetime
 	
 	def __init__(self, id: int, uuid: str, email: str, verified: bool, status: 'UserStatus', settings: Dict[str, Any], date_created: datetime) -> None:
+		self.id = id
 		self.uuid = uuid
 		self.email = email
 		self.verified = verified
@@ -26,19 +27,23 @@ class User:
 		self.date_created = date_created
 
 class Contact:
-	__slots__ = ('head', '_groups', 'lists', 'status')
+	__slots__ = ('head', '_groups', 'lists', 'status', 'is_messenger_user', 'detail')
 	
 	head: User
 	_groups: Set['ContactGroupEntry']
 	lists: 'Lst'
 	status: 'UserStatus'
+	is_messenger_user: bool
+	detail: 'ContactDetail'
 	
-	def __init__(self, user: User, groups: Set['ContactGroupEntry'], lists: 'Lst', status: 'UserStatus') -> None:
+	def __init__(self, user: User, groups: Set['ContactGroupEntry'], lists: 'Lst', status: 'UserStatus', detail: 'ContactDetail', *, is_messenger_user: Optional[bool] = None) -> None:
 		self.head = user
 		self._groups = groups
 		self.lists = lists
 		# `status`: status as known by the contact
 		self.status = status
+		self.is_messenger_user = _default_if_none(is_messenger_user, True)
+		self.detail = detail
 	
 	def compute_visible_status(self, to_user: User) -> None:
 		# Set Contact.status based on BLP and Contact.lists
@@ -87,64 +92,37 @@ def _is_blocking(blocker: User, blockee: User) -> bool:
 	if lists & Lst.AL: return False
 	return (blocker.settings.get('BLP', 'AL') == 'BL')
 
-class ContactGroupEntry:
-	__slots__ = ('contact_uuid', 'id', 'uuid')
+class ContactDetail:
+	__slots__ = ('id', 'birthdate', 'anniversary', 'notes', 'first_name', 'middle_name', 'last_name', 'nickname', 'primary_email_type', 'personal_email', 'work_email', 'im_email', 'other_email', 'home_phone', 'work_phone', 'fax_phone', 'pager_phone', 'mobile_phone', 'other_phone', 'personal_website', 'business_website', 'locations')
 	
-	contact_uuid: str
 	id: str
-	uuid: str
-	
-	def __init__(self, contact_uuid: str, id: str, uuid: str) -> None:
-		self.contact_uuid = contact_uuid
-		self.id = id
-		self.uuid = uuid
-
-class AddressBookContact:
-	__slots__ = ('type', 'id', 'uuid', 'email', 'birthdate', 'anniversary', 'member_uuid', 'date_modified', 'notes', 'name', 'first_name', 'middle_name', 'last_name', 'nickname', 'primary_email_type', 'personal_email', 'work_email', 'im_email', 'other_email', 'home_phone', 'work_phone', 'fax_phone', 'pager_phone', 'mobile_phone', 'other_phone', 'personal_website', 'business_website', 'locations', 'groups', 'is_messenger_user', 'annotations')
-	
-	type: str
-	id: str
-	uuid: str
-	email: str
 	birthdate: Optional[datetime]
 	anniversary: Optional[datetime]
-	member_uuid: str
-	date_modified: datetime
-	notes: str
-	name: str
-	first_name: str
-	middle_name: str
-	last_name: str
-	nickname: str
-	primary_email_type: str
-	personal_email: str
-	work_email: str
-	im_email: str
-	other_email: str
-	home_phone: str
-	work_phone: str
-	fax_phone: str
-	pager_phone: str
-	mobile_phone: str
-	other_phone: str
-	personal_website: str
-	business_website: str
-	groups: Set[str]
-	is_messenger_user: bool
-	annotations: Dict[str, Any]
+	notes: Optional[str]
+	first_name: Optional[str]
+	middle_name: Optional[str]
+	last_name: Optional[str]
+	nickname: Optional[str]
+	primary_email_type: Optional[str]
+	personal_email: Optional[str]
+	work_email: Optional[str]
+	im_email: Optional[str]
+	other_email: Optional[str]
+	home_phone: Optional[str]
+	work_phone: Optional[str]
+	fax_phone: Optional[str]
+	pager_phone: Optional[str]
+	mobile_phone: Optional[str]
+	other_phone: Optional[str]
+	personal_website: Optional[str]
+	business_website: Optional[str]
 	locations: Dict[str, 'ContactLocation']
 	
-	def __init__(self, type: str, id: str, uuid: str, email: str, name: Optional[str], groups: Set[str], *, birthdate: Optional[datetime] = None, anniversary: Optional[datetime] = None, notes: str = None, first_name: str = None, middle_name: str = None, last_name: str = None, nickname: str = None, primary_email_type: str = None, personal_email: str = None, work_email: str = None, im_email: str = None, other_email: str = None, home_phone: str = None, work_phone: str = None, fax_phone: str = None, pager_phone: str = None, mobile_phone: str = None, other_phone: str = None, personal_website: str = None, business_website: str = None, locations: Optional[Dict[str, 'AddressBookContactLocation']] = None, member_uuid: Optional[str] = None, is_messenger_user: Optional[bool] = None, annotations: Optional[Dict[str, Any]] = None, date_modified: Optional[datetime] = None) -> None:
-		self.type = type
+	def __init__(self, id: str, *, birthdate: Optional[datetime] = None, anniversary: Optional[datetime] = None, notes: Optional[str] = None, first_name: Optional[str] = None, middle_name: Optional[str] = None, last_name: Optional[str] = None, nickname: Optional[str] = None, primary_email_type: Optional[str] = None, personal_email: Optional[str] = None, work_email: Optional[str] = None, im_email: Optional[str] = None, other_email: Optional[str] = None, home_phone: Optional[str] = None, work_phone: Optional[str] = None, fax_phone: Optional[str] = None, pager_phone: Optional[str] = None, mobile_phone: Optional[str] = None, other_phone: Optional[str] = None, personal_website: Optional[str] = None, business_website: Optional[str] = None):
 		self.id = id
-		self.uuid = uuid
-		self.email = email
 		self.birthdate = birthdate
 		self.anniversary = anniversary
-		self.member_uuid = member_uuid
-		self.date_modified = _default_if_none(date_modified, datetime.utcnow())
 		self.notes = notes
-		self.name = name
 		self.first_name = first_name
 		self.middle_name = middle_name
 		self.last_name = last_name
@@ -162,24 +140,32 @@ class AddressBookContact:
 		self.other_phone = other_phone
 		self.personal_website = personal_website
 		self.business_website = business_website
-		self.locations = _default_if_none(locations, {})
-		self.groups = groups
-		self.is_messenger_user = _default_if_none(is_messenger_user, False)
-		self.annotations = _default_if_none(annotations, {})
-		self.locations = _default_if_none(locations, {})
+		self.locations = {}
+
+class ContactGroupEntry:
+	__slots__ = ('contact_uuid', 'id', 'uuid')
+	
+	contact_uuid: str
+	id: str
+	uuid: str
+	
+	def __init__(self, contact_uuid: str, id: str, uuid: str) -> None:
+		self.contact_uuid = contact_uuid
+		self.id = id
+		self.uuid = uuid
 
 class ContactLocation:
 	__slots__ = ('type', 'name', 'street', 'city', 'state', 'country', 'zip_code')
 	
 	type: str
-	name: str
-	street: str
-	city: str
-	state: str
-	country: str
-	zip_code: str
+	name: Optional[str]
+	street: Optional[str]
+	city: Optional[str]
+	state: Optional[str]
+	country: Optional[str]
+	zip_code: Optional[str]
 	
-	def __init__(self, type: str, *, name: str = '', street: str = '', city: str = '', state: str = '', country: str = '', zip_code: str = '') -> None:
+	def __init__(self, type: str, *, name: Optional[str] = None, street: Optional[str] = None, city: Optional[str] = None, state: Optional[str] = None, country: Optional[str] = None, zip_code: Optional[str] = None) -> None:
 		self.type = type
 		self.name = name
 		self.street = street
@@ -189,18 +175,22 @@ class ContactLocation:
 		self.zip_code = zip_code
 
 class UserStatus:
-	__slots__ = ('substatus', 'name', '_message', '_persistent', 'media')
+	__slots__ = ('substatus', 'old_substatus', 'name', '_message', 'old_message', '_persistent', 'media')
 	
 	substatus: 'Substatus'
+	old_substatus: 'Substatus'
 	name: Optional[str]
 	_message: str
+	old_message: str
 	_persistent: bool
 	media: Optional[Any]
 	
 	def __init__(self, name: Optional[str], message: str = '') -> None:
 		self.substatus = Substatus.Offline
+		self.old_substatus = Substatus.Offline
 		self.name = name
 		self._message = message
+		self.old_message = message
 		self._persistent = True
 		self.media = None
 	
@@ -257,20 +247,18 @@ class UserDetail:
 			del self._groups_by_uuid[grp.uuid]
 
 class Group:
-	__slots__ = ('id', 'uuid', 'name', 'is_favorite', 'date_modified')
+	__slots__ = ('id', 'uuid', 'name', 'is_favorite')
 	
 	id: str
 	uuid: str
 	name: str
 	is_favorite: bool
-	date_modified: datetime
 	
-	def __init__(self, id: str, uuid: str, name: str, is_favorite: bool, *, date_modified: Optional[datetime] = None) -> None:
+	def __init__(self, id: str, uuid: str, name: str, is_favorite: bool) -> None:
 		self.id = id
 		self.uuid = uuid
 		self.name = name
 		self.is_favorite = is_favorite
-		self.date_modified = date_modified or datetime.utcnow()
 
 class MessageType(Enum):
 	Chat = object()
@@ -304,41 +292,47 @@ class TextWithData:
 		self.text = text
 		self.yahoo_utf8 = yahoo_utf8
 
-#class CircleMetadata:
-#	__slots__ = ('circle_id', 'owner_email', 'owner_friendly', 'circle_name', 'date_modified', 'membership_access', 'request_membership_option', 'is_presence_enabled')
-#	
-#	circle_id: str
-#	owner_email: str
-#	owner_friendly: str
-#	circle_name: str
-#	date_modified: datetime
-#	membership_access: int
-#	request_membership_option: int
-#	is_presence_enabled: bool
-#	
-#	def __init__(self, circle_id: str, owner_email: str, owner_friendly: str, circle_name: str, date_modified: datetime, membership_access: int, request_membership_option: int, is_presence_enabled: bool) -> None:
-#		self.circle_id = circle_id
-#		self.owner_email = owner_email
-#		self.owner_friendly = owner_friendly
-#		self.circle_name = circle_name
-#		self.date_modified = date_modified
-#		self.membership_access = membership_access
-#		self.request_membership_option = request_membership_option
-#		self.is_presence_enabled = is_presence_enabled
-#
-#class CircleMembership:
-#	__slots__ = ('circle_id', 'email', 'role', 'state')
-#	
-#	circle_id: str
-#	email: str
-#	role: 'CircleRole'
-#	state: 'CircleState'
-#	
-#	def __init__(self, circle_id: str, email: str, role: 'CircleRole', state: 'CircleState'):
-#		self.circle_id = circle_id
-#		self.email = email
-#		self.role = role
-#		self.state = state
+class GroupChat:
+	__slots__ = ('chat_id', 'name', 'owner_id', 'owner_uuid', 'owner_friendly', 'membership_access', 'request_membership_option', 'memberships')
+	
+	chat_id: str
+	name: str
+	owner_id: int
+	owner_uuid: str
+	owner_friendly: str
+	membership_access: int
+	request_membership_option: int
+	memberships: Dict[str, 'GroupChatMembership']
+	
+	def __init__(self, chat_id: str, name: str, owner_id: int, owner_uuid: str, owner_friendly: str, membership_access: int, request_membership_option: int) -> None:
+		self.chat_id = chat_id
+		self.name = name
+		self.owner_id = owner_id
+		self.owner_uuid = owner_uuid
+		self.owner_friendly = owner_friendly
+		self.membership_access = membership_access
+		self.request_membership_option = request_membership_option
+		self.memberships = {}
+
+class GroupChatMembership:
+	__slots__ = ('chat_id', 'head', 'role', 'state', 'inviter_uuid', 'inviter_email', 'inviter_name')
+	
+	chat_id: str
+	head: User
+	role: 'GroupChatRole'
+	state: 'GroupChatState'
+	inviter_uuid: Optional[str]
+	inviter_email: Optional[str]
+	inviter_name: Optional[str]
+	
+	def __init__(self, chat_id: str, head: User, role: 'GroupChatRole', state: 'GroupChatState', *, inviter_uuid: Optional[str] = None, inviter_email: Optional[str] = None, inviter_name: Optional[str] = None):
+		self.chat_id = chat_id
+		self.head = head
+		self.role = role
+		self.state = state
+		self.inviter_uuid = inviter_uuid
+		self.inviter_email = inviter_email
+		self.inviter_name = inviter_name
 
 class OIM:
 	__slots__ = ('uuid', 'run_id', 'from_email', 'from_friendly', 'from_friendly_encoding', 'from_friendly_charset', 'from_user_id', 'to_email', 'sent', 'origin_ip', 'oim_proxy', 'headers', 'message', 'utf8')
@@ -441,19 +435,22 @@ class NetworkID(IntEnum):
 	SMTP = 0x10 # Jaguire, Japanese mobile interop
 	YAHOO = 0x20
 
-#class CircleRole(IntEnum):
-#	Empty = 0
-#	Admin = 1
-#	AssistantAdmin = 2
-#	Member = 3
-#	StatePendingOutbound = 4
-#
-#class CircleState(IntEnum):
-#	Empty = 0
-#	WaitingResponse = 1
-#	Left = 2
-#	Accepted = 3
-#	Rejected = 4
+class GroupChatRole(IntEnum):
+	Empty = 0
+	Admin = 1
+	AssistantAdmin = 2
+	Member = 3
+	StatePendingOutbound = 4
+
+class GroupChatState(IntEnum):
+	Empty = 0
+	WaitingResponse = 1
+	Left = 2
+	Accepted = 3
+	Rejected = 4
+
+class RelationshipType(IntEnum):
+	Circle = 5
 
 class Service:
 	__slots__ = ('host', 'port')

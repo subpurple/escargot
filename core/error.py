@@ -45,3 +45,6 @@ class AuthFail(ClientError):
 
 class NotAllowedWhileHDN(ClientError):
 	pass
+
+class NotAllowedToJoinGroupChat(ClientError):
+	pass

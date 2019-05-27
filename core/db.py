@@ -11,16 +11,13 @@ from util import hash
 from util.json_type import JSONType
 import settings
 
-class Base(declarative_base()): # type: ignore
-	__abstract__ = True
-	
-	date_created = Col(sa.DateTime, nullable = True, default = datetime.utcnow)
-	date_modified = Col(sa.DateTime, nullable = True, default = datetime.utcnow, onupdate = datetime.utcnow)
-
 def Col(*args: Any, **kwargs: Any) -> sa.Column:
 	if 'nullable' not in kwargs:
 		kwargs['nullable'] = False
 	return sa.Column(*args, **kwargs)
+
+class Base(declarative_base()): # type: ignore
+	__abstract__ = True
 
 class WithFrontData(Base):
 	__abstract__ = True
@@ -50,94 +47,82 @@ class User(WithFrontData):
 	__tablename__ = 't_user'
 	
 	id = Col(sa.Integer, primary_key = True)
+	date_created = Col(sa.DateTime, default = datetime.utcnow)
 	date_login = Col(sa.DateTime, nullable = True)
 	uuid = Col(sa.String, unique = True)
 	email = Col(sa.String)
-	relay = Col(sa.Boolean, default = False)
 	verified = Col(sa.Boolean)
 	name = Col(sa.String, nullable = True)
 	message = Col(sa.String)
 	password = Col(sa.String)
+	groups = Col(JSONType)
 	settings = Col(JSONType)
-
-class UserGroup(WithFrontData):
-	__tablename__ = 't_user_group'
-	
-	id = Col(sa.Integer, primary_key = True)
-	group_uuid = Col(sa.String) # TODO: unique, rename uuid
-	
-	user_id = Col(sa.Integer, sa.ForeignKey('t_user.id'))
-	name = Col(sa.String)
-	
-	group_id = Col(sa.String) # TODO: MSN only?
-	is_favorite = Col(sa.Boolean, default = False) # TODO: MSN only?
 
 class UserContact(WithFrontData):
 	__tablename__ = 't_user_contact'
 	
 	user_id = Col(sa.Integer, sa.ForeignKey('t_user.id'), primary_key = True)
 	contact_id = Col(sa.Integer, sa.ForeignKey('t_user.id'), primary_key = True)
-	uuid = Col(sa.String, unique = True)
+	user_uuid = Col(sa.String, sa.ForeignKey('t_user.uuid')) # = User(self.user_id).uuid
 	
-	user_uuid = Col(sa.String) # = User(self.user_id).uuid
-	contact_uuid = Col(sa.String) # = User(self.contact_id).uuid
+	uuid = Col(sa.String, sa.ForeignKey('t_user.uuid')) # = User(self.contact_id).uuid
 	name = Col(sa.String)
 	message = Col(sa.String)
 	lists = Col(sa.Integer)
 	groups = Col(JSONType)
+	is_messenger_user = Col(sa.Boolean)
 	
 	# TODO: Fields from AddressBookContact
-	contact_id = Col(sa.String, nullable = True) # TODO: For yahoo, like group_id; need Unique(user_id, contact_id); needs new name
-	type = Col(sa.String)
-	email = Col(sa.String)
+	id = Col(sa.String) # TODO: For yahoo, like group_id; need Unique(user_id, contact_id); needs new name
 	birthdate = Col(sa.DateTime, nullable = True)
 	anniversary = Col(sa.DateTime, nullable = True)
-	notes = Col(sa.String)
-	name = Col(sa.String)
-	first_name = Col(sa.String)
-	middle_name = Col(sa.String)
-	last_name = Col(sa.String)
-	nickname = Col(sa.String)
-	primary_email_type = Col(sa.String)
-	personal_email = Col(sa.String)
-	work_email = Col(sa.String)
-	im_email = Col(sa.String)
-	other_email = Col(sa.String)
-	home_phone = Col(sa.String)
-	work_phone = Col(sa.String)
-	fax_phone = Col(sa.String)
-	pager_phone = Col(sa.String)
-	mobile_phone = Col(sa.String)
-	other_phone = Col(sa.String)
-	personal_website = Col(sa.String)
-	business_website = Col(sa.String)
-	groups = Col(JSONType)
-	is_messenger_user = Col(sa.Boolean, default = False)
-	# annotations = { "Annotation.Name": "Value", ... }
-	annotations = Col(JSONType, default = {})
+	notes = Col(sa.String, nullable = True)
+	first_name = Col(sa.String, nullable = True)
+	middle_name = Col(sa.String, nullable = True)
+	last_name = Col(sa.String, nullable = True)
+	nickname = Col(sa.String, nullable = True)
+	primary_email_type = Col(sa.String, nullable = True)
+	personal_email = Col(sa.String, nullable = True)
+	work_email = Col(sa.String, nullable = True)
+	im_email = Col(sa.String, nullable = True)
+	other_email = Col(sa.String, nullable = True)
+	home_phone = Col(sa.String, nullable = True)
+	work_phone = Col(sa.String, nullable = True)
+	fax_phone = Col(sa.String, nullable = True)
+	pager_phone = Col(sa.String, nullable = True)
+	mobile_phone = Col(sa.String, nullable = True)
+	other_phone = Col(sa.String, nullable = True)
+	personal_website = Col(sa.String, nullable = True)
+	business_website = Col(sa.String, nullable = True)
 	# locations = { '000-000': { 'name': "Foo", 'city': 'Bar' } }
 	locations = Col(JSONType, default = {})
 
-#class CircleStore(Base):
-#	__tablename__ = 't_circle_store'
-#	
-#	id = Col(sa.Integer, primary_key = True)
-#	circle_id = Col(sa.String, unique = True)
-#	circle_name = Col(sa.String)
-#	owner_email = Col(sa.String)
-#	owner_friendly = Col(sa.String)
-#	membership_access = Col(sa.Integer)
-#	request_membership_option = Col(sa.Integer)
-#	is_presence_enabled = Col(sa.Boolean)
-
-#class CircleMembership(Base):
-#	__tablename__ = 't_circle_membership'
-#	
-#	id = Col(sa.Integer, primary_key = True)
-#	circle_id = Col(sa.String)
-#	member_email = Col(sa.String)
-#	member_role = Col(sa.Integer)
-#	member_state = Col(sa.Integer)
+class GroupChat(Base):
+	__tablename__ = 't_group_chat'
+	
+	id = Col(sa.Integer, primary_key = True)
+	chat_id = Col(sa.String, unique = True)
+	name = Col(sa.String)
+	owner_id = Col(sa.String, sa.ForeignKey('t_user.id'))
+	owner_uuid = Col(sa.String, sa.ForeignKey('t_user.uuid'))
+	owner_friendly = Col(sa.String)
+	membership_access = Col(sa.Integer)
+	request_membership_option = Col(sa.Integer)
+	# memberships = { '000-000': { 'role': 'GroupChatRole', 'state': 'CircleState', 'member_id': '000-000' }, ... }
+	_memberships = Col(JSONType, name = 'memberships', default = {})
+	
+	def add_membership(self, uuid: str, role: int, state: int, *, inviter_uuid: Optional[str] = None, inviter_email: Optional[str] = None, inviter_name: Optional[str] = None) -> None:
+		ms = self._memberships or {}
+		
+		ms[uuid] = {
+			'role': role, 'state': state,
+			'inviter_uuid': inviter_uuid, 'inviter_email': inviter_email, 'inviter_name': inviter_name,
+		}
+		self._memberships = _simplify_json_data(ms)
+	
+	def get_membership(self, uuid: str) -> Optional[Dict[str, Any]]:
+		ms = self._memberships or {}
+		return ms.get(uuid)
 
 def _simplify_json_data(data: Any) -> Any:
 	if isinstance(data, dict):

@@ -3,7 +3,7 @@ import asyncio
 import random
 
 from core.client import Client
-from core.models import Substatus, Lst, OIM, Contact, User, NetworkID, TextWithData, MessageData, MessageType, LoginOption
+from core.models import Substatus, Lst, OIM, Contact, User, GroupChat, NetworkID, TextWithData, MessageData, MessageType, LoginOption
 from core.backend import Backend, BackendSession, Chat, ChatSession
 from core import event
 
@@ -45,7 +45,10 @@ class BackendEventHandler(event.BackendEventHandler):
 	def on_maintenance_boot(self) -> None:
 		pass
 	
-	def on_presence_notification(self, bs_other: Optional[BackendSession], ctc: Contact, old_substatus: Substatus, on_contact_add: bool, *, trid: Optional[str] = None, update_status: bool = True, send_status_on_bl: bool = False, visible_notif: bool = True, sess_id: Optional[int] = None, updated_phone_info: Optional[Dict[str, Any]] = None, circle_user_bs: Optional[BackendSession] = None, circle_id: Optional[str] = None) -> None:
+	def on_presence_notification(self, bs_other: Optional[BackendSession], ctc: Contact, on_contact_add: bool, *, trid: Optional[str] = None, update_status: bool = True, send_status_on_bl: bool = False, visible_notif: bool = True, sess_id: Optional[int] = None, updated_phone_info: Optional[Dict[str, Any]] = None) -> None:
+		pass
+	
+	def on_groupchat_presence_notification(self, groupchat: GroupChat, user_other: User) -> None:
 		pass
 	
 	def on_presence_self_notification(self) -> None:
@@ -94,6 +97,9 @@ class ChatEventHandler(event.ChatEventHandler):
 		pass
 	
 	def on_participant_left(self, cs_other: ChatSession, idle: bool, last_pop: bool) -> None:
+		pass
+	
+	def on_chat_user_status_updated(self, cs_other: ChatSession) -> None:
 		pass
 	
 	def on_invite_declined(self, invited_user: User, *, invited_id: Optional[str] = None, message: str = '') -> None:

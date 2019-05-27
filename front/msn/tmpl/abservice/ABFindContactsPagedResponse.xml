@@ -14,36 +14,239 @@
 	<soap:Body>
 		<ABFindContactsPagedResponse xmlns="http://www.msn.com/webservices/AddressBook">
 			<ABFindContactsPagedResult>
-				{%- if ab_id == '00000000-0000-0000-0000-000000000000' and user_creator_detail -%}
-					{%- if user_creator_detail._groups_by_uuid -%}
-						<Groups>
-							{% for group in user_creator_detail._groups_by_uuid.values() %}
-								{{ group_entry(group) }}
-							{% endfor %}
-						</Groups>
-					{%- endif -%}
+				{%- if ab_id == '00000000-0000-0000-0000-000000000000' -%}
+					<Groups>
+						{% for group in detail._groups_by_uuid.values() %}
+							{{ group_entry(group, now) }}
+						{% endfor %}
+					</Groups>
 				{%- endif -%}
 				<Contacts>
-					{%- if ab_contacts -%}
-						{%- for contact in ab_contacts.values() -%}
+					{%- if ab_id == '00000000-0000-0000-0000-000000000000' -%}
+						{%- for ctc in detail.contacts.values() -%}
+							{%- if ctc.lists.__and__(Lst.FL) -%}
+								<Contact>
+								{{ contact_entry(ab_id, ctc, detail, now) }}
+								</Contact>
+							{%- endif -%}
+						{%- endfor -%}
+						{%- for groupchat in groupchats -%}
 							<Contact>
-							{{ contact_entry(ab_id, contact, user_creator_detail) }}
+								<contactId>00000000-0000-0000-0009-{{ groupchat.chat_id }}</contactId>
+								<contactInfo>
+									<contactType>Circle</contactType>
+									<quickName>circle</quickName>
+									<passportName>00000000-0000-0000-0009-{{ groupchat.chat_id.upper() }}@hotmail.com</passportName>
+									<IsPassportNameHidden>false</IsPassportNameHidden>
+									<displayName>{{ groupchat.name }}</displayName>
+									<puid>0</puid>
+									<CID>{{ cid_format('00000000-0000-0000-0009-' + groupchat.chat_id, decimal = True) }}</CID>
+									<IsNotMobileVisible>false</IsNotMobileVisible>
+									<isMobileIMEnabled>false</isMobileIMEnabled>
+									<isMessengerUser>false</isMessengerUser>
+									<isFavorite>false</isFavorite>
+									<isSmtp>false</isSmtp>
+									<hasSpace>false</hasSpace>
+									<spotWatchState>NoDevice</spotWatchState>
+									<birthdate>0001-01-01T00:00:00</birthdate>
+									<primaryEmailType>ContactEmailPersonal</primaryEmailType>
+									<PrimaryLocation>ContactLocationPersonal</PrimaryLocation>
+									<PrimaryPhone>ContactPhonePersonal</PrimaryPhone>
+									<IsPrivate>false</IsPrivate>
+									<IsHidden>true</IsHidden>
+									<Gender>Unspecified</Gender>
+									<TimeZone>None</TimeZone>
+									<NetworkInfoList>
+										<NetworkInfo>
+											<DomainId>1</DomainId>
+											<SourceId>WL</SourceId>
+											{%- if user.uuid != groupchat.owner_uuid -%}
+												<DomainTag>00000000-0000-0000-0009-{{ groupchat.chat_id.upper() }}</DomainTag>
+												<DisplayName>00000000-0000-0000-0009-{{ groupchat.chat_id.upper() }}</DisplayName>
+											{%- endif -%}
+											<RelationshipType>5</RelationshipType>
+											<RelationshipState>{{ groupchat.memberships[user.uuid].state.value }}</RelationshipState>
+											<RelationshipStateDate>{{ now }}</RelationshipStateDate>
+											<RelationshipRole>0</RelationshipRole>
+											<NDRCount>0</NDRCount>
+											<InviterCID>0</InviterCID>
+											<CreateDate>{{ now }}</CreateDate>
+											<LastUpdated>{{ now }}</LastUpdated>
+											<PropertiesChanged />
+										</NetworkInfo>
+									</NetworkInfoList>
+									<IsAutoUpdateDisabled>false</IsAutoUpdateDisabled>
+									<IsShellContact>false</IsShellContact>
+									<TrustLevel>0</TrustLevel>
+									<PropertiesChanged />
+								</contactInfo>
+								<propertiesChanged />
+								<fDeleted>false</fDeleted>
+								<CreateDate>{{ now }}</CreateDate>
+								<lastChange>{{ now }}</lastChange>
+								<CreatedBy>96</CreatedBy>
+							</Contact>
+						{%- endfor -%}
+					{%- else -%}
+						{%- for membership in groupchat.memberships.values() -%}
+							<Contact>
+								<contactId>{{ membership.head.uuid }}</contactId>
+								<contactInfo>
+									<contactType>{%- if membership.state == GroupChatRole.StatePendingOutbound -%}LivePending{%- else -%}Live{%- endif -%}</contactType>
+									<quickName>{{ membership.head.email }}</quickName>
+									<passportName>{{ membership.head.email }}</passportName>
+									<IsPassportNameHidden>false</IsPassportNameHidden>
+									<displayName>{{ membership.head.email }}</displayName>
+									<puid>0</puid>
+									<CID>{{ cid_format(membership.head.uuid, decimal = True) }}</CID>
+									<IsNotMobileVisible>false</IsNotMobileVisible>
+									<isMobileIMEnabled>false</isMobileIMEnabled>
+									<isMessengerUser>false</isMessengerUser>
+									<isFavorite>false</isFavorite>
+									<isSmtp>false</isSmtp>
+									<hasSpace>false</hasSpace>
+									<spotWatchState>NoDevice</spotWatchState>
+									<birthdate>0001-01-01T00:00:00</birthdate>
+									<primaryEmailType>ContactEmailPersonal</primaryEmailType>
+									<PrimaryLocation>ContactLocationPersonal</PrimaryLocation>
+									<PrimaryPhone>ContactPhonePersonal</PrimaryPhone>
+									<IsPrivate>false</IsPrivate>
+									<IsHidden>true</IsHidden>
+									<Gender>Unspecified</Gender>
+									<TimeZone>None</TimeZone>
+									<NetworkInfoList>
+										<NetworkInfo>
+											<DomainId>1</DomainId>
+											<SourceId>WL</SourceId>
+											<RelationshipType>5</RelationshipType>
+											<RelationshipState>{{ membership.state.value }}</RelationshipState>
+											<RelationshipStateDate>{{ now }}</RelationshipStateDate>
+											<RelationshipRole>{{ membership.role.value }}</RelationshipRole>
+											<NDRCount>0</NDRCount>
+											<InviterCID>0</InviterCID>
+											<CreateDate>{{ now }}</CreateDate>
+											<LastUpdated>{{ now }}</LastUpdated>
+											<PropertiesChanged />
+										</NetworkInfo>
+									</NetworkInfoList>
+									<IsAutoUpdateDisabled>false</IsAutoUpdateDisabled>
+									<IsShellContact>false</IsShellContact>
+									<TrustLevel>0</TrustLevel>
+									<PropertiesChanged />
+								</contactInfo>
+								<propertiesChanged />
+								<fDeleted>false</fDeleted>
+								<CreateDate>{{ now }}</CreateDate>
+								<lastChange>{{ now }}</lastChange>
+								<CreatedBy>96</CreatedBy>
 							</Contact>
 						{%- endfor -%}
 					{%- endif -%}
-					{{ generate_me_entry(ab_id, user_creator, now) }}
+					{%- if ab_id.startswith('00000000-0000-0000-0009-') -%}
+						<Contact>
+							<contactId>{{ ab_id }}</contactId>
+							<contactInfo>
+								<contactType>Me</contactType>
+								<quickName>{{ ab_id }}</quickName>
+								<passportName>{{ ab_id }}@live.com</passportName>
+								<IsPassportNameHidden>false</IsPassportNameHidden>
+								<displayName>{{ ab_id }}@live.com</displayName>
+								<puid>0</puid>
+								<CID>{{ cid_format(ab_id, decimal = True) }}</CID>
+								<IsNotMobileVisible>false</IsNotMobileVisible>
+								<isMobileIMEnabled>false</isMobileIMEnabled>
+								<isMessengerUser>false</isMessengerUser>
+								<isFavorite>false</isFavorite>
+								<isSmtp>false</isSmtp>
+								<hasSpace>false</hasSpace>
+								<spotWatchState>NoDevice</spotWatchState>
+								<birthdate>0001-01-01T00:00:00</birthdate>
+								<primaryEmailType>ContactEmailPersonal</primaryEmailType>
+								<PrimaryLocation>ContactLocationPersonal</PrimaryLocation>
+								<PrimaryPhone>ContactPhonePersonal</PrimaryPhone>
+								<IsPrivate>false</IsPrivate>
+								<Gender>Unspecified</Gender>
+								<TimeZone>None</TimeZone>
+							</contactInfo>
+							<propertiesChanged />
+							<fDeleted>false</fDeleted>
+							<lastChange>{{ now }}</lastChange>
+						</Contact>
+					{%- else -%}
+						{{ generate_me_entry(ab_id, user, now) }}
+					{%- endif -%}
 				</Contacts>
-				<CircleResult>
-					<CircleTicket>
-						&lt;?xml version="1.0" encoding="utf-16"?&gt;
-						&lt;SignedTicket xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" ver="1" keyVer="1"&gt;
-							&lt;Data&gt;PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTE2Ij8+DQo8VGlja2V0IHhtbG5zOnhzaT0iaHR0cDovL3d3dy53My5vcmcvMjAwMS9YTUxTY2hlbWEtaW5zdGFuY2UiIHhtbG5zOnhzZD0iaHR0cDovL3d3dy53My5vcmcvMjAwMS9YTUxTY2hlbWEiPg0KICA8VFM+MjAwNy0wNi0xMVQxNDoxNTozNy4yMjQ4NzNaPC9UUz4NCiAgPENJRD4xOTAzNDMzMDUyMTExOTc3ODE5PC9DSUQ+DQo8L1RpY2tldD4=&lt;/Data&gt;
-							&lt;Sig&gt;Q8+XE+Cox+gyVsmQFFlaBRXmiaB4HPiNjcS7bF52bWho8rK2Yxed1piOSjzGg5/YIcb874yfJtRThdul4O+NdKgJgeg5WTgSwkigp/Z7gyhC6bYXgZnSlB/WmI7GAAxQFgYGEYAM19l7OCrm/7H+cR8TGVdDShLSvOcHrP1KtGc=&lt;/Sig&gt;
-						&lt;/SignedTicket&gt;
-					</CircleTicket>
-				</CircleResult>
+				{%- if ab_id == '00000000-0000-0000-0000-000000000000' -%}
+					<CircleResult>
+						{%- if groupchats -%}
+							<Circles>
+								{%- for groupchat in groupchats -%}
+									<CircleInverseInfo>
+										<Content>
+											<Handle>
+												<Id>00000000-0000-0000-0009-{{ groupchat.chat_id }}</Id>
+											</Handle>
+											<Info>
+												<Domain>1</Domain>
+												<HostedDomain>live.com</HostedDomain>
+												<Type>2</Type>
+												<MembershipAccess>{{ groupchat.membership_access }}</MembershipAccess>
+												<IsPresenceEnabled>true</IsPresenceEnabled>
+												<RequestMembershipOption>{{ groupchat.request_membership_option }}</RequestMembershipOption>
+												<DisplayName>{{ groupchat.name }}</DisplayName>
+												<ProfileLastUpdated>0001-01-01T00:00:00</ProfileLastUpdated>
+												<Changes />
+												<CreateDate>0001-01-01T00:00:00</CreateDate>
+												<LastUpdated>{{ now }}</LastUpdated>
+											</Info>
+										</Content>
+										<PersonalInfo>
+											<MembershipInfo>
+												<CirclePersonalMembership>
+													<Role>{{ groupchat.memberships[user.uuid].role.name }}</Role>
+													<State>{{ groupchat.memberships[user.uuid].state.name }}</State>
+												</CirclePersonalMembership>
+											</MembershipInfo>
+											<Name>{{ groupchat.name }}</Name>
+											<IsNotMobileVisible>false</IsNotMobileVisible>
+											<IsFavorite>false</IsFavorite>
+											<IsFamily>false</IsFamily>
+											<Changes />
+										</PersonalInfo>
+										<Deleted>false</Deleted>
+									</CircleInverseInfo>
+								{%- endfor -%}
+							</Circles>
+						{%- endif -%}
+						<CircleTicket>
+							&lt;?xml version="1.0" encoding="utf-16"?&gt;
+							&lt;SignedTicket xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" ver="1" keyVer="1"&gt;
+								&lt;Data&gt;PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTE2Ij8+DQo8VGlja2V0IHhtbG5zOnhzaT0iaHR0cDovL3d3dy53My5vcmcvMjAwMS9YTUxTY2hlbWEtaW5zdGFuY2UiIHhtbG5zOnhzZD0iaHR0cDovL3d3dy53My5vcmcvMjAwMS9YTUxTY2hlbWEiPg0KICA8VFM+MjAwNy0wNi0xMVQxNDoxNTozNy4yMjQ4NzNaPC9UUz4NCiAgPENJRD4xOTAzNDMzMDUyMTExOTc3ODE5PC9DSUQ+DQo8L1RpY2tldD4=&lt;/Data&gt;
+								&lt;Sig&gt;Q8+XE+Cox+gyVsmQFFlaBRXmiaB4HPiNjcS7bF52bWho8rK2Yxed1piOSjzGg5/YIcb874yfJtRThdul4O+NdKgJgeg5WTgSwkigp/Z7gyhC6bYXgZnSlB/WmI7GAAxQFgYGEYAM19l7OCrm/7H+cR8TGVdDShLSvOcHrP1KtGc=&lt;/Sig&gt;
+							&lt;/SignedTicket&gt;
+						</CircleTicket>
+					</CircleResult>
+				{%- endif -%}
 				<Ab>
-				{{ ab_properties(ab_id, user_creator, ab_type, ab_created, ab_last_modified, True) }}
+					<abId>{{ ab_id }}</abId>
+					<abInfo>
+						<ownerPuid>0</ownerPuid>
+						<OwnerCID>{%- if ab_id.startswith('00000000-0000-0000-0009-') -%}{{ cid_format(ab_id, decimal = True) }}{%- else -%}{{ cid_format(user.uuid, decimal = True) }}{%- endif -%}</OwnerCID>
+						<ownerEmail>{%- if ab_id.startswith('00000000-0000-0000-0009-') -%}{{ ab_id }}@live.com{%- else -%}{{ user.email }}{%- endif -%}</ownerEmail>
+						<fDefault>true</fDefault>
+						<joinedNamespace>false</joinedNamespace>
+						<IsBot>false</IsBot>
+						<IsParentManaged>false</IsParentManaged>
+						<AccountTierLastChanged>0001-01-01T00:00:00</AccountTierLastChanged>
+						<ProfileVersion>0</ProfileVersion>
+						<SubscribeExternalPartner>false</SubscribeExternalPartner>
+						<NotifyExternalPartner>false</NotifyExternalPartner>
+						<AddressBookType>{{ ab_type }}</AddressBookType>
+					</abInfo>
+					<lastChange>{{ now }}</lastChange>
+					<DynamicItemLastChanged>0001-01-01T00:00:00</DynamicItemLastChanged>
+					<createDate>{{ date_format(user.date_created) }}</createDate>
+					<propertiesChanged />
 				</Ab>
 			</ABFindContactsPagedResult>
 		</ABFindContactsPagedResponse>
