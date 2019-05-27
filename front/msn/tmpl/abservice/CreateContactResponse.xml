@@ -1,5 +1,3 @@
-{%- from 'msn:_funcs.xml' import contact_entry -%}
-
 <?xml version="1.0" encoding="utf-8"?>
 <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
 	<soap:Header>
@@ -14,7 +12,40 @@
 	<soap:Body>
 		<CreateContactResponse xmlns="http://www.msn.com/webservices/AddressBook">
 			<CreateContactResult>
-				{{ contact_entry(ab_id, contact, user_creator_detail) }}
+				<contactId>{{ head.uuid }}</contactId>
+				<contactInfo>
+					<contactType>LivePending</contactType>
+					<quickName>{{ head.email }}</quickName>
+					<passportName>{{ head.email }}</passportName>
+					<IsPassportNameHidden>false</IsPassportNameHidden>
+					<displayName>{{ head.email }}</displayName>
+					<puid>0</puid>
+					<CID>{{ cid_format(head.uuid, decimal = True)</CID>
+					<IsNotMobileVisible>false</IsNotMobileVisible>
+					<isMobileIMEnabled>false</isMobileIMEnabled>
+					<isMessengerUser>false</isMessengerUser>
+					<isFavorite>false</isFavorite>
+					<isSmtp>false</isSmtp>
+					<hasSpace>false</hasSpace>
+					<spotWatchState>NoDevice</spotWatchState>
+					<birthdate>0001-01-01T00:00:00</birthdate>
+					<primaryEmailType>ContactEmailPersonal</primaryEmailType>
+					<PrimaryLocation>ContactLocationPersonal</PrimaryLocation>
+					<PrimaryPhone>ContactPhonePersonal</PrimaryPhone>
+					<IsPrivate>false</IsPrivate>
+					<IsHidden>false</IsHidden>
+					<Gender>Unspecified</Gender>
+					<TimeZone>None</TimeZone>
+					<IsAutoUpdateDisabled>false</IsAutoUpdateDisabled>
+					<IsShellContact>false</IsShellContact>
+					<TrustLevel>0</TrustLevel>
+					<PropertiesChanged />
+				</contactInfo>
+				<propertiesChanged />
+				<fDeleted>false</fDeleted>
+				<CreateDate>{{ now }}</CreateDate>
+				<lastChange>{{ now }}</lastChange>
+				<CreatedBy>96</CreatedBy>
 			</CreateContactResult>
 		</CreateContactResponse>
 	</soap:Body>

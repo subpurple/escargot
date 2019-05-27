@@ -43,6 +43,58 @@
 									<MembershipIsComplete>true</MembershipIsComplete>
 								</Membership>
 							{%- endfor -%}
+							<Membership>
+								<MemberRole>Reverse</MemberRole>
+								<Members>
+									{%- for contact in detail.contacts.values() -%}
+										{%- if contact.lists.__and__(Lst.RL) and (contact.lists.__and__(Lst.AL) or contact.lists.__and__(Lst.BL)) -%}
+											<Member xsi:type="PassportMember">
+												<MembershipId>Reverse/{{ contact.head.uuid }}</MembershipId>
+												<Type>Passport</Type>
+												<State>Accepted</State>
+												<Deleted>false</Deleted>
+												<LastChanged>{{ now }}</LastChanged>
+												<JoinedDate>{{ date_format(contact.head.date_created) }}</JoinedDate>
+												<ExpirationDate>0001-01-01T00:00:00</ExpirationDate>
+												<Changes />
+												<PassportName>{{ contact.head.email }}</PassportName>
+												<IsPassportNameHidden>false</IsPassportNameHidden>
+												<PassportId>0</PassportId>
+												<CID>{{ cid_format(contact.head.uuid, decimal = True) }}</CID>
+												<PassportChanges />
+												<LookedupByCID>false</LookedupByCID>
+											</Member>
+										{%- endif -%}
+									{%- endfor -%}
+								</Members>
+								<MembershipIsComplete>true</MembershipIsComplete>
+							</Membership>
+							<Membership>
+								<MemberRole>Pending</MemberRole>
+								<Members>
+									{%- for contact in detail.contacts.values() -%}
+										{%- if contact.lists.__and__(Lst.RL) and not (contact.lists.__and__(Lst.AL) or contact.lists.__and__(Lst.BL)) -%}
+											<Member xsi:type="PassportMember">
+												<MembershipId>Pending/{{ contact.head.uuid }}</MembershipId>
+												<Type>Passport</Type>
+												<State>Accepted</State>
+												<Deleted>false</Deleted>
+												<LastChanged>{{ now }}</LastChanged>
+												<JoinedDate>{{ date_format(contact.head.date_created) }}</JoinedDate>
+												<ExpirationDate>0001-01-01T00:00:00</ExpirationDate>
+												<Changes />
+												<PassportName>{{ contact.head.email }}</PassportName>
+												<IsPassportNameHidden>false</IsPassportNameHidden>
+												<PassportId>0</PassportId>
+												<CID>{{ cid_format(contact.head.uuid, decimal = True) }}</CID>
+												<PassportChanges />
+												<LookedupByCID>false</LookedupByCID>
+											</Member>
+										{%- endif -%}
+									{%- endfor -%}
+								</Members>
+								<MembershipIsComplete>true</MembershipIsComplete>
+							</Membership>
 						</Memberships>
 						<Info>
 							<Handle>

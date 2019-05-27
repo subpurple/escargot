@@ -12,7 +12,7 @@ def main(email: str, *, oldmsn: bool = False, yahoo: bool = False) -> None:
 			user = User(
 				uuid = misc.gen_uuid(), email = email, verified = False,
 				name = email, message = '',
-				settings = {},
+				groups = {}, settings = {},
 			)
 			
 			# TODO: Should be generated on-demand, not here

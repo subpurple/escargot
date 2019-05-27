@@ -15,43 +15,33 @@ from util.misc import first_in_iterable, last_in_iterable, date_format, DefaultD
 from typing import Optional
 
 from core import error, event
-from core.backend import Backend, BackendSession
-from core.models import User, Contact, Lst, OIM, Substatus, NetworkID
+from core.backend import Backend, BackendSession, ChatSession
+from core.models import User, Contact, GroupChat, Lst, MessageData, OIM, Substatus, NetworkID
 
-def build_presence_notif(trid: Optional[str], ctc_head: User, user_me: User, dialect: int, backend: Backend, *, self_presence: bool = False, bs_other: Optional['BackendSession'] = None, circle_user_bs: Optional['BackendSession'] = None, circle_id: Optional[str] = None) -> Iterable[Tuple[Any, ...]]:
-	circle_owner = False
+def build_presence_notif(trid: Optional[str], ctc_head: User, user_me: User, dialect: int, backend: Backend, iln_sent: bool, *, self_presence: bool = False, bs_other: Optional['BackendSession'] = None, groupchat: Optional['GroupChat'] = None) -> Iterable[Tuple[Any, ...]]:
 	detail = user_me.detail
 	assert detail is not None
 	
+	if not iln_sent: return
+	
 	nfy_rst = ''
 	
-	if not self_presence and ctc_head is not user_me:
-		ctc = detail.contacts.get(ctc_head.uuid)
-		assert ctc is not None
-		status = ctc.status
-		head = ctc.head
+	if not groupchat:
+		if not self_presence and ctc_head is not user_me:
+			ctc = detail.contacts.get(ctc_head.uuid)
+			assert ctc is not None
+			status = ctc.status
+			head = ctc.head
+		else:
+			head = user_me
+			status = head.status
 	else:
-		head = user_me
+		head = ctc_head
 		status = head.status
 	is_offlineish = status.is_offlineish()
 	if is_offlineish and trid is not None:
 		return
 	ctc_sess = None # type: Optional['BackendSession']
-	
-	#if backend.util_msn_is_user_circle(head.uuid) is True and dialect >= 18:
-	#	if trid:
-	#		return
-	#	circle_id = head.email.split('@', 1)[0]
-	#	circle_metadata = backend.user_service.msn_get_circle_metadata(circle_id)
-	#	if not circle_user_bs:
-	#		owner_uuid = backend.util_get_uuid_from_email(circle_metadata.owner_email)
-	#		if owner_uuid is None: return
-	#		head = backend._load_user_record(owner_uuid)
-	#		status = head.status
-	#		circle_owner = True
-	#	else:
-	#		head = circle_user_bs.user
-	#		status = head.status
 	
 	ctc_sess = first_in_iterable(backend.util_get_sessions_by_user(head))
 	
@@ -126,7 +116,7 @@ def build_presence_notif(trid: Optional[str], ctc_head: User, user_me: User, dia
 	
 	if is_offlineish and not head is user_me:
 		if dialect >= 18:
-			reply = ('FLN', encode_email_networkid(head.email, None, circle_id = circle_id)) # type: Tuple[Any, ...]
+			reply = ('FLN', encode_email_networkid(head.email, None, groupchat = groupchat)) # type: Tuple[Any, ...]
 		else:
 			reply = ('FLN', head.email)
 		
@@ -136,11 +126,12 @@ def build_presence_notif(trid: Optional[str], ctc_head: User, user_me: User, dia
 		if 13 <= dialect <= 15:
 			reply += ('0',)
 		elif dialect >= 16:
-			if circle_owner or not circle_user_bs:
+			if (groupchat is not None and head.uuid == groupchat.owner_uuid) or not (groupchat is not None and bs_other is not None):
 				reply += ('0:0',)
 			else:
+				assert bs_other is not None
 				# Most likely scenario this would pop up is in circle presence
-				reply += (encode_capabilities_capabilitiesex(((circle_user_bs.front_data.get('msn_capabilities') or 0) if circle_user_bs.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC), 0),)
+				reply += (encode_capabilities_capabilitiesex(((bs_other.front_data.get('msn_capabilities') or 0) if bs_other.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC), 0),)
 		yield reply
 		return
 	
@@ -148,19 +139,19 @@ def build_presence_notif(trid: Optional[str], ctc_head: User, user_me: User, dia
 	
 	msn_status = MSNStatus.FromSubstatus(status.substatus)
 	
-	if trid: frst = ('ILN', trid) # type: Tuple[Any, ...]
+	if trid and dialect < 18: frst = ('ILN', trid) # type: Tuple[Any, ...]
 	else: frst = ('NLN',)
 	rst = []
 	
 	if 8 <= dialect <= 15:
 		rst.append(((ctc_sess.front_data.get('msn_capabilities') or 0) if ctc_sess.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC))
 	elif dialect >= 16:
-		rst.append(('0:0' if circle_owner else encode_capabilities_capabilitiesex(((ctc_sess.front_data.get('msn_capabilities') or 0) if ctc_sess.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC), ctc_sess.front_data.get('msn_capabilitiesex') or 0)))
+		rst.append(('0:0' if groupchat is not None and head.uuid == groupchat.owner_uuid else encode_capabilities_capabilitiesex(((ctc_sess.front_data.get('msn_capabilities') or 0) if ctc_sess.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC), ctc_sess.front_data.get('msn_capabilitiesex') or 0)))
 	if dialect >= 9:
 		rst.append(encode_msnobj(ctc_sess.front_data.get('msn_msnobj') or '<msnobj/>'))
 	
 	if dialect >= 18:
-		yield (*frst, msn_status.name, encode_email_networkid(head.email, None, circle_id = circle_id), status.name, *rst)
+		yield (*frst, msn_status.name, encode_email_networkid(head.email, None, groupchat = groupchat), status.name, *rst)
 	else:
 		yield (*frst, msn_status.name, head.email, (int(NetworkID.WINDOWS_LIVE) if 14 <= dialect <= 17 else None), status.name, *rst)
 	
@@ -172,14 +163,14 @@ def build_presence_notif(trid: Optional[str], ctc_head: User, user_me: User, dia
 	).encode('utf-8')
 	
 	if dialect >= 18:
-		yield ('UBX', encode_email_networkid(head.email, None, circle_id = circle_id), ubx_payload)
+		yield ('UBX', encode_email_networkid(head.email, None, groupchat = groupchat), ubx_payload)
 	else:
 		yield ('UBX', head.email, (int(NetworkID.WINDOWS_LIVE) if 14 <= dialect <= 17 else None), ubx_payload)
 
-def encode_email_networkid(email: str, networkid: Optional[NetworkID], *, circle_id: Optional[str] = None) -> str:
+def encode_email_networkid(email: str, networkid: Optional[NetworkID], *, groupchat: Optional['GroupChat'] = None) -> str:
 	result = '{}:{}'.format(int(networkid or NetworkID.WINDOWS_LIVE), email)
-	if circle_id:
-		result = '{};via=9:{}@live.com'.format(result, circle_id)
+	if groupchat:
+		result = '{};via=9:00000000-0000-0000-0009-{}@live.com'.format(result, groupchat.chat_id)
 	return result
 
 def decode_email_networkid(email_networkid: str) -> Tuple[NetworkID, str]:
@@ -482,95 +473,6 @@ NFY_PUT_PRESENCE_USER_SEP_PE_CAP = '<Capabilities>{pe_capabilities}</Capabilitie
 NFY_PUT_PRESENCE_USER_SEP_PD = '<sep n="PD" epid="{mguid}">{ped_data}</sep>'
 
 NFY_PUT_PRESENCE_USER_SEP_EPID = ' epid="{mguid}"'
-
-#class CircleBackendEventHandler(event.BackendEventHandler):
-#	__slots__ = ('bs',)
-#	
-#	bs: 'BackendSession'
-#	
-#	def __init__(self) -> None:
-#		pass
-#	
-#	def on_system_message(self, *args: Any, **kwargs: Any) -> None:
-#		pass
-#	
-#	def on_maintenance_boot(self) -> None:
-#		pass
-#	
-#	def on_presence_notification(self, bs_other: Optional['BackendSession'], ctc_head: User, old_substatus: Substatus, on_contact_add: bool, *, trid: Optional[str] = None, update_status: bool = True, send_status_on_bl: bool = False, visible_notif: bool = True, updated_phone_info: Optional[Dict[str, Any]] = None, circle_user_bs: Optional['BackendSession'] = None, circle_id: Optional[str] = None) -> None:
-#		bs = self.bs
-#		assert bs is not None
-#		backend = bs.backend
-#		user_me = bs.user
-#		
-#		if bs_other is None or circle_user_bs not in bs.front_data.get('msn_circle_roster'):
-#			return
-#		
-#		detail_other = backend._load_detail(ctc_head)
-#		assert detail_other is not None
-#		ctc_me = detail_other.contacts.get(user_me.uuid)
-#		if ctc_me is not None and ctc_me.head is user_me:
-#			detail = user_me.detail
-#			assert detail is not None
-#			ctc_other = detail.contacts.get(ctc_head.uuid)
-#			# This shouldn't be `None`, since every contact should have
-#			# an `RL` contact on the other users' list (at the very least).
-#			if ctc_other is None or not (ctc_other.lists & Lst.FL and ctc_me.lists & Lst.AL) and not (update_status and send_status_on_bl): return
-#			for ctc_other in detail.contacts.values():
-#				if not ctc_other.lists & Lst.FL: continue
-#				for ctc_other_sess in backend.util_get_sess_by_user(ctc_other.head):
-#					ctc_other_sess.evt.on_presence_notification(bs, bs.user, ctc.status.substatus, False, circle_user_bs = bs_other, circle_id = bs.user.email.split('@', 1)[0])
-#			return
-#	
-#	def on_sync_contact_statuses(self) -> None:
-#		bs = self.bs
-#		assert bs is not None
-#		user = bs.user
-#		detail = user.detail
-#		assert detail is not None
-#		
-#		for ctc in detail.contacts.values():
-#			if ctc.lists & Lst.FL:
-#				ctc.compute_visible_status(user, is_blocking)
-#			
-#			# If the contact lists ever become inconsistent (FL without matching RL),
-#			# the contact that's missing the RL will always see the other user as offline.
-#			# Because of this, and the fact that most contacts *are* two-way, and it
-#			# not being that much extra work, I'm leaving this line commented out.
-#			#if not ctc.lists & Lst.RL: continue
-#			
-#			if ctc.head.detail is None: continue
-#			ctc_rev = ctc.head.detail.contacts.get(user.uuid)
-#			if ctc_rev is None: continue
-#			ctc_rev.compute_visible_status(ctc.head, is_blocking)
-#	
-#	def on_chat_invite(self, chat: 'Chat', inviter: User, *, inviter_id: Optional[str] = None, invite_msg: str = '') -> None:
-#		pass
-#	
-#	def on_added_me(self, user: User, *, adder_id: Optional[str] = None, message: Optional['TextWithData'] = None) -> None:
-#		pass
-#	
-#	def on_contact_request_denied(self, user_added: User, message: str, *, contact_id: Optional[str]) -> None:
-#		pass
-#	
-#	def on_login_elsewhere(self, option: 'LoginOption') -> None:
-#		pass
-#	
-#	def msn_on_put_sent(self, message: EmailMessage, sender: User, *, pop_id_sender: Optional[str] = None, pop_id: Optional[str] = None) -> None:
-#		bs = self.bs
-#		assert bs is not None
-#		
-#		for bs_other in bs.front_data.get('msn_circle_roster'):
-#			bs_other.evt.msn_on_put_sent(message, bs.user, pop_id_sender = None, pop_id = pop_id_sender)
-#	
-#	def msn_on_user_circle_presence(self, bs_other: 'BackendSession') -> None:
-#		bs = self.bs
-#		assert bs is not None
-#		user_me = bs.user
-#		
-#		if bs_other not in bs.front_data.get('msn_circle_roster'):
-#			bs.front_data.get('msn_circle_roster').add(bs_other)
-#			self.on_presence_notification(bs, bs.user, bs.user.status.substatus, False)
 
 MAX_CAPABILITIES_BASIC = 1073741824
 

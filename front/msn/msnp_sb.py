@@ -287,6 +287,8 @@ class ChatEventHandler(event.ChatEventHandler):
 		assert bs is not None
 		cs = self.cs
 		
+		if not first_pop and ctrl.dialect < 16: return
+		
 		user = cs_other.user
 		
 		pop_id_other = cs_other.bs.front_data.get('msn_pop_id')
@@ -320,6 +322,9 @@ class ChatEventHandler(event.ChatEventHandler):
 		self.ctrl.send_reply('BYE', email, *extra)
 		if last_pop and pop_id_other is not None and ctrl.dialect >= 16:
 			self.ctrl.send_reply('BYE', cs_other.user.email, *extra)
+	
+	def on_chat_user_status_updated(self, cs_other: ChatSession) -> None:
+		pass
 	
 	def on_invite_declined(self, invited_user: User, *, invited_id: Optional[str] = None, message: str = '') -> None:
 		pass

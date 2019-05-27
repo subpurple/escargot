@@ -1,47 +1,47 @@
-{%- macro contact_entry(ab_id, contact, detail) -%}
-	<contactId>{{ contact.uuid }}</contactId>
+{%- macro contact_entry(ab_id, ctc, detail, now) -%}
+	<contactId>{{ ctc.head.uuid }}</contactId>
 	<contactInfo>
-		{%- if contact.personal_email or contact.work_phone or contact.im_email or contact.other_email -%}
+		{%- if ctc.detail.personal_email or ctc.detail.work_phone or ctc.detail.im_email or ctc.detail.other_email -%}
 			<emails>
-				{%- if contact.work_email -%}
-					{{ email_entry('ContactEmailBusiness', contact.work_email) }}
+				{%- if ctc.detail.work_email -%}
+					{{ email_entry('ContactEmailBusiness', ctc.detail.work_email) }}
 				{%- endif -%}
-				{%- if contact.im_email -%}
-					{{ email_entry('ContactEmailMessenger', contact.im_email) }}
+				{%- if ctc.detail.im_email -%}
+					{{ email_entry('ContactEmailMessenger', ctc.detail.im_email) }}
 				{%- endif -%}
-				{%- if contact.other_email -%}
-					{{ email_entry('ContactEmailOther', contact.other_email) }}
+				{%- if ctc.detail.other_email -%}
+					{{ email_entry('ContactEmailOther', ctc.detail.other_email) }}
 				{%- endif -%}
-				{%- if contact.personal_email -%}
-					{{ email_entry('ContactEmailPersonal', contact.personal_email) }}
+				{%- if ctc.detail.personal_email -%}
+					{{ email_entry('ContactEmailPersonal', ctc.detail.personal_email) }}
 				{%- endif -%}
 			</emails>
 		{%- endif -%}
-		{%- if contact.home_phone or contact.work_phone or contact.fax_phone or contact.pager_phone or contact.mobile_phone or contact.other_phone -%}
+		{%- if ctc.detail.home_phone or ctc.detail.work_phone or ctc.detail.fax_phone or ctc.detail.pager_phone or ctc.detail.mobile_phone or ctc.detail.other_phone -%}
 			<phones>
-				{%- if contact.work_phone -%}
+				{%- if ctc.detail.work_phone -%}
 					{{ phone_entry('ContactPhoneBusiness', contact.work_phone) }}
 				{%- endif -%}
-				{%- if contact.fax_phone -%}
-					{{ phone_entry('ContactPhoneFax', contact.fax_phone) }}
+				{%- if ctc.detail.fax_phone -%}
+					{{ phone_entry('ContactPhoneFax', ctc.detail.fax_phone) }}
 				{%- endif -%}
-				{%- if contact.pager_phone -%}
-					{{ phone_entry('ContactPhonePager', contact.pager_phone) }}
+				{%- if ctc.detail.pager_phone -%}
+					{{ phone_entry('ContactPhonePager', ctc.detail.pager_phone) }}
 				{%- endif -%}
-				{%- if contact.mobile_phone -%}
-					{{ phone_entry('ContactPhoneMobile', contact.mobile_phone) }}
+				{%- if ctc.detail.mobile_phone -%}
+					{{ phone_entry('ContactPhoneMobile', ctc.detail.mobile_phone) }}
 				{%- endif -%}
-				{%- if contact.other_phone -%}
-					{{ phone_entry('ContactPhoneOther', contact.other_phone) }}
+				{%- if ctc.detail.other_phone -%}
+					{{ phone_entry('ContactPhoneOther', ctc.detail.other_phone) }}
 				{%- endif -%}
-				{%- if contact.home_phone -%}
-					{{ phone_entry('ContactPhonePersonal', contact.home_phone) }}
+				{%- if ctc.detail.home_phone -%}
+					{{ phone_entry('ContactPhonePersonal', ctc.detail.home_phone) }}
 				{%- endif -%}
 			</phones>
 		{%- endif -%}
-		{%- if contact.locations -%}
+		{%- if ctc.detail.locations -%}
 			<locations>
-				{%- for location in contact.locations.values() -%}
+				{%- for location in ctc.detail.locations.values() -%}
 					{%- if location.street or location.city or location.state or location.country or location.zip_code -%}
 						<ContactLocation>
 							<contactLocationType>{{ location.type }}</contactLocationType>
@@ -65,105 +65,70 @@
 				{%- endfor -%}
 			</locations>
 		{%- endif -%}
-		{%- if contact.personal_website or contact.business_website -%}
+		{%- if ctc.detail.personal_website or ctc.detail.business_website -%}
 			<webSites>
-				{%- if contact.business_website -%}
-					{{ website_entry('ContactWebSiteBusiness', contact.business_website) }}
+				{%- if ctc.detail.business_website -%}
+					{{ website_entry('ContactWebSiteBusiness', ctc.detail.business_website) }}
 				{%- endif -%}
-				{%- if contact.personal_website -%}
-					{{ website_entry('ContactWebSitePersonal', contact.personal_website) }}
+				{%- if ctc.detail.personal_website -%}
+					{{ website_entry('ContactWebSitePersonal', ctc.detail.personal_website) }}
 				{%- endif -%}
 			</webSites>
 		{%- endif -%}
-		{%- if contact.annotations or contact.nickname -%}
+		{%- if ctc.detail.nickname -%}
 			<annotations>
-			{%- if contact.nickname -%}
-				{{ annotation('AB.NickName', contact.nickname) }}
-			{%- endif -%}
-			{%- if contact.annotations -%}
-				{%- for name, value in contact.annotations.items() -%}
-					{{ annotation(name, value) }}
-				{%- endfor -%}
+			{%- if ctc.detail.nickname -%}
+				{{ annotation('AB.NickName', ctc.detail.nickname) }}
 			{%- endif -%}
 			</annotations>
 		{%- endif -%}
-		<contactType>{{ contact.type }}</contactType>
-		<quickName>{{ contact.name or contact.email }}</quickName>
-		{%- if contact.first_name -%}
-			<firstName>{{ contact.first_name }}</firstName>
+		<contactType>Regular</contactType>
+		<quickName>{{ ctc.status.name or ctc.head.email }}</quickName>
+		{%- if ctc.detail.first_name -%}
+			<firstName>{{ ctc.detail.first_name }}</firstName>
 		{%- endif -%}
-		{%- if contact.middle_name -%}
-			<MiddleName>{{ contact.middle_name }}</MiddleName>
+		{%- if ctc.detail.middle_name -%}
+			<MiddleName>{{ ctc.detail.middle_name }}</MiddleName>
 		{%- endif -%}
-		{%- if contact.last_name -%}
-			<lastName>{{ contact.last_name }}</lastName>
+		{%- if ctc.detail.last_name -%}
+			<lastName>{{ ctc.detail.last_name }}</lastName>
 		{%- endif -%}
-		<passportName>{{ contact.email }}</passportName>
+		<passportName>{{ ctc.head.email }}</passportName>
 		<IsPassportNameHidden>false</IsPassportNameHidden>
-		<displayName>{{ contact.name or contact.email }}</displayName>
-		{%- if contact.member_uuid -%}
-			<puid>0</puid>
-		{%- endif -%}
-		{%- if contact.groups -%}
+		<displayName>{{ ctc.status.name or ctc.head.email }}</displayName>
+		<puid>0</puid>
+		{%- if ctc._groups -%}
 			<groupIds>
-			{% for group_id in contact.groups %}
-				<guid>{{ group_id }}</guid>
+			{% for group in ctc._groups.copy() %}
+				<guid>{{ group.uuid }}</guid>
 			{% endfor %}
 			</groupIds>
 		{%- endif -%}
-		{%- if contact.member_uuid -%}
-			<CID>{{ cid_format(contact.member_uuid, decimal = True) }}</CID>
-		{%- endif -%}
+		<CID>{{ cid_format(ctc.head.uuid, decimal = True) }}</CID>
 		<IsNotMobileVisible>false</IsNotMobileVisible>
 		<isMobileIMEnabled>false</isMobileIMEnabled>
-		<isMessengerUser>{{ bool_to_str(contact.is_messenger_user) }}</isMessengerUser>
-		<isFavorite>{%- if ab_id == '00000000-0000-0000-0000-000000000000' -%}{{ bool_to_str(contact_is_favorite(detail.groups, contact)) }}{%- else -%}false{%- endif -%}</isFavorite>
+		<isMessengerUser>{{ bool_to_str(ctc.is_messenger_user) }}</isMessengerUser>
+		<isFavorite>{%- if ab_id == '00000000-0000-0000-0000-000000000000' -%}{{ bool_to_str(contact_is_favorite(detail, ctc)) }}{%- else -%}false{%- endif -%}</isFavorite>
 		<isSmtp>false</isSmtp>
 		<hasSpace>false</hasSpace>
 		<spotWatchState>NoDevice</spotWatchState>
-		<birthdate>{%- if contact.birthdate -%}{{ date_format(contact.birthdate) }}{%- else -%}0001-01-01T00:00:00{%- endif -%}</birthdate>
-		{%- if contact.anniversary -%}
-			<Anniversary>{{ contact.anniversary.strftime('%Y/%m/%d') }}</Anniversary>
+		<birthdate>{%- if ctc.detail.birthdate -%}{{ date_format(ctc.detail.birthdate) }}{%- else -%}0001-01-01T00:00:00{%- endif -%}</birthdate>
+		{%- if ctc.detail.anniversary -%}
+			<Anniversary>{{ ctc.detail.anniversary.strftime('%Y/%m/%d') }}</Anniversary>
 		{%- endif -%}
-		{%- if contact.notes -%}
-			<comment>{{ contact.notes }}</comment>
+		{%- if ctc.detail.notes -%}
+			<comment>{{ ctc.detail.notes }}</comment>
 		{%- endif -%}
-		<primaryEmailType>{%- if contact.primary_email_type -%}{{ contact.primary_email_type }}{%- else -%}ContactEmailPersonal{%- endif -%}</primaryEmailType>
+		<primaryEmailType>{%- if ctc.detail.primary_email_type -%}{{ ctc.detail.primary_email_type }}{%- else -%}ContactEmailPersonal{%- endif -%}</primaryEmailType>
 		<PrimaryLocation>ContactLocationPersonal</PrimaryLocation>
 		<PrimaryPhone>ContactPhonePersonal</PrimaryPhone>
 		<IsPrivate>false</IsPrivate>
 		<Gender>Unspecified</Gender>
 		<TimeZone>None</TimeZone>
-		{%- if contact.networkinfos -%}
-			<NetworkInfoList>
-			{%- for networkinfo in contact.networkinfos.values() -%}
-				<NetworkInfo>
-					<DomainId>{{ networkinfo.domain_id.value }}</DomainId>
-					<SourceId>{{ networkinfo.source_id }}</SourceId>
-					<DomainTag>{{ networkinfo.domain_tag }}</DomainTag>
-					<ProfileURL>https://escargot.log1p.xyz</ProfileURL>
-					<DisplayName>{{ networkinfo.display_name }}</DisplayName>
-					<RelationshipType>{{ networkinfo.relationship_info.relationship_type.value }}</RelationshipType>
-					<RelationshipState>{{ networkinfo.relationship_info.relationship_state.value }}</RelationshipState>
-					<RelationshipStateDate>{{ date_format(networkinfo.relationship_info.relationship_state_date) }}</RelationshipStateDate>
-					<RelationshipRole>{{ networkinfo.relationship_info.relationship_role.value }}</RelationshipRole>
-					<NDRCount>0</NDRCount>
-					{%- if networkinfo.inviter_message -%}
-						<InviterMessage>{{ networkinfo.inviter_message }}</InviterMessage>
-					{%- endif -%}
-					<InviterCID>0</InviterCID>
-					<CreateDate>{{ date_format(networkinfo.date_created) }}</CreateDate>
-					<LastChanged>{{ date_format(networkinfo.date_modified) }}</LastChanged>
-					<PropertiesChanged />
-					<Settings>0</Settings>
-				</NetworkInfo>
-			{%- endfor -%}
-			</NetworkInfoList>
-		{%- endif -%}
 	</contactInfo>
 	<propertiesChanged />
 	<fDeleted>false</fDeleted>
-	<lastChange>{{ date_format(contact.date_modified) }}</lastChange>
+	<lastChange>{{ now }}</lastChange>
 {%- endmacro -%}
 
 {%- macro phone_entry(type, phone) -%}
@@ -198,9 +163,9 @@
 	</Annotation>
 {%- endmacro -%}
 
-{%- macro generate_me_entry(ab_id, user_creator, now) -%}
+{%- macro generate_me_entry(ab_id, user, now) -%}
 	<Contact>
-		<contactId>{{ user_creator.uuid }}</contactId>
+		<contactId>{{ user.uuid }}</contactId>
 		<contactInfo>
 			{%- if ab_id == '00000000-0000-0000-0000-000000000000' -%}
 				<annotations>
@@ -210,35 +175,35 @@
 					</Annotation>
 					<Annotation>
 						<Name>MSN.IM.GTC</Name>
-						<Value>{%- if user_creator.settings.get('GTC') == 'A' -%}1{%- elif user_creator.settings.get('GTC') == 'N' -%}2{%- else -%}0{%- endif -%}</Value>
+						<Value>{%- if user.settings.get('GTC') == 'A' -%}1{%- elif user.settings.get('GTC') == 'N' -%}2{%- else -%}0{%- endif -%}</Value>
 					</Annotation>
 					<Annotation>
 						<Name>MSN.IM.BLP</Name>
-						<Value>{%- if user_creator.settings.get('BLP') == 'AL' -%}1{%- elif user_creator.settings.get('BLP') == 'BL' -%}2{%- else -%}0{%- endif -%}</Value>
+						<Value>{%- if user.settings.get('BLP') == 'AL' -%}1{%- elif user.settings.get('BLP') == 'BL' -%}2{%- else -%}0{%- endif -%}</Value>
 					</Annotation>
-					{%- if user_creator.settings.get('MPOP') -%}
+					{%- if user.settings.get('MPOP') -%}
 						<Annotation>
 							<Name>MSN.IM.RoamLiveProperties</Name>
-							<Value>{{ user_creator.settings.get('MPOP') }}</Value>
+							<Value>{{ user.settings.get('MPOP') }}</Value>
 						</Annotation>
 					{%- endif -%}
-					{%- if user_creator.settings.get('RLP') -%}
+					{%- if user.settings.get('RLP') -%}
 						<Annotation>
 							<Name>MSN.IM.RoamLiveProperties</Name>
-							<Value>{{ user_creator.settings.get('RLP') }}</Value>
+							<Value>{{ user.settings.get('RLP') }}</Value>
 						</Annotation>
 					{%- endif -%}
 				</annotations>
 			{%- endif -%}
 			<contactType>Me</contactType>
-			<quickName>{{ user_creator.status.name or user_creator.email }}</quickName>
-			<passportName>{{ user_creator.email }}</passportName>
+			<quickName>{{ user.status.name or user.email }}</quickName>
+			<passportName>{{ user.email }}</passportName>
 			<IsPassportNameHidden>false</IsPassportNameHidden>
-			{%- if user_creator.status.name -%}
-				<displayName>{{ user_creator.status.name }}</displayName>
+			{%- if user.status.name -%}
+				<displayName>{{ user.status.name }}</displayName>
 			{%- endif -%}
 			<puid>0</puid>
-			<CID>{{ cid_format(user_creator.uuid, decimal = True) }}</CID>
+			<CID>{{ cid_format(user.uuid, decimal = True) }}</CID>
 			<IsNotMobileVisible>false</IsNotMobileVisible>
 			<isMobileIMEnabled>false</isMobileIMEnabled>
 			<isMessengerUser>false</isMessengerUser>
@@ -260,7 +225,7 @@
 	</Contact>
 {%- endmacro -%}
 
-{%- macro group_entry(group) -%}
+{%- macro group_entry(group, now) -%}
 	<Group>
 		<groupId>{{ group.uuid }}</groupId>
 		<groupInfo>
@@ -278,30 +243,6 @@
 		</groupInfo>
 		<propertiesChanged />
 		<fDeleted>false</fDeleted>
-		<lastChange>{{ date_format(group.date_modified) }}</lastChange>
+		<lastChange>{{ now }}</lastChange>
 	</Group>
-{%- endmacro -%}
-
-{%- macro ab_properties(ab_id, user_creator, ab_type, ab_created, ab_last_modified, paged) -%}
-	<abId>{{ ab_id }}</abId>
-	<abInfo>
-		<ownerPuid>0</ownerPuid>
-		<OwnerCID>{{ cid_format(user_creator.uuid, decimal = True) }}</OwnerCID>
-		<ownerEmail>{{ user_creator.email }}</ownerEmail>
-		<fDefault>true</fDefault>
-		<joinedNamespace>false</joinedNamespace>
-		<IsBot>false</IsBot>
-		<IsParentManaged>false</IsParentManaged>
-		{%- if paged -%}
-			<AccountTierLastChanged>0001-01-01T00:00:00</AccountTierLastChanged>
-			<ProfileVersion>0</ProfileVersion>
-		{%- endif -%}
-		<SubscribeExternalPartner>false</SubscribeExternalPartner>
-		<NotifyExternalPartner>false</NotifyExternalPartner>
-		<AddressBookType>{{ ab_type }}</AddressBookType>
-	</abInfo>
-	<lastChange>{{ date_format(ab_last_modified) }}</lastChange>
-	<DynamicItemLastChanged>0001-01-01T00:00:00</DynamicItemLastChanged>
-	<createDate>{{ date_format(ab_created) }}</createDate>
-	<propertiesChanged />
 {%- endmacro -%}

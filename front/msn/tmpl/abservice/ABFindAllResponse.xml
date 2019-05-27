@@ -15,24 +15,38 @@
 		<ABFindAllResponse xmlns="http://www.msn.com/webservices/AddressBook">
 			<ABFindAllResult>
 				<groups>
-					{%- if ab_id == '00000000-0000-0000-0000-000000000000' and user_creator_detail -%}
-						{% for group in user_creator_detail._groups_by_uuid.values() %}
-							{{ group_entry(group) }}
-						{% endfor %}
-					{%- endif -%}
+					{% for group in detail._groups_by_uuid.values() %}
+						{{ group_entry(group, now) }}
+					{% endfor %}
 				</groups>
 				<contacts>
-					{%- if ab_contacts -%}
-						{%- for ab_contact in ab_contacts.values() -%}
+					{%- for ctc in detail.contacts.values() -%}
+						{%- if ctc.lists.__and__(Lst.FL) -%}
 							<Contact>
-							{{ contact_entry(ab_id, ab_contact, user_creator_detail) }}
+							{{ contact_entry(ab_id, ctc, detail, now) }}
 							</Contact>
-						{%- endfor -%}
-					{%- endif -%}
-					{{ generate_me_entry(ab_id, user_creator, now) }}
+						{%- endif -%}
+					{%- endfor -%}
+					{{ generate_me_entry(ab_id, user, now) }}
 				</contacts>
 				<ab>
-				{{ ab_properties(ab_id, user_creator, ab_type, ab_created, ab_last_modified, False) }}
+					<abId>{{ ab_id }}</abId>
+					<abInfo>
+						<ownerPuid>0</ownerPuid>
+						<OwnerCID>{{ cid_format(user.uuid, decimal = True) }}</OwnerCID>
+						<ownerEmail>{{ user.email }}</ownerEmail>
+						<fDefault>true</fDefault>
+						<joinedNamespace>false</joinedNamespace>
+						<IsBot>false</IsBot>
+						<IsParentManaged>false</IsParentManaged>
+						<SubscribeExternalPartner>false</SubscribeExternalPartner>
+						<NotifyExternalPartner>false</NotifyExternalPartner>
+						<AddressBookType>Individual</AddressBookType>
+					</abInfo>
+					<lastChange>{{ now }}</lastChange>
+					<DynamicItemLastChanged>0001-01-01T00:00:00</DynamicItemLastChanged>
+					<createDate>{{ date_format(user.date_created) }}</createDate>
+					<propertiesChanged />
 				</ab>
 			</ABFindAllResult>
 		</ABFindAllResponse>

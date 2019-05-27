@@ -11,7 +11,7 @@ from util.misc import Logger, gen_uuid, MultiDict, arbitrary_decode, arbitrary_e
 
 from core import event, error
 from core.backend import Backend, BackendSession, Chat, ChatSession
-from core.models import Substatus, Lst, OIM, User, Contact, Group, TextWithData, MessageData, MessageType, UserStatus, LoginOption
+from core.models import Substatus, Lst, OIM, User, Contact, Group, GroupChat, TextWithData, MessageData, MessageType, UserStatus, LoginOption
 from core.client import Client
 from core.user import UserService
 from core.auth import AuthService
@@ -75,7 +75,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		self.yahoo_id = arbitrary_decode(arg1)
 		
 		uuid = yahoo_id_to_uuid(backend, self.yahoo_id)
-		if uuid is None or backend.user_service.is_user_relay(uuid):
+		if uuid is None:
 			self.yahoo_id = None
 			kvs = MultiDict([
 				(b'66', str(int(YMSGStatus.NotAtHome)).encode('utf-8'))
@@ -116,7 +116,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		yahoo_data = args[4] # type: MultiDict[bytes, bytes]
 		
 		yahoo_id_actual = arbitrary_decode(args[4].get(b'0') or b'')
-		yahoo_id = arbitrary_decode( yahoo_data.get(b'1') or b'')
+		yahoo_id = arbitrary_decode(yahoo_data.get(b'1') or b'')
 		resp_6 = yahoo_data.get(b'6')
 		resp_96 = yahoo_data.get(b'96')
 		
@@ -1141,7 +1141,7 @@ class BackendEventHandler(event.BackendEventHandler):
 	
 	def on_system_message(self, *args: Any, message: str = '', **kwargs: Any) -> None:
 		if args[1] is not None and args[1] > 0:
-			msg = 'Yahoo! Messenger will be down for maintenance in around ' + str(args[1]) + ' minute(s). Be sure to wrap up any conversations before this time period.'
+			msg = 'Escargot will be down for maintenance in around ' + str(args[1]) + ' minute(s). Be sure to wrap up any conversations before this time period.'
 		else:
 			msg = message
 		kvs = MultiDict([
@@ -1156,14 +1156,16 @@ class BackendEventHandler(event.BackendEventHandler):
 		self.ctrl.send_reply(YMSGService.LogOff, YMSGStatus.Available, 0, None)
 		self.on_close()
 	
-	def on_presence_notification(self, bs_other: Optional[BackendSession], ctc: Contact, old_substatus: Substatus, on_contact_add: bool, *, trid: Optional[str] = None, update_status: bool = True, send_status_on_bl: bool = False, visible_notif: bool = True, sess_id: Optional[int] = None, updated_phone_info: Optional[Dict[str, Any]] = None, circle_user_bs: Optional[BackendSession] = None, circle_id: Optional[str] = None) -> None:
+	def on_presence_notification(self, bs_other: Optional[BackendSession], ctc: Contact, on_contact_add: bool, *, trid: Optional[str] = None, update_status: bool = True, send_status_on_bl: bool = False, visible_notif: bool = True, sess_id: Optional[int] = None, updated_phone_info: Optional[Dict[str, Any]] = None) -> None:
 		bs = self.bs
 		assert bs is not None
 		
 		if on_contact_add: return
 		
 		if update_status:
+			old_substatus = ctc.status.old_substatus
 			if not ctc.lists & Lst.FL: return
+			
 			if ctc.status.is_offlineish() and not old_substatus.is_offlineish():
 				service = YMSGService.LogOff
 			elif old_substatus.is_offlineish() and not ctc.status.is_offlineish():
@@ -1181,6 +1183,9 @@ class BackendEventHandler(event.BackendEventHandler):
 				add_contact_status_to_data(yahoo_data, ctc.status, ctc.head, old_substatus = old_substatus, sess_id = sess_id)
 				
 				self.ctrl.send_reply(service, (YMSGStatus.Available if not visible_notif and service is YMSGService.LogOn else YMSGStatus.BRB), self.sess_id, yahoo_data)
+	
+	def on_groupchat_presence_notification(self, groupchat: GroupChat, user_other: User) -> None:
+		pass
 	
 	def on_presence_self_notification(self) -> None:
 		pass
@@ -1213,9 +1218,6 @@ class BackendEventHandler(event.BackendEventHandler):
 		self.ctrl.send_reply(YMSGService.Message, YMSGStatus.BRB, self.ctrl.sess_id, message_dict)
 		
 		backend.user_service.delete_oim(user.uuid, oim.uuid)
-	
-	def msn_on_notify_ab(self, owner_cid: str, ab_last_modified: str) -> None:
-		pass
 	
 	def msn_on_put_sent(self, payload: bytes, sender: User, *, pop_id_sender: Optional[str] = None, pop_id: Optional[str] = None) -> None:
 		pass
@@ -1335,6 +1337,9 @@ class ChatEventHandler(event.ChatEventHandler):
 			(b'57', arbitrary_encode(cs_other.chat.ids['ymsg/conf'])),
 			(b'56', arbitrary_encode(cs_other.preferred_name or misc.yahoo_id(cs_other.user.email))),
 		]))
+	
+	def on_chat_user_status_updated(self, cs_other: ChatSession) -> None:
+		pass
 	
 	def on_invite_declined(self, invited_user: User, *, invited_id: Optional[str] = None, message: str = '') -> None:
 		self.ctrl.send_reply(YMSGService.ConfDecline, YMSGStatus.BRB, self.ctrl.sess_id, MultiDict([

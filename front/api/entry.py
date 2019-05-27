@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from aiohttp import web
 import json
 
@@ -30,7 +30,7 @@ async def handle_ircchats(req: web.Request) -> web.Response:
 		result.append({
 			'channel': chat.ids['irc'],
 			'users': nicks,
-		}
+		})
 	
 	return web.Response(status = 200, body = json.dumps(result))
 
