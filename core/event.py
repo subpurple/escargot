@@ -33,13 +33,10 @@ class BackendEventHandler(metaclass = ABCMeta):
 	def on_presence_notification(self, bs_other: Optional['BackendSession'], ctc: Contact, on_contact_add: bool, *, trid: Optional[str] = None, update_status: bool = True, send_status_on_bl: bool = False, visible_notif: bool = True, sess_id: Optional[int] = None, updated_phone_info: Optional[Dict[str, Any]] = None) -> None: pass
 	
 	@abstractmethod
-	def on_groupchat_presence_notification(self, groupchat: GroupChat, user_other: User) -> None: pass
-	
-	@abstractmethod
 	def on_presence_self_notification(self) -> None: pass
 	
 	@abstractmethod
-	def on_chat_invite(self, chat: 'Chat', inviter: User, *, inviter_id: Optional[str] = None, invite_msg: str = '') -> None: pass
+	def on_chat_invite(self, chat: 'Chat', inviter: User, *, group_chat: bool = False, inviter_id: Optional[str] = None, invite_msg: str = '') -> None: pass
 	
 	# `user` added me to their FL, and they're now on my RL.
 	@abstractmethod
@@ -57,6 +54,12 @@ class BackendEventHandler(metaclass = ABCMeta):
 	@abstractmethod
 	def on_oim_sent(self, oim: 'OIM') -> None: pass
 	
+	@abstractmethod
+	def on_groupchat_created(self, chat_id: str) -> None: pass
+	
+	@abstractmethod
+	def on_groupchat_role_updated(self, chat_id: str, *, role: Optional[GroupChatRole] = None) -> None: pass
+	
 	# TODO: Make these non-frontend-specific to allow interop
 	
 	def msn_on_oim_deletion(self, oims_deleted: int) -> None:
@@ -67,8 +70,6 @@ class BackendEventHandler(metaclass = ABCMeta):
 	
 	def msn_on_notify_ab(self) -> None:
 		pass
-	
-	def msn_on_circle_role(self, chat_id: str, *, role: Optional[GroupChatRole] = None) -> None: pass
 	
 	def msn_on_put_sent(self, payload: bytes, sender: User, *, pop_id_sender: Optional[str] = None, pop_id: Optional[str] = None) -> None:
 		pass
@@ -102,13 +103,16 @@ class ChatEventHandler(metaclass = ABCMeta):
 		pass
 	
 	@abstractmethod
+	def on_participant_presence(self, cs_other: 'ChatSession', first_pop: bool) -> None: pass
+	
+	@abstractmethod
 	def on_participant_joined(self, cs_other: 'ChatSession', first_pop: bool) -> None: pass
 	
 	@abstractmethod
 	def on_participant_left(self, cs_other: 'ChatSession', idle: bool, last_pop: bool) -> None: pass
 	
 	@abstractmethod
-	def on_chat_user_status_updated(self, cs_other: 'ChatSession') -> None: pass
+	def on_participant_status_updated(self, cs_other: 'ChatSession') -> None: pass
 	
 	@abstractmethod
 	def on_invite_declined(self, invited_user: User, *, invited_id: Optional[str] = None, message: str = '') -> None: pass

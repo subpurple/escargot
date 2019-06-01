@@ -231,18 +231,3 @@ class MultiDict(Generic[K, V]):
 	
 	def items(self) -> Iterable[Tuple[K, V]]:
 		return self._impl
-
-def sign_with_new_key_and_b64(text: str) -> Tuple[str, str]:
-	import base64
-	from cryptography.hazmat.backends import default_backend
-	from cryptography.hazmat.primitives import hashes, serialization
-	from cryptography.hazmat.primitives.asymmetric import rsa, padding
-	
-	data = text.encode('utf-8')
-	key = rsa.generate_private_key(public_exponent = 65537, key_size = 2048, backend = default_backend())
-	signature = key.sign(data, padding.PKCS1v15(), hashes.SHA1())
-	
-	return (
-		base64.b64encode(data).decode('ascii'),
-		base64.b64encode(signature).decode('ascii'),
-	)

@@ -11,7 +11,7 @@ from util.misc import Logger, gen_uuid, MultiDict, arbitrary_decode, arbitrary_e
 
 from core import event, error
 from core.backend import Backend, BackendSession, Chat, ChatSession
-from core.models import Substatus, Lst, OIM, User, Contact, Group, GroupChat, TextWithData, MessageData, MessageType, UserStatus, LoginOption
+from core.models import Substatus, Lst, OIM, User, Contact, Group, GroupChat, GroupChatRole, TextWithData, MessageData, MessageType, UserStatus, LoginOption
 from core.client import Client
 from core.user import UserService
 from core.auth import AuthService
@@ -1184,9 +1184,6 @@ class BackendEventHandler(event.BackendEventHandler):
 				
 				self.ctrl.send_reply(service, (YMSGStatus.Available if not visible_notif and service is YMSGService.LogOn else YMSGStatus.BRB), self.sess_id, yahoo_data)
 	
-	def on_groupchat_presence_notification(self, groupchat: GroupChat, user_other: User) -> None:
-		pass
-	
 	def on_presence_self_notification(self) -> None:
 		pass
 	
@@ -1238,7 +1235,14 @@ class BackendEventHandler(event.BackendEventHandler):
 		for y in misc.build_http_ft_packet(self.bs, yahoo_id_sender, url_path, upload_time, message):
 			self.ctrl.send_reply(y[0], y[1], self.sess_id, y[2])
 	
-	def on_chat_invite(self, chat: Chat, inviter: User, *, inviter_id: Optional[str] = None, invite_msg: str = '') -> None:
+	def on_groupchat_created(self, chat_id: str) -> None:
+		pass
+	
+	def on_groupchat_role_updated(self, chat_id: str, *, role: Optional[GroupChatRole] = None) -> None:
+		pass
+	
+	def on_chat_invite(self, chat: Chat, inviter: User, *, group_chat: bool = False, inviter_id: Optional[str] = None, invite_msg: str = '') -> None:
+		if group_chat: return
 		if chat.front_data.get('ymsg_twoway_only'):
 			# A Yahoo! non-conference chat; auto-accepted invite
 			evt = ChatEventHandler(self.loop, self.ctrl, self.bs)
@@ -1317,6 +1321,9 @@ class ChatEventHandler(event.ChatEventHandler):
 	def on_close(self, keep_future: bool, idle: bool) -> None:
 		if not keep_future: self.ctrl.chat_sessions.pop(self.cs.chat, None)
 	
+	def on_participant_presence(self, cs_other: ChatSession, first_pop: bool) -> None:
+		pass
+	
 	def on_participant_joined(self, cs_other: ChatSession, first_pop: bool) -> None:
 		if self.cs.chat.front_data.get('ymsg_twoway_only') or not first_pop:
 			return
@@ -1338,7 +1345,7 @@ class ChatEventHandler(event.ChatEventHandler):
 			(b'56', arbitrary_encode(cs_other.preferred_name or misc.yahoo_id(cs_other.user.email))),
 		]))
 	
-	def on_chat_user_status_updated(self, cs_other: ChatSession) -> None:
+	def on_participant_status_updated(self, cs_other: ChatSession) -> None:
 		pass
 	
 	def on_invite_declined(self, invited_user: User, *, invited_id: Optional[str] = None, message: str = '') -> None:

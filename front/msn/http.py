@@ -17,9 +17,10 @@ from markupsafe import Markup
 from aiohttp import web
 
 import settings
-from core import models, event
+from core import models, event, error
 from core.backend import Backend, BackendSession, MAX_GROUP_NAME_LENGTH
-from .misc import gen_mail_data, format_oim, cid_format
+from .misc import gen_mail_data, format_oim, cid_format, gen_signedticket_xml
+from .msnp_ns import GroupChatEventHandler
 import util.misc
 
 LOGIN_PATH = '/login'
@@ -95,7 +96,6 @@ async def handle_abservice(req: web.Request) -> web.Response:
 				'detail': detail,
 				'Lst': models.Lst,
 				'lists': [models.Lst.AL, models.Lst.BL],
-				'groupchats': backend.user_service.get_groupchat_batch(user),
 				'now': now_str,
 			})
 		if action_str == 'AddMember':
@@ -213,7 +213,7 @@ async def handle_abservice(req: web.Request) -> web.Response:
 				chat_id = ab_id[-12:]
 				groupchat = backend.user_service.get_groupchat(chat_id)
 			
-			groupchats = backend.user_service.get_groupchat_batch(user)
+			groupchats = [groupchat for groupchat in backend.user_service.get_groupchat_batch(user) if not (groupchat.memberships[user.uuid].role == models.GroupChatRole.Empty or groupchat.memberships[user.uuid].state == models.GroupChatState.Empty)]
 			
 			return render(req, 'msn:abservice/ABFindContactsPagedResponse.xml', {
 				'cachekey': cachekey,
@@ -227,7 +227,7 @@ async def handle_abservice(req: web.Request) -> web.Response:
 				'groupchat': groupchat,
 				'GroupChatRole': models.GroupChatRole,
 				'GroupChatState': models.GroupChatState,
-				#'signedticket': gen_signedticket_xml(user, backend),
+				'signedticket': Markup(gen_signedticket_xml(bs, backend).replace('<', '&lt;').replace('>', '&gt;')),
 				'ab_id': ab_id,
 				'ab_type': ab_type,
 			})
@@ -355,7 +355,9 @@ async def handle_abservice(req: web.Request) -> web.Response:
 				if contact_uuid is not user.uuid:
 					ctc = detail.contacts.get(contact_uuid)
 					if not ctc:
-						return web.HTTPInternalServerError()
+						return render(req, 'msn:abservice/Fault.contactdoesnotexist.xml', {
+							'action_str': 'ABContactUpdate',
+						}, status = 500)
 				properties_changed = contact.find('./{*}propertiesChanged')
 				if not properties_changed:
 					return web.HTTPInternalServerError()
@@ -878,7 +880,9 @@ async def handle_abservice(req: web.Request) -> web.Response:
 				
 				ctc = detail.contacts.get(contact_uuid)
 				if ctc is None or not ctc.lists & models.Lst.FL:
-					return web.HTTPInternalServerError()
+					return render(req, 'msn:abservice/Fault.contactdoesnotexist.xml', {
+						'action_str': 'ABGroupContactAdd',
+					}, status = 500)
 				else:
 					for group_id in group_ids:
 						for group_contact_entry in ctc._groups:
@@ -927,6 +931,10 @@ async def handle_abservice(req: web.Request) -> web.Response:
 							return web.HTTPInternalServerError()
 					for group_id in group_ids:
 						bs.me_group_contact_remove(group_id, ctc.head.uuid)
+			else:
+				return render(req, 'msn:abservice/Fault.contactdoesnotexist.xml', {
+					'action_str': 'ABGroupContactDelete',
+				}, status = 500)
 			return render(req, 'msn:abservice/ABGroupContactDeleteResponse.xml', {
 				'cachekey': cachekey,
 				'host': settings.LOGIN_HOST,
@@ -942,17 +950,18 @@ async def handle_abservice(req: web.Request) -> web.Response:
 				name = str(_find_element(action, 'DisplayName'))
 				owner_friendly = str(_find_element(action, 'PublicDisplayName'))
 				
-				chat_id = backend.user_service.create_groupchat(user, name, owner_friendly, membership_access)
+				chat_id = bs.me_create_groupchat(name, owner_friendly, membership_access)
 				
-				return render(req, 'msn:sharing/CreateCircleResponse.xml', {
-					'cachekey': cachekey,
-					'host': settings.LOGIN_HOST,
-					'session_id': util.misc.gen_uuid(),
-					'chat_id': chat_id,
-				})
+				try:
+					return render(req, 'msn:sharing/CreateCircleResponse.xml', {
+						'cachekey': cachekey,
+						'host': settings.LOGIN_HOST,
+						'session_id': util.misc.gen_uuid(),
+						'chat_id': chat_id,
+					})
+				finally:
+					backend.loop.create_task(join_creator_to_groupchat(backend, user, chat_id))
 		if action_str == 'CreateContact':
-			return web.HTTPInternalServerError()
-			
 			# Used as a step in Circle invites, but also used for regular contact adds in WLM 2011/2012
 			user = bs.user
 			detail = user.detail
@@ -974,6 +983,7 @@ async def handle_abservice(req: web.Request) -> web.Response:
 			if contact_uuid is None:
 				return web.HTTPInternalServerError()
 			head = backend._load_user_record(contact_uuid)
+			if head is None: return web.HTTPInternalServerError()
 			
 			groupchat = backend.user_service.get_groupchat(chat_id)
 			
@@ -981,7 +991,11 @@ async def handle_abservice(req: web.Request) -> web.Response:
 				return web.HTTPInternalServerError()
 			
 			try:
-				backend.me_add_user_to_groupchat(groupchat, head)
+				bs.me_add_user_to_groupchat(groupchat, head)
+			except error.MemberAlreadyInGroupChat:
+				return render(req, 'msn:abservice/Fault.contactalreadyexists.xml', {
+					'action_str': 'CreateContact',
+				}, status = 500)
 			except:
 				return web.HTTPInternalServerError()
 			
@@ -994,8 +1008,6 @@ async def handle_abservice(req: web.Request) -> web.Response:
 				'now': now_str,
 			})
 		if action_str == 'ManageWLConnection':
-			return web.HTTPInternalServerError()
-			
 			user = bs.user
 			detail = user.detail
 			assert detail is not None
@@ -1006,13 +1018,40 @@ async def handle_abservice(req: web.Request) -> web.Response:
 			else:
 				ab_id = '00000000-0000-0000-0000-000000000000'
 			
-			if not (ab_id.startswith('00000000-0000-0000-0009-') and len(ab_id[24:]) == 12):
+			if not (ab_id == '00000000-0000-0000-0000-000000000000' or (ab_id.startswith('00000000-0000-0000-0009-') and len(ab_id[24:]) == 12)):
+				print('ab id incorrect')
 				return web.HTTPInternalServerError()
 			
-			chat_id = ab_id[-12:]
+			groupchat = None
+			invite_message = None
+			circle_mode = False
 			
 			contact_uuid = _find_element(action, 'contactId')
 			assert contact_uuid is not None
+			if ab_id != '00000000-0000-0000-0000-000000000000':
+				head = backend._load_user_record(contact_uuid)
+			else:
+				head = user
+			
+			if head is None:
+				return render(req, 'msn:abservice/Fault.contactdoesnotexist.xml', {
+					'action_str': 'ManageWLConnection',
+				}, status = 500)
+			
+			if ab_id == '00000000-0000-0000-0000-000000000000' and contact_uuid.startswith('00000000-0000-0000-0009-'):
+				chat_id = contact_uuid[-12:]
+				uuid = head.uuid
+				circle_mode = True
+			elif ab_id.startswith('00000000-0000-0000-0009-'):
+				chat_id = ab_id[-12:]
+				uuid = contact_uuid
+				circle_mode = True
+			
+			if circle_mode:
+				groupchat = backend.user_service.get_groupchat(chat_id)
+				if groupchat is None or uuid not in groupchat.memberships:
+					print('groupchat is None or user not in chat')
+					return web.HTTPInternalServerError()
 			
 			if _find_element(action, 'connection') == True:
 				try:
@@ -1020,26 +1059,104 @@ async def handle_abservice(req: web.Request) -> web.Response:
 					relationship_role = int(_find_element(action, 'relationshipRole'))
 					wl_action = int(_find_element(action, 'action'))
 				except ValueError:
-					return web.HTTPInternalServerError()
+					return render(req, 'msn:abservice/ManageWLConnectionResponse.xml', {
+						'cachekey': cachekey,
+						'host': settings.LOGIN_HOST,
+						'session_id': util.misc.gen_uuid(),
+						'error': 'Relationship variables invalid',
+					}, status = 500)
 				
 				if relationship_type == models.RelationshipType.Circle:
-					groupchat = backend.user_service.get_groupchat(chat_id)
-					if contact_uuid not in groupchat.memberships: return web.HTTPInternalServerError()
-					
-					#TODO: Group chat invites
-					#if wl_action == 1:
-					#	if relationship_role == 3:
-					#		if not (groupchat.memberships[contact_uuid].role is GroupChatRole.Empty or groupchat.memberships[contact_uuid].state is GroupChatState.Empty):
-					#			return
+					if wl_action == 1:
+						if groupchat is None:
+							return render(req, 'msn:abservice/ManageWLConnectionResponse.xml', {
+								'cachekey': cachekey,
+								'host': settings.LOGIN_HOST,
+								'session_id': util.misc.gen_uuid(),
+								'error': 'Relationship type not suitable for non-specialized contacts',
+							}, status = 500)
+						if relationship_role == 0:
+							if ab_id == '00000000-0000-0000-0000-000000000000':
+								membership = groupchat.memberships[head.uuid]
+								if not (membership.role == models.GroupChatRole.StatePendingOutbound and membership.state == models.GroupChatState.WaitingResponse):
+									return render(req, 'msn:abservice/ManageWLConnectionResponse.xml', {
+										'cachekey': cachekey,
+										'host': settings.LOGIN_HOST,
+										'session_id': util.misc.gen_uuid(),
+										'error': 'User `{email}` already accepted in `GroupChat`'.format(email = head.email),
+									})
+								try:
+									bs.me_change_groupchat_membership(groupchat, head, role = models.GroupChatRole.Member, state = models.GroupChatState.Accepted, bs = bs)
+								except error.MemberNotInGroupChat:
+									return render(req, 'msn:abservice/ManageWLConnectionResponse.xml', {
+										'cachekey': cachekey,
+										'host': settings.LOGIN_HOST,
+										'session_id': util.misc.gen_uuid(),
+										'error': 'User `{email}` does not have membership in `GroupChat`'.format(email = head.email),
+									}, status = 500)
+								except error.GroupChatDoesNotExist:
+									return render(req, 'msn:abservice/ManageWLConnectionResponse.xml', {
+										'cachekey': cachekey,
+										'host': settings.LOGIN_HOST,
+										'session_id': util.misc.gen_uuid(),
+										'error': '`GroupChat` does not currently exist',
+									}, status = 500)
+						elif relationship_role == 3:
+							annotations = action.findall('.//{*}annotations/{*}Annotation')
+							for annotation in annotations:
+								name = _find_element(annotation, 'Name')
+								value = _find_element(annotation, 'Value')
+								
+								if name == 'MSN.IM.InviteMessage':
+									invite_message = value
+									break
+							try:
+								bs.me_invite_user_to_groupchat(groupchat, head, invite_message = invite_message)
+							except error.MemberNotInGroupChat:
+								return render(req, 'msn:abservice/ManageWLConnectionResponse.xml', {
+									'cachekey': cachekey,
+									'host': settings.LOGIN_HOST,
+									'session_id': util.misc.gen_uuid(),
+									'error': 'User `{email}` does not have initialized membership in `GroupChat`'.format(email = head.email),
+								}, status = 500)
+							except error.MemberAlreadyInvitedToGroupChat:
+								return render(req, 'msn:abservice/ManageWLConnectionResponse.xml', {
+									'cachekey': cachekey,
+									'host': settings.LOGIN_HOST,
+									'session_id': util.misc.gen_uuid(),
+									'error': 'User `{email}` already invited to `GroupChat`'.format(email = head.email),
+								}, status = 500)
+							except error.GroupChatDoesNotExist:
+								return render(req, 'msn:abservice/ManageWLConnectionResponse.xml', {
+									'cachekey': cachekey,
+									'host': settings.LOGIN_HOST,
+									'session_id': util.misc.gen_uuid(),
+									'error': '`GroupChat` does not currently exist',
+								}, status = 500)
+						else:
+							return render(req, 'msn:abservice/ManageWLConnectionResponse.xml', {
+								'cachekey': cachekey,
+								'host': settings.LOGIN_HOST,
+								'session_id': util.misc.gen_uuid(),
+								'error': 'RelationshipRole `{role}` not currently supported for relationship type `{type}`'.format(role = relationship_role, type = relationship_type.name),
+							}, status = 500)
+					else:
+						print('no other actions supported')
+						return web.HTTPInternalServerError()
+			else:
+				return web.HTTPInternalServerError()
 			
-			#return render(req, 'msn:abservice/ManageWLConnection/ManageWLConnection.xml', {
-			#	'cachekey': cachekey,
-			#	'host': settings.LOGIN_HOST,
-			#	'session_id': util.misc.gen_uuid(),
-			#	'ab_id': ab_id,
-			#	'contact': ctc_ab,
-			#	'user_creator_detail': user_creator.detail,
-			#})
+			return render(req, 'msn:abservice/ManageWLConnectionResponse.xml', {
+				'cachekey': cachekey,
+				'host': settings.LOGIN_HOST,
+				'session_id': util.misc.gen_uuid(),
+				'ab_id': ab_id,
+				'head': head,
+				'groupchat': groupchat,
+				'GroupChatRole': models.GroupChatRole,
+				'GroupChatState': models.GroupChatState,
+				'now': now_str,
+			})
 		#if action_str == 'FindFriendsInCommon':
 		#	# Count the number of `Live` contacts from the target contact and compare then with the caller's contacts to see if both have the same contacts
 		#	
@@ -1658,6 +1775,13 @@ async def handle_rst(req: web.Request, rst2: bool = False) -> web.Response:
 
 def _get_storage_path(uuid: str) -> Path:
 	return Path('storage/dp') / uuid[0:1] / uuid[0:2]
+
+async def join_creator_to_groupchat(backend: Backend, user: models.User, chat_id: str) -> None:
+	for sess in backend.util_get_sessions_by_user(user):
+		await asyncio.sleep(0.2)
+		sess.evt.msn_on_notify_ab()
+		await asyncio.sleep(0.2)
+		sess.evt.on_groupchat_created(chat_id)
 
 def handle_create_document(req: web.Request, action: Any, user: models.User, cid: str, token: str, timestamp: int) -> web.Response:
 	from PIL import Image

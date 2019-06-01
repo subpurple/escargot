@@ -20,7 +20,7 @@
 					<IsPassportNameHidden>false</IsPassportNameHidden>
 					<displayName>{{ head.email }}</displayName>
 					<puid>0</puid>
-					<CID>{{ cid_format(head.uuid, decimal = True)</CID>
+					<CID>{{ cid_format(head.uuid, decimal = True) }}</CID>
 					<IsNotMobileVisible>false</IsNotMobileVisible>
 					<isMobileIMEnabled>false</isMobileIMEnabled>
 					<isMessengerUser>false</isMessengerUser>

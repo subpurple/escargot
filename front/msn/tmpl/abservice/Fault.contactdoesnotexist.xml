@@ -3,11 +3,11 @@
 	<soap:Body>
 		<soap:Fault>
 			<faultcode>soap:Client</faultcode>
-			<faultstring>Contact Already Exists </faultstring>
+			<faultstring>Contact Does Not Exist </faultstring>
 			<faultactor>http://www.msn.com/webservices/AddressBook/{{ action_str }}</faultactor>
 			<detail>
-				<errorcode xmlns="http://www.msn.com/webservices/AddressBook">ContactAlreadyExists</errorcode>
-				<errorstring xmlns="http://www.msn.com/webservices/AddressBook">Contact Already Exists </errorstring>
+				<errorcode xmlns="http://www.msn.com/webservices/AddressBook">ContactDoesNotExist</errorcode>
+				<errorstring xmlns="http://www.msn.com/webservices/AddressBook">Contact Does Not Exist </errorstring>
 				<machineName xmlns="http://www.msn.com/webservices/AddressBook">BAYABCHWBB133</machineName>
 				<additionalDetails>
 					<conflictObjectId>79ACA834-005D-4812-8749-DC976F38BC5D</conflictObjectId>

@@ -315,7 +315,7 @@ class GroupChat:
 		self.memberships = {}
 
 class GroupChatMembership:
-	__slots__ = ('chat_id', 'head', 'role', 'state', 'inviter_uuid', 'inviter_email', 'inviter_name')
+	__slots__ = ('chat_id', 'head', 'role', 'state', 'inviter_uuid', 'inviter_email', 'inviter_name', 'invite_message')
 	
 	chat_id: str
 	head: User
@@ -324,8 +324,9 @@ class GroupChatMembership:
 	inviter_uuid: Optional[str]
 	inviter_email: Optional[str]
 	inviter_name: Optional[str]
+	invite_message: Optional[str]
 	
-	def __init__(self, chat_id: str, head: User, role: 'GroupChatRole', state: 'GroupChatState', *, inviter_uuid: Optional[str] = None, inviter_email: Optional[str] = None, inviter_name: Optional[str] = None):
+	def __init__(self, chat_id: str, head: User, role: 'GroupChatRole', state: 'GroupChatState', *, inviter_uuid: Optional[str] = None, inviter_email: Optional[str] = None, inviter_name: Optional[str] = None, invite_message: Optional[str] = None):
 		self.chat_id = chat_id
 		self.head = head
 		self.role = role
@@ -333,6 +334,7 @@ class GroupChatMembership:
 		self.inviter_uuid = inviter_uuid
 		self.inviter_email = inviter_email
 		self.inviter_name = inviter_name
+		self.invite_message = invite_message
 
 class OIM:
 	__slots__ = ('uuid', 'run_id', 'from_email', 'from_friendly', 'from_friendly_encoding', 'from_friendly_charset', 'from_user_id', 'to_email', 'sent', 'origin_ip', 'oim_proxy', 'headers', 'message', 'utf8')

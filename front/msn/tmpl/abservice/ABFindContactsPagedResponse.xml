@@ -67,9 +67,18 @@
 											<RelationshipType>5</RelationshipType>
 											<RelationshipState>{{ groupchat.memberships[user.uuid].state.value }}</RelationshipState>
 											<RelationshipStateDate>{{ now }}</RelationshipStateDate>
-											<RelationshipRole>0</RelationshipRole>
+											<RelationshipRole>{%- if groupchat.memberships[user.uuid].role == GroupChatRole.StatePendingOutbound -%}4{%- else -%}0{%- endif -%}</RelationshipRole>
 											<NDRCount>0</NDRCount>
-											<InviterCID>0</InviterCID>
+											{%- if groupchat.memberships[user.uuid].invite_message -%}
+												<InviterMessage>{{ groupchat.memberships[user.uuid].invite_message }}</InviterMessage>
+											{%- endif -%}
+											<InviterCID>{%- if user.uuid == groupchat.owner_uuid -%}0{%- else -%}{{ cid_format(groupchat.memberships[user.uuid].inviter_uuid, decimal = True) }}{%- endif -%}</InviterCID>
+											{%- if groupchat.memberships[user.uuid].inviter_name -%}
+												<InviterName>{{ groupchat.memberships[user.uuid].inviter_name }}</InviterName>
+											{%- endif -%}
+											{%- if groupchat.memberships[user.uuid].inviter_email -%}
+												<InviterEmail>{{ groupchat.memberships[user.uuid].inviter_email }}</InviterEmail>
+											{%- endif -%}
 											<CreateDate>{{ now }}</CreateDate>
 											<LastUpdated>{{ now }}</LastUpdated>
 											<PropertiesChanged />
@@ -92,7 +101,7 @@
 							<Contact>
 								<contactId>{{ membership.head.uuid }}</contactId>
 								<contactInfo>
-									<contactType>{%- if membership.state == GroupChatRole.StatePendingOutbound -%}LivePending{%- else -%}Live{%- endif -%}</contactType>
+									<contactType>{%- if membership.state == GroupChatRole.StatePendingOutbound or (membership.role == GroupChatRole.Empty or membership.state == GroupChatState.Empty) -%}LivePending{%- else -%}Live{%- endif -%}</contactType>
 									<quickName>{{ membership.head.email }}</quickName>
 									<passportName>{{ membership.head.email }}</passportName>
 									<IsPassportNameHidden>false</IsPassportNameHidden>
@@ -114,21 +123,32 @@
 									<IsHidden>true</IsHidden>
 									<Gender>Unspecified</Gender>
 									<TimeZone>None</TimeZone>
-									<NetworkInfoList>
-										<NetworkInfo>
-											<DomainId>1</DomainId>
-											<SourceId>WL</SourceId>
-											<RelationshipType>5</RelationshipType>
-											<RelationshipState>{{ membership.state.value }}</RelationshipState>
-											<RelationshipStateDate>{{ now }}</RelationshipStateDate>
-											<RelationshipRole>{{ membership.role.value }}</RelationshipRole>
-											<NDRCount>0</NDRCount>
-											<InviterCID>0</InviterCID>
-											<CreateDate>{{ now }}</CreateDate>
-											<LastUpdated>{{ now }}</LastUpdated>
-											<PropertiesChanged />
-										</NetworkInfo>
-									</NetworkInfoList>
+									{%- if not membership.role == GroupChatRole.Empty or not membership.state == GroupChatState.Empty -%}
+										<NetworkInfoList>
+											<NetworkInfo>
+												<DomainId>1</DomainId>
+												<SourceId>WL</SourceId>
+												<RelationshipType>5</RelationshipType>
+												<RelationshipState>{{ membership.state.value }}</RelationshipState>
+												<RelationshipStateDate>{{ now }}</RelationshipStateDate>
+												<RelationshipRole>{{ membership.role.value }}</RelationshipRole>
+												<NDRCount>0</NDRCount>
+												{%- if membership.invite_message -%}
+													<InviterMessage>{{ membership.invite_message }}</InviterMessage>
+												{%- endif -%}
+												<InviterCID>{%- if membership.head.uuid == groupchat.owner_uuid -%}0{%- else -%}{{ cid_format(membership.inviter_uuid, decimal = True) }}{%- endif -%}</InviterCID>
+												{%- if membership.inviter_name -%}
+													<InviterName>{{ membership.inviter_name }}</InviterName>
+												{%- endif -%}
+												{%- if membership.inviter_email -%}
+													<InviterEmail>{{ membership.inviter_email }}</InviterEmail>
+												{%- endif -%}
+												<CreateDate>{{ now }}</CreateDate>
+												<LastUpdated>{{ now }}</LastUpdated>
+												<PropertiesChanged />
+											</NetworkInfo>
+										</NetworkInfoList>
+									{%- endif -%}
 									<IsAutoUpdateDisabled>false</IsAutoUpdateDisabled>
 									<IsShellContact>false</IsShellContact>
 									<TrustLevel>0</TrustLevel>
@@ -218,13 +238,7 @@
 								{%- endfor -%}
 							</Circles>
 						{%- endif -%}
-						<CircleTicket>
-							&lt;?xml version="1.0" encoding="utf-16"?&gt;
-							&lt;SignedTicket xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" ver="1" keyVer="1"&gt;
-								&lt;Data&gt;PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTE2Ij8+DQo8VGlja2V0IHhtbG5zOnhzaT0iaHR0cDovL3d3dy53My5vcmcvMjAwMS9YTUxTY2hlbWEtaW5zdGFuY2UiIHhtbG5zOnhzZD0iaHR0cDovL3d3dy53My5vcmcvMjAwMS9YTUxTY2hlbWEiPg0KICA8VFM+MjAwNy0wNi0xMVQxNDoxNTozNy4yMjQ4NzNaPC9UUz4NCiAgPENJRD4xOTAzNDMzMDUyMTExOTc3ODE5PC9DSUQ+DQo8L1RpY2tldD4=&lt;/Data&gt;
-								&lt;Sig&gt;Q8+XE+Cox+gyVsmQFFlaBRXmiaB4HPiNjcS7bF52bWho8rK2Yxed1piOSjzGg5/YIcb874yfJtRThdul4O+NdKgJgeg5WTgSwkigp/Z7gyhC6bYXgZnSlB/WmI7GAAxQFgYGEYAM19l7OCrm/7H+cR8TGVdDShLSvOcHrP1KtGc=&lt;/Sig&gt;
-							&lt;/SignedTicket&gt;
-						</CircleTicket>
+						<CircleTicket>{{ signedticket }}</CircleTicket>
 					</CircleResult>
 				{%- endif -%}
 				<Ab>

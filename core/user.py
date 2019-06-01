@@ -111,21 +111,6 @@ class UserService:
 				detail.contacts[ctc.head.uuid] = ctc
 		return detail
 	
-	#def msn_build_circleticket(self, uuid: str, cid: str) -> Optional[Tuple[str, str]]:
-	#	detail = self.get_detail(uuid)
-	#	if detail is None: return None
-	#	
-	#	ticketxml = '<?xml version="1.0" encoding="utf-16"?>\r\n<Ticket xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">\r\n'
-	#	ticketxml += ''.join(['  <Circle Id="{}" HostedDomain="live.com" />\r\n'.format(circle_id) for circle_id in detail.subscribed_ab_stores if circle_id.startswith('00000000-0000-0000-0009')])
-	#	ticketxml += '  <TS>{}</TS>\r\n  <CID>{}</CID>\r\n</Ticket>'.format(
-	#		datetime.utcnow().isoformat()[0:19] + 'Z', cid,
-	#	)
-	#	# Possible system of signature creation:
-	#	# - SHA-1 hash ticket XML (judging from the fact that `CircleTicket` is used in `USR SHA`, and MS seems to have a history of favouring SHA-1)
-	#	# - Signatures from samples were 256 bytes long, or 2048 bits long, possibly leading to RSA-2048
-	#	# - In that case, sign SHA-1 hash with RSA-2048
-	#	return misc.sign_with_new_key_and_b64(ticketxml)
-	
 	def get_oim_batch(self, user: User) -> List[OIM]:
 		tmp_oims = []
 		
@@ -248,7 +233,7 @@ class UserService:
 				groupchat.memberships[uuid] = GroupChatMembership(
 					dbgroupchat.chat_id, head,
 					GroupChatRole(member_properties['role']), GroupChatState(member_properties['state']),
-					inviter_uuid = member_properties.get('inviter_uuid'), inviter_email = member_properties.get('inviter_email'), inviter_name = member_properties.get('inviter_name'),
+					inviter_uuid = member_properties.get('inviter_uuid'), inviter_email = member_properties.get('inviter_email'), inviter_name = member_properties.get('inviter_name'), invite_message = member_properties.get('invite_message'),
 				)
 		
 		return groupchat
@@ -274,11 +259,17 @@ class UserService:
 			dbgroupchats = sess.query(DBGroupChat)
 			
 			for dbgroupchat in dbgroupchats:
-				if dbgroupchat.get_membership(user.uuid) is not None:
-					groupchat = self.get_groupchat(dbgroupchat.chat_id)
+				if dbgroupchat.chat_id in self._groupchat_cache_by_chat_id:
+					groupchat = self._groupchat_cache_by_chat_id[dbgroupchat.chat_id]
 					if groupchat is None: continue
-					
-					groupchats.append(groupchat)
+					if user.uuid not in groupchat.memberships: continue
+				else:
+					if dbgroupchat.get_membership(user.uuid) is None: continue
+				
+				groupchat = self.get_groupchat(dbgroupchat.chat_id)
+				if groupchat is None: continue
+				
+				groupchats.append(groupchat)
 		
 		return groupchats
 	
@@ -290,7 +281,7 @@ class UserService:
 				dbgroupchat.membership_access = groupchat.membership_access
 				dbgroupchat.request_membership_option = groupchat.request_membership_option
 				for membership in groupchat.memberships.values():
-					dbgroupchat.add_membership(membership.head.uuid, int(membership.role), int(membership.state), inviter_uuid = membership.inviter_uuid, inviter_email = membership.inviter_email, inviter_name = membership.inviter_name)
+					dbgroupchat.add_membership(membership.head.uuid, int(membership.role), int(membership.state), inviter_uuid = membership.inviter_uuid, inviter_email = membership.inviter_email, inviter_name = membership.inviter_name, invite_message = membership.invite_message)
 				sess.add(dbgroupchat)
 	
 	def save_batch(self, to_save: List[Tuple[User, UserDetail]]) -> None:
