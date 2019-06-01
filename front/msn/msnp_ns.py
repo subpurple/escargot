@@ -119,9 +119,10 @@ class MSNPCtrlNS(MSNPCtrl):
 			signedticket = args[0]
 			if stage == 'A':
 				#>>> USR trid SHA A b64_signedticket
-				if signedticket != base64.b64encode(gen_signedticket_xml(bs, backend).encode('utf-8')).decode('utf-8'):
-					self.send_reply(Err.AuthFail, trid)
-					return
+				#TODO: Sometimes the Ticket is seen as invalidated even though from capturing packets, the SOAP tickets and NS tickets are the same. Better way to validate these tickets?
+				#if signedticket != base64.b64encode(gen_signedticket_xml(bs, backend).encode('utf-8')).decode('utf-8'):
+				#	self.send_reply(Err.AuthFail, trid)
+				#	return
 				self.send_reply('USR', trid, 'OK', self.usr_email, 0, 0)
 			return
 		
@@ -1700,6 +1701,9 @@ class BackendEventHandler(event.BackendEventHandler):
 			)
 			m = ('ADL', 0, adl_payload.encode('utf-8'))
 		self.ctrl.send_reply(*m)
+		
+		if dialect >= 13:
+			self.msn_on_notify_ab()
 	
 	def on_contact_request_denied(self, user_added: User, message: Optional[str], *, contact_id: Optional[str] = None) -> None:
 		pass
@@ -1767,37 +1771,6 @@ class BackendEventHandler(event.BackendEventHandler):
 			member_low = binascii.hexlify(struct.pack('!I', id_bits[1])).decode('utf-8'), member_high = binascii.hexlify(struct.pack('!I', id_bits[0])).decode('utf-8'), email = user.email,
 			chat_id = chat_id, role = role.name,
 		))
-	
-	def msn_on_put_sent(self, payload: bytes, sender: User, *, pop_id_sender: Optional[str] = None, pop_id: Optional[str] = None) -> None:
-		#ctrl = self.ctrl
-		#bs = ctrl.bs
-		#assert bs is not None
-		#data = b''
-		#
-		#if ctrl.dialect < 18:
-		#	return
-		#
-		#message = Parser().parsestr(payload.decode('utf-8'))
-		#del message['To']
-		#del message['From']
-		#message['To'] = _encode_networkid_email_pop('1:{}'.format(bs.user.email), pop_id)
-		#message['From'] = _encode_networkid_email_pop('1:{}'.format(bs.user.email), pop_id_sender)
-		#
-		#for variable, content in message.items():
-		#	data += '{}: {}\r\n'.format(
-		#		variable, content,
-		#	).encode('utf-8')
-		#data += b'\r\n'
-		#
-		#put_payload = message.get_payload()
-		#if isinstance(put_payload, str):
-		#	data += put_payload.encode('utf-8')
-		#elif isinstance(put_payload, bytes):
-		#	data += put_payload
-		#
-		#self.ctrl.send_reply('NFY', 'PUT', data)
-		
-		return
 	
 	def ymsg_on_xfer_init(self, yahoo_data: MultiDict[bytes, bytes]) -> None:
 		pass

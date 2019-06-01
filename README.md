@@ -13,9 +13,7 @@ Currently, MSNP2 through MSNP18 are implemented. Its been tested and works with 
 
 - Because of MSNP limitations, if you want to log in to MSN < 5, you have to store an MD5-encoded password (`User.front_data['msn']['pw_md5']`)
 
-- `X has added you to their list` messages don't work on WLM 2009 and 2011. WLM 2012 hasn't been tested for this yet.
-
-- Circles/Groups for WLM 2009 aren't implemented yet. This is being planned for implementation.
+- Circles/Groups for WLM 2009 are partially implemented. Creation, invitations, and presence work. Messaging, group settings, and leaving Circles haven't been implemented yet.
 
 YMSG:
 
