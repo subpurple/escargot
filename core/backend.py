@@ -102,22 +102,23 @@ class Backend:
 	def on_leave(self, sess: 'BackendSession', *, sess_id: Optional[int] = None) -> None:
 		user = sess.user
 		old_substatus = user.status.substatus
-		for cs_dict in self._cses_by_bs_by_groupchat_id.values():
-			cs = cs_dict[sess]
-			if cs:
-				cs.close()
 		self._stats.on_logout()
 		self._sc.remove_session(sess)
+		if not self._sc.get_sessions_by_user(user):
+			# User is offline, send notifications
+			user.status.substatus = Substatus.Offline
+			self._sync_contact_statuses(user)
+			self._notify_contacts(sess, for_logout = True)
+		for cs_dict in self._cses_by_bs_by_groupchat_id.values():
+			cs = cs_dict.get(sess)
+			if cs is not None:
+				cs.close()
 		if self._sc.get_sessions_by_user(user):
 			# There are still other people logged in as this user,
 			# so don't send offline notifications.
 			self._notify_contacts(sess, for_logout = False)
 			self._notify_self(sess)
 			return
-		# User is offline, send notifications
-		user.status.substatus = Substatus.Offline
-		self._sync_contact_statuses(user)
-		self._notify_contacts(sess, for_logout = True)
 	
 	def login(self, uuid: str, client: Client, evt: event.BackendEventHandler, *, option: Optional[LoginOption] = None, only_once: bool = False) -> Optional['BackendSession']:
 		user = self._load_user_record(uuid)
@@ -167,16 +168,17 @@ class Backend:
 	def get_chats_by_scope(self, scope: str) -> Iterable['Chat']:
 		return [chat for (scope_other, _), chat in self._chats_by_id.items() if scope_other is scope]
 	
-	def join_groupchat(self, chat_id: str, bs: 'BackendSession', evt: event.ChatEventHandler, *, pop_id: Optional[str] = None) -> None:
-		chat = self._chats_by_id.get(('persistent',chat_id))
+	def join_groupchat(self, chat_id: str, origin: str, bs: 'BackendSession', evt: event.ChatEventHandler, *, pop_id: Optional[str] = None) -> Optional['ChatSession']:
+		chat = self.chat_get('persistent', chat_id)
 		
 		if chat is None: return None
 		
-		cs = chat.join('persistent', bs, evt, pop_id = pop_id)
+		cs = chat.join(origin, bs, evt, pop_id = pop_id)
 		if chat_id not in self._cses_by_bs_by_groupchat_id:
 			self._cses_by_bs_by_groupchat_id[chat_id] = {}
 		self._cses_by_bs_by_groupchat_id[chat_id][bs] = cs
-		chat.send_participant_joined(cs)
+		
+		return cs
 	
 	def get_groupchat_cs(self, chat_id: str, bs: 'BackendSession') -> Optional['ChatSession']:
 		if chat_id not in self._cses_by_bs_by_groupchat_id: return None
@@ -327,6 +329,11 @@ class Backend:
 							if ctc_me is None: continue
 							if not ctc_me.lists & Lst.FL: continue
 							bs_other.evt.on_presence_notification(bs, ctc_me, on_contact_add, sess_id = sess_id, update_status = update_status, updated_phone_info = updated_phone_info)
+					for groupchat in self.user_service.get_groupchat_batch(user):
+						if groupchat.chat_id not in self._cses_by_bs_by_groupchat_id: continue
+						if bs not in self._cses_by_bs_by_groupchat_id[groupchat.chat_id]: continue
+						cs = self._cses_by_bs_by_groupchat_id[groupchat.chat_id][bs]
+						cs.chat.send_participant_presence(cs)
 					if for_logout:
 						if not self._sc.get_sessions_by_user(user): user.detail = None
 			except:
@@ -714,7 +721,7 @@ class BackendSession(Session):
 			if sess_notify is self: continue
 			sess_notify.evt.on_oim_sent(oim)
 	
-	def me_create_groupchat(self, name: str, owner_friendly: str, membership_access: int, request_membership_option: int) -> str:
+	def me_create_groupchat(self, name: str, owner_friendly: str, membership_access: int) -> str:
 		user = self.user
 		backend = self.backend
 		
@@ -729,13 +736,62 @@ class BackendSession(Session):
 	def me_add_user_to_groupchat(self, groupchat: GroupChat, user_other: User) -> None:
 		user = self.user
 		
-		if user.uuid in groupchat.memberships: raise error.ContactAlreadyOnList()
+		if user_other.uuid in groupchat.memberships: raise error.MemberAlreadyInGroupChat()
 		groupchat.memberships[user_other.uuid] = GroupChatMembership(
 			groupchat.chat_id, user_other,
 			GroupChatRole.Empty, GroupChatState.Empty,
 		)
 		
 		self.backend._mark_groupchat_modified(groupchat)
+	
+	def me_invite_user_to_groupchat(self, groupchat: GroupChat, invitee: User, *, invite_message: Optional[str] = None) -> None:
+		backend = self.backend
+		inviter = self.user
+		
+		if invitee.uuid not in groupchat.memberships: raise error.MemberNotInGroupChat()
+		
+		membership = groupchat.memberships[invitee.uuid]
+		
+		if not (membership.role == GroupChatRole.Empty or membership.state == GroupChatState.Empty): raise error.MemberAlreadyInvitedToGroupChat()
+		
+		chat = backend.chat_get('persistent', groupchat.chat_id)
+		if chat is None: raise error.GroupChatDoesNotExist()
+		
+		membership.role = GroupChatRole.StatePendingOutbound
+		membership.state = GroupChatState.WaitingResponse
+		membership.inviter_uuid = inviter.uuid
+		membership.inviter_email = inviter.email
+		membership.inviter_name = inviter.status.name or inviter.email
+		membership.invite_message = invite_message
+		
+		self.backend._mark_groupchat_modified(groupchat)
+		
+		for bs in backend.util_get_sessions_by_user(invitee):
+			bs.evt.on_chat_invite(chat, inviter, group_chat = True)
+	
+	def me_change_groupchat_membership(self, groupchat: GroupChat, user_other: User, *, role: Optional[GroupChatRole] = None, state: Optional[GroupChatState] = None, bs: Optional['BackendSession'] = None) -> None:
+		user = self.user
+		
+		if user_other.uuid not in groupchat.memberships: raise error.MemberNotInGroupChat()
+		
+		chat = self.backend.chat_get('persistent', groupchat.chat_id)
+		if chat is None: raise error.GroupChatDoesNotExist()
+		
+		membership = groupchat.memberships[user_other.uuid]
+		
+		old_role = membership.role
+		old_state = membership.state
+		if role is not None:
+			membership.role = role
+		if state is not None:
+			membership.state = state
+		
+		if old_role is not membership.role or old_state is not membership.state:
+			self.backend._mark_groupchat_modified(groupchat)
+			for cs_other in chat.get_roster():
+				for bs_other in self.backend.util_get_sessions_by_user(cs_other.user):
+					if bs is not None and bs_other is bs: continue
+					bs_other.evt.on_groupchat_role_updated(groupchat.chat_id, role = membership.role)
 	
 	def me_send_uun_invitation(self, uuid: str, type: int, data: Optional[bytes], *, pop_id_sender: Optional[str] = None, pop_id: Optional[str] = None) -> None:
 		ctc_head = self.backend._load_user_record(uuid)
@@ -866,6 +922,8 @@ class Chat:
 	def send_participant_joined(self, cs: 'ChatSession') -> None:
 		tmp = []
 		
+		cs.joined = True
+		
 		for cs_self in self.get_roster():
 			if cs_self.user is cs.user and cs_self is not cs:
 				tmp.append(cs_self)
@@ -878,6 +936,27 @@ class Chat:
 		for cs_other in self.get_roster():
 			if cs_other is cs and cs.origin is 'yahoo': continue
 			cs_other.evt.on_participant_joined(cs, first_pop)
+	
+	def send_participant_presence(self, cs: 'ChatSession', *, initial_presence: bool = False) -> None:
+		tmp = []
+		
+		for cs_self in self.get_roster():
+			if cs_self.user is cs.user and cs_self is not cs:
+				tmp.append(cs_self)
+		
+		if len(tmp) > 0:
+			first_pop = False
+		else:
+			first_pop = True
+		
+		if initial_presence:
+			for cs_other in self.get_roster():
+				if cs_other is cs: continue
+				cs.evt.on_participant_presence(cs_other, cs.primary_pop)
+		
+		for cs_other in self.get_roster():
+			if cs_other is cs and cs.origin is 'yahoo': continue
+			cs_other.evt.on_participant_presence(cs, first_pop)
 	
 	def on_leave(self, sess: 'ChatSession', keep_future: bool, idle: bool, send_idle_leave: bool) -> None:
 		su = self._users_by_sess.pop(sess, None)
@@ -907,7 +986,7 @@ class Chat:
 				sess1.evt.on_participant_left(sess, idle, last_pop)
 
 class ChatSession(Session):
-	__slots__ = ('origin', 'user', 'chat', 'bs', 'evt', 'primary_pop', 'front_data', 'preferred_name')
+	__slots__ = ('origin', 'user', 'chat', 'bs', 'evt', 'primary_pop', 'joined', 'front_data', 'preferred_name')
 	
 	origin: Optional[str]
 	user: User
@@ -915,6 +994,7 @@ class ChatSession(Session):
 	bs: BackendSession
 	evt: event.ChatEventHandler
 	primary_pop: bool
+	joined: bool
 	front_data: Dict[str, Any]
 	preferred_name: Optional[str]
 	
@@ -926,6 +1006,7 @@ class ChatSession(Session):
 		self.bs = bs
 		self.evt = evt
 		self.primary_pop = primary_pop
+		self.joined = False
 		self.front_data = {}
 		self.preferred_name = preferred_name
 	
@@ -954,7 +1035,7 @@ class ChatSession(Session):
 	
 	def update_status(self) -> None:
 		for cs_other in self.chat._users_by_sess.keys():
-			cs_other.evt.on_chat_user_status_updated(cs_other)
+			cs_other.evt.on_participant_status_updated(self)
 	
 	def send_message_to_everyone(self, data: MessageData) -> None:
 		stats = self.chat._stats

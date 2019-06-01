@@ -21,7 +21,7 @@ from core.models import Substatus, Lst, NetworkID, User, OIM, GroupChat, GroupCh
 from core.client import Client
 
 from .msnp import MSNPCtrl
-from .misc import build_presence_notif, cid_format, encode_msnobj, encode_payload, decode_capabilities_capabilitiesex, decode_email_networkid, encode_email_networkid, decode_email_pop, gen_mail_data, gen_chal_response, generate_rps_key, encrypt_with_key_and_iv_tripledes_cbc, Err, MSNStatus
+from .misc import build_presence_notif, cid_format, encode_msnobj, encode_payload, decode_capabilities_capabilitiesex, decode_email_networkid, encode_email_networkid, decode_email_pop, gen_mail_data, gen_chal_response, gen_signedticket_xml, generate_rps_key, encrypt_with_key_and_iv_tripledes_cbc, Err, MSNStatus
 
 MSNP_DIALECTS = ['MSNP{}'.format(d) for d in (
 	# Actually supported
@@ -32,7 +32,7 @@ MSNP_DIALECTS = ['MSNP{}'.format(d) for d in (
 )]
 
 class MSNPCtrlNS(MSNPCtrl):
-	__slots__ = ('backend', 'dialect', 'usr_email', 'bs', 'client', 'syn_ser', 'gcf_sent', 'syn_sent', 'iln_sent', 'challenge', 'rps_challenge', 'circle_presence', 'initial_adl_sent', 'circle_adl_sent')
+	__slots__ = ('backend', 'dialect', 'usr_email', 'bs', 'client', 'syn_ser', 'gcf_sent', 'syn_sent', 'iln_sent', 'challenge', 'rps_challenge', 'initial_adl_sent', 'circle_adl_sent')
 	
 	backend: Backend
 	dialect: int
@@ -45,7 +45,6 @@ class MSNPCtrlNS(MSNPCtrl):
 	iln_sent: bool
 	challenge: Optional[str]
 	rps_challenge: Optional[bytes]
-	circle_presence: bool
 	initial_adl_sent: bool
 	circle_adl_sent: bool
 	
@@ -62,7 +61,6 @@ class MSNPCtrlNS(MSNPCtrl):
 		self.iln_sent = False
 		self.challenge = None
 		self.rps_challenge = None
-		self.circle_presence = False
 		self.initial_adl_sent = False
 		self.circle_adl_sent = False
 	
@@ -121,9 +119,9 @@ class MSNPCtrlNS(MSNPCtrl):
 			signedticket = args[0]
 			if stage == 'A':
 				#>>> USR trid SHA A b64_signedticket
-				#if signedticket != base64.b64encode(gen_signedticket_xml(bs.user, backend).encode('utf-8')).decode('ascii'):
-				#	self.send_reply(Err.AuthFail, trid)
-				#	return
+				if signedticket != base64.b64encode(gen_signedticket_xml(bs, backend).encode('utf-8')).decode('utf-8'):
+					self.send_reply(Err.AuthFail, trid)
+					return
 				self.send_reply('USR', trid, 'OK', self.usr_email, 0, 0)
 			return
 		
@@ -312,6 +310,9 @@ class MSNPCtrlNS(MSNPCtrl):
 		self.close(hard = True)
 	
 	def _util_usr_final(self, trid: str, token: str, machineguid: Optional[str]) -> None:
+		from cryptography.hazmat.backends import default_backend
+		from cryptography.hazmat.primitives.asymmetric import rsa
+		
 		bs = self.bs
 		
 		if bs is None:
@@ -320,6 +321,8 @@ class MSNPCtrlNS(MSNPCtrl):
 			return
 		
 		self.backend.util_set_sess_token(bs, token)
+		
+		bs.front_data['msn_circleticket_sig'] = rsa.generate_private_key(public_exponent = 65537, key_size = 2048, backend = default_backend())
 		
 		dialect = self.dialect
 		
@@ -727,11 +730,24 @@ class MSNPCtrlNS(MSNPCtrl):
 						chat_id = username[-12:]
 						if lsts & Lst.FL:
 							groupchat = backend.user_service.get_groupchat(chat_id)
-							if groupchat is None: continue
+							if groupchat is None:
+								print('groupchat not existant')
+								continue
 							
-							for membership in groupchat.memberships.values():
-								for bs in backend.util_get_sessions_by_user(membership.head):
-									bs.evt.on_groupchat_presence_notification(groupchat, membership.head)
+							cs = None
+							
+							try:
+								cs = backend.join_groupchat(chat_id, 'msn', bs, GroupChatEventHandler(self), pop_id = bs.front_data.get('msn_pop_id'))
+							except:
+								print('could not join groupchat')
+								continue
+							
+							if cs is None:
+								print('cs is None')
+								continue
+							chat = cs.chat
+							
+							chat.send_participant_presence(cs, initial_presence = True)
 					else:
 						email = '{}@{}'.format(username, domain)
 						contact_uuid = backend.util_get_uuid_from_email(email)
@@ -1113,7 +1129,6 @@ class MSNPCtrlNS(MSNPCtrl):
 		
 		if to[1] is NetworkID.CIRCLE:
 			circle_mode = True
-			print(to[0])
 			if not to[0].endswith('@live.com'): return
 			email_end = to[0].rfind('@live.com')
 			circle_id = to[0][:email_end]
@@ -1135,8 +1150,6 @@ class MSNPCtrlNS(MSNPCtrl):
 		nfy_1_index = body.find('\r\n\r\n')
 		nfy_actual = body[nfy_1_index+4:]
 		
-		print(nfy_actual)
-		
 		payload_index = nfy_actual.find('\r\n\r\n')
 		nfy_headers = Parser().parsestr(nfy_actual[:payload_index])
 		payload = nfy_actual[payload_index+4:]
@@ -1146,6 +1159,8 @@ class MSNPCtrlNS(MSNPCtrl):
 			
 			groupchat = backend.user_service.get_groupchat(chat_id)
 			if groupchat is None: return
+			chat = backend.chat_get('persistent', chat_id)
+			if chat is None: return
 			
 			elm = parse_xml(payload)
 			email_elm = elm.find('roster/user/id')
@@ -1154,10 +1169,10 @@ class MSNPCtrlNS(MSNPCtrl):
 				if not email.startswith('1:'): return
 				email = email.split('1:', 1)[1]
 				if email == user.email:
-					try:
-						backend.join_groupchat(chat_id, bs, GroupChatEventHandler(self, bs), pop_id = bs.front_data.get('msn_pop_id'))
-					except:
-						pass
+					cs = backend.get_groupchat_cs(chat_id, bs)
+					if cs is None: return
+					
+					chat.send_participant_joined(cs)
 			
 			presence_elm = elm.find('props/presence')
 			if presence_elm is not None:
@@ -1641,15 +1656,6 @@ class BackendEventHandler(event.BackendEventHandler):
 				self.ctrl.send_reply(*m)
 			return
 	
-	def on_groupchat_presence_notification(self, groupchat: GroupChat, user_other: User) -> None:
-		bs = self.ctrl.bs
-		assert bs is not None
-		user = bs.user
-		
-		for m in build_presence_notif(None, user_other, user, self.ctrl.dialect, self.ctrl.backend, self.ctrl.iln_sent, groupchat = groupchat):
-			self.ctrl.send_reply(*m)
-		return
-	
 	def on_presence_self_notification(self) -> None:
 		bs = self.ctrl.bs
 		assert bs is not None
@@ -1659,15 +1665,18 @@ class BackendEventHandler(event.BackendEventHandler):
 			self.ctrl.send_reply(*m)
 		return
 	
-	def on_chat_invite(self, chat: Chat, inviter: User, *, inviter_id: Optional[str] = None, invite_msg: str = '') -> None:
-		extra = () # type: Tuple[Any, ...]
-		dialect = self.ctrl.dialect
-		if dialect >= 13:
-			extra = ('U', 'messenger.hotmail.com')
-		if dialect >= 14:
-			extra += (1,)
-		token = self.ctrl.backend.auth_service.create_token('sb/cal', (self.ctrl.bs, dialect, chat), lifetime = 120)
-		self.ctrl.send_reply('RNG', chat.ids['main'], 'm1.escargot.log1p.xyz:1864', 'CKI', token, inviter.email, inviter.status.name, *extra)
+	def on_chat_invite(self, chat: Chat, inviter: User, *, group_chat: bool = False, inviter_id: Optional[str] = None, invite_msg: str = '') -> None:
+		if group_chat:
+			self.msn_on_notify_ab()
+		else:
+			extra = () # type: Tuple[Any, ...]
+			dialect = self.ctrl.dialect
+			if dialect >= 13:
+				extra = ('U', 'messenger.hotmail.com')
+			if dialect >= 14:
+				extra += (1,)
+			token = self.ctrl.backend.auth_service.create_token('sb/cal', (self.ctrl.bs, dialect, chat), lifetime = 120)
+			self.ctrl.send_reply('RNG', chat.ids['main'], 'm1.escargot.log1p.xyz:1864', 'CKI', token, inviter.email, inviter.status.name, *extra)
 	
 	def on_added_me(self, user: User, *, adder_id: Optional[str] = None, message: Optional[TextWithData] = None) -> None:
 		email = user.email
@@ -1734,7 +1743,18 @@ class BackendEventHandler(event.BackendEventHandler):
 			cid = cid_format(user.uuid, decimal = True), now = date_format(datetime.utcnow()),
 		))
 	
-	def msn_on_circle_role(self, chat_id: str, *, role: Optional[GroupChatRole] = None) -> None:
+	def on_groupchat_created(self, chat_id: str) -> None:
+		ctrl = self.ctrl
+		backend = ctrl.backend
+		bs = ctrl.bs
+		assert bs is not None
+		user = bs.user
+		
+		self.ctrl.send_reply('NFY', 'PUT', encode_payload(PAYLOAD_MSG_7,
+			email = _encode_email_epid(user.email, bs.front_data.get('msn_pop_id')), chat_id = chat_id,
+		))
+	
+	def on_groupchat_role_updated(self, chat_id: str, *, role: Optional[GroupChatRole] = None) -> None:
 		bs = self.ctrl.bs
 		assert bs is not None
 		user = bs.user
@@ -1743,7 +1763,7 @@ class BackendEventHandler(event.BackendEventHandler):
 		if role is None:
 			role = GroupChatRole.Member
 		
-		self.ctrl.send_reply('NOT', encode_payload(PAYLOAD_MSG_7,
+		self.ctrl.send_reply('NOT', encode_payload(PAYLOAD_MSG_8,
 			member_low = binascii.hexlify(struct.pack('!I', id_bits[1])).decode('utf-8'), member_high = binascii.hexlify(struct.pack('!I', id_bits[0])).decode('utf-8'), email = user.email,
 			chat_id = chat_id, role = role.name,
 		))
@@ -1811,22 +1831,33 @@ class BackendEventHandler(event.BackendEventHandler):
 		self.ctrl.close(maintenance = maintenance)
 
 class GroupChatEventHandler(event.ChatEventHandler):
-	__slots__ = ('ctrl', 'bs', 'cs')
+	__slots__ = ('ctrl', 'cs')
 	
 	ctrl: MSNPCtrlNS
-	bs: BackendSession
 	cs: ChatSession
 	
-	def __init__(self, ctrl: MSNPCtrlNS, bs: BackendSession) -> None:
+	def __init__(self, ctrl: MSNPCtrlNS) -> None:
 		self.ctrl = ctrl
-		self.bs = bs
+	
+	def on_participant_presence(self, cs_other: ChatSession, first_pop: bool) -> None:
+		bs = self.ctrl.bs
+		assert bs is not None
+		user = bs.user
+		
+		cs = self.cs
+		groupchat = cs.chat.groupchat
+		assert groupchat is not None
+		
+		for m in build_presence_notif(None, cs_other.user, user, self.ctrl.dialect, self.ctrl.backend, self.ctrl.iln_sent, bs_other = cs_other.bs, groupchat = groupchat):
+			self.ctrl.send_reply(*m)
 	
 	def on_participant_joined(self, cs_other: ChatSession, first_pop: bool) -> None:
 		if not first_pop: return
 		
-		bs = self.bs
+		bs = self.ctrl.bs
 		assert bs is not None
 		user = bs.user
+		
 		cs = self.cs
 		groupchat = cs.chat.groupchat
 		assert groupchat is not None
@@ -1839,11 +1870,12 @@ class GroupChatEventHandler(event.ChatEventHandler):
 		))
 	
 	def on_participant_left(self, cs_other: ChatSession, idle: bool, last_pop: bool) -> None:
-		if not last_pop: return
+		if last_pop: return
 		
-		bs = self.bs
+		bs = self.ctrl.bs
 		assert bs is not None
 		user = bs.user
+		
 		cs = self.cs
 		groupchat = cs.chat.groupchat
 		assert groupchat is not None
@@ -1851,8 +1883,8 @@ class GroupChatEventHandler(event.ChatEventHandler):
 		for m in build_presence_notif(None, cs_other.user, user, self.ctrl.dialect, self.ctrl.backend, self.ctrl.iln_sent, bs_other = cs_other.bs, groupchat = groupchat):
 			self.ctrl.send_reply(*m)
 	
-	def on_chat_user_status_updated(self, cs_other: ChatSession) -> None:
-		bs = self.bs
+	def on_participant_status_updated(self, cs_other: ChatSession) -> None:
+		bs = self.ctrl.bs
 		assert bs is not None
 		user = bs.user
 		cs = self.cs
@@ -1863,6 +1895,7 @@ class GroupChatEventHandler(event.ChatEventHandler):
 		users = ''
 		
 		for cs1 in chat.get_roster_single():
+			if not cs1.joined or (cs1.user.status.is_offlineish() and cs1.user not in (user,cs_other.user)): continue
 			users += CIRCLE_USER.format(email = cs1.user.email)
 		
 		roster = CIRCLE_ROSTER.format(users = users)
@@ -2000,8 +2033,7 @@ NotifType: Partial
 Content-Type: application/circles+xml
 Content-Length: {cl}
 
-{payload}
-'''
+{payload}'''
 
 PAYLOAD_MSG_6 = '''Routing: 1.0
 To: 1:{email}
@@ -2009,6 +2041,7 @@ From: 9:00000000-0000-0000-0009-{chat_id}@live.com
 
 Reliability: 1.0
 Stream: 1
+Segment: 0
 
 Publication: 1.0
 Uri: /circle
@@ -2016,10 +2049,25 @@ NotifType: Full
 Content-Type: application/circles+xml
 Content-Length: {cl}
 
-{payload}
+{payload}'''
+
+PAYLOAD_MSG_7 = '''Routing: 1.0
+To: 1:{email}
+From: 9:00000000-0000-0000-0009-{chat_id}@live.com
+
+Reliability: 1.0
+Stream: 0
+
+Notification: 1.0
+NotifNum: 0
+Uri: /circle
+NotifType: Full
+Content-Type: application/circles+xml
+Content-Length: 0
+
 '''
 
-PAYLOAD_MSG_7 = '''<NOTIFICATION id="0" siteid="45705" siteurl="http://contacts.msn.com">
+PAYLOAD_MSG_8 = '''<NOTIFICATION id="0" siteid="45705" siteurl="http://contacts.msn.com">
 	<TO pid="0x{member_low}:0x{member_high}" name="{email}">
 		<VIA agent="messenger" />
 	</TO>

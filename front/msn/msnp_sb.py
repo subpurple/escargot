@@ -281,6 +281,9 @@ class ChatEventHandler(event.ChatEventHandler):
 	def __init__(self, ctrl: MSNPCtrlSB) -> None:
 		self.ctrl = ctrl
 	
+	def on_participant_presence(self, cs_other: ChatSession, first_pop: bool) -> None:
+		pass
+	
 	def on_participant_joined(self, cs_other: ChatSession, first_pop: bool) -> None:
 		ctrl = self.ctrl
 		bs = ctrl.bs
@@ -323,7 +326,7 @@ class ChatEventHandler(event.ChatEventHandler):
 		if last_pop and pop_id_other is not None and ctrl.dialect >= 16:
 			self.ctrl.send_reply('BYE', cs_other.user.email, *extra)
 	
-	def on_chat_user_status_updated(self, cs_other: ChatSession) -> None:
+	def on_participant_status_updated(self, cs_other: ChatSession) -> None:
 		pass
 	
 	def on_invite_declined(self, invited_user: User, *, invited_id: Optional[str] = None, message: str = '') -> None:

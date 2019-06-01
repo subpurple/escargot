@@ -48,3 +48,15 @@ class NotAllowedWhileHDN(ClientError):
 
 class NotAllowedToJoinGroupChat(ClientError):
 	pass
+
+class GroupChatDoesNotExist(ClientError):
+	pass
+
+class MemberAlreadyInGroupChat(ClientError):
+	pass
+
+class MemberAlreadyInvitedToGroupChat(ClientError):
+	pass
+
+class MemberNotInGroupChat(ClientError):
+	pass

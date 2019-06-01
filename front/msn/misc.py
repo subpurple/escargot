@@ -126,12 +126,7 @@ def build_presence_notif(trid: Optional[str], ctc_head: User, user_me: User, dia
 		if 13 <= dialect <= 15:
 			reply += ('0',)
 		elif dialect >= 16:
-			if (groupchat is not None and head.uuid == groupchat.owner_uuid) or not (groupchat is not None and bs_other is not None):
-				reply += ('0:0',)
-			else:
-				assert bs_other is not None
-				# Most likely scenario this would pop up is in circle presence
-				reply += (encode_capabilities_capabilitiesex(((bs_other.front_data.get('msn_capabilities') or 0) if bs_other.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC), 0),)
+			reply += ('0:0',)
 		yield reply
 		return
 	
@@ -146,7 +141,7 @@ def build_presence_notif(trid: Optional[str], ctc_head: User, user_me: User, dia
 	if 8 <= dialect <= 15:
 		rst.append(((ctc_sess.front_data.get('msn_capabilities') or 0) if ctc_sess.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC))
 	elif dialect >= 16:
-		rst.append(('0:0' if groupchat is not None and head.uuid == groupchat.owner_uuid else encode_capabilities_capabilitiesex(((ctc_sess.front_data.get('msn_capabilities') or 0) if ctc_sess.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC), ctc_sess.front_data.get('msn_capabilitiesex') or 0)))
+		rst.append(('0:0' if groupchat is not None and head.uuid == user_me.uuid else encode_capabilities_capabilitiesex(((ctc_sess.front_data.get('msn_capabilities') or 0) if ctc_sess.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC), ctc_sess.front_data.get('msn_capabilitiesex') or 0)))
 	if dialect >= 9:
 		rst.append(encode_msnobj(ctc_sess.front_data.get('msn_msnobj') or '<msnobj/>'))
 	
@@ -156,6 +151,9 @@ def build_presence_notif(trid: Optional[str], ctc_head: User, user_me: User, dia
 		yield (*frst, msn_status.name, head.email, (int(NetworkID.WINDOWS_LIVE) if 14 <= dialect <= 17 else None), status.name, *rst)
 	
 	if dialect < 11:
+		return
+	
+	if dialect >= 18 and (groupchat is not None and head.uuid == user_me.uuid):
 		return
 	
 	ubx_payload = '<Data><PSM>{}</PSM><CurrentMedia>{}</CurrentMedia>{}</Data>'.format(
@@ -268,11 +266,23 @@ def _list_private_endpoint_data(ctc_sess: 'BackendSession') -> str:
 	
 	return ped_data
 
-#def gen_signedticket_xml(user: User, backend: Backend) -> str:
-#	circleticket_data = backend.user_service.msn_get_circleticket(user.uuid)
-#	return '<?xml version="1.0" encoding="utf-16"?>\r\n<SignedTicket xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" ver="1" keyVer="1">\r\n  <Data>{}</Data>\r\n  <Sig>{}</Sig>\r\n</SignedTicket>'.format(
-#		circleticket_data[0], circleticket_data[1],
-#	)
+def gen_signedticket_xml(bs: BackendSession, backend: Backend) -> str:
+	from cryptography.hazmat.primitives import hashes
+	from cryptography.hazmat.primitives.asymmetric import padding
+	
+	user = bs.user
+	circleticket_sig = bs.front_data.get('msn_circleticket_sig')
+	assert circleticket_sig is not None
+	
+	circles = [CIRCLETICKET_CIRCLE.format(groupchat.chat_id) for groupchat in backend.user_service.get_groupchat_batch(user)]
+	
+	circleticket = encode_payload(CIRCLETICKET,
+		circles = ''.join(circles), now = date_format(datetime.utcnow()), cid = cid_format(user.uuid, decimal = True),
+	)
+	
+	return SIGNEDTICKET.format(
+		base64.b64encode(circleticket).decode('ascii'), base64.b64encode(circleticket_sig.sign(circleticket, padding.PKCS1v15(), hashes.SHA1())).decode('ascii'),
+	)
 
 def encode_payload(tmpl: str, **kwargs: Any) -> bytes:
 	return tmpl.format(**kwargs).replace('\n', '\r\n').encode('utf-8')
@@ -412,6 +422,17 @@ PRIVATEEPDATA_IDLE_PAYLOAD = '<Idle>{idle}</Idle>'
 PRIVATEEPDATA_CLIENTTYPE_PAYLOAD = '<ClientType>{ct}</ClientType>'
 
 PRIVATEEPDATA_STATE_PAYLOAD = '<State>{state}</State>'
+
+SIGNEDTICKET = '<?xml version="1.0" encoding="utf-16"?><SignedTicket xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" ver="1" keyVer="1"><Data>{}</Data><Sig>{}</Sig></SignedTicket>'
+
+CIRCLETICKET = '''<?xml version="1.0" encoding="utf-16"?>
+<Ticket xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">{circles}
+  <TS>{now}</TS>
+  <CID>{cid}</CID>
+</Ticket>'''
+
+CIRCLETICKET_CIRCLE = '''
+  <Circle Id="00000000-0000-0000-0009-{}" HostedDomain="live.com" />'''
 
 OIM_HEADER_PRE_0 = '''X-Message-Info: cwRBnLifKNE8dVZlNj6AiX8142B67OTjG9BFMLMyzuui1H4Xx7m3NQ==
 Received: from OIM-SSI02.phx.gbl ([65.54.237.206]) by oim1-f1.hotmail.com with Microsoft SMTPSVC(6.0.3790.211);
