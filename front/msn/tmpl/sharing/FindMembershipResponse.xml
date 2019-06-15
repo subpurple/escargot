@@ -39,6 +39,23 @@
 												</Member>
 											{%- endif -%}
 										{%- endfor -%}
+										{%- if lst == Lst.BL -%}
+											{%- for groupchat in groupchats -%}
+												{%- if groupchat.memberships[user.uuid].blocking -%}
+													<Member xsi:type="CircleMember">
+														<MembershipId>Block/00000000-0000-0000-0009-{{ groupchat.chat_id }}</MembershipId>
+														<Type>Circle</Type>
+														<State>Accepted</State>
+														<Deleted>false</Deleted>
+														<LastChanged>{{ now }}</LastChanged>
+														<JoinedDate>{{ now }}</JoinedDate>
+														<ExpirationDate>0001-01-01T00:00:00</ExpirationDate>
+														<Changes />
+														<CircleId>00000000-0000-0000-0009-{{ groupchat.chat_id }}</CircleId>
+													</Member>
+												{%- endif -%}
+											{%- endfor -%}
+										{%- endif -%}
 									</Members>
 									<MembershipIsComplete>true</MembershipIsComplete>
 								</Membership>
@@ -73,7 +90,7 @@
 								<MemberRole>Pending</MemberRole>
 								<Members>
 									{%- for contact in detail.contacts.values() -%}
-										{%- if contact.lists.__and__(Lst.RL) and not (contact.lists.__and__(Lst.AL) or contact.lists.__and__(Lst.BL)) -%}
+										{%- if contact.lists.__and__(Lst.RL) and not contact.lists.__and__(Lst.AL) and not contact.lists.__and__(Lst.BL) -%}
 											<Member xsi:type="PassportMember">
 												<MembershipId>Pending/{{ contact.head.uuid }}</MembershipId>
 												<Type>Passport</Type>

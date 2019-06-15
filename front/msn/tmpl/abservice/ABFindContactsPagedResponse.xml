@@ -31,77 +31,79 @@
 							{%- endif -%}
 						{%- endfor -%}
 						{%- for groupchat in groupchats -%}
-							<Contact>
-								<contactId>00000000-0000-0000-0009-{{ groupchat.chat_id }}</contactId>
-								<contactInfo>
-									<contactType>Circle</contactType>
-									<quickName>circle</quickName>
-									<passportName>00000000-0000-0000-0009-{{ groupchat.chat_id.upper() }}@hotmail.com</passportName>
-									<IsPassportNameHidden>false</IsPassportNameHidden>
-									<displayName>{{ groupchat.name }}</displayName>
-									<puid>0</puid>
-									<CID>{{ cid_format('00000000-0000-0000-0009-' + groupchat.chat_id, decimal = True) }}</CID>
-									<IsNotMobileVisible>false</IsNotMobileVisible>
-									<isMobileIMEnabled>false</isMobileIMEnabled>
-									<isMessengerUser>false</isMessengerUser>
-									<isFavorite>false</isFavorite>
-									<isSmtp>false</isSmtp>
-									<hasSpace>false</hasSpace>
-									<spotWatchState>NoDevice</spotWatchState>
-									<birthdate>0001-01-01T00:00:00</birthdate>
-									<primaryEmailType>ContactEmailPersonal</primaryEmailType>
-									<PrimaryLocation>ContactLocationPersonal</PrimaryLocation>
-									<PrimaryPhone>ContactPhonePersonal</PrimaryPhone>
-									<IsPrivate>false</IsPrivate>
-									<IsHidden>true</IsHidden>
-									<Gender>Unspecified</Gender>
-									<TimeZone>None</TimeZone>
-									<NetworkInfoList>
-										<NetworkInfo>
-											<DomainId>1</DomainId>
-											<SourceId>WL</SourceId>
-											{%- if user.uuid != groupchat.owner_uuid -%}
-												<DomainTag>00000000-0000-0000-0009-{{ groupchat.chat_id.upper() }}</DomainTag>
-												<DisplayName>00000000-0000-0000-0009-{{ groupchat.chat_id.upper() }}</DisplayName>
-											{%- endif -%}
-											<RelationshipType>5</RelationshipType>
-											<RelationshipState>{{ groupchat.memberships[user.uuid].state.value }}</RelationshipState>
-											<RelationshipStateDate>{{ now }}</RelationshipStateDate>
-											<RelationshipRole>{%- if groupchat.memberships[user.uuid].role == GroupChatRole.StatePendingOutbound -%}4{%- else -%}0{%- endif -%}</RelationshipRole>
-											<NDRCount>0</NDRCount>
-											{%- if groupchat.memberships[user.uuid].invite_message -%}
-												<InviterMessage>{{ groupchat.memberships[user.uuid].invite_message }}</InviterMessage>
-											{%- endif -%}
-											<InviterCID>{%- if user.uuid == groupchat.owner_uuid -%}0{%- else -%}{{ cid_format(groupchat.memberships[user.uuid].inviter_uuid, decimal = True) }}{%- endif -%}</InviterCID>
-											{%- if groupchat.memberships[user.uuid].inviter_name -%}
-												<InviterName>{{ groupchat.memberships[user.uuid].inviter_name }}</InviterName>
-											{%- endif -%}
-											{%- if groupchat.memberships[user.uuid].inviter_email -%}
-												<InviterEmail>{{ groupchat.memberships[user.uuid].inviter_email }}</InviterEmail>
-											{%- endif -%}
-											<CreateDate>{{ now }}</CreateDate>
-											<LastUpdated>{{ now }}</LastUpdated>
-											<PropertiesChanged />
-										</NetworkInfo>
-									</NetworkInfoList>
-									<IsAutoUpdateDisabled>false</IsAutoUpdateDisabled>
-									<IsShellContact>false</IsShellContact>
-									<TrustLevel>0</TrustLevel>
-									<PropertiesChanged />
-								</contactInfo>
-								<propertiesChanged />
-								<fDeleted>false</fDeleted>
-								<CreateDate>{{ now }}</CreateDate>
-								<lastChange>{{ now }}</lastChange>
-								<CreatedBy>96</CreatedBy>
-							</Contact>
+							{%- if groupchat.memberships[user.uuid].state == GroupChatState.Accepted or groupchat.memberships[user.uuid].state == GroupChatState.WaitingResponse -%}
+								<Contact>
+									<contactId>00000000-0000-0000-0009-{{ groupchat.chat_id }}</contactId>
+									<contactInfo>
+										<contactType>Circle</contactType>
+										<quickName>circle</quickName>
+										<passportName>00000000-0000-0000-0009-{{ groupchat.chat_id.upper() }}@hotmail.com</passportName>
+										<IsPassportNameHidden>false</IsPassportNameHidden>
+										<displayName>{%- if user.uuid == groupchat.owner_uuid -%}{{ groupchat.name }}{%- else -%}00000000-0000-0000-0009-{{ groupchat.chat_id.upper() }}@hotmail.com{%- endif -%}</displayName>
+										<puid>0</puid>
+										<CID>{{ cid_format('00000000-0000-0000-0009-' + groupchat.chat_id, decimal = True) }}</CID>
+										<IsNotMobileVisible>false</IsNotMobileVisible>
+										<isMobileIMEnabled>false</isMobileIMEnabled>
+										<isMessengerUser>false</isMessengerUser>
+										<isFavorite>false</isFavorite>
+										<isSmtp>false</isSmtp>
+										<hasSpace>false</hasSpace>
+										<spotWatchState>NoDevice</spotWatchState>
+										<birthdate>0001-01-01T00:00:00</birthdate>
+										<primaryEmailType>ContactEmailPersonal</primaryEmailType>
+										<PrimaryLocation>ContactLocationPersonal</PrimaryLocation>
+										<PrimaryPhone>ContactPhonePersonal</PrimaryPhone>
+										<IsPrivate>false</IsPrivate>
+										<IsHidden>true</IsHidden>
+										<Gender>Unspecified</Gender>
+										<TimeZone>None</TimeZone>
+										<NetworkInfoList>
+											<NetworkInfo>
+												<DomainId>1</DomainId>
+												<SourceId>WL</SourceId>
+												{%- if user.uuid != groupchat.owner_uuid -%}
+													<DomainTag>00000000-0000-0000-0009-{{ groupchat.chat_id.upper() }}</DomainTag>
+													<DisplayName>00000000-0000-0000-0009-{{ groupchat.chat_id.upper() }}</DisplayName>
+												{%- endif -%}
+												<RelationshipType>5</RelationshipType>
+												<RelationshipState>{{ groupchat.memberships[user.uuid].state.value }}</RelationshipState>
+												<RelationshipStateDate>{{ now }}</RelationshipStateDate>
+												<RelationshipRole>{%- if groupchat.memberships[user.uuid].role == GroupChatRole.StatePendingOutbound -%}4{%- else -%}0{%- endif -%}</RelationshipRole>
+												<NDRCount>0</NDRCount>
+												{%- if groupchat.memberships[user.uuid].invite_message -%}
+													<InviterMessage>{{ groupchat.memberships[user.uuid].invite_message }}</InviterMessage>
+												{%- endif -%}
+												<InviterCID>{%- if user.uuid == groupchat.owner_uuid -%}0{%- else -%}{{ cid_format(groupchat.memberships[user.uuid].inviter_uuid, decimal = True) }}{%- endif -%}</InviterCID>
+												{%- if groupchat.memberships[user.uuid].inviter_name -%}
+													<InviterName>{{ groupchat.memberships[user.uuid].inviter_name }}</InviterName>
+												{%- endif -%}
+												{%- if groupchat.memberships[user.uuid].inviter_email -%}
+													<InviterEmail>{{ groupchat.memberships[user.uuid].inviter_email }}</InviterEmail>
+												{%- endif -%}
+												<CreateDate>{{ now }}</CreateDate>
+												<LastUpdated>{{ now }}</LastUpdated>
+												<PropertiesChanged />
+											</NetworkInfo>
+										</NetworkInfoList>
+										<IsAutoUpdateDisabled>false</IsAutoUpdateDisabled>
+										<IsShellContact>false</IsShellContact>
+										<TrustLevel>0</TrustLevel>
+										<PropertiesChanged />
+									</contactInfo>
+									<propertiesChanged />
+									<fDeleted>false</fDeleted>
+									<CreateDate>{{ now }}</CreateDate>
+									<lastChange>{{ now }}</lastChange>
+									<CreatedBy>96</CreatedBy>
+								</Contact>
+							{%- endif -%}
 						{%- endfor -%}
 					{%- else -%}
 						{%- for membership in groupchat.memberships.values() -%}
 							<Contact>
 								<contactId>{{ membership.head.uuid }}</contactId>
 								<contactInfo>
-									<contactType>{%- if membership.state == GroupChatRole.StatePendingOutbound or (membership.role == GroupChatRole.Empty or membership.state == GroupChatState.Empty) -%}LivePending{%- else -%}Live{%- endif -%}</contactType>
+									<contactType>{%- if membership.state == GroupChatState.WaitingResponse or membership.state == GroupChatState.Rejected or (membership.role == GroupChatRole.Empty or membership.state == GroupChatState.Empty) -%}LivePending{%- else -%}Live{%- endif -%}</contactType>
 									<quickName>{{ membership.head.email }}</quickName>
 									<passportName>{{ membership.head.email }}</passportName>
 									<IsPassportNameHidden>false</IsPassportNameHidden>
@@ -120,7 +122,7 @@
 									<PrimaryLocation>ContactLocationPersonal</PrimaryLocation>
 									<PrimaryPhone>ContactPhonePersonal</PrimaryPhone>
 									<IsPrivate>false</IsPrivate>
-									<IsHidden>true</IsHidden>
+									<IsHidden>false</IsHidden>
 									<Gender>Unspecified</Gender>
 									<TimeZone>None</TimeZone>
 									{%- if not membership.role == GroupChatRole.Empty or not membership.state == GroupChatState.Empty -%}
@@ -129,9 +131,9 @@
 												<DomainId>1</DomainId>
 												<SourceId>WL</SourceId>
 												<RelationshipType>5</RelationshipType>
-												<RelationshipState>{{ membership.state.value }}</RelationshipState>
+												<RelationshipState>{%- if groupchat.memberships[user.uuid].state == GroupChatState.WaitingResponse -%}2{%- else -%}{{ membership.state.value }}{%- endif -%}</RelationshipState>
 												<RelationshipStateDate>{{ now }}</RelationshipStateDate>
-												<RelationshipRole>{{ membership.role.value }}</RelationshipRole>
+												<RelationshipRole>{%- if groupchat.memberships[user.uuid].role == GroupChatRole.StatePendingOutbound -%}3{%- else -%}{{ membership.role.value }}{%- endif -%}</RelationshipRole>
 												<NDRCount>0</NDRCount>
 												{%- if membership.invite_message -%}
 													<InviterMessage>{{ membership.invite_message }}</InviterMessage>
@@ -155,7 +157,7 @@
 									<PropertiesChanged />
 								</contactInfo>
 								<propertiesChanged />
-								<fDeleted>false</fDeleted>
+								<fDeleted>{%- if membership.state == GroupChatState.Rejected -%}true{%- else -%}false{%- endif -%}</fDeleted>
 								<CreateDate>{{ now }}</CreateDate>
 								<lastChange>{{ now }}</lastChange>
 								<CreatedBy>96</CreatedBy>
@@ -201,40 +203,42 @@
 						{%- if groupchats -%}
 							<Circles>
 								{%- for groupchat in groupchats -%}
-									<CircleInverseInfo>
-										<Content>
-											<Handle>
-												<Id>00000000-0000-0000-0009-{{ groupchat.chat_id }}</Id>
-											</Handle>
-											<Info>
-												<Domain>1</Domain>
-												<HostedDomain>live.com</HostedDomain>
-												<Type>2</Type>
-												<MembershipAccess>{{ groupchat.membership_access }}</MembershipAccess>
-												<IsPresenceEnabled>true</IsPresenceEnabled>
-												<RequestMembershipOption>{{ groupchat.request_membership_option }}</RequestMembershipOption>
-												<DisplayName>{{ groupchat.name }}</DisplayName>
-												<ProfileLastUpdated>0001-01-01T00:00:00</ProfileLastUpdated>
+									{%- if groupchat.memberships[user.uuid].state == GroupChatState.Accepted or groupchat.memberships[user.uuid].state == GroupChatState.WaitingResponse -%}
+										<CircleInverseInfo>
+											<Content>
+												<Handle>
+													<Id>00000000-0000-0000-0009-{{ groupchat.chat_id }}</Id>
+												</Handle>
+												<Info>
+													<Domain>1</Domain>
+													<HostedDomain>live.com</HostedDomain>
+													<Type>2</Type>
+													<MembershipAccess>{{ groupchat.membership_access }}</MembershipAccess>
+													<IsPresenceEnabled>true</IsPresenceEnabled>
+													<RequestMembershipOption>{{ groupchat.request_membership_option }}</RequestMembershipOption>
+													<DisplayName>{{ groupchat.name }}</DisplayName>
+													<ProfileLastUpdated>0001-01-01T00:00:00</ProfileLastUpdated>
+													<Changes />
+													<CreateDate>0001-01-01T00:00:00</CreateDate>
+													<LastUpdated>{{ now }}</LastUpdated>
+												</Info>
+											</Content>
+											<PersonalInfo>
+												<MembershipInfo>
+													<CirclePersonalMembership>
+														<Role>{{ groupchat.memberships[user.uuid].role.name }}</Role>
+														<State>{{ groupchat.memberships[user.uuid].state.name }}</State>
+													</CirclePersonalMembership>
+												</MembershipInfo>
+												<Name>{{ groupchat.name }}</Name>
+												<IsNotMobileVisible>false</IsNotMobileVisible>
+												<IsFavorite>false</IsFavorite>
+												<IsFamily>false</IsFamily>
 												<Changes />
-												<CreateDate>0001-01-01T00:00:00</CreateDate>
-												<LastUpdated>{{ now }}</LastUpdated>
-											</Info>
-										</Content>
-										<PersonalInfo>
-											<MembershipInfo>
-												<CirclePersonalMembership>
-													<Role>{{ groupchat.memberships[user.uuid].role.name }}</Role>
-													<State>{{ groupchat.memberships[user.uuid].state.name }}</State>
-												</CirclePersonalMembership>
-											</MembershipInfo>
-											<Name>{{ groupchat.name }}</Name>
-											<IsNotMobileVisible>false</IsNotMobileVisible>
-											<IsFavorite>false</IsFavorite>
-											<IsFamily>false</IsFamily>
-											<Changes />
-										</PersonalInfo>
-										<Deleted>false</Deleted>
-									</CircleInverseInfo>
+											</PersonalInfo>
+											<Deleted>false</Deleted>
+										</CircleInverseInfo>
+									{%- endif -%}
 								{%- endfor -%}
 							</Circles>
 						{%- endif -%}

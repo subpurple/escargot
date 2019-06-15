@@ -96,10 +96,12 @@ async def handle_abservice(req: web.Request) -> web.Response:
 				'detail': detail,
 				'Lst': models.Lst,
 				'lists': [models.Lst.AL, models.Lst.BL],
+				'groupchats': backend.user_service.get_groupchat_batch(user),
 				'now': now_str,
 			})
 		if action_str == 'AddMember':
 			email = None # type: Optional[str]
+			circle_id = None
 			
 			memberships = action.findall('.//{*}memberships/{*}Membership')
 			for membership in memberships:
@@ -114,16 +116,32 @@ async def handle_abservice(req: web.Request) -> web.Response:
 					elif member_type == 'EmailMember':
 						if _find_element(member, 'Type') == 'Email' and _find_element(member, 'State') == 'Accepted':
 							email = _find_element(member, 'Email')
-					assert email is not None
-					contact_uuid = backend.util_get_uuid_from_email(email)
-					assert contact_uuid is not None
-					try:
-						bs.me_contact_add(contact_uuid, lst, name = email)
+					elif member_type == 'CircleMember':
+						if _find_element(member, 'Type') == 'Circle' and _find_element(member, 'State') == 'Accepted':
+							circle_id = _find_element(member, 'CircleId')
+					if email is None and circle_id is None:
+						return web.HTTPInternalServerError()
+					if email is not None:
+						contact_uuid = backend.util_get_uuid_from_email(email)
+						assert contact_uuid is not None
+						try:
+							bs.me_contact_add(contact_uuid, lst, name = email)
+							
+							if lst == models.Lst.RL:
+								bs.me_contact_add(contact_uuid, models.Lst.AL)
+						except:
+							pass
+					elif circle_id is not None:
+						if not (circle_id.startswith('00000000-0000-0000-0009-') and len(circle_id[24:]) == 12):
+							return web.HTTPInternalServerError()
+						chat_id = circle_id[-12:]
+						groupchat = backend.user_service.get_groupchat(chat_id)
+						if groupchat is None: return web.HTTPInternalServerError()
 						
-						if lst == models.Lst.RL:
-							bs.me_contact_add(contact_uuid, models.Lst.AL)
-					except:
-						pass
+						if lst in (models.Lst.RL,models.Lst.PL):
+							return web.HTTPInternalServerError()
+						if lst == models.Lst.BL:
+							bs.me_block_circle(groupchat)
 			return render(req, 'msn:sharing/AddMemberResponse.xml', {
 				'cachekey': cachekey,
 				'host': settings.LOGIN_HOST,
@@ -135,6 +153,7 @@ async def handle_abservice(req: web.Request) -> web.Response:
 			assert detail is not None
 			
 			contact_uuid = None
+			circle_id = None
 			
 			memberships = action.findall('.//{*}memberships/{*}Membership')
 			for membership in memberships:
@@ -151,12 +170,28 @@ async def handle_abservice(req: web.Request) -> web.Response:
 								email = _find_element(member, 'PassportName')
 								contact_uuid = backend.util_get_uuid_from_email(email or '')
 							assert contact_uuid is not None
-					if contact_uuid not in detail.contacts:
-						return render(req, 'msn:sharing/Fault.memberdoesnotexist.xml', status = 500)
-					try:
-						bs.me_contact_remove(contact_uuid, lst)
-					except:
-						pass
+						elif member_type == 'CircleMember':
+							if _find_element(member, 'Type') == 'Circle' and _find_element(member, 'State') == 'Accepted':
+								circle_id = _find_element(member, 'CircleId')
+							assert circle_id is not None
+					if contact_uuid is not None:
+						if contact_uuid not in detail.contacts:
+							return render(req, 'msn:sharing/Fault.memberdoesnotexist.xml', status = 500)
+						try:
+							bs.me_contact_remove(contact_uuid, lst)
+						except:
+							pass
+					elif circle_id is not None:
+						if not (circle_id.startswith('00000000-0000-0000-0009-') and len(circle_id[24:]) == 12):
+							return web.HTTPInternalServerError()
+						chat_id = circle_id[-12:]
+						groupchat = backend.user_service.get_groupchat(chat_id)
+						if groupchat is None: return web.HTTPInternalServerError()
+						
+						if lst in (models.Lst.RL,models.Lst.PL):
+							return web.HTTPInternalServerError()
+						if lst == models.Lst.BL:
+							bs.me_unblock_circle(groupchat)
 			return render(req, 'msn:sharing/DeleteMemberResponse.xml', {
 				'cachekey': cachekey,
 				'host': settings.LOGIN_HOST,
@@ -990,14 +1025,24 @@ async def handle_abservice(req: web.Request) -> web.Response:
 			if groupchat is None:
 				return web.HTTPInternalServerError()
 			
-			try:
-				bs.me_add_user_to_groupchat(groupchat, head)
-			except error.MemberAlreadyInGroupChat:
-				return render(req, 'msn:abservice/Fault.contactalreadyexists.xml', {
-					'action_str': 'CreateContact',
-				}, status = 500)
-			except:
+			caller_membership = groupchat.memberships.get(user.uuid)
+			
+			if caller_membership is None or caller_membership.role not in (models.GroupChatRole.Admin,models.GroupChatRole.AssistantAdmin):
 				return web.HTTPInternalServerError()
+			
+			membership = groupchat.memberships.get(head.uuid)
+			
+			if membership is not None and membership.state == models.GroupChatState.Rejected:
+				bs.me_change_groupchat_membership(groupchat, head, role = models.GroupChatRole.Empty, state = models.GroupChatState.Empty, send_notif = False)
+			else:
+				try:
+					bs.me_add_user_to_groupchat(groupchat, head)
+				except error.MemberAlreadyInGroupChat:
+					return render(req, 'msn:abservice/Fault.contactalreadyexists.xml', {
+						'action_str': 'CreateContact',
+					}, status = 500)
+				except:
+					return web.HTTPInternalServerError()
 			
 			return render(req, 'msn:abservice/CreateContactResponse.xml', {
 				'cachekey': cachekey,
@@ -1019,7 +1064,6 @@ async def handle_abservice(req: web.Request) -> web.Response:
 				ab_id = '00000000-0000-0000-0000-000000000000'
 			
 			if not (ab_id == '00000000-0000-0000-0000-000000000000' or (ab_id.startswith('00000000-0000-0000-0009-') and len(ab_id[24:]) == 12)):
-				print('ab id incorrect')
 				return web.HTTPInternalServerError()
 			
 			groupchat = None
@@ -1050,7 +1094,6 @@ async def handle_abservice(req: web.Request) -> web.Response:
 			if circle_mode:
 				groupchat = backend.user_service.get_groupchat(chat_id)
 				if groupchat is None or uuid not in groupchat.memberships:
-					print('groupchat is None or user not in chat')
 					return web.HTTPInternalServerError()
 			
 			if _find_element(action, 'connection') == True:
@@ -1067,14 +1110,15 @@ async def handle_abservice(req: web.Request) -> web.Response:
 					}, status = 500)
 				
 				if relationship_type == models.RelationshipType.Circle:
+					if groupchat is None:
+						return render(req, 'msn:abservice/ManageWLConnectionResponse.xml', {
+							'cachekey': cachekey,
+							'host': settings.LOGIN_HOST,
+							'session_id': util.misc.gen_uuid(),
+							'error': 'Relationship type not suitable for non-specialized contacts',
+						}, status = 500)
+					
 					if wl_action == 1:
-						if groupchat is None:
-							return render(req, 'msn:abservice/ManageWLConnectionResponse.xml', {
-								'cachekey': cachekey,
-								'host': settings.LOGIN_HOST,
-								'session_id': util.misc.gen_uuid(),
-								'error': 'Relationship type not suitable for non-specialized contacts',
-							}, status = 500)
 						if relationship_role == 0:
 							if ab_id == '00000000-0000-0000-0000-000000000000':
 								membership = groupchat.memberships[head.uuid]
@@ -1140,8 +1184,33 @@ async def handle_abservice(req: web.Request) -> web.Response:
 								'session_id': util.misc.gen_uuid(),
 								'error': 'RelationshipRole `{role}` not currently supported for relationship type `{type}`'.format(role = relationship_role, type = relationship_type.name),
 							}, status = 500)
+					elif wl_action == 2:
+						if ab_id == '00000000-0000-0000-0000-000000000000':
+								membership = groupchat.memberships[head.uuid]
+								if not (membership.role == models.GroupChatRole.StatePendingOutbound and membership.state == models.GroupChatState.WaitingResponse):
+									return render(req, 'msn:abservice/ManageWLConnectionResponse.xml', {
+										'cachekey': cachekey,
+										'host': settings.LOGIN_HOST,
+										'session_id': util.misc.gen_uuid(),
+										'error': 'User `{email}` already accepted in `GroupChat`'.format(email = head.email),
+									})
+								try:
+									bs.me_decline_groupchat_invite(groupchat)
+								except error.MemberNotInGroupChat:
+									return render(req, 'msn:abservice/ManageWLConnectionResponse.xml', {
+										'cachekey': cachekey,
+										'host': settings.LOGIN_HOST,
+										'session_id': util.misc.gen_uuid(),
+										'error': 'User `{email}` does not have membership in `GroupChat`'.format(email = head.email),
+									}, status = 500)
+								except error.GroupChatDoesNotExist:
+									return render(req, 'msn:abservice/ManageWLConnectionResponse.xml', {
+										'cachekey': cachekey,
+										'host': settings.LOGIN_HOST,
+										'session_id': util.misc.gen_uuid(),
+										'error': '`GroupChat` does not currently exist',
+									}, status = 500)
 					else:
-						print('no other actions supported')
 						return web.HTTPInternalServerError()
 			else:
 				return web.HTTPInternalServerError()
@@ -1157,57 +1226,6 @@ async def handle_abservice(req: web.Request) -> web.Response:
 				'GroupChatState': models.GroupChatState,
 				'now': now_str,
 			})
-		#if action_str == 'FindFriendsInCommon':
-		#	# Count the number of `Live` contacts from the target contact and compare then with the caller's contacts to see if both have the same contacts
-		#	
-		#	user = bs.user
-		#	detail = user.detail
-		#	assert detail is not None
-		#	
-		#	ctc_head = None
-		#	matched_ab_ctcs = []
-		#	
-		#	ab_id = _find_element(action, 'ABId')
-		#	if ab_id is not None:
-		#		ab_id = str(ab_id)
-		#	else:
-		#		ab_id = '00000000-0000-0000-0000-000000000000'
-		#	
-		#	if ab_id not in detail.subscribed_ab_stores:
-		#		return web.HTTPInternalServerError()
-		#	
-		#	try:
-		#		domain_id = models.NetworkID(_find_element(action, 'domainID'))
-		#	except ValueError:
-		#		return web.HTTPInternalServerError()
-		#	
-		#	cid = str(_find_element(action, 'Cid'))
-		#	
-		#	tpl = backend.user_service.get_ab_contents(user)
-		#	assert tpl is not None
-		#	_, _, _, ab_contacts = tpl
-		#	
-		#	for ab_contact in ab_contacts.values():
-		#		if ab_contact.member_uuid is None: continue
-		#		
-		#		if cid_format(ab_contact.member_uuid) == cid and ab_contact.type == 'Live' and ab_contact.networkinfos.get(domain_id) is not None:
-		#			ctc_head = backend._load_user_record(ab_contact.member_uuid)
-		#	
-		#	if ctc_head is None:
-		#		return web.HTTPInternalServerError()
-		#	
-		#	tpl = backend.user_service.get_ab_contents(ctc_head)
-		#	assert tpl is not None
-		#	_, _, _, ctc_ab_contacts = tpl
-		#	
-		#	for ctc_ab_ctc in ctc_ab_contacts:
-		#		if ctc_ab_ctc.type != 'Live': continue
-		#		
-		#		for ab_ctc in ab_contacts:
-		#			if ab_ctc.email == ctc_ab_ctc.email and ab_ctc.type == 'Live':
-		#				matched_ab_ctcs.append(ab_ctc)
-		#	
-		#	#TODO: Response is a list of matched and unmatched `Contact`'s, but exactly what to add in the `Contact` nodes
 		if action_str in { 'UpdateDynamicItem' }:
 			# TODO: UpdateDynamicItem
 			return _unknown_soap(req, header, action, expected = True)

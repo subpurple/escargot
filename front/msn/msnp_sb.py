@@ -232,13 +232,13 @@ class MSNPCtrlSB(MSNPCtrl):
 			chat_roster_single = list(chat.get_roster_single())
 			if isinstance(ex, error.ContactAlreadyOnList) and invitee_email == bs.user.email and len(chat_roster_single) == 1 and chat_roster_single[0] is cs and self.dialect >= 16:
 				self.send_reply('CAL', trid, 'RINGING', chat.ids['main'])
-				cs.evt.on_participant_joined(cs, True)
+				cs.evt.on_participant_joined(cs, True, False)
 				return
 			self.send_reply(Err.GetCodeForException(ex, self.dialect), trid)
 		else:
 			self.send_reply('CAL', trid, 'RINGING', chat.ids['main'])
 			if self.dialect >= 16 and invitee_email == bs.user.email:
-				cs.evt.on_participant_joined(cs, True)
+				cs.evt.on_participant_joined(cs, True, False)
 	
 	def _m_msg(self, trid: str, ack: str, data: bytes) -> None:
 		#>>> MSG trid [UNAD] len
@@ -281,10 +281,7 @@ class ChatEventHandler(event.ChatEventHandler):
 	def __init__(self, ctrl: MSNPCtrlSB) -> None:
 		self.ctrl = ctrl
 	
-	def on_participant_presence(self, cs_other: ChatSession, first_pop: bool) -> None:
-		pass
-	
-	def on_participant_joined(self, cs_other: ChatSession, first_pop: bool) -> None:
+	def on_participant_joined(self, cs_other: ChatSession, first_pop: bool, initial_join: bool) -> None:
 		ctrl = self.ctrl
 		bs = ctrl.bs
 		assert bs is not None
@@ -326,7 +323,10 @@ class ChatEventHandler(event.ChatEventHandler):
 		if last_pop and pop_id_other is not None and ctrl.dialect >= 16:
 			self.ctrl.send_reply('BYE', cs_other.user.email, *extra)
 	
-	def on_participant_status_updated(self, cs_other: ChatSession) -> None:
+	def on_chat_updated(self) -> None:
+		pass
+	
+	def on_participant_status_updated(self, cs_other: ChatSession, first_pop: bool, initial: bool) -> None:
 		pass
 	
 	def on_invite_declined(self, invited_user: User, *, invited_id: Optional[str] = None, message: str = '') -> None:
@@ -357,8 +357,9 @@ def messagedata_from_msnp(sender: User, sender_pop_id: Optional[str], data: byte
 		headers = Parser().parsestr(data[:i].decode('utf-8'))
 		body_raw = data[i:]
 		
-		content_type = str(headers.get('Content-Type'))
+		content_type = headers.get('Content-Type')
 		if content_type is not None:
+			content_type = str(content_type)
 			if content_type.startswith('text/x-msmsgscontrol'):
 				type = MessageType.Typing
 				text = ''
@@ -386,7 +387,7 @@ def messagedata_from_msnp(sender: User, sender_pop_id: Optional[str], data: byte
 		type = MessageType.Chat
 		text = "(Unsupported MSNP Content-Type)"
 	
-	message = MessageData(sender = sender, type = type, text = text)
+	message = MessageData(sender = sender, sender_pop_id = sender_pop_id, type = type, text = text)
 	message.front_cache['msnp'] = data
 	return message
 

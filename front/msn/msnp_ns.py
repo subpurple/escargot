@@ -17,7 +17,7 @@ import settings
 
 from core import event
 from core.backend import Backend, BackendSession, Chat, ChatSession
-from core.models import Substatus, Lst, NetworkID, User, OIM, GroupChat, GroupChatRole, Contact, TextWithData, MessageData, MessageType, LoginOption
+from core.models import Substatus, Lst, NetworkID, User, OIM, GroupChat, GroupChatRole, GroupChatState, Contact, TextWithData, MessageData, MessageType, LoginOption
 from core.client import Client
 
 from .msnp import MSNPCtrl
@@ -701,7 +701,12 @@ class MSNPCtrlNS(MSNPCtrl):
 						self.circle_adl_sent = True
 					
 					if circle_mode:
-						if backend.user_service.get_groupchat(chat_id or '') is None:
+						groupchat = backend.user_service.get_groupchat(chat_id or '')
+						if groupchat is None:
+							self.send_reply(Err.InvalidCircleMembership, trid)
+							return
+						membership = groupchat.memberships.get(user.uuid)
+						if membership is None or (membership is not None and membership.state != GroupChatState.Accepted):
 							self.send_reply(Err.InvalidCircleMembership, trid)
 							return
 			
@@ -728,27 +733,39 @@ class MSNPCtrlNS(MSNPCtrl):
 					lsts = Lst(int(c_el.get('l')))
 					
 					if circle_mode:
+						on_unblock = False
 						chat_id = username[-12:]
-						if lsts & Lst.FL:
-							groupchat = backend.user_service.get_groupchat(chat_id)
-							if groupchat is None:
-								print('groupchat not existant')
-								continue
-							
+						groupchat = backend.user_service.get_groupchat(chat_id)
+						if groupchat is None: continue
+						
+						if lsts & Lst.FL or lsts & Lst.AL:
 							cs = None
+							
+							if groupchat.memberships[user.uuid].blocking and not lsts & Lst.BL: on_unblock = True
+							
+							if on_unblock:
+								try:
+									bs.me_unblock_circle(groupchat)
+								except:
+									pass
 							
 							try:
 								cs = backend.join_groupchat(chat_id, 'msn', bs, GroupChatEventHandler(self), pop_id = bs.front_data.get('msn_pop_id'))
 							except:
-								print('could not join groupchat')
-								continue
+								if on_unblock:
+									cs = backend.get_groupchat_cs(chat_id, bs)
+								pass
 							
-							if cs is None:
-								print('cs is None')
-								continue
+							if cs is None: continue
 							chat = cs.chat
 							
-							chat.send_participant_presence(cs, initial_presence = True)
+							bs.evt.msn_on_notify_circle_ab(chat_id)
+							chat.send_participant_joined(cs, initial_join = (on_unblock is False))
+						if lsts & Lst.BL:
+							try:
+								bs.me_block_circle(groupchat)
+							except:
+								pass
 					else:
 						email = '{}@{}'.format(username, domain)
 						contact_uuid = backend.util_get_uuid_from_email(email)
@@ -762,7 +779,7 @@ class MSNPCtrlNS(MSNPCtrl):
 								pass
 							
 							if lsts & Lst.FL:
-								if ctc is not None and old_ctc is None:
+								if ctc is not None:
 									bs.evt.on_presence_notification(None, ctc, False, trid = trid)
 		except Exception as ex:
 			if isinstance(ex, XMLSyntaxError):
@@ -779,6 +796,8 @@ class MSNPCtrlNS(MSNPCtrl):
 		bs = self.bs
 		assert bs is not None
 		d_el = None
+		c_nids = [] # type: List[NetworkID]
+		circle_mode = False
 		
 		try:
 			rml_xml = parse_xml(data.decode('utf-8'))
@@ -808,11 +827,13 @@ class MSNPCtrlNS(MSNPCtrl):
 					#	if lsts is None: continue
 					
 					try:
-						networkid = NetworkID(int(c_el.get('t')))
-						
-						#if networkid in (NetworkID.OFFICE_COMMUNICATOR,NetworkID.TELEPHONE,NetworkID.MNI,NetworkID.SMTP):
-						#	self.send_reply(Err.InvalidUser2, trid)
-						#	return
+						c_nids = [NetworkID(int(c_el.get('t'))) for c_el in c_els]
+						if NetworkID.CIRCLE in c_nids:
+							if NetworkID.WINDOWS_LIVE in c_nids or NetworkID.OFFICE_COMMUNICATOR in c_nids or NetworkID.TELEPHONE in c_nids or NetworkID.MNI in c_nids or NetworkID.SMTP in c_nids or NetworkID.YAHOO in c_nids:
+								self.send_reply(Err.XXLInvalidPayload, trid)
+								self.close(hard = True)
+								return
+							circle_mode = True
 					except ValueError:
 						self.send_reply(Err.InvalidNetworkID, trid)
 						self.close(hard = True)
@@ -830,30 +851,44 @@ class MSNPCtrlNS(MSNPCtrl):
 						return
 					
 					username = c_el.get('n')
-					email = '{}@{}'.format(username, domain)
+					
+					if circle_mode:
+						if username is not None and username.startswith('00000000-0000-0000-0009-'):
+							try:
+								chat_id = username[-12:]
+							except:
+								self.send_reply(Err.InvalidCircleMembership, trid)
+								return
+						else:
+							self.send_reply(Err.InvalidCircleMembership, trid)
+							return
+					
+					if circle_mode:
+						if backend.user_service.get_groupchat(chat_id or '') is None:
+							self.send_reply(Err.InvalidCircleMembership, trid)
+							return
 				
 				for c_el in c_els:
-					lsts = None
-					
-					username = c_el.get('n')
-					email = '{}@{}'.format(username, domain)
-					
-					#if self.dialect == 21:
-					#	s_els = c_el.findall('s')
-					#	for s_el in s_els:
-					#		if s_el is not None and s_el.get('n') == 'IM':
-					#			lsts = Lst(int(s_el.get('l')))
-					#	if lsts is None: continue
-					
 					lsts = Lst(int(c_el.get('l')))
 					
-					contact_uuid = self.backend.util_get_uuid_from_email(email)
-					
-					if contact_uuid is not None:
-						try:
-							bs.me_contact_remove(contact_uuid, lsts)
-						except Exception:
-							pass
+					if not circle_mode:
+						username = c_el.get('n')
+						email = '{}@{}'.format(username, domain)
+						
+						#if self.dialect == 21:
+						#	s_els = c_el.findall('s')
+						#	for s_el in s_els:
+						#		if s_el is not None and s_el.get('n') == 'IM':
+						#			lsts = Lst(int(s_el.get('l')))
+						#	if lsts is None: continue
+						
+						contact_uuid = self.backend.util_get_uuid_from_email(email)
+						
+						if contact_uuid is not None:
+							try:
+								bs.me_contact_remove(contact_uuid, lsts)
+							except Exception:
+								pass
 		except Exception as ex:
 			if isinstance(ex, XMLSyntaxError):
 				self.send_reply(Err.XXLInvalidPayload, trid)
@@ -1125,19 +1160,23 @@ class MSNPCtrlNS(MSNPCtrl):
 		i = data.index(b'\r\n\r\n') + 4
 		headers = Parser().parsestr(data[:i].decode('utf-8'))
 		
-		to = _split_email_put(str(headers['To']))
-		from_email = _split_email_put(str(headers['From']))
+		to = _split_email_epid(str(headers['To']))
+		from_email = _split_email_epid(str(headers['From']))
 		
 		if to[1] is NetworkID.CIRCLE:
 			circle_mode = True
-			if not to[0].endswith('@live.com'): return
+			if not to[0].endswith('@live.com'):
+				self.send_reply(Err.InvalidParameter, trid)
+				return
 			email_end = to[0].rfind('@live.com')
 			circle_id = to[0][:email_end]
 			if not (circle_id.startswith('00000000-0000-0000-0009-') and len(circle_id[24:]) == 12):
+				self.send_reply(Err.InvalidParameter, trid)
 				return
 			chat_id = circle_id[-12:]
 		else:
-			ctc_uuid = backend.util_get_uuid_from_email(to[0])
+			return
+			#ctc_uuid = backend.util_get_uuid_from_email(to[0])
 		
 		#if to[0] != user.email:
 		#	ctc_uuid = backend.util_get_uuid_from_email(to[0])
@@ -1147,19 +1186,25 @@ class MSNPCtrlNS(MSNPCtrl):
 		#	if ctc is None:
 		#		return
 		
-		body = data[i:].decode()
-		nfy_1_index = body.find('\r\n\r\n')
-		nfy_actual = body[nfy_1_index+4:]
+		nfy_1_index = data.index(b'\r\n\r\n', i) + 4
 		
-		payload_index = nfy_actual.find('\r\n\r\n')
-		nfy_headers = Parser().parsestr(nfy_actual[:payload_index])
-		payload = nfy_actual[payload_index+4:]
+		nfy_delivery = data[i:nfy_1_index].decode('utf-8')
+		
+		# TODO: `PUT` ACK
+		
+		nfy_actual = data[nfy_1_index:]
+		
+		payload_index = nfy_actual.index(b'\r\n\r\n') + 4
+		nfy_headers = Parser().parsestr(nfy_actual[:payload_index].decode('utf-8'))
+		payload = nfy_actual[payload_index:]
 		
 		if nfy_headers.get('Content-Type') == 'application/circles+xml':
 			if chat_id is None: return
 			
 			groupchat = backend.user_service.get_groupchat(chat_id)
-			if groupchat is None: return
+			if groupchat is None:
+				self.send_reply(Err.InvalidParameter, trid)
+				return
 			chat = backend.chat_get('persistent', chat_id)
 			if chat is None: return
 			
@@ -1167,30 +1212,35 @@ class MSNPCtrlNS(MSNPCtrl):
 			email_elm = elm.find('roster/user/id')
 			if email_elm is not None:
 				email = email_elm.text
-				if not email.startswith('1:'): return
+				if not email.startswith('1:'):
+					self.send_reply(Err.InvalidParameter, trid)
+					return
 				email = email.split('1:', 1)[1]
 				if email == user.email:
 					cs = backend.get_groupchat_cs(chat_id, bs)
-					if cs is None: return
-					
-					chat.send_participant_joined(cs)
+					if cs is None:
+						self.send_reply(Err.InvalidParameter, trid)
+						return
+					cs.chat.send_participant_status_updated(cs, initial = True)
+				else:
+					self.send_reply(Err.InvalidParameter, trid)
+					return
 			
 			presence_elm = elm.find('props/presence')
 			if presence_elm is not None:
 				cs = backend.get_groupchat_cs(chat_id, bs)
-				if cs is None: return
+				if cs is None:
+					self.send_reply(Err.InvalidParameter, trid)
+					return
 				
-				mfn_elm = presence_elm.find('Data/MFN')
-				if mfn_elm is not None:
-					cs.front_data['msn_circle_mfn'] = mfn_elm.text
 				psm_elm = presence_elm.find('Data/PSM')
 				if psm_elm is not None:
-					cs.front_data['msn_circle_psm'] = psm_elm.text
+					chat.front_data['msn_circle_psm'] = psm_elm.text
 				cm_elm = presence_elm.find('Data/CurrentMedia')
 				if cm_elm is not None:
-					cs.front_data['msn_circle_cm'] = cm_elm.text
+					chat.front_data['msn_circle_cm'] = cm_elm.text
 				
-				cs.update_status()
+				chat.send_update()
 		else:
 			return
 		
@@ -1324,7 +1374,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		#		if not self.iln_sent:
 		#			self.iln_sent = True
 		#			for ctc in detail.contacts.values():
-		#				for m in build_presence_notif(trid, ctc.head, user, self.dialect, self.backend, self.iln_sent):
+		#				for m in build_presence_notif(None, ctc.head, user, self.dialect, self.backend, self.iln_sent):
 		#					self.send_reply(*m)
 		#		
 		#		self.send_reply('PUT', trid, 'OK', b'')
@@ -1333,20 +1383,73 @@ class MSNPCtrlNS(MSNPCtrl):
 		#		self.close(hard = True)
 		#		return
 		#
-		#if ctc is not None:
-		#	for ctc_sess in backend.util_get_sessions_by_user(ctc.head):
-		#		pop_id_other = ctc_sess.front_data.get('msn_pop_id')
-		#		if pop_id_other:
-		#			if to[2] is not None:
-		#				if pop_id_other.lower() != to[2].lower().replace('{', '').replace('}', ''):
-		#					continue
-		#				else:
-		#					pop_id_other = to[2].replace('{', '').replace('}', '')
-		#		ctc_sess.evt.msn_on_put_sent(data, user, pop_id_sender = from_email[2], pop_id = pop_id_other)
-		#
 		self.send_reply('PUT', trid, 'OK', b'')
 		
 		return
+	
+	def _m_sdg(self, trid: str, data: bytes) -> None:
+		backend = self.backend
+		bs = self.bs
+		assert bs is not None
+		user = bs.user
+		detail = user.detail
+		assert detail is not None
+		
+		circle_mode = False
+		chat_id = None
+		cs = None
+		#presence = False
+		
+		i = data.index(b'\r\n\r\n') + 4
+		headers = Parser().parsestr(data[:i].decode('utf-8'))
+		
+		to = _split_email_sdg(str(headers['To']))
+		from_email = _split_email_epid(str(headers['From']))
+		
+		if from_email != (user.email, NetworkID.WINDOWS_LIVE, bs.front_data.get('msn_pop_id')):
+			self.send_reply(Err.InvalidParameter, trid)
+			return
+		
+		if to[1] is NetworkID.CIRCLE:
+			circle_mode = True
+			if not to[0].endswith('@live.com'): return
+			email_end = to[0].rfind('@live.com')
+			circle_id = to[0][:email_end]
+			if not (circle_id.startswith('00000000-0000-0000-0009-') and len(circle_id[24:]) == 12):
+				self.send_reply(Err.InvalidParameter, trid)
+				return
+			chat_id = circle_id[-12:]
+		else:
+			return
+			#ctc_uuid = backend.util_get_uuid_from_email(to[0])
+		
+		#if to[0] != user.email:
+		#	ctc_uuid = backend.util_get_uuid_from_email(to[0])
+		#	if ctc_uuid is None:
+		#		return
+		#	ctc = detail.contacts.get(ctc_uuid)
+		#	if ctc is None:
+		#		return
+		
+		if to[2] != 'IM':
+			self.send_reply(Err.InvalidParameter, trid)
+			return
+		
+		if circle_mode:
+			cs = backend.get_groupchat_cs(chat_id, bs)
+		else:
+			return
+		
+		if cs is None:
+			self.send_reply(Err.InvalidParameter, trid)
+			return
+		
+		message = messagedata_from_sdg(user, bs.front_data.get('msn_pop_id'), data, i)
+		if message is None:
+			self.send_reply(Err.InvalidParameter, trid)
+			return
+		
+		cs.send_message_to_everyone(message)
 	
 	def _m_rea(self, trid: str, email: str, name: str) -> None:
 		if self.dialect >= 10:
@@ -1363,6 +1466,10 @@ class MSNPCtrlNS(MSNPCtrl):
 	def _m_snd(self, trid: str, email: str) -> None:
 		# Send email about how to use MSN. Ignore it for now.
 		self.send_reply('SND', trid, email)
+	
+	def _m_vas(self, trid: str, email: str, arg1: str, arg2: str, data: bytes) -> None:
+		# Report user as a spammer. Don't know how to respond.
+		return
 	
 	def _m_prp(self, trid: str, key: str, value: Optional[str] = None, *rest: Optional[str]) -> None:
 		#>>> PRP 115 MFN ~~woot~~
@@ -1679,6 +1786,12 @@ class BackendEventHandler(event.BackendEventHandler):
 			token = self.ctrl.backend.auth_service.create_token('sb/cal', (self.ctrl.bs, dialect, chat), lifetime = 120)
 			self.ctrl.send_reply('RNG', chat.ids['main'], 'm1.escargot.log1p.xyz:1864', 'CKI', token, inviter.email, inviter.status.name, *extra)
 	
+	def on_chat_invite_declined(self, chat: 'Chat', invitee: User, *, group_chat: bool = False) -> None:
+		if group_chat:
+			groupchat = chat.groupchat
+			assert groupchat is not None
+			self.msn_on_notify_circle_ab(groupchat.chat_id)
+	
 	def on_added_me(self, user: User, *, adder_id: Optional[str] = None, message: Optional[TextWithData] = None) -> None:
 		email = user.email
 		name = (user.status.name or email)
@@ -1747,6 +1860,24 @@ class BackendEventHandler(event.BackendEventHandler):
 			cid = cid_format(user.uuid, decimal = True), now = date_format(datetime.utcnow()),
 		))
 	
+	def msn_on_notify_circle_ab(self, chat_id: str, *, role: Optional[GroupChatRole] = None) -> None:
+		bs = self.ctrl.bs
+		assert bs is not None
+		user = bs.user
+		
+		id_bits = _uuid_to_high_low(user.uuid)
+		role_node = ''
+		
+		if role is not None:
+			role_node = PAYLOAD_MSG_8_1.format(
+				role = role.name,
+			)
+		
+		self.ctrl.send_reply('NOT', encode_payload(PAYLOAD_MSG_8,
+			member_low = binascii.hexlify(struct.pack('!I', id_bits[1])).decode('utf-8'), member_high = binascii.hexlify(struct.pack('!I', id_bits[0])).decode('utf-8'), email = user.email,
+			chat_id = chat_id, role = role_node,
+		))
+	
 	def on_groupchat_created(self, chat_id: str) -> None:
 		ctrl = self.ctrl
 		backend = ctrl.backend
@@ -1758,19 +1889,12 @@ class BackendEventHandler(event.BackendEventHandler):
 			email = _encode_email_epid(user.email, bs.front_data.get('msn_pop_id')), chat_id = chat_id,
 		))
 	
-	def on_groupchat_role_updated(self, chat_id: str, *, role: Optional[GroupChatRole] = None) -> None:
-		bs = self.ctrl.bs
-		assert bs is not None
-		user = bs.user
-		
-		id_bits = _uuid_to_high_low(user.uuid)
-		if role is None:
-			role = GroupChatRole.Member
-		
-		self.ctrl.send_reply('NOT', encode_payload(PAYLOAD_MSG_8,
-			member_low = binascii.hexlify(struct.pack('!I', id_bits[1])).decode('utf-8'), member_high = binascii.hexlify(struct.pack('!I', id_bits[0])).decode('utf-8'), email = user.email,
-			chat_id = chat_id, role = role.name,
-		))
+	def on_groupchat_updated(self, chat_id: str) -> None:
+		self.msn_on_notify_circle_ab(chat_id)
+	
+	def on_groupchat_role_updated(self, chat_id: str, role: GroupChatRole) -> None:
+		self.msn_on_notify_ab()
+		self.msn_on_notify_circle_ab(chat_id, role = role)
 	
 	def ymsg_on_xfer_init(self, yahoo_data: MultiDict[bytes, bytes]) -> None:
 		pass
@@ -1797,10 +1921,6 @@ class BackendEventHandler(event.BackendEventHandler):
 		assert bs is not None
 		backend = bs.backend
 		
-		#if bs.front_data.get('msn_circle_sessions') is not None:
-		#	for circle_bs in bs.front_data.get('msn_circle_sessions').copy():
-		#		circle_bs.close()
-		
 		self.ctrl.close(maintenance = maintenance)
 
 class GroupChatEventHandler(event.ChatEventHandler):
@@ -1812,54 +1932,11 @@ class GroupChatEventHandler(event.ChatEventHandler):
 	def __init__(self, ctrl: MSNPCtrlNS) -> None:
 		self.ctrl = ctrl
 	
-	def on_participant_presence(self, cs_other: ChatSession, first_pop: bool) -> None:
+	def on_participant_joined(self, cs_other: ChatSession, first_pop: bool, initial_join: bool) -> None:
 		bs = self.ctrl.bs
 		assert bs is not None
 		user = bs.user
 		
-		cs = self.cs
-		groupchat = cs.chat.groupchat
-		assert groupchat is not None
-		
-		for m in build_presence_notif(None, cs_other.user, user, self.ctrl.dialect, self.ctrl.backend, self.ctrl.iln_sent, bs_other = cs_other.bs, groupchat = groupchat):
-			self.ctrl.send_reply(*m)
-	
-	def on_participant_joined(self, cs_other: ChatSession, first_pop: bool) -> None:
-		if not first_pop: return
-		
-		bs = self.ctrl.bs
-		assert bs is not None
-		user = bs.user
-		
-		cs = self.cs
-		groupchat = cs.chat.groupchat
-		assert groupchat is not None
-		
-		result = CIRCLE_ROSTER.format(users = CIRCLE_USER.format(email = cs_other.user.email))
-		
-		self.ctrl.send_reply('NFY', 'PUT', encode_payload(PAYLOAD_MSG_5,
-			email = user.email, chat_id = groupchat.chat_id,
-			cl = len(result), payload = result,
-		))
-	
-	def on_participant_left(self, cs_other: ChatSession, idle: bool, last_pop: bool) -> None:
-		if last_pop: return
-		
-		bs = self.ctrl.bs
-		assert bs is not None
-		user = bs.user
-		
-		cs = self.cs
-		groupchat = cs.chat.groupchat
-		assert groupchat is not None
-		
-		for m in build_presence_notif(None, cs_other.user, user, self.ctrl.dialect, self.ctrl.backend, self.ctrl.iln_sent, bs_other = cs_other.bs, groupchat = groupchat):
-			self.ctrl.send_reply(*m)
-	
-	def on_participant_status_updated(self, cs_other: ChatSession) -> None:
-		bs = self.ctrl.bs
-		assert bs is not None
-		user = bs.user
 		cs = self.cs
 		chat = cs.chat
 		groupchat = chat.groupchat
@@ -1867,37 +1944,118 @@ class GroupChatEventHandler(event.ChatEventHandler):
 		
 		users = ''
 		
+		if (cs_other.user.status.substatus is Substatus.Invisible and cs_other.user is user) or not cs_other.user.status.is_offlineish():
+			if cs_other.user.uuid == groupchat.owner_uuid:
+				for m in build_presence_notif(None, cs_other.user, user, self.ctrl.dialect, self.ctrl.backend, self.ctrl.iln_sent, bs_other = cs_other.bs, groupchat = groupchat, groupchat_owner = True):
+					self.ctrl.send_reply(*m)
+			
+			for m in build_presence_notif(None, cs_other.user, user, self.ctrl.dialect, self.ctrl.backend, self.ctrl.iln_sent, bs_other = cs_other.bs, groupchat = groupchat):
+				self.ctrl.send_reply(*m)
+		
+		if not first_pop: return
+		
 		for cs1 in chat.get_roster_single():
-			if not cs1.joined or (cs1.user.status.is_offlineish() and cs1.user not in (user,cs_other.user)): continue
+			if (cs1.user.status.is_offlineish() or groupchat.memberships[cs1.user.uuid].blocking) and cs1.user is not cs.user: continue
 			users += CIRCLE_USER.format(email = cs1.user.email)
 		
 		roster = CIRCLE_ROSTER.format(users = users)
 		
-		presence = CIRCLE_PRESENCE.format(
-			friendly = cs.front_data.get('msn_circle_mfn') or '', psm = cs.front_data.get('msn_circle_psm') or '', cm = cs.front_data.get('msn_circle_cm') or '',
-			roster = roster,
+		result = CIRCLE.format(roster)
+		
+		self.ctrl.send_reply('NFY', 'PUT', encode_payload(PAYLOAD_MSG_5,
+			email = user.email, chat_id = groupchat.chat_id,
+			cl = len(result), payload = result,
+		))
+	
+	def on_participant_left(self, cs_other: ChatSession, idle: bool, last_pop: bool) -> None:
+		pass
+	
+	def on_chat_updated(self) -> None:
+		bs = self.ctrl.bs
+		assert bs is not None
+		user = bs.user
+		
+		chat = self.cs.chat
+		groupchat = chat.groupchat
+		assert groupchat is not None
+		
+		presence = CIRCLE_PROPS.format(
+			friendly = groupchat.name, psm = chat.front_data.get('msn_circle_psm') or '', cm = chat.front_data.get('msn_circle_cm') or '',
 		)
+		
+		result = CIRCLE.format(presence)
 		
 		self.ctrl.send_reply('NFY', 'PUT', encode_payload(PAYLOAD_MSG_6,
 			email = _encode_email_epid(user.email, bs.front_data.get('msn_pop_id')), chat_id = groupchat.chat_id,
-			cl = len(presence), payload = presence,
+			cl = len(result), payload = result,
+		))
+	
+	def on_participant_status_updated(self, cs_other: ChatSession, first_pop: bool, initial: bool) -> None:
+		bs = self.ctrl.bs
+		assert bs is not None
+		user = bs.user
+		
+		cs = self.cs
+		chat = cs.chat
+		groupchat = chat.groupchat
+		assert groupchat is not None
+		
+		users = ''
+		
+		if not (initial and cs_other.user.status.is_offlineish()):
+			for m in build_presence_notif(None, cs_other.user, user, self.ctrl.dialect, self.ctrl.backend, self.ctrl.iln_sent, bs_other = cs_other.bs, groupchat = groupchat):
+				self.ctrl.send_reply(*m)
+		
+		for cs1 in chat.get_roster_single():
+			if (cs1.user.status.is_offlineish() or groupchat.memberships[cs1.user.uuid].blocking) and cs1.user is not cs.user: continue
+			users += CIRCLE_USER.format(email = cs1.user.email)
+		
+		roster = CIRCLE_ROSTER.format(users = users)
+		
+		result = CIRCLE.format(roster)
+		
+		self.ctrl.send_reply('NFY', 'PUT', encode_payload(PAYLOAD_MSG_5,
+			email = user.email, chat_id = groupchat.chat_id,
+			cl = len(result), payload = result,
 		))
 	
 	def on_invite_declined(self, invited_user: User, *, invited_id: Optional[str] = None, message: str = '') -> None:
 		pass
 	
 	def on_message(self, data: MessageData) -> None:
-		pass
+		bs = self.ctrl.bs
+		assert bs is not None
+		user = bs.user
+		
+		cs = self.cs
+		chat = cs.chat
+		groupchat = chat.groupchat
+		assert groupchat is not None
+		
+		if data.sender is bs.user and data.sender_pop_id == bs.front_data.get('msn_pop_id'): return
+		
+		if data.type is not MessageType.TypingDone:
+			self.ctrl.send_reply('SDG', 0, messagedata_to_sdg(data, user, groupchat = groupchat))
 
-def _split_email_put(email: str) -> Tuple[str, NetworkID, Optional[str]]:
+def _split_email_epid(email: str) -> Tuple[str, NetworkID, Optional[str]]:
 	epid = None # type: Optional[str]
 	
 	email_epid = email.split(';', 1)
 	networkid, email = decode_email_networkid(email_epid[0])
 	if len(email_epid) > 1:
 		if email_epid[1].startswith('epid='):
-			epid = email_epid[1][6:-1]
+			epid = email_epid[1][5:].replace('{', '').replace('}', '')
 	return (email, networkid, epid)
+
+def _split_email_sdg(email: str) -> Tuple[str, NetworkID, Optional[str]]:
+	sdg_path = None # type: Optional[str]
+	
+	email_path = email.split(';', 1)
+	networkid, email = decode_email_networkid(email_path[0])
+	if len(email_path) > 1:
+		if email_path[1].startswith('path='):
+			sdg_path = email_path[1][5:]
+	return (email, networkid, sdg_path)
 
 def _encode_email_epid(email: str, pop_id: Optional[str]) -> str:
 	result = email
@@ -1906,6 +2064,88 @@ def _encode_email_epid(email: str, pop_id: Optional[str]) -> str:
 		result = '{};epid={}'.format(result, '{' + pop_id + '}')
 	
 	return result
+
+def messagedata_from_sdg(sender: User, sender_pop_id: Optional[str], data: bytes, i: int) -> Optional[MessageData]:
+	j = data.index(b'\r\n\r\n', i) + 4
+	sdg_messaging = data[j:]
+	
+	n = sdg_messaging.index(b'\r\n\r\n') + 4
+	headers = Parser().parsestr(sdg_messaging[:n].decode('utf-8'))
+	body_raw = data[n:]
+	
+	content_length = headers.get('Content-Length')
+	if content_length is None: return None
+	try:
+		message_length = int(str(content_length))
+	except:
+		return None
+	
+	if len(body_raw) < message_length: return None
+	body_raw = body_raw[:message_length]
+	
+	message_type = headers.get('Message-Type')
+	message_subtype = headers.get('Message-Subtype')
+	if message_subtype is not None:
+		message_subtype = str(message_subtype)
+	
+	try:
+		if message_type is not None:
+			message_type = str(message_type)
+			
+			if message_type == 'Text':
+				type = MessageType.Chat
+				text = body_raw.decode('utf-8')
+			elif message_type == 'Nudge':
+				type = MessageType.Nudge
+				text = ''
+			elif message_type == 'Control':
+				if message_subtype == 'Typing':
+					type = MessageType.Typing
+					text = ''
+				else:
+					type = MessageType.Chat
+					text = "(Unsupported MSNP Content-Type)"
+			else:
+				type = MessageType.Chat
+				text = "(Unsupported MSNP Content-Type)"
+		else:
+			type = MessageType.Chat
+			text = "(Unsupported MSNP Content-Type)"
+	except:
+		type = MessageType.Chat
+		text = "(Unsupported MSNP Content-Type)"
+	
+	message = MessageData(sender = sender, sender_pop_id = sender_pop_id, type = type, text = text)
+	message.front_cache['msnp_sdg'] = data
+	return message
+
+def messagedata_to_sdg(data: MessageData, user: User, *, groupchat: Optional[GroupChat] = None) -> bytes:
+	if 'msnp_sdg' not in data.front_cache:
+		s = None
+		
+		if data.type is MessageType.Typing:
+			s = F'Content-Length: 2\r\nContent-Type: text/x-msmsgscontrol\r\nContent-Transfer-Encoding: 7bit\r\nMessage-Type: Control\r\nMessage-Subtype: Typing\r\nMIME-Version: 1.0\r\nTypingUser: {data.sender.email}\r\n\r\n\r\n'
+		elif data.type is MessageType.Nudge:
+			s = 'Content-Length: 9\r\nContent-Type: Text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: 7bit\r\nMessage-Type: Nudge\r\nMIME-Version: 1.0\r\n\r\nID: 1\r\n\r\n'
+		elif data.type is MessageType.Chat:
+			s = 'Content-Length: ' + str(len(data.text or '')) + '\r\nContent-Type: Text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: 7bit\r\nMessage-Type: Text\r\nMIME-Version: 1.0\r\n\r\n' + (data.text or '')
+		else:
+			raise ValueError("unknown message type", data.type)
+		
+		pre = 'Routing: 1.0\r\nTo: ' + ('9:00000000-0000-0000-0009-{}@live.com;path=IM'.format(groupchat.chat_id) if groupchat is not None else user.email) + '\r\nFrom: 1:' + _encode_email_epid(data.sender.email, data.sender_pop_id) + '\r\n\r\n'
+		
+		r = 'Reliability: 1.0'
+		if groupchat is not None:
+			r += '\r\nStream: 0\r\nSegment: 0'
+		r += '\r\n\r\n'
+		if groupchat is not None:
+			r += 'Messaging: 1.0\r\n'
+		else:
+			r += 'Messaging: 2.0\r\n'
+		
+		data.front_cache['msnp_sdg'] = pre.encode('utf-8') + r.encode('utf-8') + s.encode('utf-8')
+	
+	return data.front_cache['msnp_sdg']
 
 PAYLOAD_MSG_0 = '''Routing: 1.0
 To: 1:{email_address};epid={endpoint_ID}
@@ -2050,11 +2290,13 @@ PAYLOAD_MSG_8 = '''<NOTIFICATION id="0" siteid="45705" siteurl="http://contacts.
 		<BODY>
 			&lt;NotificationData xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"&gt;
 				&lt;CircleId&gt;00000000-0000-0000-0009-{chat_id}&lt;/CircleId&gt;
-				&lt;Role&gt;{role}&lt;/Role&gt;
-			&lt;/NotificationData&gt;
+{role}			&lt;/NotificationData&gt;
 		</BODY>
 	</MSG>
 </NOTIFICATION>'''
+
+PAYLOAD_MSG_8_1 = '''				&lt;Role&gt;{role}&lt;/Role&gt;
+'''
 
 SHIELDS = '''<?xml version="1.0" encoding="utf-8" ?>
 <config>
@@ -2071,7 +2313,8 @@ SHIELDS_MSNP13 = '''<Policies>
 CIRCLE_ROSTER = '<roster><id>IM</id>{users}</roster>'
 CIRCLE_USER = '<user><id>1:{email}</id></user>'
 
-CIRCLE_PRESENCE = '<circle><props><presence dtype="xml"><Data><UTL></UTL><MFN>{friendly}</MFN><PSM>{psm}</PSM><CurrentMedia>{cm}</CurrentMedia></Data></presence></props>{roster}</circle>'
+CIRCLE = '<circle>{}</circle>'
+CIRCLE_PROPS = '<props><presence dtype="xml"><Data><UTL></UTL><MFN>{friendly}</MFN><PSM>{psm}</PSM><CurrentMedia>{cm}</CurrentMedia></Data></presence></props>'
 TIMESTAMP = '2000-01-01T00:00:00.0-00:00'
 
 _QRY_ID_CODES = {

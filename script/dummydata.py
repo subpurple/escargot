@@ -5,14 +5,14 @@ import time
 
 from util import misc
 from core.models import Lst, NetworkID
-from core.db import Base, Session, User, UserContact, engine
+from core.db import Base, Session, User, UserContact, GroupChat, engine
 
 from script.user import set_passwords
 
 usercontacts_by_id_by_uuid = {} # type: Dict[int, Dict[str, UserContact]]
 
 def main() -> None:
-	U = []
+	U = [] # type: List[User]
 	
 	for domain in ['example.com', 'yahoo.com', 'hotmail.com', 'live.com']:
 		d = domain[0]
@@ -56,8 +56,7 @@ def main() -> None:
 	with Session() as sess:
 		sess.query(User).delete()
 		sess.query(UserContact).delete()
-		#sess.query(CircleStore).delete()
-		#sess.query(CircleMembership).delete()
+		sess.query(GroupChat).delete()
 		sess.add_all(tables)
 
 def create_user(email: str, pw: str, name: str, message: str) -> User:
