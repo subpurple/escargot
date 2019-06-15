@@ -262,22 +262,23 @@ class Group:
 
 class MessageType(Enum):
 	Chat = object()
-	#CircleXML = object()
 	Nudge = object()
 	Typing = object()
 	TypingDone = object()
 	Webcam = object()
 
 class MessageData:
-	__slots__ = ('sender', 'type', 'text', 'front_cache')
+	__slots__ = ('sender', 'sender_pop_id', 'type', 'text', 'front_cache')
 	
 	sender: User
+	sender_pop_id: Optional[str]
 	type: MessageType
 	text: Optional[str]
 	front_cache: Dict[str, Any]
 	
-	def __init__(self, *, sender: User, type: MessageType, text: Optional[str] = None) -> None:
+	def __init__(self, *, sender: User, sender_pop_id: Optional[str] = None, type: MessageType, text: Optional[str] = None) -> None:
 		self.sender = sender
+		self.sender_pop_id = sender_pop_id
 		self.type = type
 		self.text = text
 		self.front_cache = {}
@@ -315,22 +316,24 @@ class GroupChat:
 		self.memberships = {}
 
 class GroupChatMembership:
-	__slots__ = ('chat_id', 'head', 'role', 'state', 'inviter_uuid', 'inviter_email', 'inviter_name', 'invite_message')
+	__slots__ = ('chat_id', 'head', 'role', 'state', 'blocking', 'inviter_uuid', 'inviter_email', 'inviter_name', 'invite_message')
 	
 	chat_id: str
 	head: User
 	role: 'GroupChatRole'
 	state: 'GroupChatState'
+	blocking: bool
 	inviter_uuid: Optional[str]
 	inviter_email: Optional[str]
 	inviter_name: Optional[str]
 	invite_message: Optional[str]
 	
-	def __init__(self, chat_id: str, head: User, role: 'GroupChatRole', state: 'GroupChatState', *, inviter_uuid: Optional[str] = None, inviter_email: Optional[str] = None, inviter_name: Optional[str] = None, invite_message: Optional[str] = None):
+	def __init__(self, chat_id: str, head: User, role: 'GroupChatRole', state: 'GroupChatState', *, blocking: bool = False, inviter_uuid: Optional[str] = None, inviter_email: Optional[str] = None, inviter_name: Optional[str] = None, invite_message: Optional[str] = None):
 		self.chat_id = chat_id
 		self.head = head
 		self.role = role
 		self.state = state
+		self.blocking = blocking
 		self.inviter_uuid = inviter_uuid
 		self.inviter_email = inviter_email
 		self.inviter_name = inviter_name
@@ -415,8 +418,10 @@ class Lst(IntFlag):
 			self.label = "Block"
 		elif id == 0x08:
 			self.label = "Reverse"
-		else:
+		elif id == 0x10:
 			self.label = "Pending"
+		else:
+			self.label = "Undefined"
 	
 	@classmethod
 	def Parse(cls, label: str) -> Optional['Lst']:

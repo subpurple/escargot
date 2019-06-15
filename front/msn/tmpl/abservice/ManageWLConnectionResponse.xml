@@ -21,9 +21,9 @@
 					<clientErrorData />
 					<contactId>{%- if ab_id == '00000000-0000-0000-0000-000000000000' -%}00000000-0000-0000-0009-{{ groupchat.chat_id }}{%- else -%}{{ head.uuid }}{%- endif -%}</contactId>
 					<contactInfo>
-						<contactType>{%- if ab_id == '00000000-0000-0000-0000-000000000000' -%}Circle{%- else -%}LivePending{%- endif -%}</contactType>
+						<contactType>{%- if ab_id == '00000000-0000-0000-0000-000000000000' -%}Circle{%- else -%}{%- if groupchat.memberships[head.uuid].state == GroupChatState.WaitingResponse or groupchat.memberships[head.uuid].state == GroupChatState.Rejected or (groupchat.memberships[head.uuid].role == GroupChatRole.Empty or groupchat.memberships[head.uuid].state == GroupChatState.Empty) -%}LivePending{%- else -%}Live{%- endif -%}{%- endif -%}</contactType>
 						<quickName>{%- if ab_id == '00000000-0000-0000-0000-000000000000' -%}circle{%- else -%}{{ head.email }}{%- endif -%}</quickName>
-						<passportName>{%- if ab_id == '00000000-0000-0000-0000-000000000000' -%}00000000-0000-0000-0009-{{ groupchat.chat_id.upper() }}{%- else -%}{{ head.email }}{%- endif -%}</passportName>
+						<passportName>{%- if ab_id == '00000000-0000-0000-0000-000000000000' -%}00000000-0000-0000-0009-{{ groupchat.chat_id.upper() }}@hotmail.com{%- else -%}{{ head.email }}{%- endif -%}</passportName>
 						<IsPassportNameHidden>false</IsPassportNameHidden>
 						<displayName>{%- if ab_id == '00000000-0000-0000-0000-000000000000' -%}{{ groupchat.name }}{%- else -%}{{ head.email }}{%- endif -%}</displayName>
 						<puid>0</puid>
@@ -40,7 +40,7 @@
 						<PrimaryLocation>ContactLocationPersonal</PrimaryLocation>
 						<PrimaryPhone>ContactPhonePersonal</PrimaryPhone>
 						<IsPrivate>false</IsPrivate>
-						<IsHidden>false</IsHidden>
+						<IsHidden>{%- if ab_id == '00000000-0000-0000-0000-000000000000' -%}true{%- else -%}false{%- endif -%}</IsHidden>
 						<Gender>Unspecified</Gender>
 						<TimeZone>None</TimeZone>
 						{%- if (ab_id == '00000000-0000-0000-0000-000000000000' or ab_id.startswith('00000000-0000-0000-0009-')) and not (groupchat.memberships[head.uuid].role == GroupChatRole.Empty or groupchat.memberships[head.uuid].state == GroupChatState.Empty) -%}
@@ -53,9 +53,9 @@
 										<DisplayName>00000000-0000-0000-0009-{{ groupchat.chat_id.upper() }}</DisplayName>
 									{%- endif -%}
 									<RelationshipType>5</RelationshipType>
-									<RelationshipState>{{ groupchat.memberships[head.uuid].state.value }}</RelationshipState>
+									<RelationshipState>{%- if ab_id.startswith('00000000-0000-0000-0009-') and groupchat.memberships[head.uuid].state == GroupChatState.WaitingResponse -%}2{%- else -%}{{ groupchat.memberships[head.uuid].state.value }}{%- endif -%}</RelationshipState>
 									<RelationshipStateDate>{{ now }}</RelationshipStateDate>
-									<RelationshipRole>{%- if ab_id == '00000000-0000-0000-0000-000000000000' -%}{%- if groupchat.memberships[head.uuid].role == GroupChatRole.StatePendingOutbound -%}4{%- else -%}0{%- endif -%}{%- else -%}{{ groupchat.memberships[head.uuid].role.value }}{%- endif -%}</RelationshipRole>
+									<RelationshipRole>{%- if ab_id == '00000000-0000-0000-0000-000000000000' -%}{%- if groupchat.memberships[head.uuid].role == GroupChatRole.StatePendingOutbound -%}4{%- else -%}0{%- endif -%}{%- else -%}{%- if groupchat.memberships[head.uuid].role == GroupChatRole.StatePendingOutbound -%}3{%- else -%}{{ groupchat.memberships[head.uuid].role.value }}{%- endif -%}{%- endif -%}</RelationshipRole>
 									<NDRCount>0</NDRCount>
 									{%- if groupchat.memberships[head.uuid].invite_message -%}
 										<InviterMessage>{{ groupchat.memberships[head.uuid].invite_message }}</InviterMessage>

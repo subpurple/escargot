@@ -201,12 +201,18 @@ class BackendEventHandler(event.BackendEventHandler):
 	def on_groupchat_created(self, chat_id: str) -> None:
 		pass
 	
-	def on_groupchat_role_updated(self, chat_id: str, *, role: Optional[GroupChatRole] = None) -> None:
+	def on_groupchat_updated(self, chat_id: str) -> None:
+		pass
+	
+	def on_groupchat_role_updated(self, chat_id: str, role: GroupChatRole) -> None:
 		pass
 	
 	def on_chat_invite(self, chat: Chat, inviter: User, *, group_chat: bool = False, inviter_id: Optional[str] = None, invite_msg: str = '') -> None:
 		if group_chat: return
 		self.ctrl.send_reply('INVITE', self.bs.user.email, chat.ids['irc'], source = inviter.email)
+	
+	def on_chat_invite_declined(self, chat: Chat, invitee: User, *, group_chat: bool = False) -> None:
+		pass
 	
 	def on_added_me(self, user: User, *, adder_id: Optional[str] = None, message: Optional[TextWithData] = None) -> None:
 		self.ctrl.send_reply('NOTICE', ":{} added you to their friend list".format(user.email), source = user.email)
@@ -219,9 +225,6 @@ class BackendEventHandler(event.BackendEventHandler):
 			self.ctrl.send_reply('NOTICE', ":\"{}\"".format(message), source = user_added.email)
 	
 	def on_oim_sent(self, oim: 'OIM') -> None:
-		pass
-	
-	def msn_on_put_sent(self, payload: bytes, sender: User, *, pop_id_sender: Optional[str] = None, pop_id: Optional[str] = None) -> None:
 		pass
 	
 	def on_login_elsewhere(self, option: LoginOption) -> None:
@@ -245,10 +248,7 @@ class ChatEventHandler(event.ChatEventHandler):
 	def on_close(self, keep_future: bool, idle: bool) -> None:
 		self.ctrl.chat_sessions.pop(self.cs.chat, None)
 	
-	def on_participant_presence(self, cs_other: ChatSession, first_pop: bool) -> None:
-		pass
-	
-	def on_participant_joined(self, cs_other: ChatSession, first_pop: bool) -> None:
+	def on_participant_joined(self, cs_other: ChatSession, first_pop: bool, initial_join: bool) -> None:
 		if first_pop:
 			self.ctrl.send_reply('JOIN', self.cs.chat.ids['irc'], source = cs_other.user.email)
 	
@@ -256,7 +256,10 @@ class ChatEventHandler(event.ChatEventHandler):
 		if last_pop:
 			self.ctrl.send_reply('PART', self.cs.chat.ids['irc'], source = cs_other.user.email)
 	
-	def on_participant_status_updated(self, cs_other: ChatSession) -> None:
+	def on_chat_updated(self) -> None:
+		pass
+	
+	def on_participant_status_updated(self, cs_other: ChatSession, first_pop: bool, initial: bool) -> None:
 		pass
 	
 	def on_invite_declined(self, invited_user: User, *, invited_id: Optional[str] = None, message: str = '') -> None:

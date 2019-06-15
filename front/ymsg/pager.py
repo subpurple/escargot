@@ -1216,9 +1216,6 @@ class BackendEventHandler(event.BackendEventHandler):
 		
 		backend.user_service.delete_oim(user.uuid, oim.uuid)
 	
-	def msn_on_put_sent(self, payload: bytes, sender: User, *, pop_id_sender: Optional[str] = None, pop_id: Optional[str] = None) -> None:
-		pass
-	
 	def ymsg_on_xfer_init(self, yahoo_data: MultiDict[bytes, bytes]) -> None:
 		for y in misc.build_ft_packet(self.bs, yahoo_data):
 			self.ctrl.send_reply(y[0], y[1], self.sess_id, y[2])
@@ -1238,7 +1235,10 @@ class BackendEventHandler(event.BackendEventHandler):
 	def on_groupchat_created(self, chat_id: str) -> None:
 		pass
 	
-	def on_groupchat_role_updated(self, chat_id: str, *, role: Optional[GroupChatRole] = None) -> None:
+	def on_groupchat_updated(self, chat_id: str) -> None:
+		pass
+	
+	def on_groupchat_role_updated(self, chat_id: str, role: GroupChatRole) -> None:
 		pass
 	
 	def on_chat_invite(self, chat: Chat, inviter: User, *, group_chat: bool = False, inviter_id: Optional[str] = None, invite_msg: str = '') -> None:
@@ -1270,6 +1270,9 @@ class BackendEventHandler(event.BackendEventHandler):
 		conf_invite_dict.add(b'13', arbitrary_encode(chat.front_data.get('ymsg_voice_chat') or '0'))
 		
 		self.ctrl.send_reply(YMSGService.ConfAddInvite if len(roster) > 1 else YMSGService.ConfInvite, YMSGStatus.BRB, self.ctrl.sess_id, conf_invite_dict)
+	
+	def on_chat_invite_declined(self, chat: Chat, invitee: User, *, group_chat: bool = False) -> None:
+		pass
 	
 	def on_added_me(self, user: User, *, adder_id: Optional[str] = None, message: Optional[TextWithData] = None) -> None:
 		bs = self.bs
@@ -1321,10 +1324,7 @@ class ChatEventHandler(event.ChatEventHandler):
 	def on_close(self, keep_future: bool, idle: bool) -> None:
 		if not keep_future: self.ctrl.chat_sessions.pop(self.cs.chat, None)
 	
-	def on_participant_presence(self, cs_other: ChatSession, first_pop: bool) -> None:
-		pass
-	
-	def on_participant_joined(self, cs_other: ChatSession, first_pop: bool) -> None:
+	def on_participant_joined(self, cs_other: ChatSession, first_pop: bool, initial_join: bool) -> None:
 		if self.cs.chat.front_data.get('ymsg_twoway_only') or not first_pop:
 			return
 		self.ctrl.send_reply(YMSGService.ConfLogon, YMSGStatus.BRB, self.ctrl.sess_id, MultiDict([
@@ -1345,7 +1345,10 @@ class ChatEventHandler(event.ChatEventHandler):
 			(b'56', arbitrary_encode(cs_other.preferred_name or misc.yahoo_id(cs_other.user.email))),
 		]))
 	
-	def on_participant_status_updated(self, cs_other: ChatSession) -> None:
+	def on_chat_updated(self) -> None:
+		pass
+	
+	def on_participant_status_updated(self, cs_other: ChatSession, first_pop: bool, initial: bool) -> None:
 		pass
 	
 	def on_invite_declined(self, invited_user: User, *, invited_id: Optional[str] = None, message: str = '') -> None:

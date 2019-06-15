@@ -109,20 +109,7 @@ class GroupChat(Base):
 	membership_access = Col(sa.Integer)
 	request_membership_option = Col(sa.Integer)
 	# memberships = { '000-000': { 'role': 'GroupChatRole', 'state': 'CircleState', 'member_id': '000-000' }, ... }
-	_memberships = Col(JSONType, name = 'memberships', default = {})
-	
-	def add_membership(self, uuid: str, role: int, state: int, *, inviter_uuid: Optional[str] = None, inviter_email: Optional[str] = None, inviter_name: Optional[str] = None, invite_message: Optional[str] = None) -> None:
-		ms = self._memberships or {}
-		
-		ms[uuid] = {
-			'role': role, 'state': state,
-			'inviter_uuid': inviter_uuid, 'inviter_email': inviter_email, 'inviter_name': inviter_name, 'invite_message': invite_message,
-		}
-		self._memberships = _simplify_json_data(ms)
-	
-	def get_membership(self, uuid: str) -> Optional[Dict[str, Any]]:
-		ms = self._memberships or {}
-		return ms.get(uuid)
+	memberships = Col(JSONType)
 
 def _simplify_json_data(data: Any) -> Any:
 	if isinstance(data, dict):

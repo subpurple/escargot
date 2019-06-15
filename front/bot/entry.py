@@ -54,12 +54,18 @@ class BackendEventHandler(event.BackendEventHandler):
 	def on_groupchat_created(self, chat_id: str) -> None:
 		pass
 	
-	def on_groupchat_role_updated(self, chat_id: str, *, role: Optional[GroupChatRole] = None) -> None:
+	def on_groupchat_updated(self, chat_id: str) -> None:
+		pass
+	
+	def on_groupchat_role_updated(self, chat_id: str, role: GroupChatRole) -> None:
 		pass
 	
 	def on_chat_invite(self, chat: Chat, inviter: User, *, group_chat: bool = False, inviter_id: Optional[str] = None, invite_msg: str = '') -> None:
 		cs = chat.join('testbot', self.bs, ChatEventHandler(self.loop, self.bs))
 		chat.send_participant_joined(cs)
+	
+	def on_chat_invite_declined(self, chat: Chat, invitee: User, *, group_chat: bool = False) -> None:
+		pass
 	
 	def on_added_me(self, user: User, *, adder_id: Optional[str] = None, message: Optional[TextWithData] = None) -> None:
 		pass
@@ -96,16 +102,16 @@ class ChatEventHandler(event.ChatEventHandler):
 			text = "Hello, world!",
 		))
 	
-	def on_participant_presence(self, cs_other: ChatSession, first_pop: bool) -> None:
-		pass
-	
-	def on_participant_joined(self, cs_other: ChatSession, first_pop: bool) -> None:
+	def on_participant_joined(self, cs_other: ChatSession, first_pop: bool, initial_join: bool) -> None:
 		pass
 	
 	def on_participant_left(self, cs_other: ChatSession, idle: bool, last_pop: bool) -> None:
 		pass
 	
-	def on_participant_status_updated(self, cs_other: ChatSession) -> None:
+	def on_chat_updated(self) -> None:
+		pass
+	
+	def on_participant_status_updated(self, cs_other: ChatSession, first_pop: bool, initial: bool) -> None:
 		pass
 	
 	def on_invite_declined(self, invited_user: User, *, invited_id: Optional[str] = None, message: str = '') -> None:

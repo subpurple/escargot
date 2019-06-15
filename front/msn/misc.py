@@ -16,9 +16,9 @@ from typing import Optional
 
 from core import error, event
 from core.backend import Backend, BackendSession, ChatSession
-from core.models import User, Contact, GroupChat, Lst, MessageData, OIM, Substatus, NetworkID
+from core.models import User, Contact, GroupChat, Lst, MessageData, OIM, Substatus, NetworkID, GroupChatState
 
-def build_presence_notif(trid: Optional[str], ctc_head: User, user_me: User, dialect: int, backend: Backend, iln_sent: bool, *, self_presence: bool = False, bs_other: Optional['BackendSession'] = None, groupchat: Optional['GroupChat'] = None) -> Iterable[Tuple[Any, ...]]:
+def build_presence_notif(trid: Optional[str], ctc_head: User, user_me: User, dialect: int, backend: Backend, iln_sent: bool, *, self_presence: bool = False, bs_other: Optional['BackendSession'] = None, groupchat: Optional['GroupChat'] = None, groupchat_owner: bool = False) -> Iterable[Tuple[Any, ...]]:
 	detail = user_me.detail
 	assert detail is not None
 	
@@ -114,7 +114,7 @@ def build_presence_notif(trid: Optional[str], ctc_head: User, user_me: User, dia
 	#	yield ('NFY', 'PUT', nfy_payload)
 	#	return
 	
-	if is_offlineish and not head is user_me:
+	if (is_offlineish or (groupchat is not None and groupchat.memberships[head.uuid].blocking)) and not head is user_me:
 		if dialect >= 18:
 			reply = ('FLN', encode_email_networkid(head.email, None, groupchat = groupchat)) # type: Tuple[Any, ...]
 		else:
@@ -141,7 +141,7 @@ def build_presence_notif(trid: Optional[str], ctc_head: User, user_me: User, dia
 	if 8 <= dialect <= 15:
 		rst.append(((ctc_sess.front_data.get('msn_capabilities') or 0) if ctc_sess.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC))
 	elif dialect >= 16:
-		rst.append(('0:0' if groupchat is not None and head.uuid == user_me.uuid else encode_capabilities_capabilitiesex(((ctc_sess.front_data.get('msn_capabilities') or 0) if ctc_sess.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC), ctc_sess.front_data.get('msn_capabilitiesex') or 0)))
+		rst.append(('0:0' if groupchat is not None and groupchat_owner else encode_capabilities_capabilitiesex(((ctc_sess.front_data.get('msn_capabilities') or 0) if ctc_sess.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC), ctc_sess.front_data.get('msn_capabilitiesex') or 0)))
 	if dialect >= 9:
 		rst.append(encode_msnobj(ctc_sess.front_data.get('msn_msnobj') or '<msnobj/>'))
 	
@@ -150,10 +150,7 @@ def build_presence_notif(trid: Optional[str], ctc_head: User, user_me: User, dia
 	else:
 		yield (*frst, msn_status.name, head.email, (int(NetworkID.WINDOWS_LIVE) if 14 <= dialect <= 17 else None), status.name, *rst)
 	
-	if dialect < 11:
-		return
-	
-	if dialect >= 18 and (groupchat is not None and head.uuid == user_me.uuid):
+	if dialect < 11 or groupchat_owner:
 		return
 	
 	ubx_payload = '<Data><PSM>{}</PSM><CurrentMedia>{}</CurrentMedia>{}</Data>'.format(
@@ -274,7 +271,7 @@ def gen_signedticket_xml(bs: BackendSession, backend: Backend) -> str:
 	circleticket_sig = bs.front_data.get('msn_circleticket_sig')
 	assert circleticket_sig is not None
 	
-	circles = [CIRCLETICKET_CIRCLE.format(groupchat.chat_id) for groupchat in backend.user_service.get_groupchat_batch(user)]
+	circles = [CIRCLETICKET_CIRCLE.format(groupchat.chat_id) for groupchat in backend.user_service.get_groupchat_batch(user) if groupchat.memberships[user.uuid].state in (GroupChatState.Accepted,GroupChatState.WaitingResponse)]
 	
 	circleticket = encode_payload(CIRCLETICKET,
 		circles = ''.join(circles), now = date_format(datetime.utcnow()), cid = cid_format(user.uuid, decimal = True),

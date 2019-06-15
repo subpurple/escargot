@@ -203,9 +203,12 @@ class UserService:
 			dbgroupchat = DBGroupChat(
 				chat_id = chat_id, name = name,
 				owner_id = user.id, owner_uuid = user.uuid, owner_friendly = owner_friendly, membership_access = membership_access, request_membership_option = 0,
+				memberships = [{
+					'uuid': user.uuid,
+					'role': int(GroupChatRole.Admin), 'state': int(GroupChatState.Accepted), 'blocking': False,
+					'inviter_uuid': None, 'inviter_email': None, 'inviter_name': None, 'invite_message': None,
+				}],
 			)
-			
-			dbgroupchat.add_membership(user.uuid, int(GroupChatRole.Admin), int(GroupChatState.Accepted))
 			
 			sess.add(dbgroupchat)
 		
@@ -226,14 +229,15 @@ class UserService:
 				 dbgroupchat.membership_access, dbgroupchat.request_membership_option,
 			)
 			
-			for uuid, member_properties in dbgroupchat._memberships.items():
-				head = self.get(uuid)
+			for membership in dbgroupchat.memberships:
+				head = self.get(membership['uuid'])
 				if head is None: continue
 				
-				groupchat.memberships[uuid] = GroupChatMembership(
+				groupchat.memberships[membership['uuid']] = GroupChatMembership(
 					dbgroupchat.chat_id, head,
-					GroupChatRole(member_properties['role']), GroupChatState(member_properties['state']),
-					inviter_uuid = member_properties.get('inviter_uuid'), inviter_email = member_properties.get('inviter_email'), inviter_name = member_properties.get('inviter_name'), invite_message = member_properties.get('invite_message'),
+					GroupChatRole(membership['role']), GroupChatState(membership['state']),
+					blocking = membership['blocking'],
+					inviter_uuid = membership['inviter_uuid'], inviter_email = membership['inviter_email'], inviter_name = membership['inviter_name'], invite_message = membership['invite_message'],
 				)
 		
 		return groupchat
@@ -259,12 +263,18 @@ class UserService:
 			dbgroupchats = sess.query(DBGroupChat)
 			
 			for dbgroupchat in dbgroupchats:
+				membership_found = False
+				
 				if dbgroupchat.chat_id in self._groupchat_cache_by_chat_id:
 					groupchat = self._groupchat_cache_by_chat_id[dbgroupchat.chat_id]
 					if groupchat is None: continue
 					if user.uuid not in groupchat.memberships: continue
 				else:
-					if dbgroupchat.get_membership(user.uuid) is None: continue
+					for membership in dbgroupchat.memberships:
+						if membership['uuid'] == user.uuid:
+							membership_found = True
+							break
+					if not membership_found: continue
 				
 				groupchat = self.get_groupchat(dbgroupchat.chat_id)
 				if groupchat is None: continue
@@ -280,8 +290,11 @@ class UserService:
 				dbgroupchat.name = groupchat.name
 				dbgroupchat.membership_access = groupchat.membership_access
 				dbgroupchat.request_membership_option = groupchat.request_membership_option
-				for membership in groupchat.memberships.values():
-					dbgroupchat.add_membership(membership.head.uuid, int(membership.role), int(membership.state), inviter_uuid = membership.inviter_uuid, inviter_email = membership.inviter_email, inviter_name = membership.inviter_name, invite_message = membership.invite_message)
+				dbgroupchat.memberships = [{
+					'uuid': membership.head.uuid,
+					'role': int(membership.role), 'state': int(membership.state), 'blocking': membership.blocking,
+					'inviter_uuid': membership.inviter_uuid, 'inviter_email': membership.inviter_email, 'inviter_name': membership.inviter_name, 'invite_message': membership.invite_message,
+				} for membership in groupchat.memberships.values()]
 				sess.add(dbgroupchat)
 	
 	def save_batch(self, to_save: List[Tuple[User, UserDetail]]) -> None:
