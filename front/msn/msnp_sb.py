@@ -307,7 +307,7 @@ class ChatEventHandler(event.ChatEventHandler):
 		if first_pop and pop_id_other is not None and ctrl.dialect >= 16:
 			ctrl.send_reply('JOI', user.email, user.status.name, *extra)
 	
-	def on_participant_left(self, cs_other: ChatSession, idle: bool, last_pop: bool) -> None:
+	def on_participant_left(self, cs_other: ChatSession, last_pop: bool) -> None:
 		ctrl = self.ctrl
 		if not last_pop and ctrl.dialect < 16: return
 		pop_id_other = cs_other.bs.front_data.get('msn_pop_id')
@@ -315,13 +315,9 @@ class ChatEventHandler(event.ChatEventHandler):
 			email = '{};{}'.format(cs_other.user.email, '{' + pop_id_other + '}')
 		else:
 			email = cs_other.user.email
-		if idle:
-			extra = (1,) # type: Tuple[Any, ...]
-		else:
-			extra = ()
-		self.ctrl.send_reply('BYE', email, *extra)
+		self.ctrl.send_reply('BYE', email)
 		if last_pop and pop_id_other is not None and ctrl.dialect >= 16:
-			self.ctrl.send_reply('BYE', cs_other.user.email, *extra)
+			self.ctrl.send_reply('BYE', cs_other.user.email)
 	
 	def on_chat_updated(self) -> None:
 		pass
@@ -336,8 +332,8 @@ class ChatEventHandler(event.ChatEventHandler):
 		if data.type is not MessageType.TypingDone:
 			self.ctrl.send_reply('MSG', data.sender.email, data.sender.status.name, messagedata_to_msnp(data))
 	
-	def on_close(self, keep_future: bool, idle: bool) -> None:
-		self.ctrl.close(hard = idle)
+	def on_close(self) -> None:
+		self.ctrl.close()
 
 def messagedata_from_msnp(sender: User, sender_pop_id: Optional[str], data: bytes) -> MessageData:
 	# TODO: Implement these `Content-Type`s:

@@ -1321,10 +1321,10 @@ async def handle_rsi(req: web.Request) -> web.Response:
 		if not messageIds:
 			return render(req, 'msn:oim/Fault.validation.xml', status = 500)
 		for messageId in messageIds:
-			if backend.user_service.get_oim_single(user, messageId) is None:
+			if backend.user_service.get_oim_single(user, str(messageId)) is None:
 				return render(req, 'msn:oim/Fault.validation.xml', status = 500)
 		for messageId in messageIds:
-			backend.user_service.delete_oim(user.uuid, messageId)
+			backend.user_service.delete_oim(user.uuid, str(messageId))
 		bs.evt.msn_on_oim_deletion(len(messageIds))
 		return render(req, 'msn:oim/DeleteMessagesResponse.xml')
 	

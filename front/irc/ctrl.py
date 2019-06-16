@@ -245,14 +245,14 @@ class ChatEventHandler(event.ChatEventHandler):
 	def __init__(self, ctrl: IRCCtrl) -> None:
 		self.ctrl = ctrl
 	
-	def on_close(self, keep_future: bool, idle: bool) -> None:
+	def on_close(self) -> None:
 		self.ctrl.chat_sessions.pop(self.cs.chat, None)
 	
 	def on_participant_joined(self, cs_other: ChatSession, first_pop: bool, initial_join: bool) -> None:
 		if first_pop:
 			self.ctrl.send_reply('JOIN', self.cs.chat.ids['irc'], source = cs_other.user.email)
 	
-	def on_participant_left(self, cs_other: ChatSession, idle: bool, last_pop: bool) -> None:
+	def on_participant_left(self, cs_other: ChatSession, last_pop: bool) -> None:
 		if last_pop:
 			self.ctrl.send_reply('PART', self.cs.chat.ids['irc'], source = cs_other.user.email)
 	

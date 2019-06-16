@@ -392,7 +392,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		
 		self.send_reply('MSG', 'Hotmail', 'Hotmail', msg1)
 		
-		if dialect >= 13:
+		if dialect >= 11:
 			msg2 = encode_payload(PAYLOAD_MSG_2,
 				ct = 'text/x-msmsgsinitialmdatanotification', md = gen_mail_data(user, self.backend),
 			)
@@ -1081,7 +1081,6 @@ class MSNPCtrlNS(MSNPCtrl):
 		
 		bs.me_update({
 			'substatus': MSNStatus.ToSubstatus(getattr(MSNStatus, sts_name)),
-			'refresh_profile': True,
 		})
 		
 		extra = () # type: Tuple[Any, ...]
@@ -1967,7 +1966,7 @@ class GroupChatEventHandler(event.ChatEventHandler):
 			cl = len(result), payload = result,
 		))
 	
-	def on_participant_left(self, cs_other: ChatSession, idle: bool, last_pop: bool) -> None:
+	def on_participant_left(self, cs_other: ChatSession, last_pop: bool) -> None:
 		pass
 	
 	def on_chat_updated(self) -> None:

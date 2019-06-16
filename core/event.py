@@ -105,14 +105,14 @@ class ChatEventHandler(metaclass = ABCMeta):
 	def on_open(self) -> None:
 		pass
 	
-	def on_close(self, keep_future: bool, idle: bool) -> None:
+	def on_close(self) -> None:
 		pass
 	
 	@abstractmethod
 	def on_participant_joined(self, cs_other: 'ChatSession', first_pop: bool, initial_join: bool) -> None: pass
 	
 	@abstractmethod
-	def on_participant_left(self, cs_other: 'ChatSession', idle: bool, last_pop: bool) -> None: pass
+	def on_participant_left(self, cs_other: 'ChatSession', last_pop: bool) -> None: pass
 	
 	@abstractmethod
 	def on_chat_updated(self) -> None: pass

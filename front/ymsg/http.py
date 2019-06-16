@@ -282,7 +282,7 @@ async def handle_ft_http(req: web.Request) -> web.Response:
 		raise web.HTTPInternalServerError
 	
 	path = _get_tmp_file_storage_path()
-	path.mkdir(exist_ok = True)
+	path.mkdir(exist_ok = True, parents = True)
 	
 	file_tmp_path = path / unquote_plus(filename)
 	file_tmp_path.write_bytes(stream)

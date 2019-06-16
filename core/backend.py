@@ -191,7 +191,6 @@ class Backend:
 		for ctc in detail.contacts.values():
 			if ctc.lists & Lst.FL:
 				ctc.status.old_substatus = ctc.status.substatus
-				ctc.status.old_message = ctc.status.message
 				ctc.compute_visible_status(user)
 			
 			# If the contact lists ever become inconsistent (FL without matching RL),
@@ -204,7 +203,6 @@ class Backend:
 			ctc_rev = ctc.head.detail.contacts.get(user.uuid)
 			if ctc_rev is None: continue
 			ctc_rev.status.old_substatus = ctc_rev.status.substatus
-			ctc_rev.status.old_message = ctc_rev.status.message
 			ctc_rev.compute_visible_status(ctc.head)
 	
 	def _notify_contacts(self, bs: 'BackendSession', *, for_logout: bool = False, sess_id: Optional[int] = None, on_contact_add: bool = False, updated_phone_info: Optional[Dict[str, Any]] = None, update_status: bool = True, send_notif_to_self: bool = True) -> None:
@@ -308,15 +306,10 @@ class Backend:
 			except:
 				traceback.print_exc()
 	
-	async def _remove_groupchat_membership_async(self, groupchat: GroupChat, user: User) -> None:
-		await asyncio.sleep(1)
-		#if user.uuid in groupchat.memberships:
-		#	del groupchat.memberships[user.uuid]
-		#	self._mark_groupchat_modified(groupchat)
-	
 	async def _worker_notify(self) -> None:
 		# Notify relevant `BackendSession`s of status, name, message, media, etc. changes
 		worklist = self._worklist_notify
+		
 		while True:
 			await asyncio.sleep(0.2)
 			try:
@@ -418,7 +411,7 @@ class BackendSession(Session):
 				user.status.set_status_message(fields['message'], persistent = not fields.get('message_temp'))
 				needs_notify = True
 				notify_status = True
-				if 'send_notif_to_self' in fields and fields['message'] != old_message:
+				if 'send_notif_to_self' in fields:
 					send_notif_to_self = fields['send_notif_to_self']
 		if 'media' in fields:
 			if fields['media'] is not None:
@@ -463,13 +456,13 @@ class BackendSession(Session):
 			needs_notify = True
 			updated_phone_info['MBE'] = fields['mbe']
 		if 'substatus' in fields:
-			if fields['substatus'] is not None:
-				user.status.substatus = fields['substatus']
-				if old_substatus is not user.status.substatus or fields.get('refresh_profile'):
-					needs_notify = True
-					notify_status = True
-					if 'send_notif_to_self' in fields:
-						send_notif_to_self = fields['send_notif_to_self']
+			user.status.old_substatus = old_substatus
+			user.status.substatus = fields['substatus']
+			
+			needs_notify = True
+			notify_status = True
+			if 'send_notif_to_self' in fields:
+				send_notif_to_self = fields['send_notif_to_self']
 		if 'notify_self' in fields:
 			notify_self = fields['notify_self']
 		if 'gtc' in fields:
@@ -826,8 +819,6 @@ class BackendSession(Session):
 		for cs in chat.get_roster():
 			if cs.user is user: continue
 			cs.bs.evt.on_chat_invite_declined(chat, user, group_chat = True)
-		
-		backend.loop.create_task(backend._remove_groupchat_membership_async(groupchat, user))
 	
 	def me_block_circle(self, groupchat: GroupChat) -> None:
 		user = self.user
@@ -1024,13 +1015,13 @@ class Chat:
 				if self.groupchat.memberships[cs.user.uuid].blocking and cs_other.user is not cs.user and not send_on_bl: continue
 			cs_other.evt.on_participant_status_updated(cs, first_pop, initial)
 	
-	def on_leave(self, sess: 'ChatSession', keep_future: bool, idle: bool, send_idle_leave: bool) -> None:
+	def on_leave(self, sess: 'ChatSession') -> None:
 		su = self._users_by_sess.pop(sess, None)
 		if su is None: return
 		last_pop = False
 		# TODO: If it goes down to only 1 connected user,
 		# the chat and remaining session(s) should be automatically closed.
-		if not self._users_by_sess and not (keep_future or self.groupchat):
+		if not self._users_by_sess and self.groupchat is None:
 			for scope_id in self.ids.items():
 				del self.backend._chats_by_id[scope_id]
 			return
@@ -1046,10 +1037,9 @@ class Chat:
 		else:
 			last_pop = True
 		# Notify others that `sess` has left
-		if (idle and send_idle_leave) or not idle:
-			for sess1, _ in self._users_by_sess.items():
-				if sess1 is sess: continue
-				sess1.evt.on_participant_left(sess, idle, last_pop)
+		for sess1, _ in self._users_by_sess.items():
+			if sess1 is sess: continue
+			sess1.evt.on_participant_left(sess, last_pop)
 
 class ChatSession(Session):
 	__slots__ = ('origin', 'user', 'chat', 'bs', 'evt', 'primary_pop', 'front_data', 'preferred_name')
@@ -1075,11 +1065,8 @@ class ChatSession(Session):
 		self.preferred_name = preferred_name
 	
 	def _on_close(self, **kwargs: Any) -> None:
-		keep_future = kwargs.pop('keep_future', False)
-		idle = kwargs.pop('idle', False)
-		send_idle_leave = kwargs.pop('send_idle_leave', False)
-		self.evt.on_close(keep_future, idle)
-		self.chat.on_leave(self, keep_future, idle, send_idle_leave)
+		self.evt.on_close()
+		self.chat.on_leave(self)
 	
 	def invite(self, invitee: User, *, invite_msg: Optional[str] = None) -> None:
 		already_invited_sessions = [] # type: List[BackendSession]

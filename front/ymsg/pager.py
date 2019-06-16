@@ -762,7 +762,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 			return
 		cs = self._get_chat_session(yahoo_id, chat)
 		if cs is not None:
-			cs.close(keep_future = True)
+			cs.close()
 	
 	# Other functions
 	
@@ -854,6 +854,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 			cs = chat.join('yahoo', bs, evt)
 			bs.front_data['ymsg_private_chats'][other_user_uuid] = (cs, evt)
 			cs.invite(other_user)
+			self.backend.loop.create_task(self._check_private_chat(chat, other_user, bs))
 		elif other_user.status.is_offlineish():
 			raise error.ContactNotOnline()
 		return bs.front_data['ymsg_private_chats'].get(other_user_uuid)
@@ -948,6 +949,44 @@ class YMSGCtrlPager(YMSGCtrlBase):
 			add_contact_status_to_data(logon_payload, c.status, c.head)
 		
 		self.send_reply(YMSGService.LogOn, YMSGStatus.Available, self.sess_id, logon_payload)
+	
+	async def _check_private_chat(self, chat: Chat, other_user: User, bs: BackendSession) -> None:
+		while True:
+			await asyncio.sleep(0.1)
+			
+			if 'ymsg_twoway_only' in chat.front_data:
+				if len(list(chat.get_roster_single())) > 2:
+					del chat.front_data['ymsg_twoway_only']
+					cs = bs.front_data['ymsg_private_chats'][other_user.uuid][0]
+					del bs.front_data['ymsg_private_chats'][other_user.uuid]
+					
+					self.chat_sessions[chat] = cs
+					
+					# Private YMSG chat has turned into a multi-user chat; send invite
+					if 'ymsg/conf' not in chat.ids:
+						chat.add_id('ymsg/conf', chat.ids['main'])
+					conf_invite_dict = MultiDict([
+						(b'1', arbitrary_encode(self.yahoo_id or '')),
+						(b'57', arbitrary_encode(chat.ids['ymsg/conf'])),
+						(b'50', arbitrary_encode(misc.yahoo_id(other_user.email))),
+						(b'58', b''),
+					]) # type: MultiDict[bytes, bytes]
+					
+					roster = list(chat.get_roster_single())
+					for cs in roster:
+						if cs.user.uuid in (bs.user.uuid,other_user.uuid): continue
+						conf_invite_dict.add(b'52', arbitrary_encode(cs.preferred_name or misc.yahoo_id(cs.user.email)))
+						conf_invite_dict.add(b'53', arbitrary_encode(cs.preferred_name or misc.yahoo_id(cs.user.email)))
+					
+					conf_invite_dict.add(b'13', arbitrary_encode(chat.front_data.get('ymsg_voice_chat') or '0'))
+					
+					self.send_reply(YMSGService.ConfAddInvite if len(roster) > 1 else YMSGService.ConfInvite, YMSGStatus.BRB, self.sess_id, conf_invite_dict)
+					break
+				elif len(list(chat.get_roster_single())) == 1:
+					cs = bs.front_data['ymsg_private_chats'][other_user.uuid][0]
+					del bs.front_data['ymsg_private_chats'][other_user.uuid]
+					cs.close()
+					break
 	
 	def _get_oims(self, user: User) -> None:
 		oims = self.backend.user_service.get_oim_batch(user)
@@ -1182,7 +1221,7 @@ class BackendEventHandler(event.BackendEventHandler):
 				
 				add_contact_status_to_data(yahoo_data, ctc.status, ctc.head, old_substatus = old_substatus, sess_id = sess_id)
 				
-				self.ctrl.send_reply(service, (YMSGStatus.Available if not visible_notif and service is YMSGService.LogOn else YMSGStatus.BRB), self.sess_id, yahoo_data)
+				self.ctrl.send_reply(service, (YMSGStatus.Available if visible_notif and service is YMSGService.LogOn else YMSGStatus.BRB), self.sess_id, yahoo_data)
 	
 	def on_presence_self_notification(self) -> None:
 		pass
@@ -1321,8 +1360,8 @@ class ChatEventHandler(event.ChatEventHandler):
 		self.ctrl = ctrl
 		self.bs = bs
 	
-	def on_close(self, keep_future: bool, idle: bool) -> None:
-		if not keep_future: self.ctrl.chat_sessions.pop(self.cs.chat, None)
+	def on_close(self) -> None:
+		self.ctrl.chat_sessions.pop(self.cs.chat, None)
 	
 	def on_participant_joined(self, cs_other: ChatSession, first_pop: bool, initial_join: bool) -> None:
 		if self.cs.chat.front_data.get('ymsg_twoway_only') or not first_pop:
@@ -1333,7 +1372,7 @@ class ChatEventHandler(event.ChatEventHandler):
 			(b'53', arbitrary_encode(cs_other.preferred_name or misc.yahoo_id(cs_other.user.email))),
 		]))
 	
-	def on_participant_left(self, cs_other: ChatSession, idle: bool, last_pop: bool) -> None:
+	def on_participant_left(self, cs_other: ChatSession, last_pop: bool) -> None:
 		if 'ymsg/conf' not in cs_other.chat.ids:
 			# Yahoo only receives this event in "conferences"
 			return
