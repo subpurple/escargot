@@ -306,6 +306,12 @@ class Backend:
 			except:
 				traceback.print_exc()
 	
+	async def _remove_groupchat_membership_async(self, groupchat: GroupChat, user: User) -> None:
+		await asyncio.sleep(1)
+		#if user.uuid in groupchat.memberships:
+		#	del groupchat.memberships[user.uuid]
+		#	self._mark_groupchat_modified(groupchat)
+	
 	async def _worker_notify(self) -> None:
 		# Notify relevant `BackendSession`s of status, name, message, media, etc. changes
 		worklist = self._worklist_notify
