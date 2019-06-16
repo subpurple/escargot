@@ -126,7 +126,7 @@ class UserService:
 	def get_oim_single(self, user: User, uuid: str, *, mark_read: bool = False) -> Optional[OIM]:
 		oim_path = _get_oim_path(user.uuid) / uuid
 		
-		if oim_path.is_file():
+		if not oim_path.is_file():
 			return None
 		
 		json_oim = json.loads(oim_path.read_text())
