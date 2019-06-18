@@ -2,10 +2,11 @@ DB = 'sqlite:///escargot.sqlite'
 STATS_DB = 'sqlite:///stats.sqlite'
 TARGET_HOST = 'm1.escargot.log1p.xyz'
 LOGIN_HOST = 'm1.escargot.log1p.xyz'
-YAHOO_FT_DL_HOST = 'https://yahoo-ftstore.log1p.xyz'
+YAHOO_FT_DL_HOST = 'https://filestore.log1p.xyz'
 STORAGE_HOST = LOGIN_HOST
-# While not necessary for debugging, it is recommended you change the `SYSBOARD_PASS` variable for security reasons.
+# While not necessary for debugging, it is recommended you change the password variables in production for security reasons.
 SYSBOARD_PASS = 'root'
+SITE_LINK_PASSWORD = 'password'
 
 DEBUG = False
 DEBUG_MSNP = False

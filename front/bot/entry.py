@@ -57,6 +57,9 @@ class BackendEventHandler(event.BackendEventHandler):
 	def on_groupchat_updated(self, chat_id: str) -> None:
 		pass
 	
+	def on_left_groupchat(self, chat_id: str) -> None:
+		pass
+	
 	def on_groupchat_role_updated(self, chat_id: str, role: GroupChatRole) -> None:
 		pass
 	

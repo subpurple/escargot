@@ -32,6 +32,8 @@ def main(*, devmode: bool = False) -> None:
 	
 	import core.sysboard
 	core.sysboard.register(loop, backend, devmode = devmode)
+	import core.site2server
+	core.site2server.register(loop, backend)
 	
 	if devmode:
 		if settings.ENABLE_FRONT_DEVBOTS:

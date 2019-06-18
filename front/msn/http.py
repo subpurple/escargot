@@ -1032,8 +1032,8 @@ async def handle_abservice(req: web.Request) -> web.Response:
 			
 			membership = groupchat.memberships.get(head.uuid)
 			
-			if membership is not None and membership.state == models.GroupChatState.Rejected:
-				bs.me_change_groupchat_membership(groupchat, head, role = models.GroupChatRole.Empty, state = models.GroupChatState.Empty, send_notif = False)
+			if membership is not None and membership.state in (models.GroupChatState.Rejected,models.GroupChatState.Left):
+				bs.me_change_groupchat_membership(groupchat, head, role = models.GroupChatRole.Empty, state = models.GroupChatState.Empty)
 			else:
 				try:
 					bs.me_add_user_to_groupchat(groupchat, head)
@@ -1121,16 +1121,8 @@ async def handle_abservice(req: web.Request) -> web.Response:
 					if wl_action == 1:
 						if relationship_role == 0:
 							if ab_id == '00000000-0000-0000-0000-000000000000':
-								membership = groupchat.memberships[head.uuid]
-								if not (membership.role == models.GroupChatRole.StatePendingOutbound and membership.state == models.GroupChatState.WaitingResponse):
-									return render(req, 'msn:abservice/ManageWLConnectionResponse.xml', {
-										'cachekey': cachekey,
-										'host': settings.LOGIN_HOST,
-										'session_id': util.misc.gen_uuid(),
-										'error': 'User `{email}` already accepted in `GroupChat`'.format(email = head.email),
-									})
 								try:
-									bs.me_change_groupchat_membership(groupchat, head, role = models.GroupChatRole.Member, state = models.GroupChatState.Accepted, bs = bs)
+									bs.me_accept_groupchat_invite(groupchat)
 								except error.MemberNotInGroupChat:
 									return render(req, 'msn:abservice/ManageWLConnectionResponse.xml', {
 										'cachekey': cachekey,
@@ -1138,6 +1130,13 @@ async def handle_abservice(req: web.Request) -> web.Response:
 										'session_id': util.misc.gen_uuid(),
 										'error': 'User `{email}` does not have membership in `GroupChat`'.format(email = head.email),
 									}, status = 500)
+								except error.MemberAlreadyInGroupChat:
+									return render(req, 'msn:abservice/ManageWLConnectionResponse.xml', {
+										'cachekey': cachekey,
+										'host': settings.LOGIN_HOST,
+										'session_id': util.misc.gen_uuid(),
+										'error': 'User `{email}` already accepted in `GroupChat`'.format(email = head.email),
+									})
 								except error.GroupChatDoesNotExist:
 									return render(req, 'msn:abservice/ManageWLConnectionResponse.xml', {
 										'cachekey': cachekey,
@@ -1186,14 +1185,6 @@ async def handle_abservice(req: web.Request) -> web.Response:
 							}, status = 500)
 					elif wl_action == 2:
 						if ab_id == '00000000-0000-0000-0000-000000000000':
-								membership = groupchat.memberships[head.uuid]
-								if not (membership.role == models.GroupChatRole.StatePendingOutbound and membership.state == models.GroupChatState.WaitingResponse):
-									return render(req, 'msn:abservice/ManageWLConnectionResponse.xml', {
-										'cachekey': cachekey,
-										'host': settings.LOGIN_HOST,
-										'session_id': util.misc.gen_uuid(),
-										'error': 'User `{email}` already accepted in `GroupChat`'.format(email = head.email),
-									})
 								try:
 									bs.me_decline_groupchat_invite(groupchat)
 								except error.MemberNotInGroupChat:
@@ -1203,6 +1194,13 @@ async def handle_abservice(req: web.Request) -> web.Response:
 										'session_id': util.misc.gen_uuid(),
 										'error': 'User `{email}` does not have membership in `GroupChat`'.format(email = head.email),
 									}, status = 500)
+								except error.MemberAlreadyInGroupChat:
+									return render(req, 'msn:abservice/ManageWLConnectionResponse.xml', {
+										'cachekey': cachekey,
+										'host': settings.LOGIN_HOST,
+										'session_id': util.misc.gen_uuid(),
+										'error': 'User `{email}` already accepted in `GroupChat`'.format(email = head.email),
+									})
 								except error.GroupChatDoesNotExist:
 									return render(req, 'msn:abservice/ManageWLConnectionResponse.xml', {
 										'cachekey': cachekey,
@@ -1796,8 +1794,6 @@ def _get_storage_path(uuid: str) -> Path:
 
 async def join_creator_to_groupchat(backend: Backend, user: models.User, chat_id: str) -> None:
 	for sess in backend.util_get_sessions_by_user(user):
-		await asyncio.sleep(0.2)
-		sess.evt.msn_on_notify_ab()
 		await asyncio.sleep(0.2)
 		sess.evt.on_groupchat_created(chat_id)
 

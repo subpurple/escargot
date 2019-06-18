@@ -175,13 +175,12 @@ class ContactLocation:
 		self.zip_code = zip_code
 
 class UserStatus:
-	__slots__ = ('substatus', 'old_substatus', 'name', '_message', 'old_message', '_persistent', 'media')
+	__slots__ = ('substatus', 'old_substatus', 'name', '_message', '_persistent', 'media')
 	
 	substatus: 'Substatus'
 	old_substatus: 'Substatus'
 	name: Optional[str]
 	_message: str
-	old_message: str
 	_persistent: bool
 	media: Optional[Any]
 	
@@ -190,7 +189,6 @@ class UserStatus:
 		self.old_substatus = Substatus.Offline
 		self.name = name
 		self._message = message
-		self.old_message = message
 		self._persistent = True
 		self.media = None
 	
