@@ -362,6 +362,7 @@ class Backend:
 	async def _worker_notify(self) -> None:
 		# Notify relevant `BackendSession`s of status, name, message, media, etc. changes
 		worklist = self._worklist_notify
+		
 		while True:
 			await asyncio.sleep(0.2)
 			try:

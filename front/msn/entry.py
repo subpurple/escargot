@@ -10,13 +10,15 @@ from .msnp import MSNPCtrl
 
 def register(loop: asyncio.AbstractEventLoop, backend: Backend, http_app: web.Application) -> None:
 	from util.misc import ProtocolRunner
-	from . import msnp_ns, msnp_sb, http, http_gateway, http_sound
+	from . import msnp_ns, msnp_sb
+	from .http import abservice, gateway, other, sound
 	
 	backend.add_runner(ProtocolRunner('0.0.0.0', 1863, ListenerMSNP, args = ['NS', backend, msnp_ns.MSNPCtrlNS]))
 	backend.add_runner(ProtocolRunner('0.0.0.0', 1864, ListenerMSNP, args = ['SB', backend, msnp_sb.MSNPCtrlSB]))
-	http.register(http_app)
-	http_gateway.register(loop, http_app)
-	http_sound.register(http_app)
+	other.register(http_app)
+	abservice.register(http_app)
+	gateway.register(loop, http_app)
+	sound.register(http_app)
 
 class ListenerMSNP(asyncio.Protocol):
 	logger: Logger
