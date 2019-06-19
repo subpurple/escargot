@@ -723,6 +723,8 @@ class MSNPCtrlNS(MSNPCtrl):
 			
 			if not circle_mode and not self.initial_adl_sent:
 				self.initial_adl_sent = True
+			elif circle_mode and self.initial_adl_sent and not self.circle_adl_sent:
+				self.circle_adl_sent = True
 			
 			for d_el in d_els:
 				domain = d_el.get('n')
@@ -1218,6 +1220,10 @@ class MSNPCtrlNS(MSNPCtrl):
 		payload = nfy_actual[payload_index:]
 		
 		if nfy_headers.get('Content-Type') == 'application/circles+xml':
+			if not self.circle_adl_sent:
+				self.send_reply(Err.InvalidParameter, trid)
+				return
+			
 			if chat_id is None: return
 			
 			groupchat = backend.user_service.get_groupchat(chat_id)

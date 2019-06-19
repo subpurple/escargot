@@ -1016,7 +1016,7 @@ def ab_CreateContact(req: web.Request, header: Any, action: Any, bs: BackendSess
 	detail = user.detail
 	assert detail is not None
 	
-	ab_id = _find_element(action, 'ABId')
+	ab_id = find_element(action, 'ABId')
 	if ab_id is not None:
 		ab_id = str(ab_id)
 	else:
@@ -1026,7 +1026,7 @@ def ab_CreateContact(req: web.Request, header: Any, action: Any, bs: BackendSess
 		return web.HTTPInternalServerError()
 	
 	chat_id = ab_id[-12:]
-	contact_email = _find_element(action, 'Email')
+	contact_email = find_element(action, 'Email')
 	
 	contact_uuid = backend.util_get_uuid_from_email(contact_email)
 	if contact_uuid is None:
@@ -1076,7 +1076,7 @@ def ab_ManageWLConnection(req: web.Request, header: Any, action: Any, bs: Backen
 	detail = user.detail
 	assert detail is not None
 	
-	ab_id = _find_element(action, 'ABId')
+	ab_id = find_element(action, 'ABId')
 	if ab_id is not None:
 		ab_id = str(ab_id)
 	else:
@@ -1089,7 +1089,7 @@ def ab_ManageWLConnection(req: web.Request, header: Any, action: Any, bs: Backen
 	invite_message = None
 	circle_mode = False
 	
-	contact_uuid = _find_element(action, 'contactId')
+	contact_uuid = find_element(action, 'contactId')
 	assert contact_uuid is not None
 	if ab_id != '00000000-0000-0000-0000-000000000000':
 		head = backend._load_user_record(contact_uuid)
@@ -1115,11 +1115,11 @@ def ab_ManageWLConnection(req: web.Request, header: Any, action: Any, bs: Backen
 		if groupchat is None or uuid not in groupchat.memberships:
 			return web.HTTPInternalServerError()
 	
-	if _find_element(action, 'connection') == True:
+	if find_element(action, 'connection') == True:
 		try:
-			relationship_type = models.RelationshipType(_find_element(action, 'relationshipType'))
-			relationship_role = int(_find_element(action, 'relationshipRole'))
-			wl_action = int(_find_element(action, 'action'))
+			relationship_type = models.RelationshipType(find_element(action, 'relationshipType'))
+			relationship_role = int(find_element(action, 'relationshipRole'))
+			wl_action = int(find_element(action, 'action'))
 		except ValueError:
 			return render(req, 'msn:abservice/ManageWLConnectionResponse.xml', {
 				'cachekey': cachekey,
@@ -1166,8 +1166,8 @@ def ab_ManageWLConnection(req: web.Request, header: Any, action: Any, bs: Backen
 				elif relationship_role == 3:
 					annotations = action.findall('.//{*}annotations/{*}Annotation')
 					for annotation in annotations:
-						name = _find_element(annotation, 'Name')
-						value = _find_element(annotation, 'Value')
+						name = find_element(annotation, 'Name')
+						value = find_element(annotation, 'Value')
 						
 						if name == 'MSN.IM.InviteMessage':
 							invite_message = value
