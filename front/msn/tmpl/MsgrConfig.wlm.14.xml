@@ -159,7 +159,6 @@
 				<width>808</width>
 				<urlcid>http://cid-%1!16.16I64X!.profile.live.com/invites?partner=Messenger</urlcid>
 			</ABPendingRequests>
-			<EditAlertNotificationOptions><url>http://alerts.live.com/Alerts/MyAlerts.aspx</url></EditAlertNotificationOptions>
 			<EditMyLiveContactProfile>
 				<url>http://spaces.live.com/profile.aspx?action=edit&amp;mode=activecontacts&amp;mkt=en-us&amp;partner=Messenger</url>
 				<SiteId>73625</SiteId>
@@ -168,49 +167,17 @@
 				<url>http://profile.live.com/details</url>
 				<SiteId>73625</SiteId>
 			</EditMyProfile>
-			<EditMyName>
-				<url>http://profile.live.com/details/edit/name</url>
-				<SiteId>73625</SiteId>
-			</EditMyName>
-			<EditMyPrivacySettings>
-				<url>http://profile.live.com/privacy</url>
-				<SiteId>73625</SiteId>
-			</EditMyPrivacySettings>
-			<EditWLPersonURL>
-				<url>http://cid-%1!16.16I64X!.profile.live.com/details/Edit </url>
-				<SiteId>73625</SiteId>
-			</EditWLPersonURL>
-			<EditNonWLPersonURL>
-				<url>http://cid-%1!16.16I64X!.profile.live.com/details/Edit/?ContactId=%2 </url>
-				<SiteId>73625</SiteId>
-			</EditNonWLPersonURL>
-			<Export>
-				<url>http://mail.live.com/?rru=options?subsection=26</url>
-				<SiteId>73625</SiteId>
-			</Export>
-			<Marketplace>
-				<url>http://expo.live.com/BuddyProfile.aspx?cid=</url>
-				<SiteId>67227</SiteId>
-			</Marketplace>
 			<MessengerInvite>
 				<url>http://cid-%1.profile.live.com/connect/send.aspx?email=%2</url>
 				<urlcid>http://cid-%1.profile.live.com/connect/send.aspx?cid=%2</urlcid>
 				<SiteId>73625</SiteId>
 			</MessengerInvite>
-			<PeopleSearch>
-				<url>http://home.live.com/search</url>
-				<SiteId>73625</SiteId>
-			</PeopleSearch>
 			<Profile>
 				<url>http://spaces.live.com/Profile.aspx?partner=Messenger&amp;mkt=en-us&amp;mem=%ls</url>
 				<urlcid>http://spaces.live.com/Profile.aspx?partner=Messenger&amp;mkt=en-us&amp;cid=%ls</urlcid>
 				<urlcid2>http://cid-%1!16.16I64X!.profile.live.com</urlcid2>
 				<SiteId>73625</SiteId>
 			</Profile>
-			<SNHip>
-				<url>http://cid-%1!16.16I64X!.profile.live.com/SecurityCheck/?oid=%2&amp;usercid=%3</url>
-				<SiteId>73625</SiteId>
-			</SNHip>
 			<SNInvites>
 				<url>http://cid-%1.profile.live.com/connect/Messenger.aspx?Email=%2</url>
 				<urlcid>http://cid-%1.profile.live.com/connect/Messenger.aspx?cid=0x%2</urlcid>
@@ -223,10 +190,6 @@
 			<GetItemVerUrl>http://storage.msn.com/storageservice/schematizedstore.asmx</GetItemVerUrl>
 		</ContactCard>
 		<FlashUpgradeURL>http://get.adobe.com/flashplayer/thankyou/activex/?installer=Flash_Player_10_for_Windows_Internet_Explorer</FlashUpgradeURL>
-		<FSS>
-			<SiteID>71659</SiteID>
-			<AddBuddyURL>https://fss.live.com/krl/kidsinfo.aspx</AddBuddyURL>
-		</FSS>
 		<GLinkMarket v="en_us" />
 		<IntroConfig />
 		<LiveFolders UpsellMessageId="1" />
@@ -244,12 +207,12 @@
 		</MSNSearch>
 		<MsnTodayConfig>
 			<MsnTodaySiteID>1184</MsnTodaySiteID>
-			<MsnTodayURL>http://escargot.log1p.xyz/etc/escargot-today</MsnTodayURL>
+			<MsnTodayURL>https://escargot.log1p.xyz/news</MsnTodayURL>
 			<Flags>2</Flags>
 		</MsnTodayConfig>
 		<OneCare Enabled="1" />
 		<PartnerFeeds>
-			<Feed Name="MSN" URL="https://escargot.log1p.xyz/etc/escargot-today" Owner="MSN" />
+			<Feed Name="MSN" URL="https://escargot.log1p.xyz/news" Owner="MSN" />
 		</PartnerFeeds>
 		<PremiumAV Visibility="1" />
 		<PSTNOut Hidden="0" />
@@ -259,7 +222,9 @@
 			<BiciReportAbuseApiUrl>https://home.live.com/handlers/ReportAbuse.mvc</BiciReportAbuseApiUrl>
 			<BiciReportAbuseApiServiceTarget>spaces.live.com</BiciReportAbuseApiServiceTarget>
 		</ReportAbuse>
-		<RL><ViewProfileURL>http://g.msn.com/5meen_us/106?%1&amp;Plcid=%2!hs!&amp;%3&amp;Country=%4!hs!&amp;BrandID=%5&amp;passport=%6</ViewProfileURL></RL>
+		<RL>
+			<ViewProfileURL>http://g.msn.com/5meen_us/106?%1&amp;Plcid=%2!hs!&amp;%3&amp;Country=%4!hs!&amp;BrandID=%5&amp;passport=%6</ViewProfileURL>
+		</RL>
 		<SDrive Enabled="true" />
 		<TermsOfUse>
 			<TermsOfUseSID>956</TermsOfUseSID>

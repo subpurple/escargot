@@ -284,7 +284,6 @@ def ab_ABContactAdd(req: web.Request, header: Any, action: Any, bs: BackendSessi
 		}, status = 500)
 	
 	annotations = contact.findall('.//{*}annotations/{*}Annotation')
-	annotations_dict = {} # type: Dict[str, Any]
 	if annotations:
 		for annotation in annotations:
 			name = find_element(annotation, 'Name')

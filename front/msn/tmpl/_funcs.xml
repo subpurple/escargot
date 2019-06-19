@@ -183,7 +183,7 @@
 					</Annotation>
 					{%- if user.settings.get('MPOP') -%}
 						<Annotation>
-							<Name>MSN.IM.RoamLiveProperties</Name>
+							<Name>MSN.IM.MPOP</Name>
 							<Value>{{ user.settings.get('MPOP') }}</Value>
 						</Annotation>
 					{%- endif -%}
