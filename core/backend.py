@@ -987,7 +987,7 @@ class Chat:
 		self._users_by_sess = {}
 		self._stats = stats
 		
-		self.add_id('main', backend.auth_service.GenTokenStr(trim = 10))
+		self.add_id('main', backend.auth_service.GenTokenStr())
 		if self.groupchat is None: return
 		
 		assert groupchat is not None

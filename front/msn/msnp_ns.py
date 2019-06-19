@@ -32,7 +32,7 @@ MSNP_DIALECTS = ['MSNP{}'.format(d) for d in (
 )]
 
 class MSNPCtrlNS(MSNPCtrl):
-	__slots__ = ('backend', 'dialect', 'usr_email', 'bs', 'client', 'syn_ser', 'gcf_sent', 'syn_sent', 'iln_sent', 'challenge', 'rps_challenge', 'initial_adl_sent', 'circle_adl_sent')
+	__slots__ = ('backend', 'dialect', 'usr_email', 'bs', 'client', 'inf_sent', 'syn_ser', 'gcf_sent', 'syn_sent', 'iln_sent', 'challenge', 'rps_challenge', 'circle_authenticated', 'initial_adl_sent', 'circle_adl_sent')
 	
 	backend: Backend
 	dialect: int
@@ -40,11 +40,13 @@ class MSNPCtrlNS(MSNPCtrl):
 	bs: Optional[BackendSession]
 	client: Client
 	syn_ser: int
+	inf_sent: bool
 	syn_sent: bool
 	gcf_sent: bool
 	iln_sent: bool
 	challenge: Optional[str]
 	rps_challenge: Optional[bytes]
+	circle_authenticated: bool
 	initial_adl_sent: bool
 	circle_adl_sent: bool
 	
@@ -56,11 +58,13 @@ class MSNPCtrlNS(MSNPCtrl):
 		self.bs = None
 		self.client = Client('msn', '?', via)
 		self.syn_ser = 0
+		self.inf_sent = False
 		self.syn_sent = False
 		self.gcf_sent = False
 		self.iln_sent = False
 		self.challenge = None
 		self.rps_challenge = None
+		self.circle_authenticated = False
 		self.initial_adl_sent = False
 		self.circle_adl_sent = False
 	
@@ -75,6 +79,11 @@ class MSNPCtrlNS(MSNPCtrl):
 	
 	def _m_ver(self, trid: str, *args: str) -> None:
 		#>>> VER trid MSNPz MSNPy MSNPx [CVR0]
+		if self.dialect != 0:
+			self.send_reply(Err.NotExpected, trid)
+			self.close(hard = True)
+			return
+		
 		dialects = [a.upper() for a in args]
 		try:
 			t = int(trid)
@@ -99,6 +108,7 @@ class MSNPCtrlNS(MSNPCtrl):
 	def _m_inf(self, trid: str) -> None:
 		dialect = self.dialect
 		if dialect < 8:
+			self.inf_sent = True
 			self.send_reply('INF', trid, 'MD5')
 		else:
 			self.send_reply(Err.CommandDisabled, trid)
@@ -119,10 +129,11 @@ class MSNPCtrlNS(MSNPCtrl):
 			signedticket = args[0]
 			if stage == 'A':
 				#>>> USR trid SHA A b64_signedticket
-				#TODO: Sometimes the Ticket is seen as invalidated even though from capturing packets, the SOAP tickets and NS tickets are the same. Better way to validate these tickets?
-				#if signedticket != base64.b64encode(gen_signedticket_xml(bs, backend).encode('utf-8')).decode('utf-8'):
-				#	self.send_reply(Err.AuthFail, trid)
-				#	return
+				if signedticket != base64.b64encode(gen_signedticket_xml(bs, backend).encode('utf-8')).decode('utf-8'):
+					self.circle_authenticated = False
+					self.send_reply(Err.AuthFail, trid)
+					return
+				self.circle_authenticated = True
 				self.send_reply('USR', trid, 'OK', self.usr_email, 0, 0)
 			return
 		
@@ -132,6 +143,10 @@ class MSNPCtrlNS(MSNPCtrl):
 				return
 			if self.bs:
 				self.send_reply(Err.InvalidUser, trid)
+				return
+			if not self.inf_sent:
+				self.send_reply(Err.NotExpected, trid)
+				self.close(hard = True)
 				return
 			if stage == 'I':
 				#>>> USR trid MD5 I email@example.com
@@ -340,6 +355,8 @@ class MSNPCtrlNS(MSNPCtrl):
 		
 		self.send_reply('USR', trid, 'OK', user.email, *args)
 		
+		(high, low) = _uuid_to_high_low(user.uuid)
+		(ip, port) = self.peername
 		now = datetime.utcnow()
 		
 		if dialect == 21:
@@ -362,34 +379,10 @@ class MSNPCtrlNS(MSNPCtrl):
 				self.send_reply('UBX', *rst, b'')
 		
 		msg1 = encode_payload(PAYLOAD_MSG_1,
-			time = int(now.timestamp()),
+			time = int(now.timestamp()), high = high, low = low,
+			token = token, ip = ip, port = port,
+			mpop = (0 if not machineguid else 1),
 		)
-		
-		if dialect >= 3:
-			(high, low) = _uuid_to_high_low(user.uuid)
-			
-			msg1 += encode_payload(PAYLOAD_MSG_1_1,
-				high = high, low = low,
-				token = token,
-			)
-			
-			if dialect >= 8:
-				(ip, port) = self.peername
-				
-				msg1 += encode_payload(PAYLOAD_MSG_1_2,
-					ip = ip, port = port,
-				)
-				
-				if dialect >= 13:
-					msg1 += encode_payload(PAYLOAD_MSG_1_3)
-					
-					if dialect >= 16:
-						msg1 += encode_payload(PAYLOAD_MSG_1_4,
-							mpop = (0 if not machineguid else 1),
-						)
-		
-		msg1 += '\r\n'.encode('utf-8')
-		
 		self.send_reply('MSG', 'Hotmail', 'Hotmail', msg1)
 		
 		if dialect >= 11:
@@ -636,30 +629,45 @@ class MSNPCtrlNS(MSNPCtrl):
 			adl_xml = parse_xml(data.decode('utf-8'))
 			d_els = adl_xml.findall('d')
 			for d_el in d_els:
+				domains = [] # type: List[str]
+				
 				if len(d_el.getchildren()) == 0:
 					self.send_reply(Err.XXLEmptyDomain, trid)
 					self.close(hard = True)
 					return
-			for d_el in d_els:
-				domain = d_el.get('n')
-				c_els = d_el.findall('c')
-				try:
-					c_nids = [NetworkID(int(c_el.get('t'))) for c_el in c_els]
-					if NetworkID.CIRCLE in c_nids:
-						if NetworkID.WINDOWS_LIVE in c_nids or NetworkID.OFFICE_COMMUNICATOR in c_nids or NetworkID.TELEPHONE in c_nids or NetworkID.MNI in c_nids or NetworkID.SMTP in c_nids or NetworkID.YAHOO in c_nids:
-							self.send_reply(Err.XXLInvalidPayload, trid)
-							self.close(hard = True)
-							return
-						circle_mode = True
-				except ValueError:
-					self.send_reply(Err.InvalidNetworkID, trid)
-					self.close(hard = True)
-					return
-				
-				if circle_mode:
-					if domain != 'live.com':
+				else:
+					domain = d_el.get('n')
+					if domain in domains or domain is None:
 						self.send_reply(Err.XXLInvalidPayload, trid)
 						self.close(hard = True)
+						return
+					domains.append(domain)
+			for i, d_el in enumerate(d_els):
+				domain = d_el.get('n')
+				c_els = d_el.findall('c')
+				if i == 0:
+					try:
+						c_nids = [NetworkID(int(c_el.get('t'))) for c_el in c_els]
+						if NetworkID.CIRCLE in c_nids:
+							if NetworkID.WINDOWS_LIVE in c_nids or NetworkID.OFFICE_COMMUNICATOR in c_nids or NetworkID.TELEPHONE in c_nids or NetworkID.MNI in c_nids or NetworkID.SMTP in c_nids or NetworkID.YAHOO in c_nids:
+								self.send_reply(Err.XXLInvalidPayload, trid)
+								self.close(hard = True)
+								return
+							if domain == 'live.com':
+								d_els_rest = d_els[1:]
+								if d_els_rest:
+									self.send_reply(Err.XXLInvalidPayload, trid)
+									self.close(hard = True)
+									return
+								circle_mode = True
+					except ValueError:
+						self.send_reply(Err.InvalidNetworkID, trid)
+						self.close(hard = True)
+						return
+				
+				if circle_mode:
+					if not self.circle_authenticated:
+						self.send_reply(Err.InvalidCircleMembership, trid)
 						return
 				for c_el in c_els:
 					lsts = None
@@ -2225,14 +2233,10 @@ Content-Length: 53
 
 <user><s n="PF" ts="{timestamp}"></s></user>'''
 
-# MSNP2+
 PAYLOAD_MSG_1 = '''MIME-Version: 1.0
 Content-Type: text/x-msmsgsprofile; charset=UTF-8
 LoginTime: {time}
-'''
-
-# MSNP3+
-PAYLOAD_MSG_1_1 = '''EmailEnabled: 0
+EmailEnabled: 0
 MemberIdHigh: {high}
 MemberIdLow: {low}
 lang_preference: 1033
@@ -2248,19 +2252,11 @@ Wallet:
 Flags: 536872513
 MSPAuth: {token}Y6+H31sTUOFkqjNTDYqAAFLr5Ote7BMrMnUIzpg860jh084QMgs5djRQLLQP0TVOFkKdWDwAJdEWcfsI9YL8otN9kSfhTaPHR1njHmG0H98O2NE/Ck6zrog3UJFmYlCnHidZk1g3AzUNVXmjZoyMSyVvoHLjQSzoGRpgHg3hHdi7zrFhcYKWD8XeNYdoz9wfA2YAAAgZIgF9kFvsy2AC0Fl/ezc/fSo6YgB9TwmXyoK0wm0F9nz5EfhHQLu2xxgsvMOiXUSFSpN1cZaNzEk/KGVa3Z33Mcu0qJqvXoLyv2VjQyI0VLH6YlW5E+GMwWcQurXB9hT/DnddM5Ggzk3nX8uMSV4kV+AgF1EWpiCdLViRI6DmwwYDtUJU6W6wQXsfyTm6CNMv0eE0wFXmZvoKaL24fggkp99dX+m1vgMQJ39JblVH9cmnnkBQcKkV8lnQJ003fd6iIFzGpgPBW5Z3T1Bp7uzSGMWnHmrEw8eOpKC5ny4x8uoViXDmA2UId23xYSoJ/GQrMjqB+NslqnuVsOBE1oWpNrmfSKhGU1X0kR4Eves56t5i5n3XU+7ne0MkcUzlrMi89n2j8aouf0zeuD7o+ngqvfRCsOqjaU71XWtuD4ogu2X7/Ajtwkxg/UJDFGAnCxFTTd4dqrrEpKyMK8eWBMaartFxwwrH39HMpx1T9JgknJ1hFWELzG8b302sKy64nCseOTGaZrdH63pjGkT7vzyIxVH/b+yJwDRmy/PlLz7fmUj6zpTBNmCtl1EGFOEFdtI2R04EprIkLXbtpoIPA7m0TPZURpnWufCSsDtD91ChxR8j/FnQ/gOOyKg/EJrTcHvM1e50PMRmoRZGlltBRRwBV+ArPO64On6zygr5zud5o/aADF1laBjkuYkjvUVsXwgnaIKbTLN2+sr/WjogxT1Yins79jPa1+3dDenxZtE/rHA/6qsdJmo5BJZqNYQUFrnpkU428LryMnBaNp2BW51JRsWXPAA7yCi0wDlHzEDxpqaOnhI4Ol87ra+VAg==&p=
 sid: 507
-'''
-
-# MSNP8+
-PAYLOAD_MSG_1_2 = '''ClientIP: {ip}
+ClientIP: {ip}
 ClientPort: {port}
-'''
+ABCHMigrated: 1
+MPOPEnabled: {mpop}
 
-# MSNP10+ (for determining whether the contacts on an account had to be migrated to the address book; leave as 1 by default)
-PAYLOAD_MSG_1_3 = '''ABCHMigrated: 1
-'''
-
-# MSNP16+ (possibly for determining if a logged in client either specified an MPoP GUID or could use the feature et al)
-PAYLOAD_MSG_1_4 = '''MPOPEnabled: {mpop}
 '''
 
 # OIMs

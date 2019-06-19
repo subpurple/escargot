@@ -274,7 +274,7 @@ def gen_signedticket_xml(bs: BackendSession, backend: Backend) -> str:
 	circles = [CIRCLETICKET_CIRCLE.format(groupchat.chat_id) for groupchat in backend.user_service.get_groupchat_batch(user) if groupchat.memberships[user.uuid].state in (GroupChatState.Accepted,GroupChatState.WaitingResponse)]
 	
 	circleticket = encode_payload(CIRCLETICKET,
-		circles = ''.join(circles), now = date_format(datetime.utcnow()), cid = cid_format(user.uuid, decimal = True),
+		circles = ''.join(circles), cid = cid_format(user.uuid, decimal = True),
 	)
 	
 	return SIGNEDTICKET.format(
@@ -424,7 +424,7 @@ SIGNEDTICKET = '<?xml version="1.0" encoding="utf-16"?><SignedTicket xmlns:xsi="
 
 CIRCLETICKET = '''<?xml version="1.0" encoding="utf-16"?>
 <Ticket xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">{circles}
-  <TS>{now}</TS>
+  <TS>0000-01-01T00:00:00</TS>
   <CID>{cid}</CID>
 </Ticket>'''
 
