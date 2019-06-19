@@ -18,10 +18,10 @@ from .util import preprocess_soap, get_tag_localname, unknown_soap, find_element
 from ..misc import gen_signedticket_xml
 
 def register(app: web.Application) -> None:
-	app.router.add_post('/abservice/SharingService.asmx', handle_abservice)
+	app.router.add_post('/abservice/SharingService.asmx', lambda req: handle_abservice(req, sharing = True))
 	app.router.add_post('/abservice/abservice.asmx', handle_abservice)
 
-async def handle_abservice(req: web.Request) -> web.Response:
+async def handle_abservice(req: web.Request, *, sharing: bool = False) -> web.Response:
 	header, action, bs, token = await preprocess_soap(req)
 	if bs is None:
 		raise web.HTTPForbidden()
@@ -31,7 +31,7 @@ async def handle_abservice(req: web.Request) -> web.Response:
 	
 	#print(_xml_to_string(action))
 	
-	method = getattr(sys.modules[__name__], 'ab_' + action_str, None)
+	method = getattr(sys.modules[__name__], ('sharing' if sharing else 'ab') + '_' + action_str, None)
 	if not method:
 		return unknown_soap(req, header, action)
 	
@@ -43,7 +43,7 @@ async def handle_abservice(req: web.Request) -> web.Response:
 			'exception': traceback.format_exc(),
 		})
 
-def ab_FindMembership(req: web.Request, header: Any, action: Any, bs: BackendSession) -> web.Response:
+def sharing_FindMembership(req: web.Request, header: Any, action: Any, bs: BackendSession) -> web.Response:
 	backend: Backend = req.app['backend']
 	now_str = util.misc.date_format(datetime.utcnow())
 	user = bs.user
@@ -61,7 +61,7 @@ def ab_FindMembership(req: web.Request, header: Any, action: Any, bs: BackendSes
 		'now': now_str,
 	})
 
-def ab_AddMember(req: web.Request, header: Any, action: Any, bs: BackendSession) -> web.Response:
+def sharing_AddMember(req: web.Request, header: Any, action: Any, bs: BackendSession) -> web.Response:
 	backend: Backend = req.app['backend']
 	cachekey = secrets.token_urlsafe(172)
 	
@@ -113,7 +113,7 @@ def ab_AddMember(req: web.Request, header: Any, action: Any, bs: BackendSession)
 		'session_id': util.misc.gen_uuid(),
 	})
 
-def ab_DeleteMember(req: web.Request, header: Any, action: Any, bs: BackendSession) -> web.Response:
+def sharing_DeleteMember(req: web.Request, header: Any, action: Any, bs: BackendSession) -> web.Response:
 	backend: Backend = req.app['backend']
 	cachekey = secrets.token_urlsafe(172)
 	
@@ -498,7 +498,6 @@ def ab_ABContactUpdate(req: web.Request, header: Any, action: Any, bs: BackendSe
 								blp = BLPAnnotation(int(value))
 						except ValueError:
 							return web.HTTPInternalServerError()
-			# TODO: Contact details
 		if find_element(contact_info, 'contactType') != 'Me':
 			if ctc is None:
 				return web.HTTPInternalServerError()
@@ -980,7 +979,7 @@ def ab_ABGroupContactDelete(req: web.Request, header: Any, action: Any, bs: Back
 		'session_id': util.misc.gen_uuid(),
 	})
 
-def ab_CreateCircle(req: web.Request, header: Any, action: Any, bs: BackendSession) -> web.Response:
+def sharing_CreateCircle(req: web.Request, header: Any, action: Any, bs: BackendSession) -> web.Response:
 	backend: Backend = req.app['backend']
 	cachekey = secrets.token_urlsafe(172)
 	

@@ -562,7 +562,7 @@ def handle_create_document(req: web.Request, action: Any, user: models.User, cid
 		
 		# store display picture as file
 		path = _get_storage_path(user.uuid)
-		path.mkdir(exist_ok = True)
+		path.mkdir(exist_ok = True, parents = True)
 		
 		image_path = path / '{uuid}.{mime}'.format(uuid = user.uuid, mime = mime)
 		
