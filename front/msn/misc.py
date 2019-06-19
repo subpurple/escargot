@@ -18,7 +18,7 @@ from core import error, event
 from core.backend import Backend, BackendSession, ChatSession
 from core.models import User, Contact, GroupChat, Lst, MessageData, OIM, Substatus, NetworkID, GroupChatState
 
-def build_presence_notif(trid: Optional[str], ctc_head: User, user_me: User, dialect: int, backend: Backend, iln_sent: bool, *, self_presence: bool = False, bs_other: Optional['BackendSession'] = None, groupchat: Optional['GroupChat'] = None, groupchat_owner: bool = False) -> Iterable[Tuple[Any, ...]]:
+def build_presence_notif(trid: Optional[str], ctc_head: User, user_me: User, dialect: int, backend: Backend, iln_sent: bool, *, self_presence: bool = False, bs_other: Optional['BackendSession'] = None, groupchat: Optional['GroupChat'] = None, groupchat_owner: bool = False, send_to_self: bool = False) -> Iterable[Tuple[Any, ...]]:
 	detail = user_me.detail
 	assert detail is not None
 	
@@ -114,7 +114,7 @@ def build_presence_notif(trid: Optional[str], ctc_head: User, user_me: User, dia
 	#	yield ('NFY', 'PUT', nfy_payload)
 	#	return
 	
-	if (is_offlineish or (groupchat is not None and groupchat.memberships[head.uuid].blocking)) and not head is user_me:
+	if (is_offlineish or (groupchat is not None and groupchat.memberships[head.uuid].blocking)) and head is not user_me:
 		if dialect >= 18:
 			reply = ('FLN', encode_email_networkid(head.email, None, groupchat = groupchat)) # type: Tuple[Any, ...]
 		else:

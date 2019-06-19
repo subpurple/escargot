@@ -480,7 +480,6 @@ class MSNPCtrlNS(MSNPCtrl):
 			for g in detail._groups_by_id.values():
 				self.send_reply('LSG', g.name, (g.id if self.dialect == 10 else g.uuid))
 			for c in contacts.values():
-				#if self.backend.util_msn_is_circle_user(c.head.uuid):
 				self.send_reply('LST', 'N={}'.format(c.head.email), 'F={}'.format(c.status.name or c.head.email), 'C={}'.format(c.head.uuid),
 					int(c.lists), (None if dialect < 12 else '1'), ','.join([(group.id if self.dialect == 10 else group.uuid) for group in c._groups.copy()])
 				)
@@ -619,6 +618,10 @@ class MSNPCtrlNS(MSNPCtrl):
 			self.send_reply('REG', trid, 1, name, group_id, 0)
 	
 	def _m_adl(self, trid: str, data: bytes) -> None:
+		if self.dialect < 13:
+			self.close(hard = True)
+			return
+		
 		backend = self.backend
 		bs = self.bs
 		assert bs is not None
@@ -792,6 +795,10 @@ class MSNPCtrlNS(MSNPCtrl):
 		self.send_reply('ADL', trid, 'OK')
 	
 	def _m_rml(self, trid: str, data: bytes) -> None:
+		if self.dialect < 13:
+			self.close(hard = True)
+			return
+		
 		backend = self.backend
 		bs = self.bs
 		assert bs is not None
@@ -1021,6 +1028,7 @@ class MSNPCtrlNS(MSNPCtrl):
 	def _m_gtc(self, trid: str, value: str) -> None:
 		if self.dialect >= 13:
 			self.close(hard = True)
+			return
 		# "Alert me when other people add me ..." Y/N
 		#>>> GTC 152 N
 		bs = self.bs
@@ -1143,6 +1151,10 @@ class MSNPCtrlNS(MSNPCtrl):
 	
 	def _m_put(self, trid: str, data: bytes) -> None:
 		# `PUT` only used for circles in MSNP18
+		
+		if self.dialect < 18:
+			self.close(hard = True)
+			return
 		
 		backend = self.backend
 		bs = self.bs
@@ -1387,6 +1399,10 @@ class MSNPCtrlNS(MSNPCtrl):
 		return
 	
 	def _m_sdg(self, trid: str, data: bytes) -> None:
+		if self.dialect < 18:
+			self.close(hard = True)
+			return
+		
 		backend = self.backend
 		bs = self.bs
 		assert bs is not None
@@ -1468,6 +1484,10 @@ class MSNPCtrlNS(MSNPCtrl):
 	
 	def _m_vas(self, trid: str, email: str, arg1: str, arg2: str, data: bytes) -> None:
 		# Report user as a spammer. Don't know how to respond.
+		if self.dialect < 18:
+			self.close(hard = True)
+			return
+		
 		return
 	
 	def _m_prp(self, trid: str, key: str, value: Optional[str] = None, *rest: Optional[str]) -> None:
@@ -1554,6 +1574,10 @@ class MSNPCtrlNS(MSNPCtrl):
 		networkid = None
 		contact_uuid = None
 		
+		if self.dialect < 14:
+			self.close(hard = True)
+			return
+		
 		try:
 			fqy_xml = parse_xml(data.decode('utf-8'))
 			d_els = fqy_xml.findall('d')
@@ -1590,6 +1614,10 @@ class MSNPCtrlNS(MSNPCtrl):
 	def _m_uun(self, trid: str, email: str, type: str, data: Optional[bytes] = None) -> None:
 		# "Send sharing invitation or reply to invitation"
 		# https://web.archive.org/web/20130926060507/http://msnpiki.msnfanatic.com/index.php/MSNP13:Changes#UUN
+		if self.dialect < 13:
+			self.close(hard = True)
+			return
+		
 		bs = self.bs
 		assert bs is not None
 		
@@ -1628,6 +1656,10 @@ class MSNPCtrlNS(MSNPCtrl):
 	
 	def _m_uum(self, trid: str, email: str, networkid: str, type: str, data: bytes) -> None:
 		# For federated messaging (with Yahoo!); also used in MSNP18+ for OIMs
+		
+		if self.dialect < 14:
+			self.close(hard = True)
+			return
 		
 		bs = self.bs
 		assert bs is not None
@@ -1773,7 +1805,7 @@ class BackendEventHandler(event.BackendEventHandler):
 		return
 	
 	def on_chat_invite(self, chat: Chat, inviter: User, *, group_chat: bool = False, inviter_id: Optional[str] = None, invite_msg: str = '') -> None:
-		if group_chat:
+		if group_chat and self.ctrl.dialect >= 18:
 			self.msn_on_notify_ab()
 		else:
 			extra = () # type: Tuple[Any, ...]
@@ -1786,7 +1818,7 @@ class BackendEventHandler(event.BackendEventHandler):
 			self.ctrl.send_reply('RNG', chat.ids['main'], 'm1.escargot.log1p.xyz:1864', 'CKI', token, inviter.email, inviter.status.name, *extra)
 	
 	def on_chat_invite_declined(self, chat: 'Chat', invitee: User, *, group_chat: bool = False) -> None:
-		if group_chat:
+		if group_chat and self.ctrl.dialect >= 18:
 			groupchat = chat.groupchat
 			assert groupchat is not None
 			self.msn_on_notify_circle_ab(groupchat.chat_id)
@@ -1864,18 +1896,19 @@ class BackendEventHandler(event.BackendEventHandler):
 		assert bs is not None
 		user = bs.user
 		
-		id_bits = _uuid_to_high_low(user.uuid)
-		role_node = ''
-		
-		if role is not None:
-			role_node = PAYLOAD_MSG_8_1.format(
-				role = role.name,
-			)
-		
-		self.ctrl.send_reply('NOT', encode_payload(PAYLOAD_MSG_8,
-			member_low = binascii.hexlify(struct.pack('!I', id_bits[1])).decode('utf-8'), member_high = binascii.hexlify(struct.pack('!I', id_bits[0])).decode('utf-8'), email = user.email,
-			chat_id = chat_id, role = role_node,
-		))
+		if self.ctrl.dialect >= 18:
+			id_bits = _uuid_to_high_low(user.uuid)
+			role_node = ''
+			
+			if role is not None:
+				role_node = PAYLOAD_MSG_8_1.format(
+					role = role.name,
+				)
+			
+			self.ctrl.send_reply('NOT', encode_payload(PAYLOAD_MSG_8,
+				member_low = binascii.hexlify(struct.pack('!I', id_bits[1])).decode('utf-8'), member_high = binascii.hexlify(struct.pack('!I', id_bits[0])).decode('utf-8'), email = user.email,
+				chat_id = chat_id, role = role_node,
+			))
 	
 	def on_groupchat_created(self, chat_id: str) -> None:
 		ctrl = self.ctrl
@@ -1884,16 +1917,23 @@ class BackendEventHandler(event.BackendEventHandler):
 		assert bs is not None
 		user = bs.user
 		
-		self.ctrl.send_reply('NFY', 'PUT', encode_payload(PAYLOAD_MSG_7,
-			email = _encode_email_epid(user.email, bs.front_data.get('msn_pop_id')), chat_id = chat_id,
-		))
+		if self.ctrl.dialect >= 18:
+			bs.evt.msn_on_notify_ab()
+			self.ctrl.send_reply('NFY', 'PUT', encode_payload(PAYLOAD_MSG_7,
+				email = _encode_email_epid(user.email, bs.front_data.get('msn_pop_id')), chat_id = chat_id,
+			))
 	
 	def on_groupchat_updated(self, chat_id: str) -> None:
-		self.msn_on_notify_circle_ab(chat_id)
+		if self.ctrl.dialect >= 18:
+			self.msn_on_notify_circle_ab(chat_id)
+	
+	def on_left_groupchat(self, chat_id: str) -> None:
+		if self.ctrl.dialect >= 18:
+			self.msn_on_notify_ab()
 	
 	def on_groupchat_role_updated(self, chat_id: str, role: GroupChatRole) -> None:
-		self.msn_on_notify_ab()
-		self.msn_on_notify_circle_ab(chat_id, role = role)
+		if self.ctrl.dialect >= 18:
+			self.msn_on_notify_circle_ab(chat_id, role = role)
 	
 	def ymsg_on_xfer_init(self, yahoo_data: MultiDict[bytes, bytes]) -> None:
 		pass
@@ -1967,7 +2007,28 @@ class GroupChatEventHandler(event.ChatEventHandler):
 		))
 	
 	def on_participant_left(self, cs_other: ChatSession, last_pop: bool) -> None:
-		pass
+		bs = self.ctrl.bs
+		assert bs is not None
+		user = bs.user
+		
+		cs = self.cs
+		chat = cs.chat
+		groupchat = chat.groupchat
+		assert groupchat is not None
+		
+		if last_pop:
+			membership = groupchat.memberships[cs_other.user.uuid]
+			if membership.state == GroupChatState.Empty:
+				circle_roster = CIRCLE_ROSTER.format(
+					users = CIRCLE_USER.format(email = cs_other.user.email),
+				)
+				
+				result = CIRCLE.format(circle_roster)
+				
+				self.ctrl.send_reply('NFY', 'DEL', encode_payload(PAYLOAD_MSG_5,
+					email = user.email, chat_id = groupchat.chat_id,
+					cl = len(result), payload = result,
+				))
 	
 	def on_chat_updated(self) -> None:
 		bs = self.ctrl.bs
@@ -2000,6 +2061,9 @@ class GroupChatEventHandler(event.ChatEventHandler):
 		assert groupchat is not None
 		
 		users = ''
+		
+		membership = groupchat.memberships[cs_other.user.uuid]
+		if membership.state == GroupChatState.Left: return
 		
 		if not (initial and cs_other.user.status.is_offlineish()):
 			for m in build_presence_notif(None, cs_other.user, user, self.ctrl.dialect, self.ctrl.backend, self.ctrl.iln_sent, bs_other = cs_other.bs, groupchat = groupchat):

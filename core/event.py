@@ -64,6 +64,9 @@ class BackendEventHandler(metaclass = ABCMeta):
 	def on_groupchat_updated(self, chat_id: str) -> None: pass
 	
 	@abstractmethod
+	def on_left_groupchat(self, chat_id: str) -> None: pass
+	
+	@abstractmethod
 	def on_groupchat_role_updated(self, chat_id: str, role: GroupChatRole) -> None: pass
 	
 	# TODO: Make these non-frontend-specific to allow interop
