@@ -590,8 +590,8 @@ async def handle_usertile(req: web.Request, small: bool = False) -> web.Response
 		raise web.HTTPNotFound()
 	
 	ext = files[0].suffix
-	image_path = storage_path / '{}{}.{}'.format(uuid, '_thumb' if small else '', ext)
-	return web.HTTPOk(content_type = 'image/{}'.format(ext), body = image_path.read_bytes())
+	image_path = storage_path / '{}{}{}'.format(uuid, '_thumb' if small else '', ext)
+	return web.HTTPOk(content_type = 'image/{}'.format(ext[1:]), body = image_path.read_bytes())
 
 async def handle_debug(req: web.Request) -> web.Response:
 	return render(req, 'msn:debug.html')

@@ -68,7 +68,85 @@ class S2SCtrl:
 			self.send_numeric(Err.GroupChatDoesNotExist, ':{}'.format(ts))
 			return
 		
-		if action == 'ROLE':
+		if action == 'INCHAT':
+			if len(args) < 1:
+				self.send_numeric(Err.TooFewArguments, ':{}'.format(ts))
+				return
+			
+			uuid = args[0]
+			
+			user = backend._load_user_record(uuid)
+			if user is None:
+				self.send_numeric(Err.UserNotInDB, ':{}'.format(ts))
+				return
+			
+			try:
+				in_chat = backend.util_user_online_in_groupchat(groupchat, user)
+				self.send_reply('GRPCHAT', ts, 'INCHAT', uuid, str(in_chat))
+			except error.MemberNotInGroupChat:
+				self.send_numeric(Err.GroupChatMemberInvalid, ':{}'.format(ts))
+			return
+		elif action == 'ACCEPT':
+			if len(args) < 1:
+				self.send_numeric(Err.TooFewArguments, ':{}'.format(ts))
+				return
+			
+			uuid = args[0]
+			
+			user = backend._load_user_record(uuid)
+			if user is None:
+				self.send_numeric(Err.UserNotInDB, ':{}'.format(ts))
+				return
+			
+			try:
+				backend.util_accept_groupchat_invite(groupchat, user)
+			except error.MemberNotInGroupChat:
+				self.send_numeric(Err.GroupChatMemberInvalid, ':{}'.format(ts))
+				return
+			except error.MemberAlreadyInGroupChat:
+				self.send_numeric(Err.MemberAlreadyInGroupChat, ':{}'.format(ts))
+				return
+		elif action == 'DECLINE':
+			if len(args) < 1:
+				self.send_numeric(Err.TooFewArguments, ':{}'.format(ts))
+				return
+			
+			uuid = args[0]
+			
+			user = backend._load_user_record(uuid)
+			if user is None:
+				self.send_numeric(Err.UserNotInDB, ':{}'.format(ts))
+				return
+			
+			try:
+				backend.util_decline_groupchat_invite(groupchat, user)
+			except error.MemberNotInGroupChat:
+				self.send_numeric(Err.GroupChatMemberInvalid, ':{}'.format(ts))
+				return
+			except error.MemberAlreadyInGroupChat:
+				self.send_numeric(Err.MemberAlreadyInGroupChat, ':{}'.format(ts))
+				return
+		elif action == 'REVOKE':
+			if len(args) < 1:
+				self.send_numeric(Err.TooFewArguments, ':{}'.format(ts))
+				return
+			
+			uuid = args[0]
+			
+			user = backend._load_user_record(uuid)
+			if user is None:
+				self.send_numeric(Err.UserNotInDB, ':{}'.format(ts))
+				return
+			
+			try:
+				backend.util_revoke_groupchat_invite(groupchat, user)
+			except error.MemberNotInGroupChat:
+				self.send_numeric(Err.GroupChatMemberInvalid, ':{}'.format(ts))
+				return
+			except error.MemberAlreadyInGroupChat:
+				self.send_numeric(Err.MemberAlreadyInGroupChat, ':{}'.format(ts))
+				return
+		elif action == 'ROLE':
 			if len(args) < 2:
 				self.send_numeric(Err.TooFewArguments, ':{}'.format(ts))
 				return
@@ -93,6 +171,9 @@ class S2SCtrl:
 			except error.MemberNotInGroupChat:
 				self.send_numeric(Err.GroupChatMemberInvalid, ':{}'.format(ts))
 				return
+			except error.GroupChatMemberIsPending:
+				self.send_numeric(Err.GroupChatMemberIsPending, ':{}'.format(ts))
+				return
 		elif action == 'REMOVE':
 			if len(args) < 1:
 				self.send_numeric(Err.TooFewArguments, ':{}'.format(ts))
@@ -106,19 +187,13 @@ class S2SCtrl:
 				return
 			
 			try:
-				backend.util_leave_groupchat(groupchat, user)
-			except ValueError:
-				self.send_numeric(Err.GroupChatRoleInvalid, ':{}'.format(ts))
-				return
+				backend.util_remove_user_from_groupchat(groupchat, user)
 			except error.GroupChatDoesNotExist:
 				self.send_numeric(Err.GroupChatDoesNotExist, ':{}'.format(ts))
 				return
 			except error.MemberNotInGroupChat:
 				self.send_numeric(Err.GroupChatMemberInvalid, ':{}'.format(ts))
 				return
-		elif action == 'DELETE':
-			# TODO: Deleting `GroupChat`s
-			pass
 		else:
 			self.send_numeric(Err.InvalidArgument, ':{}'.format(ts))
 			return
@@ -240,6 +315,8 @@ class Err:
 	GroupChatDoesNotExist = 200
 	GroupChatRoleInvalid = 202
 	GroupChatMemberInvalid = 203
+	MemberAlreadyInGroupChat = 204
+	GroupChatMemberIsPending = 205
 
 class StatusCode:
 	GroupChatActionSuccessful = 201

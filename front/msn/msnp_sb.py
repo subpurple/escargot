@@ -9,7 +9,7 @@ from util.misc import Logger, first_in_iterable
 from core.models import User, MessageData, MessageType
 from core.backend import Backend, BackendSession, ChatSession, Chat
 from core import event, error
-from .misc import Err, encode_capabilities_capabilitiesex, decode_email_pop, encode_email_pop, MAX_CAPABILITIES_BASIC
+from .misc import Err, encode_capabilities_capabilitiesex, decode_email_pop, encode_email_pop, normalize_pop_id, MAX_CAPABILITIES_BASIC
 from .msnp import MSNPCtrl
 
 if TYPE_CHECKING:
@@ -68,7 +68,7 @@ class MSNPCtrlSB(MSNPCtrl):
 		
 		bs, dialect = data
 		bs_pop_id = bs.front_data.get('msn_pop_id') or ''
-		if bs.user.email != email or (dialect >= 16 and pop_id is not None and bs_pop_id.lower() != pop_id.replace('{', '').replace('}', '').lower()):
+		if bs.user.email != email or (dialect >= 16 and pop_id is not None and bs_pop_id.lower() != normalize_pop_id(pop_id).lower()):
 			self.send_reply(Err.AuthFail, trid)
 			self.close(hard = True)
 			return
@@ -77,7 +77,7 @@ class MSNPCtrlSB(MSNPCtrl):
 		
 		try:
 			if pop_id is not None:
-				pop_id = pop_id.replace('{', '').replace('}', '')
+				pop_id = normalize_pop_id(pop_id)
 			cs = chat.join('msn', bs, ChatEventHandler(self), pop_id = pop_id)
 		except Exception as ex:
 			self.send_reply(Err.GetCodeForException(ex, self.dialect), trid)
@@ -112,7 +112,7 @@ class MSNPCtrlSB(MSNPCtrl):
 		
 		(bs, dialect, chat) = data
 		bs_pop_id = bs.front_data.get('msn_pop_id') or ''
-		if bs.user.email != email or (dialect >= 16 and pop_id is not None and bs_pop_id.lower() != pop_id.replace('{', '').replace('}', '').lower()):
+		if bs.user.email != email or (dialect >= 16 and pop_id is not None and bs_pop_id.lower() != normalize_pop_id(pop_id).lower()):
 			self.send_reply(Err.AuthFail, trid)
 			self.close(hard = True)
 			return
@@ -123,7 +123,7 @@ class MSNPCtrlSB(MSNPCtrl):
 		
 		try:
 			if pop_id is not None:
-				pop_id = pop_id.replace('{', '').replace('}', '')
+				pop_id = normalize_pop_id(pop_id)
 			cs = chat.join('msn', bs, ChatEventHandler(self), pop_id = pop_id)
 		except Exception as ex:
 			self.send_reply(Err.GetCodeForException(ex, dialect), trid)

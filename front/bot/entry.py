@@ -60,6 +60,9 @@ class BackendEventHandler(event.BackendEventHandler):
 	def on_left_groupchat(self, chat_id: str) -> None:
 		pass
 	
+	def on_groupchat_invite_revoked(self, chat_id: str) -> None:
+		pass
+	
 	def on_groupchat_role_updated(self, chat_id: str, role: GroupChatRole) -> None:
 		pass
 	
@@ -67,10 +70,16 @@ class BackendEventHandler(event.BackendEventHandler):
 		cs = chat.join('testbot', self.bs, ChatEventHandler(self.loop, self.bs))
 		chat.send_participant_joined(cs)
 	
+	def on_declined_chat_invite(self, chat: Chat, group_chat: bool = False) -> None:
+		pass
+	
 	def on_chat_invite_declined(self, chat: Chat, invitee: User, *, group_chat: bool = False) -> None:
 		pass
 	
 	def on_added_me(self, user: User, *, adder_id: Optional[str] = None, message: Optional[TextWithData] = None) -> None:
+		pass
+	
+	def on_removed_me(self, user: User) -> None:
 		pass
 	
 	def on_contact_request_denied(self, user_added: User, message: Optional[str], *, contact_id: Optional[str] = None) -> None:

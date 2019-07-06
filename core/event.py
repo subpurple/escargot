@@ -39,17 +39,21 @@ class BackendEventHandler(metaclass = ABCMeta):
 	def on_chat_invite(self, chat: 'Chat', inviter: User, *, group_chat: bool = False, inviter_id: Optional[str] = None, invite_msg: str = '') -> None: pass
 	
 	@abstractmethod
+	def on_declined_chat_invite(self, chat: 'Chat', group_chat: bool = False) -> None: pass
+	
+	@abstractmethod
 	def on_chat_invite_declined(self, chat: 'Chat', invitee: User, *, group_chat: bool = False) -> None: pass
 	
 	# `user` added me to their FL, and they're now on my RL.
 	@abstractmethod
 	def on_added_me(self, user: User, *, adder_id: Optional[str] = None, message: Optional[TextWithData] = None) -> None: pass
 	
+	@abstractmethod
+	def on_removed_me(self, user: User) -> None: pass
+	
 	# `user` didn't accept contact request
 	@abstractmethod
 	def on_contact_request_denied(self, user_added: User, message: str, *, contact_id: Optional[str] = None) -> None: pass
-	
-	def on_sync_contact_statuses(self) -> None: pass
 	
 	@abstractmethod
 	def on_login_elsewhere(self, option: LoginOption) -> None: pass
@@ -59,6 +63,9 @@ class BackendEventHandler(metaclass = ABCMeta):
 	
 	@abstractmethod
 	def on_groupchat_created(self, chat_id: str) -> None: pass
+	
+	@abstractmethod
+	def on_groupchat_invite_revoked(self, chat_id: str) -> None: pass
 	
 	@abstractmethod
 	def on_groupchat_updated(self, chat_id: str) -> None: pass

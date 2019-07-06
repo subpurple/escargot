@@ -1221,7 +1221,7 @@ class BackendEventHandler(event.BackendEventHandler):
 				
 				add_contact_status_to_data(yahoo_data, ctc.status, ctc.head, old_substatus = old_substatus, sess_id = sess_id)
 				
-				self.ctrl.send_reply(service, (YMSGStatus.Available if visible_notif and service is YMSGService.LogOn else YMSGStatus.BRB), self.sess_id, yahoo_data)
+				self.ctrl.send_reply(service, (YMSGStatus.Available if not visible_notif else YMSGStatus.BRB), self.sess_id, yahoo_data)
 	
 	def on_presence_self_notification(self) -> None:
 		pass
@@ -1280,6 +1280,9 @@ class BackendEventHandler(event.BackendEventHandler):
 	def on_left_groupchat(self, chat_id: str) -> None:
 		pass
 	
+	def on_groupchat_invite_revoked(self, chat_id: str) -> None:
+		pass
+	
 	def on_groupchat_role_updated(self, chat_id: str, role: GroupChatRole) -> None:
 		pass
 	
@@ -1313,6 +1316,9 @@ class BackendEventHandler(event.BackendEventHandler):
 		
 		self.ctrl.send_reply(YMSGService.ConfAddInvite if len(roster) > 1 else YMSGService.ConfInvite, YMSGStatus.BRB, self.ctrl.sess_id, conf_invite_dict)
 	
+	def on_declined_chat_invite(self, chat: Chat, group_chat: bool = False) -> None:
+		pass
+	
 	def on_chat_invite_declined(self, chat: Chat, invitee: User, *, group_chat: bool = False) -> None:
 		pass
 	
@@ -1342,6 +1348,9 @@ class BackendEventHandler(event.BackendEventHandler):
 		contact_request_data.add(b'15', arbitrary_encode(str(time.time())))
 		
 		self.ctrl.send_reply(YMSGService.ContactNew, YMSGStatus.NotAtHome, self.sess_id, contact_request_data)
+	
+	def on_removed_me(self, user: User) -> None:
+		pass
 	
 	def on_login_elsewhere(self, option: LoginOption) -> None:
 		if option is LoginOption.BootOthers:

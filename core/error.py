@@ -58,5 +58,8 @@ class MemberAlreadyInGroupChat(ClientError):
 class MemberAlreadyInvitedToGroupChat(ClientError):
 	pass
 
+class GroupChatMemberIsPending(ClientError):
+	pass
+
 class MemberNotInGroupChat(ClientError):
 	pass

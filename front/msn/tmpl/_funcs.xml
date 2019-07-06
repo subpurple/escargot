@@ -77,9 +77,7 @@
 		{%- endif -%}
 		{%- if ctc.detail.nickname -%}
 			<annotations>
-			{%- if ctc.detail.nickname -%}
 				{{ annotation('AB.NickName', ctc.detail.nickname) }}
-			{%- endif -%}
 			</annotations>
 		{%- endif -%}
 		<contactType>Regular</contactType>
@@ -163,38 +161,36 @@
 	</Annotation>
 {%- endmacro -%}
 
-{%- macro generate_me_entry(ab_id, user, now) -%}
+{%- macro generate_me_entry(user, now) -%}
 	<Contact>
 		<contactId>{{ user.uuid }}</contactId>
 		<contactInfo>
-			{%- if ab_id == '00000000-0000-0000-0000-000000000000' -%}
-				<annotations>
+			<annotations>
+				<Annotation>
+					<Name>MSN.IM.MBEA</Name>
+					<Value>0</Value>
+				</Annotation>
+				<Annotation>
+					<Name>MSN.IM.GTC</Name>
+					<Value>{%- if user.settings.get('GTC') == 'A' -%}1{%- elif user.settings.get('GTC') == 'N' -%}2{%- else -%}0{%- endif -%}</Value>
+				</Annotation>
+				<Annotation>
+					<Name>MSN.IM.BLP</Name>
+					<Value>{%- if user.settings.get('BLP') == 'AL' -%}1{%- elif user.settings.get('BLP') == 'BL' -%}2{%- else -%}0{%- endif -%}</Value>
+				</Annotation>
+				{%- if user.settings.get('MPOP') -%}
 					<Annotation>
-						<Name>MSN.IM.MBEA</Name>
-						<Value>0</Value>
+						<Name>MSN.IM.MPOP</Name>
+						<Value>{{ user.settings.get('MPOP') }}</Value>
 					</Annotation>
+				{%- endif -%}
+				{%- if user.settings.get('RLP') -%}
 					<Annotation>
-						<Name>MSN.IM.GTC</Name>
-						<Value>{%- if user.settings.get('GTC') == 'A' -%}1{%- elif user.settings.get('GTC') == 'N' -%}2{%- else -%}0{%- endif -%}</Value>
+						<Name>MSN.IM.RoamLiveProperties</Name>
+						<Value>{{ user.settings.get('RLP') }}</Value>
 					</Annotation>
-					<Annotation>
-						<Name>MSN.IM.BLP</Name>
-						<Value>{%- if user.settings.get('BLP') == 'AL' -%}1{%- elif user.settings.get('BLP') == 'BL' -%}2{%- else -%}0{%- endif -%}</Value>
-					</Annotation>
-					{%- if user.settings.get('MPOP') -%}
-						<Annotation>
-							<Name>MSN.IM.MPOP</Name>
-							<Value>{{ user.settings.get('MPOP') }}</Value>
-						</Annotation>
-					{%- endif -%}
-					{%- if user.settings.get('RLP') -%}
-						<Annotation>
-							<Name>MSN.IM.RoamLiveProperties</Name>
-							<Value>{{ user.settings.get('RLP') }}</Value>
-						</Annotation>
-					{%- endif -%}
-				</annotations>
-			{%- endif -%}
+				{%- endif -%}
+			</annotations>
 			<contactType>Me</contactType>
 			<quickName>{{ user.status.name or user.email }}</quickName>
 			<passportName>{{ user.email }}</passportName>

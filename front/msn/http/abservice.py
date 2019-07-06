@@ -1045,7 +1045,7 @@ def ab_CreateContact(req: web.Request, header: Any, action: Any, bs: BackendSess
 	
 	membership = groupchat.memberships.get(head.uuid)
 	
-	if membership is not None and membership.state in (models.GroupChatState.Rejected,models.GroupChatState.Left):
+	if membership is not None and (membership.state == models.GroupChatState.Rejected or (membership.role == models.GroupChatRole.Member and membership.state == models.GroupChatState.Empty)):
 		bs.me_change_groupchat_membership(groupchat, head, role = models.GroupChatRole.Empty, state = models.GroupChatState.Empty)
 	else:
 		try:
@@ -1163,6 +1163,15 @@ def ab_ManageWLConnection(req: web.Request, header: Any, action: Any, bs: Backen
 								'error': '`GroupChat` does not currently exist',
 							}, status = 500)
 				elif relationship_role == 3:
+					caller_membership = groupchat.memberships.get(user.uuid)
+					if caller_membership is None or caller_membership.role not in (models.GroupChatRole.Admin,models.GroupChatRole.AssistantAdmin):
+						return render(req, 'msn:abservice/ManageWLConnectionResponse.xml', {
+							'cachekey': cachekey,
+							'host': settings.LOGIN_HOST,
+							'session_id': util.misc.gen_uuid(),
+							'error': 'Caller is not in `GroupChat` or does not have sufficient privileges to perform this action',
+						}, status = 500)
+					
 					annotations = action.findall('.//{*}annotations/{*}Annotation')
 					for annotation in annotations:
 						name = find_element(annotation, 'Name')
@@ -1178,7 +1187,7 @@ def ab_ManageWLConnection(req: web.Request, header: Any, action: Any, bs: Backen
 							'cachekey': cachekey,
 							'host': settings.LOGIN_HOST,
 							'session_id': util.misc.gen_uuid(),
-							'error': 'User `{email}` does not have initialized membership in `GroupChat`'.format(email = head.email),
+							'error': 'User `{email}` does not have membership in `GroupChat`'.format(email = head.email),
 						}, status = 500)
 					except error.MemberAlreadyInvitedToGroupChat:
 						return render(req, 'msn:abservice/ManageWLConnectionResponse.xml', {

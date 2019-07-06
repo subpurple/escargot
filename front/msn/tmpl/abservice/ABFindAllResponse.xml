@@ -27,7 +27,7 @@
 							</Contact>
 						{%- endif -%}
 					{%- endfor -%}
-					{{ generate_me_entry(ab_id, user, now) }}
+					{{ generate_me_entry(user, now) }}
 				</contacts>
 				<ab>
 					<abId>{{ ab_id }}</abId>

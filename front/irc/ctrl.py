@@ -207,12 +207,18 @@ class BackendEventHandler(event.BackendEventHandler):
 	def on_left_groupchat(self, chat_id: str) -> None:
 		pass
 	
+	def on_groupchat_invite_revoked(self, chat_id: str) -> None:
+		pass
+	
 	def on_groupchat_role_updated(self, chat_id: str, role: GroupChatRole) -> None:
 		pass
 	
 	def on_chat_invite(self, chat: Chat, inviter: User, *, group_chat: bool = False, inviter_id: Optional[str] = None, invite_msg: str = '') -> None:
 		if group_chat: return
 		self.ctrl.send_reply('INVITE', self.bs.user.email, chat.ids['irc'], source = inviter.email)
+	
+	def on_declined_chat_invite(self, chat: Chat, group_chat: bool = False) -> None:
+		pass
 	
 	def on_chat_invite_declined(self, chat: Chat, invitee: User, *, group_chat: bool = False) -> None:
 		pass
@@ -221,6 +227,9 @@ class BackendEventHandler(event.BackendEventHandler):
 		self.ctrl.send_reply('NOTICE', ":{} added you to their friend list".format(user.email), source = user.email)
 		if message:
 			self.ctrl.send_reply('NOTICE', ":\"{}\"".format(message.text), source = user.email)
+	
+	def on_removed_me(self, user: User) -> None:
+		pass
 	
 	def on_contact_request_denied(self, user_added: User, message: Optional[str], *, contact_id: Optional[str] = None) -> None:
 		self.ctrl.send_reply('NOTICE', ":{} declined your friend request".format(user_added.email), source = user_added.email)

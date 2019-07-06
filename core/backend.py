@@ -1,6 +1,6 @@
 from typing import Dict, List, Set, Any, Tuple, Optional, Callable, Sequence, FrozenSet, Iterable
 from abc import ABCMeta, abstractmethod
-import asyncio, time, traceback
+import asyncio, time, traceback, settings
 from collections import defaultdict
 from enum import IntFlag
 
@@ -34,7 +34,7 @@ class Backend:
 	_stats: Stats
 	_sc: '_SessionCollection'
 	_chats_by_id: Dict[Tuple[str, str], 'Chat']
-	_cses_by_bs_by_groupchat_id: Dict[str, Dict['BackendSession', 'ChatSession']]
+	_cses_by_bs_by_groupchat_id: Dict[str, Dict['BackendSession', Optional['ChatSession']]]
 	_user_by_uuid: Dict[str, User]
 	_worklist_sync_db: Dict[User, UserDetail]
 	_worklist_sync_groupchats: Dict[str, GroupChat]
@@ -66,6 +66,7 @@ class Backend:
 		
 		for groupchat in self.user_service.get_all_groupchats():
 			self.chat_create(groupchat = groupchat)
+		if settings.DEBUG: print('Initialized group chats')
 		
 		loop.create_task(self._worker_sync_db())
 		loop.create_task(self._worker_sync_groupchats())
@@ -106,21 +107,17 @@ class Backend:
 		old_substatus = user.status.substatus
 		self._stats.on_logout()
 		self._sc.remove_session(sess)
-		if not self._sc.get_sessions_by_user(user):
-			# User is offline, send notifications
-			user.status.substatus = Substatus.Offline
-			self._sync_contact_statuses(user)
-			self._notify_contacts(sess, for_logout = True)
-		for cs_dict in self._cses_by_bs_by_groupchat_id.values():
-			cs = cs_dict.pop(sess, None)
-			if cs is not None:
-				cs.close()
 		if self._sc.get_sessions_by_user(user):
 			# There are still other people logged in as this user,
 			# so don't send offline notifications.
 			self._notify_contacts(sess, for_logout = False)
 			self._notify_self(sess)
 			return
+		
+		# User is offline, send notifications
+		user.status.substatus = Substatus.Offline
+		self._sync_contact_statuses(user)
+		self._notify_contacts(sess, for_logout = True)
 	
 	def login(self, uuid: str, client: Client, evt: event.BackendEventHandler, *, option: Optional[LoginOption] = None, only_once: bool = False) -> Optional['BackendSession']:
 		user = self._load_user_record(uuid)
@@ -240,30 +237,123 @@ class Backend:
 	def util_get_sessions_by_user(self, user: User) -> List['BackendSession']:
 		return self._sc.get_sessions_by_user(user)
 	
+	def util_user_online_in_groupchat(self, groupchat: GroupChat, user: User) -> bool:
+		if user.uuid not in groupchat.memberships: raise error.MemberNotInGroupChat()
+		
+		chat = self.chat_get('persistent', groupchat.chat_id)
+		if chat is None: return False
+		
+		for cs in chat.get_roster_single():
+			if cs.user is user: return True
+		return False
+	
+	def util_accept_groupchat_invite(self, groupchat: GroupChat, user: User) -> None:
+		if user.uuid not in groupchat.memberships: raise error.MemberNotInGroupChat()
+		
+		chat = self.chat_get('persistent', groupchat.chat_id)
+		membership = groupchat.memberships[user.uuid]
+		
+		if not (membership.role == GroupChatRole.StatePendingOutbound and membership.state == GroupChatState.WaitingResponse):
+			if membership.state == GroupChatState.Rejected or membership.state == GroupChatState.Empty:
+				raise error.MemberNotInGroupChat()
+			raise error.MemberAlreadyInGroupChat()
+		
+		membership.role = GroupChatRole.Member
+		membership.state = GroupChatState.Accepted
+		
+		if membership.invite_message is not None:
+			membership.invite_message = None
+		
+		self._mark_groupchat_modified(groupchat)
+		
+		if chat is not None:
+			for bs_other in self.util_get_sessions_by_user(user):
+				bs_other.evt.on_groupchat_role_updated(groupchat.chat_id, GroupChatRole.Member)
+			
+			for cs_other in chat.get_roster():
+				if cs_other is user: continue
+				cs_other.bs.evt.on_groupchat_updated(groupchat.chat_id)
+	
+	def util_decline_groupchat_invite(self, groupchat: GroupChat, user: User) -> None:
+		if user.uuid not in groupchat.memberships: raise error.MemberNotInGroupChat()
+		
+		chat = self.chat_get('persistent', groupchat.chat_id)
+		
+		membership = groupchat.memberships[user.uuid]
+		if not (membership.role == GroupChatRole.StatePendingOutbound and membership.state == GroupChatState.WaitingResponse):
+			if membership.state == GroupChatState.Rejected or membership.state == GroupChatState.Empty:
+				raise error.MemberNotInGroupChat()
+			raise error.MemberAlreadyInGroupChat()
+		
+		membership.role = GroupChatRole.Member
+		membership.state = GroupChatState.Rejected
+		
+		self._mark_groupchat_modified(groupchat)
+		
+		if chat is not None:
+			for bs_other in self.util_get_sessions_by_user(user):
+				bs_other.evt.on_declined_chat_invite(chat, group_chat = True)
+			
+			for cs in chat.get_roster():
+				if cs.user is user: continue
+				cs.bs.evt.on_chat_invite_declined(chat, user, group_chat = True)
+	
+	def util_revoke_groupchat_invite(self, groupchat: GroupChat, user: User) -> None:
+		if user.uuid not in groupchat.memberships: raise error.MemberNotInGroupChat()
+		
+		chat = self.chat_get('persistent', groupchat.chat_id)
+		
+		membership = groupchat.memberships[user.uuid]
+		if not (membership.role == GroupChatRole.StatePendingOutbound and membership.state == GroupChatState.WaitingResponse):
+			if membership.state == GroupChatState.Rejected or membership.state == GroupChatState.Empty:
+				raise error.MemberNotInGroupChat()
+			raise error.MemberAlreadyInGroupChat()
+		
+		membership.role = GroupChatRole.Member
+		membership.state = GroupChatState.Empty
+		
+		if membership.inviter_uuid is not None:
+			membership.inviter_uuid = None
+		if membership.inviter_email is not None:
+			membership.inviter_email = None
+		if membership.inviter_name is not None:
+			membership.inviter_name = None
+		
+		self._mark_groupchat_modified(groupchat)
+		
+		for bs_other in self.util_get_sessions_by_user(user):
+			bs_other.evt.on_groupchat_invite_revoked(groupchat.chat_id)
+		
+		if chat is not None:
+			for cs_other in chat.get_roster():
+				cs_other.bs.evt.on_groupchat_updated(groupchat.chat_id)
+	
 	def util_change_groupchat_membership_role(self, groupchat: GroupChat, user_other: User, role: GroupChatRole) -> None:
 		if user_other.uuid not in groupchat.memberships: raise error.MemberNotInGroupChat()
 		
 		chat = self.chat_get('persistent', groupchat.chat_id)
-		if chat is None: raise error.GroupChatDoesNotExist()
 		
 		membership = groupchat.memberships[user_other.uuid]
 		
 		old_role = membership.role
+		if old_role == GroupChatRole.StatePendingOutbound:
+			raise error.GroupChatMemberIsPending()
 		membership.role = role
 		
 		if old_role is not membership.role:
 			self._mark_groupchat_modified(groupchat)
-			for cs_other in chat.get_roster():
-				if cs_other.user is user_other:
-					cs_other.bs.evt.on_groupchat_role_updated(groupchat.chat_id, membership.role)
-				else:
-					cs_other.bs.evt.on_groupchat_updated(groupchat.chat_id)
+			
+			if chat is not None:
+				for cs_other in chat.get_roster():
+					if cs_other.user is user_other:
+						cs_other.bs.evt.on_groupchat_role_updated(groupchat.chat_id, membership.role)
+					else:
+						cs_other.bs.evt.on_groupchat_updated(groupchat.chat_id)
 	
-	def util_leave_groupchat(self, groupchat: GroupChat, user: User) -> None:
+	def util_remove_user_from_groupchat(self, groupchat: GroupChat, user: User) -> None:
 		if user.uuid not in groupchat.memberships: raise error.MemberNotInGroupChat()
 		
 		chat = self.chat_get('persistent', groupchat.chat_id)
-		if chat is None: raise error.GroupChatDoesNotExist()
 		
 		membership = groupchat.memberships[user.uuid]
 		if membership.state == GroupChatState.Empty: raise error.MemberNotInGroupChat()
@@ -280,16 +370,18 @@ class Backend:
 		
 		self._mark_groupchat_modified(groupchat)
 		
-		if groupchat.chat_id in self._cses_by_bs_by_groupchat_id:
-			for bs, cs in self._cses_by_bs_by_groupchat_id[groupchat.chat_id].items():
-				if bs.user is user:
-					cs.close()
+		for bs_other in self.util_get_sessions_by_user(user):
+			bs_other.evt.on_left_groupchat(groupchat.chat_id)
 		
-		for cs_other in chat.get_roster():
-			if cs_other.user is user:
-				cs_other.bs.evt.on_left_groupchat(groupchat.chat_id)
-			else:
-				cs_other.bs.evt.on_groupchat_updated(groupchat.chat_id)
+		if chat is not None:
+			if groupchat.chat_id in self._cses_by_bs_by_groupchat_id:
+				for _, cs in self._cses_by_bs_by_groupchat_id[groupchat.chat_id].items():
+					if cs is not None and cs.user is user:
+						cs.close()
+			
+			for cs_other in chat.get_roster():
+				if cs_other.user is not user:
+					cs_other.bs.evt.on_groupchat_updated(groupchat.chat_id)
 	
 	def dev_connect(self, obj: object) -> None:
 		if self._dev is None: return
@@ -385,7 +477,13 @@ class Backend:
 						if groupchat.chat_id not in self._cses_by_bs_by_groupchat_id: continue
 						if bs not in self._cses_by_bs_by_groupchat_id[groupchat.chat_id]: continue
 						cs = self._cses_by_bs_by_groupchat_id[groupchat.chat_id][bs]
+						assert cs is not None
 						cs.chat.send_participant_status_updated(cs)
+					if user.status.substatus is Substatus.Offline:
+						for cs_dict in self._cses_by_bs_by_groupchat_id.values():
+							cs = cs_dict.pop(bs, None)
+							if cs is not None:
+								cs.close()
 					if for_logout:
 						if not self._sc.get_sessions_by_user(user): user.detail = None
 			except:
@@ -612,11 +710,15 @@ class BackendSession(Session):
 	def me_contact_add(self, contact_uuid: str, lst: Lst, *, trid: Optional[str] = None, name: Optional[str] = None, nickname: Optional[str] = None, message: Optional[TextWithData] = None, group_id: Optional[str] = None, adder_id: Optional[str] = None, needs_notify: bool = False) -> Tuple[Contact, User]:
 		assert not lst & Lst.PL
 		backend = self.backend
+		user = self.user
+		detail = user.detail
+		assert detail is not None
 		ctc_head = backend._load_user_record(contact_uuid)
 		if ctc_head is None:
 			raise error.UserDoesNotExist()
 		user = self.user
 		ctc_status = ctc_head.status.substatus
+		old_ctc = detail.contacts.get(ctc_head.uuid)
 		ctc = self._add_to_list(user, ctc_head, lst, name, group_id, nickname = nickname)
 		if lst & Lst.FL:
 			# FL needs a matching RL on the contact
@@ -624,7 +726,8 @@ class BackendSession(Session):
 			# `ctc_head` was added to `user`'s RL
 			for sess_added in backend._sc.get_sessions_by_user(ctc_head):
 				#if sess_added is self: continue
-				sess_added.evt.on_added_me(user, message = message, adder_id = adder_id)
+				if old_ctc is None or not old_ctc.lists & Lst.FL:
+					sess_added.evt.on_added_me(user, message = message, adder_id = adder_id)
 		else:
 			ctc_detail = backend._load_detail(ctc_head)
 			ctc_me = ctc_detail.contacts.get(user.uuid)
@@ -633,6 +736,7 @@ class BackendSession(Session):
 				if sess_added is self: continue
 				if ctc_me:
 					if ctc_me.lists & Lst.FL:
+						backend._sync_contact_statuses(ctc_head)
 						sess_added.evt.on_presence_notification(self, ctc_me, False, visible_notif = False, send_status_on_bl = True, updated_phone_info = {
 							'PHH': user.settings.get('PHH'),
 							'PHW': user.settings.get('PHW'),
@@ -669,6 +773,8 @@ class BackendSession(Session):
 		if lst & Lst.FL:
 			# Remove matching RL
 			self._remove_from_list(ctc.head, user, Lst.RL, None)
+			for sess_added in backend._sc.get_sessions_by_user(ctc.head):
+				sess_added.evt.on_removed_me(user)
 		if lst & Lst.BL:
 			ctc_detail = backend._load_detail(ctc.head)
 			ctc_me = ctc_detail.contacts.get(user.uuid)
@@ -852,7 +958,10 @@ class BackendSession(Session):
 		
 		membership = groupchat.memberships[user.uuid]
 		
-		if not (membership.role == GroupChatRole.StatePendingOutbound and membership.state == GroupChatState.WaitingResponse): raise error.MemberAlreadyInGroupChat()
+		if not (membership.role == GroupChatRole.StatePendingOutbound and membership.state == GroupChatState.WaitingResponse):
+			if membership.state == GroupChatState.Rejected or membership.state == GroupChatState.Empty:
+				raise error.MemberNotInGroupChat()
+			raise error.MemberAlreadyInGroupChat()
 		
 		membership.role = GroupChatRole.Member
 		membership.state = GroupChatState.Accepted
@@ -864,7 +973,7 @@ class BackendSession(Session):
 		
 		for bs_other in backend.util_get_sessions_by_user(user):
 			if bs_other is self: continue
-			bs_other.evt.on_groupchat_updated(groupchat.chat_id)
+			bs_other.evt.on_groupchat_role_updated(groupchat.chat_id, GroupChatRole.Member)
 		
 		for cs_other in chat.get_roster():
 			if cs_other is user: continue
@@ -880,12 +989,19 @@ class BackendSession(Session):
 		if chat is None: raise error.GroupChatDoesNotExist()
 		
 		membership = groupchat.memberships[user.uuid]
-		if not (membership.role == GroupChatRole.StatePendingOutbound and membership.state == GroupChatState.WaitingResponse): raise error.MemberAlreadyInGroupChat()
+		if not (membership.role == GroupChatRole.StatePendingOutbound and membership.state == GroupChatState.WaitingResponse):
+			if membership.state == GroupChatState.Rejected or membership.state == GroupChatState.Empty:
+				raise error.MemberNotInGroupChat()
+			raise error.MemberAlreadyInGroupChat()
 		
 		membership.role = GroupChatRole.Member
 		membership.state = GroupChatState.Rejected
 		
 		self.backend._mark_groupchat_modified(groupchat)
+		
+		for bs_other in backend.util_get_sessions_by_user(user):
+			if bs_other is self: continue
+			bs_other.evt.on_declined_chat_invite(chat, group_chat = True)
 		
 		for cs in chat.get_roster():
 			if cs.user is user: continue
@@ -987,7 +1103,8 @@ class Chat:
 		self._users_by_sess = {}
 		self._stats = stats
 		
-		self.add_id('main', backend.auth_service.GenTokenStr())
+		# 31 characters is all WLM 2009 will allow for chat IDs (RNG); otherwise the receiving end won't have the sender's messages display
+		self.add_id('main', backend.auth_service.GenTokenStr(trim = 31))
 		if self.groupchat is None: return
 		
 		assert groupchat is not None
@@ -1084,6 +1201,7 @@ class Chat:
 			if cs_other is cs and cs.origin is 'yahoo': continue
 			if self.groupchat is not None:
 				if self.groupchat.memberships[cs.user.uuid].blocking and cs_other.user is not cs.user and not send_on_bl: continue
+			if cs.bs.user.status.substatus is Substatus.Offline and cs_other.user is cs.user: continue
 			cs_other.evt.on_participant_status_updated(cs, first_pop, initial)
 	
 	def on_leave(self, sess: 'ChatSession') -> None:

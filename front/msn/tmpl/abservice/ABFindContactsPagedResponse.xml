@@ -123,15 +123,15 @@
 									<IsHidden>false</IsHidden>
 									<Gender>Unspecified</Gender>
 									<TimeZone>None</TimeZone>
-									{%- if not (membership.role == GroupChatRole.Empty and membership.state == GroupChatState.Empty) -%}
+									{%- if not (membership.role == GroupChatRole.Empty or membership.state == GroupChatState.Empty) -%}
 										<NetworkInfoList>
 											<NetworkInfo>
 												<DomainId>1</DomainId>
 												<SourceId>WL</SourceId>
 												<RelationshipType>5</RelationshipType>
-												<RelationshipState>{%- if groupchat.memberships[user.uuid].state == GroupChatState.WaitingResponse -%}2{%- else -%}{{ membership.state.value }}{%- endif -%}</RelationshipState>
+												<RelationshipState>{%- if membership.state == GroupChatState.WaitingResponse -%}2{%- else -%}{{ membership.state.value }}{%- endif -%}</RelationshipState>
 												<RelationshipStateDate>{{ now }}</RelationshipStateDate>
-												<RelationshipRole>{%- if groupchat.memberships[user.uuid].role == GroupChatRole.StatePendingOutbound -%}3{%- else -%}{{ membership.role.value }}{%- endif -%}</RelationshipRole>
+												<RelationshipRole>{%- if membership.role == GroupChatRole.StatePendingOutbound -%}3{%- else -%}{{ membership.role.value }}{%- endif -%}</RelationshipRole>
 												<NDRCount>0</NDRCount>
 												{%- if membership.invite_message -%}
 													<InviterMessage>{{ membership.invite_message }}</InviterMessage>
@@ -193,7 +193,7 @@
 							<lastChange>{{ now }}</lastChange>
 						</Contact>
 					{%- else -%}
-						{{ generate_me_entry(ab_id, user, now) }}
+						{{ generate_me_entry(user, now) }}
 					{%- endif -%}
 				</Contacts>
 				{%- if ab_id == '00000000-0000-0000-0000-000000000000' -%}

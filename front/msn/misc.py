@@ -222,6 +222,9 @@ def decode_email_pop(s: str) -> Tuple[str, Optional[str]]:
 		pop_id = parts[1]
 	return (parts[0], pop_id)
 
+def normalize_pop_id(pop_id: str) -> str:
+	return ''.join(pop_id.replace('{', '', 1).rsplit('}', 1))
+
 def extend_ubx_payload(dialect: int, backend: Backend, user: User, ctc_sess: 'BackendSession') -> str:
 	response = ''
 	
@@ -290,8 +293,46 @@ def gen_chal_response(chal: str, id: str, id_key: str, *, msnp11: bool = False) 
 	if not msnp11:
 		return key_hash.hexdigest()
 	
-	# TODO: MSNP11 challenge/response procedure
-	return 'PASS'
+	key_digest = key_hash.digest()
+	key_array = []
+	for i in range(0, len(key_digest), 4):
+		key_array.append(struct.unpack('<I', key_digest[i:i+4])[0] & 0x7FFFFFFF)
+	chl = chal.encode() + id.encode()
+	chl += (b'0' * (8 - (len(chl) % 8)))
+	chl_array = []
+	for j in range(0, len(chl), 4):
+		chl_array.append(struct.unpack('<I', chl[j:j+4])[0])
+	
+	high = 0
+	low = 0
+	
+	for n in range(0, len(chl_array), 2):
+		temp = chl_array[n]
+		temp = (0x0E79A9C1 * temp) % 0x7FFFFFFF
+		temp += high
+		temp = key_array[0] * temp + key_array[1]
+		temp = temp % 0x7FFFFFFF
+		
+		high = chl_array[n + 1]
+		high = (high + temp) % 0x7FFFFFFF
+		high = key_array[2] * high + key_array[3]
+		high = high % 0x7FFFFFFF
+		
+		low += high + temp
+	
+	high = (high + key_array[1]) % 0x7FFFFFFF
+	low = (low + key_array[3]) % 0x7FFFFFFF
+	
+	# TODO: High XORs are messed up
+	
+	key_array[0] ^= high
+	key_array[1] ^= low
+	key_array[2] ^= high
+	key_array[3] ^= low
+	
+	final = (binascii.hexlify(struct.pack('<I', key_array[0])) + binascii.hexlify(struct.pack('<I', key_array[1])) + binascii.hexlify(struct.pack('<I', key_array[2])) + binascii.hexlify(struct.pack('<I', key_array[3]))).decode('utf-8')
+	
+	return final
 
 def generate_rps_key(key: bytes, msg: bytes) -> bytes:
 	hash1 = hmac.new(key, msg, sha1).digest()
