@@ -2142,7 +2142,7 @@ class GroupChatEventHandler(event.ChatEventHandler):
 		users = ''
 		
 		membership = groupchat.memberships[cs_other.user.uuid]
-		if membership.state == GroupChatState.Left: return
+		if membership.state == GroupChatState.Empty: return
 		
 		if not (initial and cs_other.user.status.is_offlineish()):
 			for m in build_presence_notif(None, cs_other.user, user, self.ctrl.dialect, self.ctrl.backend, self.ctrl.iln_sent, bs_other = cs_other.bs, groupchat = groupchat):
