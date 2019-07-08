@@ -13,7 +13,7 @@ Currently, MSNP2 through MSNP18 are implemented. Its been tested and works with 
 
 - Because of MSNP limitations, if you want to log in to MSN < 5, you have to store an MD5-encoded password (`User.front_data['msn']['pw_md5']`)
 
-- Circles/Groups for WLM 2009 are partially implemented. Creation, invitations, and presence work. Messaging, group settings, and leaving Circles haven't been implemented yet.
+- Circles/Groups for WLM 2009 are fully implemented. However, managing member roles and leaving Circles are expected to be done from a website. You can either manually configure the memberships in the database yourself, or set up the [site](https://gitlab.com/escargot-chat/site/tree/patch/new-site) component if you want to quickly configure roles for testing.
 
 YMSG:
 
