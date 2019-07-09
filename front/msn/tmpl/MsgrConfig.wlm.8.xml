@@ -125,10 +125,6 @@
 			</SocialNetwork>
 			<ViewMapEnabled>false</ViewMapEnabled>
 		</Contacts>
-		<ContactCard>
-			<ContactCardDisabled>false</ContactCardDisabled>
-			<GetItemVerUrl>http://storage.msn.com/storageservice/schematizedstore.asmx</GetItemVerUrl>
-		</ContactCard>
 		<FlashUpgradeURL>http://messenger.msn.com/flash/?mkt=en-us&amp;version=$VERSION$</FlashUpgradeURL>
 		<GLinkMarket v="en_us"/>
 		<MSNSearch>

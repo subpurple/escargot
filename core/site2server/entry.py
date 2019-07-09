@@ -9,7 +9,7 @@ from .ctrl import S2SCtrl
 
 def register(loop: asyncio.AbstractEventLoop, backend: Backend) -> None:
 	from util.misc import ProtocolRunner
-	backend.add_runner(ProtocolRunner('0.0.0.0', 52476, ListenerS2S, args = ['LK', backend, S2SCtrl]))
+	backend.add_runner(ProtocolRunner('0.0.0.0', 4309, ListenerS2S, args = ['LK', backend, S2SCtrl]))
 
 class ListenerS2S(asyncio.Protocol):
 	logger: Logger

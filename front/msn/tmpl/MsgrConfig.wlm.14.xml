@@ -185,10 +185,6 @@
 			</SNInvites>
 			<ViewMapEnabled>true</ViewMapEnabled>
 		</Contacts>
-		<ContactCard>
-			<ContactCardDisabled>false</ContactCardDisabled>
-			<GetItemVerUrl>http://storage.msn.com/storageservice/schematizedstore.asmx</GetItemVerUrl>
-		</ContactCard>
 		<FlashUpgradeURL>http://get.adobe.com/flashplayer/thankyou/activex/?installer=Flash_Player_10_for_Windows_Internet_Explorer</FlashUpgradeURL>
 		<GLinkMarket v="en_us" />
 		<IntroConfig />

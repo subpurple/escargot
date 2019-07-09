@@ -25,7 +25,7 @@ def register(loop: asyncio.AbstractEventLoop, backend: Backend, *, devmode: bool
 		ssl_context = None
 	
 	app = create_app(loop, backend)
-	backend.add_runner(AIOHTTPRunner(sysboard_host, 52478, app, ssl_context = ssl_context, ssl_only = True))
+	backend.add_runner(AIOHTTPRunner(sysboard_host, 4308, app, ssl_context = ssl_context, ssl_only = True))
 	
 	app.router.add_get(SYSBOARD_PATH, handle_sysboard_gui)
 	app.router.add_post(SYSBOARD_PATH, handle_sysboard_action)

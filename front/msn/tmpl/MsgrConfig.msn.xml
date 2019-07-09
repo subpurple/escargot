@@ -1,6 +1,8 @@
 <MsgrConfig>
 	<Simple>
-		<Config><ExpiresInDays>0</ExpiresInDays></Config>
+		<Config>
+			<ExpiresInDays>0</ExpiresInDays>
+		</Config>
 		<DisablePhoneDialer>1</DisablePhoneDialer>
 		<Logitech>
 			<PreRollEnabled>0</PreRollEnabled>
@@ -65,21 +67,20 @@
 {tabs}
 		</msntabdata>
 		<msntabsettings>
-			<oemdisplaylimit>1</oemdisplaylimit><oemtotallimit>1</oemtotallimit>
+			<oemdisplaylimit>1</oemdisplaylimit>
+			<oemtotallimit>1</oemtotallimit>
 		</msntabsettings>
 	</TabConfig>
 	<AbchCfg>
-		<abchconfig><url>https://m1.escargot.log1p.xyz/abservice/abservice.asmx</url></abchconfig>
+		<abchconfig>
+			<url>https://m1.escargot.log1p.xyz/abservice/abservice.asmx</url>
+		</abchconfig>
 	</AbchCfg>
 	<LocalizedConfig Market="en-US">
 		<AdMainConfig>
 			<TextAdRefresh>1</TextAdRefresh>
 			<TextAdServer>https://m1.escargot.log1p.xyz/etc/text-ad-service</TextAdServer>
 		</AdMainConfig>
-		<ContactCard>
-			<ContactCardDisabled>false</ContactCardDisabled>
-			<GetItemVerUrl>http://storage.msn.com/storageservice/schematizedstore.asmx</GetItemVerUrl>
-		</ContactCard>
 		<MSNSearch>
 			<DesktopInstallURL>https://duckduckgo.com/?q=$QUERY$&amp;ia=web</DesktopInstallURL>
 			<ImagesURL>https://duckduckgo.com/?q=$QUERY$&amp;ia=images</ImagesURL>
