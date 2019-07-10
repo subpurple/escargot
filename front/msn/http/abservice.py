@@ -1258,7 +1258,7 @@ def ab_UpdateDynamicItem(req: web.Request, header: Any, action: Any, bs: Backend
 
 async def join_creator_to_groupchat(backend: Backend, user: models.User, chat_id: str) -> None:
 	for sess in backend.util_get_sessions_by_user(user):
-		await asyncio.sleep(0.2)
+		await asyncio.sleep(1)
 		sess.evt.on_groupchat_created(chat_id)
 
 _CONTACT_PROPERTIES = (

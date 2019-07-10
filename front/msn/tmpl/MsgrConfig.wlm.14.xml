@@ -40,81 +40,81 @@
 			<domain name="escargot.log1p.xyz" />
 		</TrustedDomains>
 		<ErrorResponseTable>
-            <Feature type="0" name="Login">
-                <Entry hr="0x80004002" action="3"/>
-                <Entry hr="0x80004004" action="3"/>
-                <Entry hr="0x80004005" action="3"/>
-                <Entry hr="0x8000402A" action="3"/>
-                <Entry hr="0x8000FFFF" action="3"/>
-                <Entry hr="0x8001012E" action="3"/>
-                <Entry hr="0x80040200" action="3"/>
-                <Entry hr="0x80048051" action="3"/>
-                <Entry hr="0x80048820" action="3"/>
-                <Entry hr="0x80048823" action="3"/>
-                <Entry hr="0x80070002" action="3"/>
-                <Entry hr="0x80070005" action="3"/>
-                <Entry hr="0x8007000E" action="3"/>
-                <Entry hr="0x80070057" action="3"/>
-                <Entry hr="0x8007007E" action="3"/>
-                <Entry hr="0x800702E4" action="3"/>
-                <Entry hr="0x800706BA" action="3"/>
-                <Entry hr="0x800706BE" action="3"/>
-                <Entry hr="0x80071392" action="3"/>
-                <Entry hr="0x80072745" action="3"/>
-                <Entry hr="0x80072746" action="3"/>
-                <Entry hr="0x80072EE2" action="3"/>
-                <Entry hr="0x80072EF3" action="3"/>
-                <Entry hr="0x80072EFD" action="3"/>
-                <Entry hr="0x80072EFF" action="3"/>
-                <Entry hr="0x80072F06" action="3"/>
-                <Entry hr="0x80072F7D" action="3"/>
-                <Entry hr="0x800C013E" action="3"/>
-                <Entry hr="0x80191002" action="3"/>
-                <Entry hr="0x81000306" action="3"/>
-                <Entry hr="0x8100030D" action="3"/>
-                <Entry hr="0x81000314" action="3"/>
-                <Entry hr="0x81000362" action="3"/>
-                <Entry hr="0x81000378" action="3"/>
-                <Entry hr="0x81000395" action="3"/>
-                <Entry hr="0x85AE000B" action="3"/>
-                <Entry hr="0x85AE000F" action="3"/>
-                <Entry hr="0x85AE001D" action="3"/>
-                <Entry hr="0x85AE0022" action="3"/>
-                <Entry hr="0x85AE0024" action="3"/>
-                <Entry hr="0x85AE0027" action="3"/>
-                <Entry hr="0x85AE003C" action="3"/>
-                <Entry hr="0x85AE0053" action="3"/>
-                <Entry hr="0x8E5E0152" action="3"/>
-                <Entry hr="0x8E5E0158" action="3"/>
-                <Entry hr="0x8E5E0211" action="3"/>
-                <Entry hr="0x8E5E0220" action="3"/>
-                <Entry hr="0x8E5E0226" action="3"/>
-                <Entry hr="0x8E5E03FE" action="3"/>
-                <Entry hr="0x8E5E0408" action="3"/>
-                <Entry hr="0x8E5E05F6" action="3"/>
-                <Entry hr="0x8E5E0710" action="3"/>
-                <Entry hr="0x8E5E0713" action="3"/>
-            </Feature>
-            <Feature type="2" name="MapFile">
-                <Entry hr="0x810003F1" action="3"/>
-                <Entry hr="0x810003F6" action="3"/>
-            </Feature>
-            <Feature type="3" name="P2P">
-                <Entry hr="0x82000016" action="3"/>
-                <Entry hr="0x82000017" action="3"/>
-                <Entry hr="0x82000019" action="3"/>
-                <Entry hr="0x8200001b" action="3"/>
-                <Entry hr="0x8200001d" action="3"/>
-                <Entry hr="0x8200001e" action="3"/>
-                <Entry hr="0x82000024" action="3"/>
-                <Entry hr="0x82000026" action="3"/>
-            </Feature>
-        </ErrorResponseTable>
-        <USBDevices>
-            <Device VID="0x045e" PID="0x0719"/>
-            <Device VID="0x045e" PID="0x0722"/>
-            <Device VID="0x041e" PID="0x4080"/>
-        </USBDevices>
+			<Feature type="0" name="Login">
+				<Entry hr="0x80004002" action="3"/>
+				<Entry hr="0x80004004" action="3"/>
+				<Entry hr="0x80004005" action="3"/>
+				<Entry hr="0x8000402A" action="3"/>
+				<Entry hr="0x8000FFFF" action="3"/>
+				<Entry hr="0x8001012E" action="3"/>
+				<Entry hr="0x80040200" action="3"/>
+				<Entry hr="0x80048051" action="3"/>
+				<Entry hr="0x80048820" action="3"/>
+				<Entry hr="0x80048823" action="3"/>
+				<Entry hr="0x80070002" action="3"/>
+				<Entry hr="0x80070005" action="3"/>
+				<Entry hr="0x8007000E" action="3"/>
+				<Entry hr="0x80070057" action="3"/>
+				<Entry hr="0x8007007E" action="3"/>
+				<Entry hr="0x800702E4" action="3"/>
+				<Entry hr="0x800706BA" action="3"/>
+				<Entry hr="0x800706BE" action="3"/>
+				<Entry hr="0x80071392" action="3"/>
+				<Entry hr="0x80072745" action="3"/>
+				<Entry hr="0x80072746" action="3"/>
+				<Entry hr="0x80072EE2" action="3"/>
+				<Entry hr="0x80072EF3" action="3"/>
+				<Entry hr="0x80072EFD" action="3"/>
+				<Entry hr="0x80072EFF" action="3"/>
+				<Entry hr="0x80072F06" action="3"/>
+				<Entry hr="0x80072F7D" action="3"/>
+				<Entry hr="0x800C013E" action="3"/>
+				<Entry hr="0x80191002" action="3"/>
+				<Entry hr="0x81000306" action="3"/>
+				<Entry hr="0x8100030D" action="3"/>
+				<Entry hr="0x81000314" action="3"/>
+				<Entry hr="0x81000362" action="3"/>
+				<Entry hr="0x81000378" action="3"/>
+				<Entry hr="0x81000395" action="3"/>
+				<Entry hr="0x85AE000B" action="3"/>
+				<Entry hr="0x85AE000F" action="3"/>
+				<Entry hr="0x85AE001D" action="3"/>
+				<Entry hr="0x85AE0022" action="3"/>
+				<Entry hr="0x85AE0024" action="3"/>
+				<Entry hr="0x85AE0027" action="3"/>
+				<Entry hr="0x85AE003C" action="3"/>
+				<Entry hr="0x85AE0053" action="3"/>
+				<Entry hr="0x8E5E0152" action="3"/>
+				<Entry hr="0x8E5E0158" action="3"/>
+				<Entry hr="0x8E5E0211" action="3"/>
+				<Entry hr="0x8E5E0220" action="3"/>
+				<Entry hr="0x8E5E0226" action="3"/>
+				<Entry hr="0x8E5E03FE" action="3"/>
+				<Entry hr="0x8E5E0408" action="3"/>
+				<Entry hr="0x8E5E05F6" action="3"/>
+				<Entry hr="0x8E5E0710" action="3"/>
+				<Entry hr="0x8E5E0713" action="3"/>
+			</Feature>
+			<Feature type="2" name="MapFile">
+				<Entry hr="0x810003F1" action="3"/>
+				<Entry hr="0x810003F6" action="3"/>
+			</Feature>
+			<Feature type="3" name="P2P">
+				<Entry hr="0x82000016" action="3"/>
+				<Entry hr="0x82000017" action="3"/>
+				<Entry hr="0x82000019" action="3"/>
+				<Entry hr="0x8200001b" action="3"/>
+				<Entry hr="0x8200001d" action="3"/>
+				<Entry hr="0x8200001e" action="3"/>
+				<Entry hr="0x82000024" action="3"/>
+				<Entry hr="0x82000026" action="3"/>
+			</Feature>
+		</ErrorResponseTable>
+		<USBDevices>
+			<Device VID="0x045e" PID="0x0719"/>
+			<Device VID="0x045e" PID="0x0722"/>
+			<Device VID="0x041e" PID="0x4080"/>
+		</USBDevices>
 		<CirclesWeb General="http://cid-$CIRCLECID$.groups.live.com/" General-SiteId="73625" Management="http://cid-$CIRCLECID$.groups.live.com/options/" Management-SiteId="73625" Membership="http://cid-$CIRCLECID$.groups.live.com/membership/" Membership-SiteId="73625" Leave="http://cid-$CIRCLECID$.groups.live.com/options/leavegroup/" Leave-SiteId="73625" />
 		<AnonymousIMSettings>
 			<SettingsPage URL="http://settings.messenger.live.com/applications/WebSettings.aspx" SiteID="76215" />
@@ -122,8 +122,8 @@
 	</Simple>
 	<TabConfig>
 		<msntabsettings>
-			<oemdisplaylimit>1</oemdisplaylimit>
 			<oemtotallimit>1</oemtotallimit>
+			<oemdisplaylimit>1</oemdisplaylimit>
 		</msntabsettings>
 	</TabConfig>
 	<AbchCfg>
