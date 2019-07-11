@@ -43,7 +43,10 @@ class MSNPCtrlSB(MSNPCtrl):
 	
 	def _on_close(self) -> None:
 		if self.counter_task is not None:
-			self.counter_task.cancel()
+			try:
+				self.counter_task.cancel()
+			except:
+				pass
 			self.counter_task = None
 		if self.cs:
 			self.cs.close()
