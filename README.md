@@ -19,6 +19,10 @@ YMSG:
 
 As of now, only YMSG9 and YMSG10 are implemented. It has only been tested on three Yahoo! Messenger 5.5 builds, 1237, 1244, and 1246.
 
+IRC:
+
+IRC support is very basic. It only offers the ability to create, join, invite people to, leave, and list other people in temporary chats. It also requires `USER`-based login with your account. Nicknames aren't supported.
+
 ## Developers
 
 See [CONTRIBUTING.md](/CONTRIBUTING.md).
