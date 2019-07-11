@@ -366,7 +366,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		msg1 = encode_payload(PAYLOAD_MSG_1,
 			time = int(now.timestamp()), high = high, low = low,
 			token = token, ip = ip, port = port,
-			mpop = (0 if not machineguid else 1),
+			name = (user.status.name or user.email), mpop = (0 if not machineguid else 1),
 		)
 		self.send_reply('MSG', 'Hotmail', 'Hotmail', msg1)
 		
@@ -2326,6 +2326,7 @@ sid: 507
 ClientIP: {ip}
 ClientPort: {port}
 ABCHMigrated: 1
+Nickname: {name}
 MPOPEnabled: {mpop}
 
 '''
