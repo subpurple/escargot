@@ -182,6 +182,8 @@ class IRCCtrl:
 	def close(self) -> None:
 		if self.closed: return
 		self.closed = True
+		for cs in list(self.chat_sessions.values()):
+			cs.close()
 		if self.close_callback:
 			self.close_callback()
 
