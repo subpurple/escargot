@@ -68,6 +68,9 @@ class IRCCtrl:
 		
 		self.send_numeric(RPL.Welcome, email, ':Log on successful.')
 	
+	def _m_ping(self, *servers: str) -> None:
+		self.send_reply('PONG', *servers)
+	
 	def _m_join(self, channel: str, keys: Optional[str] = None) -> None:
 		assert self.bs is not None
 		email = self.bs.user.email
@@ -99,6 +102,13 @@ class IRCCtrl:
 		assert user is not None
 		cs.invite(user)
 		self.send_numeric(RPL.Inviting, self.bs.user.email, user_email, channel)
+	
+	def _m_list(self, arg1: Optional[str] = None, arg2: Optional[str] = None) -> None:
+		assert self.bs is not None
+		email = self.bs.user.email
+		for chat in self.backend.get_chats_by_scope('irc'):
+			self.send_numeric(RPL.List, email, chat.ids['irc'], len(chat.get_roster_single()))
+		self.send_numeric(RPL.ListEnd, email, ":End of /LIST")
 	
 	def _m_mode(self, channel: str) -> None:
 		#self.send_numeric(RPL.ChannelModeIs, self.bs.user.email, channel, '+tnl', 200)
@@ -312,6 +322,8 @@ class IRCReader:
 			i = self._data.index(b'\r\n')
 		except IndexError:
 			return None
+		except ValueError:
+			return None
 		chunk = self._data[:i].decode('utf-8')
 		self._data = self._data[i+2:]
 		
@@ -364,6 +376,8 @@ class Err(IntEnum):
 
 class RPL(IntEnum):
 	Welcome = 1
+	List = 322
+	ListEnd = 323
 	NamReply = 353
 	ChannelModeIs = 324
 	Inviting = 341
