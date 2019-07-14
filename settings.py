@@ -1,5 +1,7 @@
 DB = 'sqlite:///escargot.sqlite'
 STATS_DB = 'sqlite:///stats.sqlite'
+CERT_DIR = 'path/to/cert'
+CERT_ROOT = 'CERT_ROOT'
 TARGET_HOST = 'm1.escargot.log1p.xyz'
 LOGIN_HOST = 'm1.escargot.log1p.xyz'
 YAHOO_FT_DL_HOST = 'https://filestore.log1p.xyz'

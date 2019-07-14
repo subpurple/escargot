@@ -107,7 +107,7 @@ class IRCCtrl:
 		assert self.bs is not None
 		email = self.bs.user.email
 		for chat in self.backend.get_chats_by_scope('irc'):
-			self.send_numeric(RPL.List, email, chat.ids['irc'], len(chat.get_roster_single()))
+			self.send_numeric(RPL.List, email, chat.ids['irc'], str(len(list(chat.get_roster_single()))))
 		self.send_numeric(RPL.ListEnd, email, ":End of /LIST")
 	
 	def _m_mode(self, channel: str) -> None:

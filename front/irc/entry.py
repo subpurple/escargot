@@ -1,15 +1,22 @@
 from typing import Optional, Callable
 
-import asyncio
+import asyncio, settings
 
 from core.backend import Backend
 from util.misc import Logger
 
 from .ctrl import IRCCtrl
 
-def register(loop: asyncio.AbstractEventLoop, backend: Backend) -> None:
+def register(loop: asyncio.AbstractEventLoop, backend: Backend, *, devmode: bool = False) -> None:
 	from util.misc import ProtocolRunner
 	backend.add_runner(ProtocolRunner('0.0.0.0', 6667, ListenerIRC, args = ['IR', backend, IRCCtrl]))
+	if devmode:
+		from devtls import DevTLS
+		ssl_context = DevTLS('Escargot').create_ssl_context()
+	else:
+		from core.tls import TLSContext
+		ssl_context = TLSContext('DO_NOT_TRUST_DevTLS_Escargot', '.devtls_cache').create_ssl_context()
+	backend.add_runner(ProtocolRunner('0.0.0.0', 6697, ListenerIRC, args = ['IR', backend, IRCCtrl], ssl_context = ssl_context))
 
 class ListenerIRC(asyncio.Protocol):
 	logger: Logger
