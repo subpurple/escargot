@@ -376,15 +376,7 @@ def _get_msgr_config(req: web.Request, body: Optional[bytes]) -> str:
 			return 'INVALID_VER'
 		
 		config_ver = query.get('ver').split('.', 4)
-		if 5 <= int(config_ver[0]) <= 7:
-			with open(TMPL_DIR + '/MsgrConfig.msn.envelope.xml') as fh:
-				envelope = fh.read()
-			with open(TMPL_DIR + '/MsgrConfig.msn.xml') as fh:
-				config = fh.read()
-			with open(TMPL_DIR + '/MsgrConfig.tabs.xml') as fh:
-				config_tabs = fh.read()
-			result = envelope.format(MsgrConfig = config.format(tabs = config_tabs))
-		elif 8 <= int(config_ver[0]) <= 9:
+		if 8 <= int(config_ver[0]) <= 9:
 			with open(TMPL_DIR + '/MsgrConfig.wlm.8.xml') as fh:
 				config = fh.read()
 			with open(TMPL_DIR + '/MsgrConfig.tabs.xml') as fh:
