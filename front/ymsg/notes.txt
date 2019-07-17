@@ -14,6 +14,10 @@ https://web.archive.org/web/20100615081758/http://www.venkydude.com/articles/yah
 --- YMSG16 ---
 https://wiki.imfreedom.org/wiki/Yahoo
 http://web.archive.org/web/20090623064155/carbonize.co.uk/ymsg16.html (Site no longer exists)
+http://web.archive.org/web/20090912133315/http://www.adrensoftware.com/tools/yahoo_v16_protocol.php
+
+--- YMSG18 ---
+http://web.archive.org/web/20090912133315/http://www.adrensoftware.com/tools/yahoo_v16_protocol.php
 
 --- Yahoo! Messenger client archives ---
 http://www.oldversion.com/windows/yahoo-messenger/
