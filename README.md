@@ -17,7 +17,7 @@ Currently, MSNP2 through MSNP18 are implemented. Its been tested and works with 
 
 YMSG:
 
-As of now, only YMSG9 and YMSG10 are implemented. It has only been tested on three Yahoo! Messenger 5.5 builds, 1237, 1244, and 1246.
+As of now, only YMSG9 and YMSG10 are implemented. It has only been tested on Yahoo! Messenger 5.0.0.1066 and three Yahoo! Messenger 5.5 builds, 1237, 1244, and 1246.
 
 IRC:
 
