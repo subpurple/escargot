@@ -64,6 +64,7 @@ class Backend:
 		self._linked = False
 		self._dev = None
 		
+		server_temp_cleanup()
 		for groupchat in self.user_service.get_all_groupchats():
 			self.chat_create(groupchat = groupchat)
 		if settings.DEBUG: print('Initialized group chats')
