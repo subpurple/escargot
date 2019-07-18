@@ -274,7 +274,7 @@ def gen_signedticket_xml(bs: BackendSession, backend: Backend) -> str:
 	circleticket_sig = bs.front_data.get('msn_circleticket_sig')
 	assert circleticket_sig is not None
 	
-	circles = [CIRCLETICKET_CIRCLE.format(groupchat.chat_id) for groupchat in backend.user_service.get_groupchat_batch(user) if groupchat.memberships[user.uuid].state in (GroupChatState.Accepted,GroupChatState.WaitingResponse)]
+	circles = [CIRCLETICKET_CIRCLE.format(groupchat.chat_id) for groupchat in backend.user_service.get_groupchat_batch(user) if groupchat.memberships[user.uuid].state is GroupChatState.Accepted]
 	
 	circleticket = encode_payload(CIRCLETICKET,
 		circles = ''.join(circles), cid = cid_format(user.uuid, decimal = True),

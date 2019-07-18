@@ -1271,13 +1271,16 @@ class BackendEventHandler(event.BackendEventHandler):
 		for y in misc.build_http_ft_packet(self.bs, yahoo_id_sender, url_path, upload_time, message):
 			self.ctrl.send_reply(y[0], y[1], self.sess_id, y[2])
 	
-	def on_groupchat_created(self, chat_id: str) -> None:
+	def on_groupchat_created(self, groupchat: GroupChat) -> None:
 		pass
 	
 	def on_groupchat_updated(self, chat_id: str) -> None:
 		pass
 	
-	def on_left_groupchat(self, chat_id: str) -> None:
+	def on_left_groupchat(self, groupchat: GroupChat) -> None:
+		pass
+	
+	def on_accepted_groupchat_invite(self, groupchat: GroupChat) -> None:
 		pass
 	
 	def on_groupchat_invite_revoked(self, chat_id: str) -> None:

@@ -32,7 +32,7 @@ MSNP_DIALECTS = ['MSNP{}'.format(d) for d in (
 )]
 
 class MSNPCtrlNS(MSNPCtrl):
-	__slots__ = ('backend', 'dialect', 'usr_email', 'bs', 'client', 'syn_ser', 'gcf_sent', 'syn_sent', 'iln_sent', 'challenge', 'rps_challenge', 'circle_authenticated', 'initial_adl_sent', 'circle_adl_sent')
+	__slots__ = ('backend', 'dialect', 'usr_email', 'bs', 'client', 'syn_ser', 'gcf_sent', 'syn_sent', 'iln_sent', 'challenge', 'rps_challenge', 'circle_authenticated', 'new_circles', 'initial_adl_sent', 'circle_adl_sent')
 	
 	backend: Backend
 	dialect: int
@@ -46,6 +46,7 @@ class MSNPCtrlNS(MSNPCtrl):
 	challenge: Optional[str]
 	rps_challenge: Optional[bytes]
 	circle_authenticated: bool
+	new_circles: List[GroupChat]
 	initial_adl_sent: bool
 	circle_adl_sent: bool
 	
@@ -63,6 +64,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		self.challenge = None
 		self.rps_challenge = None
 		self.circle_authenticated = False
+		self.new_circles = []
 		self.initial_adl_sent = False
 		self.circle_adl_sent = False
 	
@@ -132,6 +134,13 @@ class MSNPCtrlNS(MSNPCtrl):
 					return
 				self.circle_authenticated = True
 				self.send_reply('USR', trid, 'OK', self.usr_email, 0, 0)
+				
+				if self.circle_authenticated:
+					for groupchat in self.new_circles:
+						self.send_reply('NFY', 'PUT', encode_payload(PAYLOAD_MSG_7,
+							email = _encode_email_epid(bs.user.email, bs.front_data.get('msn_pop_id')), chat_id = groupchat.chat_id,
+						))
+					self.new_circles.clear()
 			return
 		
 		if authtype == 'MD5':
@@ -1962,29 +1971,30 @@ class BackendEventHandler(event.BackendEventHandler):
 			chat_id = chat_id, role = role_node,
 		))
 	
-	def on_groupchat_created(self, chat_id: str) -> None:
-		ctrl = self.ctrl
-		backend = ctrl.backend
-		bs = ctrl.bs
-		assert bs is not None
-		user = bs.user
-		
+	def on_groupchat_created(self, groupchat: GroupChat) -> None:
 		if self.ctrl.circle_authenticated:
-			bs.evt.msn_on_notify_ab()
-			self.ctrl.send_reply('NFY', 'PUT', encode_payload(PAYLOAD_MSG_7,
-				email = _encode_email_epid(user.email, bs.front_data.get('msn_pop_id')), chat_id = chat_id,
-			))
+			self.ctrl.new_circles.append(groupchat)
+			self.msn_on_notify_ab()
 	
 	def on_groupchat_updated(self, chat_id: str) -> None:
 		if self.ctrl.circle_authenticated:
 			self.msn_on_notify_circle_ab(chat_id)
 	
-	def on_left_groupchat(self, chat_id: str) -> None:
+	def on_left_groupchat(self, groupchat: GroupChat) -> None:
 		if self.ctrl.circle_authenticated:
+			try:
+				self.ctrl.new_circles.remove(groupchat)
+			except:
+				pass
 			self.msn_on_notify_ab()
 	
 	def on_groupchat_invite_revoked(self, chat_id: str) -> None:
 		if self.ctrl.circle_authenticated:
+			self.msn_on_notify_ab()
+	
+	def on_accepted_groupchat_invite(self, groupchat: GroupChat) -> None:
+		if self.ctrl.circle_authenticated:
+			self.ctrl.new_circles.append(groupchat)
 			self.msn_on_notify_ab()
 	
 	def on_groupchat_role_updated(self, chat_id: str, role: GroupChatRole) -> None:
@@ -2039,15 +2049,9 @@ class GroupChatEventHandler(event.ChatEventHandler):
 		membership = groupchat.memberships[user.uuid]
 		if membership.state == GroupChatState.Empty:
 			for cs_other in chat.get_roster():
-				circle_roster = CIRCLE_ROSTER.format(
-					users = CIRCLE_USER.format(email = cs_other.user.email),
-				)
-				
-				result = CIRCLE.format(circle_roster)
-				
-				self.ctrl.send_reply('NFY', 'DEL', encode_payload(PAYLOAD_MSG_5,
-					email = user.email, chat_id = groupchat.chat_id,
-					cl = len(result), payload = result,
+				self.ctrl.send_reply('NFY', 'DEL', encode_payload(PAYLOAD_MSG_9,
+					to_email = user.email, nid = str(int(NetworkID.CIRCLE)), uuid = '00000000-0000-0000-0009-{}'.format(groupchat.chat_id),
+					from_email = cs_other.user.email,
 				))
 	
 	def on_participant_joined(self, cs_other: ChatSession, first_pop: bool, initial_join: bool) -> None:
@@ -2096,18 +2100,10 @@ class GroupChatEventHandler(event.ChatEventHandler):
 		assert groupchat is not None
 		
 		if last_pop:
-			membership = groupchat.memberships[cs_other.user.uuid]
-			if membership.state == GroupChatState.Empty:
-				circle_roster = CIRCLE_ROSTER.format(
-					users = CIRCLE_USER.format(email = cs_other.user.email),
-				)
-				
-				result = CIRCLE.format(circle_roster)
-				
-				self.ctrl.send_reply('NFY', 'DEL', encode_payload(PAYLOAD_MSG_5,
-					email = user.email, chat_id = groupchat.chat_id,
-					cl = len(result), payload = result,
-				))
+			self.ctrl.send_reply('NFY', 'DEL', encode_payload(PAYLOAD_MSG_9,
+				to_email = user.email, nid = str(int(NetworkID.CIRCLE)), uuid = '00000000-0000-0000-0009-{}'.format(groupchat.chat_id),
+				from_email = cs_other.user.email,
+			))
 	
 	def on_chat_updated(self) -> None:
 		bs = self.ctrl.bs
@@ -2148,18 +2144,19 @@ class GroupChatEventHandler(event.ChatEventHandler):
 			for m in build_presence_notif(None, cs_other.user, user, self.ctrl.dialect, self.ctrl.backend, self.ctrl.iln_sent, bs_other = cs_other.bs, groupchat = groupchat):
 				self.ctrl.send_reply(*m)
 		
-		for cs1 in chat.get_roster_single():
-			if (cs1.user.status.is_offlineish() or groupchat.memberships[cs1.user.uuid].blocking) and cs1.user is not cs.user: continue
-			users += CIRCLE_USER.format(email = cs1.user.email)
-		
-		roster = CIRCLE_ROSTER.format(users = users)
-		
-		result = CIRCLE.format(roster)
-		
-		self.ctrl.send_reply('NFY', 'PUT', encode_payload(PAYLOAD_MSG_5,
-			email = user.email, chat_id = groupchat.chat_id,
-			cl = len(result), payload = result,
-		))
+		if not cs_other.user.status.is_offlineish():
+			for cs1 in chat.get_roster_single():
+				if (cs1.user.status.is_offlineish() or groupchat.memberships[cs1.user.uuid].blocking) and cs1.user is not cs.user: continue
+				users += CIRCLE_USER.format(email = cs1.user.email)
+			
+			roster = CIRCLE_ROSTER.format(users = users)
+			
+			result = CIRCLE.format(roster)
+			
+			self.ctrl.send_reply('NFY', 'PUT', encode_payload(PAYLOAD_MSG_5,
+				email = user.email, chat_id = groupchat.chat_id,
+				cl = len(result), payload = result,
+			))
 	
 	def on_invite_declined(self, invited_user: User, *, invited_id: Optional[str] = None, message: str = '') -> None:
 		pass
@@ -2427,6 +2424,22 @@ PAYLOAD_MSG_8 = '''<NOTIFICATION id="0" siteid="45705" siteurl="http://contacts.
 </NOTIFICATION>'''
 
 PAYLOAD_MSG_8_1 = '''				&lt;Role&gt;{role}&lt;/Role&gt;
+'''
+
+PAYLOAD_MSG_9 = '''Routing: 1.0
+To: 1:{to_email}
+From: {nid}:{uuid}@live.com
+
+Reliability: 1.0
+Stream: 0
+
+Notification: 1.0
+NotifNum: 2
+Uri: /circle/roster(IM)/user(1:{from_email})
+NotifType: Partial
+Content-Type: application/circles+xml
+Content-Length: 0
+
 '''
 
 SHIELDS = '''<?xml version="1.0" encoding="utf-8" ?>

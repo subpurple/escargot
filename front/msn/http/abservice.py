@@ -986,24 +986,21 @@ def sharing_CreateCircle(req: web.Request, header: Any, action: Any, bs: Backend
 	
 	if find_element(action, 'Domain') == 1 and find_element(action, 'HostedDomain') == 'live.com' and find_element(action, 'Type') == 2 and isinstance(find_element(action, 'IsPresenceEnabled'), bool):
 		membership_access = int(find_element(action, 'MembershipAccess'))
-		#request_membership_option = int(find_element(action, 'RequestMembershipOption'))
-		
 		name = str(find_element(action, 'DisplayName'))
 		owner_friendly = str(find_element(action, 'PublicDisplayName'))
 		
-		chat_id = bs.me_create_groupchat(name, owner_friendly, membership_access)
+		groupchat = bs.me_create_groupchat(name, owner_friendly, membership_access)
 		
-		try:
-			return render(req, 'msn:sharing/CreateCircleResponse.xml', {
-				'cachekey': cachekey,
-				'host': settings.LOGIN_HOST,
-				'session_id': util.misc.gen_uuid(),
-				'chat_id': chat_id,
-			})
-		finally:
-			backend.loop.create_task(join_creator_to_groupchat(backend, user, chat_id))
+		backend.loop.create_task(_dispatch_groupchat_created(backend, user, groupchat))
+		
+		return render(req, 'msn:sharing/CreateCircleResponse.xml', {
+			'cachekey': cachekey,
+			'host': settings.LOGIN_HOST,
+			'session_id': util.misc.gen_uuid(),
+			'chat_id': groupchat.chat_id,
+		})
 	
-	return unknown_soap(req, header, action)
+	return web.HTTPInternalServerError()
 
 def ab_CreateContact(req: web.Request, header: Any, action: Any, bs: BackendSession) -> web.Response:
 	backend: Backend = req.app['backend']
@@ -1140,7 +1137,8 @@ def ab_ManageWLConnection(req: web.Request, header: Any, action: Any, bs: Backen
 				if relationship_role == 0:
 					if ab_id == '00000000-0000-0000-0000-000000000000':
 						try:
-							bs.me_accept_groupchat_invite(groupchat)
+							bs.me_accept_groupchat_invite(groupchat, send_events = False)
+							backend.loop.create_task(_dispatch_groupchat_invite_status(backend, user, groupchat, False))
 						except error.MemberNotInGroupChat:
 							return render(req, 'msn:abservice/ManageWLConnectionResponse.xml', {
 								'cachekey': cachekey,
@@ -1212,29 +1210,30 @@ def ab_ManageWLConnection(req: web.Request, header: Any, action: Any, bs: Backen
 					}, status = 500)
 			elif wl_action == 2:
 				if ab_id == '00000000-0000-0000-0000-000000000000':
-						try:
-							bs.me_decline_groupchat_invite(groupchat)
-						except error.MemberNotInGroupChat:
-							return render(req, 'msn:abservice/ManageWLConnectionResponse.xml', {
-								'cachekey': cachekey,
-								'host': settings.LOGIN_HOST,
-								'session_id': util.misc.gen_uuid(),
-								'error': 'User `{email}` does not have membership in `GroupChat`'.format(email = head.email),
-							}, status = 500)
-						except error.MemberAlreadyInGroupChat:
-							return render(req, 'msn:abservice/ManageWLConnectionResponse.xml', {
-								'cachekey': cachekey,
-								'host': settings.LOGIN_HOST,
-								'session_id': util.misc.gen_uuid(),
-								'error': 'User `{email}` already accepted in `GroupChat`'.format(email = head.email),
-							})
-						except error.GroupChatDoesNotExist:
-							return render(req, 'msn:abservice/ManageWLConnectionResponse.xml', {
-								'cachekey': cachekey,
-								'host': settings.LOGIN_HOST,
-								'session_id': util.misc.gen_uuid(),
-								'error': '`GroupChat` does not currently exist',
-							}, status = 500)
+					try:
+						bs.me_decline_groupchat_invite(groupchat, send_events = False)
+						backend.loop.create_task(_dispatch_groupchat_invite_status(backend, user, groupchat, False))
+					except error.MemberNotInGroupChat:
+						return render(req, 'msn:abservice/ManageWLConnectionResponse.xml', {
+							'cachekey': cachekey,
+							'host': settings.LOGIN_HOST,
+							'session_id': util.misc.gen_uuid(),
+							'error': 'User `{email}` does not have membership in `GroupChat`'.format(email = head.email),
+						}, status = 500)
+					except error.MemberAlreadyInGroupChat:
+						return render(req, 'msn:abservice/ManageWLConnectionResponse.xml', {
+							'cachekey': cachekey,
+							'host': settings.LOGIN_HOST,
+							'session_id': util.misc.gen_uuid(),
+							'error': 'User `{email}` already accepted in `GroupChat`'.format(email = head.email),
+						})
+					except error.GroupChatDoesNotExist:
+						return render(req, 'msn:abservice/ManageWLConnectionResponse.xml', {
+							'cachekey': cachekey,
+							'host': settings.LOGIN_HOST,
+							'session_id': util.misc.gen_uuid(),
+							'error': '`GroupChat` does not currently exist',
+						}, status = 500)
 			else:
 				return web.HTTPInternalServerError()
 	else:
@@ -1252,14 +1251,25 @@ def ab_ManageWLConnection(req: web.Request, header: Any, action: Any, bs: Backen
 		'now': now_str,
 	})
 
+async def _dispatch_groupchat_created(backend: Backend, user: models.User, groupchat: models.GroupChat) -> None:
+	await asyncio.sleep(0.2)
+	for sess in backend.util_get_sessions_by_user(user):
+		sess.evt.on_groupchat_created(groupchat)
+
+async def _dispatch_groupchat_invite_status(backend: Backend, user: models.User, groupchat: models.GroupChat, accepted: bool) -> None:
+	await asyncio.sleep(0.2)
+	if accepted:
+		for sess in backend.util_get_sessions_by_user(user):
+			sess.evt.on_accepted_groupchat_invite(groupchat)
+	else:
+		chat = backend.chat_get('persistent', groupchat.chat_id)
+		if chat is None: return
+		for sess in backend.util_get_sessions_by_user(user):
+			sess.evt.on_declined_chat_invite(chat, group_chat = True)
+
 def ab_UpdateDynamicItem(req: web.Request, header: Any, action: Any, bs: BackendSession) -> web.Response:
 	# TODO: UpdateDynamicItem
 	return unknown_soap(req, header, action, expected = True)
-
-async def join_creator_to_groupchat(backend: Backend, user: models.User, chat_id: str) -> None:
-	for sess in backend.util_get_sessions_by_user(user):
-		await asyncio.sleep(1)
-		sess.evt.on_groupchat_created(chat_id)
 
 _CONTACT_PROPERTIES = (
 	'Comment', 'DisplayName', 'ContactType', 'ContactFirstName', 'ContactLastName', 'MiddleName', 'Anniversary', 'ContactBirthDate', 'ContactEmail', 'ContactLocation', 'ContactWebSite', 'ContactPrimaryEmailType', 'ContactPhone', 'GroupName',

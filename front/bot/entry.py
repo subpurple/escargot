@@ -51,13 +51,16 @@ class BackendEventHandler(event.BackendEventHandler):
 	def on_presence_self_notification(self) -> None:
 		pass
 	
-	def on_groupchat_created(self, chat_id: str) -> None:
+	def on_groupchat_created(self, groupchat: GroupChat) -> None:
 		pass
 	
 	def on_groupchat_updated(self, chat_id: str) -> None:
 		pass
 	
-	def on_left_groupchat(self, chat_id: str) -> None:
+	def on_left_groupchat(self, groupchat: GroupChat) -> None:
+		pass
+	
+	def on_accepted_groupchat_invite(self, groupchat: GroupChat) -> None:
 		pass
 	
 	def on_groupchat_invite_revoked(self, chat_id: str) -> None:

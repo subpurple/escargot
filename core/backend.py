@@ -372,7 +372,7 @@ class Backend:
 		self._mark_groupchat_modified(groupchat)
 		
 		for bs_other in self.util_get_sessions_by_user(user):
-			bs_other.evt.on_left_groupchat(groupchat.chat_id)
+			bs_other.evt.on_left_groupchat(groupchat)
 		
 		if chat is not None:
 			if groupchat.chat_id in self._cses_by_bs_by_groupchat_id:
@@ -880,7 +880,7 @@ class BackendSession(Session):
 			if sess_notify is self: continue
 			sess_notify.evt.on_oim_sent(oim)
 	
-	def me_create_groupchat(self, name: str, owner_friendly: str, membership_access: int) -> str:
+	def me_create_groupchat(self, name: str, owner_friendly: str, membership_access: int) -> GroupChat:
 		user = self.user
 		backend = self.backend
 		
@@ -890,7 +890,7 @@ class BackendSession(Session):
 		
 		backend.chat_create(groupchat = groupchat)
 		
-		return chat_id
+		return groupchat
 	
 	def me_add_user_to_groupchat(self, groupchat: GroupChat, user_other: User) -> None:
 		user = self.user
@@ -948,7 +948,7 @@ class BackendSession(Session):
 		if old_role is not membership.role or old_state is not membership.state:
 			self.backend._mark_groupchat_modified(groupchat)
 	
-	def me_accept_groupchat_invite(self, groupchat: GroupChat) -> None:
+	def me_accept_groupchat_invite(self, groupchat: GroupChat, *, send_events: bool = True) -> None:
 		user = self.user
 		backend = self.backend
 		
@@ -972,15 +972,16 @@ class BackendSession(Session):
 		
 		self.backend._mark_groupchat_modified(groupchat)
 		
-		for bs_other in backend.util_get_sessions_by_user(user):
-			if bs_other is self: continue
-			bs_other.evt.on_groupchat_role_updated(groupchat.chat_id, GroupChatRole.Member)
+		if send_events:
+			for bs_other in backend.util_get_sessions_by_user(user):
+				if bs_other is self: continue
+				bs_other.evt.on_accepted_groupchat_invite(groupchat)
 		
 		for cs_other in chat.get_roster():
 			if cs_other is user: continue
 			cs_other.bs.evt.on_groupchat_updated(groupchat.chat_id)
 	
-	def me_decline_groupchat_invite(self, groupchat: GroupChat) -> None:
+	def me_decline_groupchat_invite(self, groupchat: GroupChat, *, send_events: bool = True) -> None:
 		user = self.user
 		backend = self.backend
 		
@@ -1000,9 +1001,10 @@ class BackendSession(Session):
 		
 		self.backend._mark_groupchat_modified(groupchat)
 		
-		for bs_other in backend.util_get_sessions_by_user(user):
-			if bs_other is self: continue
-			bs_other.evt.on_declined_chat_invite(chat, group_chat = True)
+		if send_events:
+			for bs_other in backend.util_get_sessions_by_user(user):
+				if bs_other is self: continue
+				bs_other.evt.on_declined_chat_invite(chat, group_chat = True)
 		
 		for cs in chat.get_roster():
 			if cs.user is user: continue
