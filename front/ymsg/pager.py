@@ -248,6 +248,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		utf8 = arbitrary_decode(yahoo_data.get(b'97') or b'')
 		
 		group = None
+		old_lists = None
 		action_group_refresh = False
 		
 		add_request_response = MultiDict([
@@ -275,18 +276,20 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		cs = list(contacts.values())
 		
 		contact = contacts.get(contact_uuid)
-		if contact is not None and contact.lists & Lst.FL:
-			if contact._groups:
-				for group_other in contact._groups.copy():
-					if detail._groups_by_id[group_other.id].name == buddy_group:
+		if contact is not None:
+			old_lists = contact.lists
+			if contact.lists & Lst.FL:
+				if contact._groups:
+					for group_other in contact._groups.copy():
+						if detail._groups_by_id[group_other.id].name == buddy_group:
+							add_request_response.add(b'66', b'2')
+							self.send_reply(YMSGService.FriendAdd, YMSGStatus.BRB, self.sess_id, add_request_response)
+							return
+				else:
+					if buddy_group == '(No Group)':
 						add_request_response.add(b'66', b'2')
 						self.send_reply(YMSGService.FriendAdd, YMSGStatus.BRB, self.sess_id, add_request_response)
 						return
-			else:
-				if buddy_group == '(No Group)':
-					add_request_response.add(b'66', b'2')
-					self.send_reply(YMSGService.FriendAdd, YMSGStatus.BRB, self.sess_id, add_request_response)
-					return
 		
 		if buddy_group != '(No Group)':
 			for grp in detail._groups_by_id.values():
@@ -300,8 +303,10 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		ctc_head = self.backend._load_user_record(contact_uuid)
 		assert ctc_head is not None
 		
-		if not contact or (not contact.lists & Lst.FL and not contact.lists & Lst.BL):
-			if not ctc_head.status.is_offlineish():
+		contact_new = bs.me_contact_add(ctc_head.uuid, Lst.FL | Lst.AL, message = (TextWithData(message, utf8) if message is not None else None), adder_id = yahoo_id, needs_notify = True)[0]
+		
+		if (contact_new is not None and contact is None) or (old_lists is not None and (not old_lists & Lst.FL and not old_lists & Lst.BL)):
+			if not contact_new.status.is_offlineish():
 				contact_struct = MultiDict([
 					(b'0', arbitrary_encode(self.yahoo_id or '')),
 				]) # type: Optional[MultiDict[bytes, bytes]]
@@ -311,19 +316,17 @@ class YMSGCtrlPager(YMSGCtrlBase):
 			
 			self.send_reply(YMSGService.ContactNew, YMSGStatus.BRB, self.sess_id, contact_struct)
 			
-			contact = bs.me_contact_add(ctc_head.uuid, Lst.FL, message = (TextWithData(message, utf8) if message is not None else None), adder_id = yahoo_id, needs_notify = True)[0]
-			bs.me_contact_add(contact.head.uuid, Lst.AL)
 		add_request_response.add(b'66', b'0')
 		self.send_reply(YMSGService.FriendAdd, YMSGStatus.BRB, self.sess_id, add_request_response)
 		try:
 			# TODO: Moving/copying contacts to groups
-			if len(contact._groups) >= 1 or (contact._groups and buddy_group == '(No Group)'): action_group_refresh = True
+			if len(contact_new._groups) >= 1 or (contact_new._groups and buddy_group == '(No Group)'): action_group_refresh = True
 			if buddy_group == '(No Group)':
-				for group_other in contact._groups.copy():
+				for group_other in contact_new._groups.copy():
 					group_full = False
-					bs.me_group_contact_remove(group_other.id, contact.head.uuid)
+					bs.me_group_contact_remove(group_other.id, contact_new.head.uuid)
 					for ctc_other in detail.contacts.values():
-						if ctc_other is contact: continue
+						if ctc_other is contact_new: continue
 						for group_ctc in ctc_other._groups.copy():
 							if group_ctc.id is group_other.id:
 								group_full = True
@@ -331,7 +334,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 						if group_full:
 							break
 			if group is not None:
-				bs.me_group_contact_add(group.id, contact.head.uuid)
+				bs.me_group_contact_add(group.id, contact_new.head.uuid)
 			
 			if action_group_refresh: self._update_buddy_list()
 		except error.ContactAlreadyOnList:
@@ -1195,7 +1198,7 @@ class BackendEventHandler(event.BackendEventHandler):
 		self.ctrl.send_reply(YMSGService.LogOff, YMSGStatus.Available, 0, None)
 		self.on_close()
 	
-	def on_presence_notification(self, bs_other: Optional[BackendSession], ctc: Contact, on_contact_add: bool, *, trid: Optional[str] = None, update_status: bool = True, send_status_on_bl: bool = False, visible_notif: bool = True, sess_id: Optional[int] = None, updated_phone_info: Optional[Dict[str, Any]] = None) -> None:
+	def on_presence_notification(self, bs_other: Optional[BackendSession], ctc: Contact, on_contact_add: bool, *, trid: Optional[str] = None, update_status: bool = True, send_status_on_bl: bool = False, sess_id: Optional[int] = None, updated_phone_info: Optional[Dict[str, Any]] = None) -> None:
 		bs = self.bs
 		assert bs is not None
 		
@@ -1221,7 +1224,7 @@ class BackendEventHandler(event.BackendEventHandler):
 				
 				add_contact_status_to_data(yahoo_data, ctc.status, ctc.head, old_substatus = old_substatus, sess_id = sess_id)
 				
-				self.ctrl.send_reply(service, (YMSGStatus.Available if not visible_notif else YMSGStatus.BRB), self.sess_id, yahoo_data)
+				self.ctrl.send_reply(service, YMSGStatus.BRB, self.sess_id, yahoo_data)
 	
 	def on_presence_self_notification(self) -> None:
 		pass

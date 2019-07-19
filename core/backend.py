@@ -714,12 +714,15 @@ class BackendSession(Session):
 		user = self.user
 		detail = user.detail
 		assert detail is not None
+		old_lists = None
 		ctc_head = backend._load_user_record(contact_uuid)
 		if ctc_head is None:
 			raise error.UserDoesNotExist()
 		user = self.user
 		ctc_status = ctc_head.status.substatus
 		old_ctc = detail.contacts.get(ctc_head.uuid)
+		if old_ctc is not None:
+			old_lists = old_ctc.lists
 		ctc = self._add_to_list(user, ctc_head, lst, name, group_id, nickname = nickname)
 		if lst & Lst.FL:
 			# FL needs a matching RL on the contact
@@ -727,7 +730,7 @@ class BackendSession(Session):
 			# `ctc_head` was added to `user`'s RL
 			for sess_added in backend._sc.get_sessions_by_user(ctc_head):
 				#if sess_added is self: continue
-				if old_ctc is None or not old_ctc.lists & Lst.FL:
+				if old_ctc is None or (old_lists is not None and not old_lists & Lst.FL):
 					sess_added.evt.on_added_me(user, message = message, adder_id = adder_id)
 		else:
 			ctc_detail = backend._load_detail(ctc_head)
@@ -738,7 +741,7 @@ class BackendSession(Session):
 				if ctc_me:
 					if ctc_me.lists & Lst.FL:
 						backend._sync_contact_statuses(ctc_head)
-						sess_added.evt.on_presence_notification(self, ctc_me, False, visible_notif = False, send_status_on_bl = True, updated_phone_info = {
+						sess_added.evt.on_presence_notification(self, ctc_me, False, send_status_on_bl = True, updated_phone_info = {
 							'PHH': user.settings.get('PHH'),
 							'PHW': user.settings.get('PHW'),
 							'PHM': user.settings.get('PHM'),
