@@ -2100,10 +2100,12 @@ class GroupChatEventHandler(event.ChatEventHandler):
 		assert groupchat is not None
 		
 		if last_pop:
-			self.ctrl.send_reply('NFY', 'DEL', encode_payload(PAYLOAD_MSG_9,
-				to_email = user.email, nid = str(int(NetworkID.CIRCLE)), uuid = '00000000-0000-0000-0009-{}'.format(groupchat.chat_id),
-				from_email = cs_other.user.email,
-			))
+			membership = groupchat.memberships[cs_other.user.uuid]
+			if membership.state == GroupChatState.Empty:
+				self.ctrl.send_reply('NFY', 'DEL', encode_payload(PAYLOAD_MSG_9,
+					to_email = user.email, nid = str(int(NetworkID.CIRCLE)), uuid = '00000000-0000-0000-0009-{}'.format(groupchat.chat_id),
+					from_email = cs_other.user.email,
+				))
 	
 	def on_chat_updated(self) -> None:
 		bs = self.ctrl.bs
