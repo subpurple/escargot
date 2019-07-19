@@ -4,7 +4,7 @@
 		<soap:Fault>
 			<faultcode>soap:Client</faultcode>
 			<faultstring>The Passport user specified is invalid SignInName: {{ email }}</faultstring>
-			<faultactor>http://www.msn.com/webservices/AddressBook/ABContactAdd</faultactor>
+			<faultactor>http://www.msn.com/webservices/AddressBook/{{ action_str }}</faultactor>
 			<detail>
 				<errorcode xmlns="http://www.msn.com/webservices/AddressBook">InvalidPassportUser</errorcode>
 				<errorstring xmlns="http://www.msn.com/webservices/AddressBook">The Passport user specified is invalid SignInName: {{ email }}</errorstring>

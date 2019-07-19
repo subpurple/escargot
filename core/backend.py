@@ -273,7 +273,7 @@ class Backend:
 			
 			for cs_other in chat.get_roster():
 				if cs_other is user: continue
-				cs_other.bs.evt.on_groupchat_updated(groupchat.chat_id)
+				cs_other.bs.evt.on_groupchat_updated(groupchat)
 	
 	def util_decline_groupchat_invite(self, groupchat: GroupChat, user: User) -> None:
 		if user.uuid not in groupchat.memberships: raise error.MemberNotInGroupChat()
@@ -327,7 +327,7 @@ class Backend:
 		
 		if chat is not None:
 			for cs_other in chat.get_roster():
-				cs_other.bs.evt.on_groupchat_updated(groupchat.chat_id)
+				cs_other.bs.evt.on_groupchat_updated(groupchat)
 	
 	def util_change_groupchat_membership_role(self, groupchat: GroupChat, user_other: User, role: GroupChatRole) -> None:
 		if user_other.uuid not in groupchat.memberships: raise error.MemberNotInGroupChat()
@@ -349,7 +349,7 @@ class Backend:
 					if cs_other.user is user_other:
 						cs_other.bs.evt.on_groupchat_role_updated(groupchat.chat_id, membership.role)
 					else:
-						cs_other.bs.evt.on_groupchat_updated(groupchat.chat_id)
+						cs_other.bs.evt.on_groupchat_updated(groupchat)
 	
 	def util_remove_user_from_groupchat(self, groupchat: GroupChat, user: User) -> None:
 		if user.uuid not in groupchat.memberships: raise error.MemberNotInGroupChat()
@@ -382,7 +382,7 @@ class Backend:
 			
 			for cs_other in chat.get_roster():
 				if cs_other.user is not user:
-					cs_other.bs.evt.on_groupchat_updated(groupchat.chat_id)
+					cs_other.bs.evt.on_groupchat_updated(groupchat)
 	
 	def dev_connect(self, obj: object) -> None:
 		if self._dev is None: return
@@ -979,7 +979,7 @@ class BackendSession(Session):
 		
 		for cs_other in chat.get_roster():
 			if cs_other is user: continue
-			cs_other.bs.evt.on_groupchat_updated(groupchat.chat_id)
+			cs_other.bs.evt.on_groupchat_updated(groupchat)
 	
 	def me_decline_groupchat_invite(self, groupchat: GroupChat, *, send_events: bool = True) -> None:
 		user = self.user

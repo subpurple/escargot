@@ -280,6 +280,7 @@ def ab_ABContactAdd(req: web.Request, header: Any, action: Any, bs: BackendSessi
 	contact_uuid = backend.util_get_uuid_from_email(email)
 	if contact_uuid is None:
 		return render(req, 'msn:abservice/Fault.invaliduser.xml', {
+			'action_str': 'ABContactAdd',
 			'email': email,
 		}, status = 500)
 	
@@ -1022,23 +1023,29 @@ def ab_CreateContact(req: web.Request, header: Any, action: Any, bs: BackendSess
 		return web.HTTPInternalServerError()
 	
 	chat_id = ab_id[-12:]
-	contact_email = find_element(action, 'Email')
-	
-	contact_uuid = backend.util_get_uuid_from_email(contact_email)
-	if contact_uuid is None:
-		return web.HTTPInternalServerError()
-	head = backend._load_user_record(contact_uuid)
-	if head is None: return web.HTTPInternalServerError()
-	
 	groupchat = backend.user_service.get_groupchat(chat_id)
 	
 	if groupchat is None:
 		return web.HTTPInternalServerError()
 	
 	caller_membership = groupchat.memberships.get(user.uuid)
-	
 	if caller_membership is None or caller_membership.role not in (models.GroupChatRole.Admin,models.GroupChatRole.AssistantAdmin):
 		return web.HTTPInternalServerError()
+	
+	contact_email = find_element(action, 'Email')
+	contact_uuid = backend.util_get_uuid_from_email(contact_email)
+	
+	if contact_uuid is None:
+		return render(req, 'msn:abservice/Fault.invaliduser.xml', {
+			'action_str': 'CreateContact',
+			'email': contact_email,
+		}, status = 500)
+	head = backend._load_user_record(contact_uuid)
+	if head is None:
+		return render(req, 'msn:abservice/Fault.invaliduser.xml', {
+			'action_str': 'CreateContact',
+			'email': contact_email,
+		}, status = 500)
 	
 	membership = groupchat.memberships.get(head.uuid)
 	

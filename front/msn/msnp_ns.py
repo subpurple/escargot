@@ -1976,9 +1976,15 @@ class BackendEventHandler(event.BackendEventHandler):
 			self.ctrl.new_circles.append(groupchat)
 			self.msn_on_notify_ab()
 	
-	def on_groupchat_updated(self, chat_id: str) -> None:
+	def on_groupchat_updated(self, groupchat: GroupChat) -> None:
+		bs = self.ctrl.bs
+		assert bs is not None
+		user = bs.user
+		
 		if self.ctrl.circle_authenticated:
-			self.msn_on_notify_circle_ab(chat_id)
+			membership = groupchat.memberships.get(user.uuid)
+			assert membership is not None
+			self.msn_on_notify_circle_ab(groupchat.chat_id, role = (membership.role if membership.role is not GroupChatRole.Member else None))
 	
 	def on_left_groupchat(self, groupchat: GroupChat) -> None:
 		if self.ctrl.circle_authenticated:
@@ -1999,7 +2005,7 @@ class BackendEventHandler(event.BackendEventHandler):
 	
 	def on_groupchat_role_updated(self, chat_id: str, role: GroupChatRole) -> None:
 		if self.ctrl.circle_authenticated:
-			self.msn_on_notify_circle_ab(chat_id, role = role)
+			self.msn_on_notify_ab()
 	
 	def ymsg_on_xfer_init(self, yahoo_data: MultiDict[bytes, bytes]) -> None:
 		pass

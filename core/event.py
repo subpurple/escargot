@@ -71,7 +71,7 @@ class BackendEventHandler(metaclass = ABCMeta):
 	def on_accepted_groupchat_invite(self, groupchat: GroupChat) -> None: pass
 	
 	@abstractmethod
-	def on_groupchat_updated(self, chat_id: str) -> None: pass
+	def on_groupchat_updated(self, groupchat: GroupChat) -> None: pass
 	
 	@abstractmethod
 	def on_left_groupchat(self, groupchat: GroupChat) -> None: pass
