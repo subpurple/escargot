@@ -1007,7 +1007,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 			
 			self.backend.user_service.delete_oim(user.uuid, oim.uuid)
 		
-		if len(oim_msg_dict.items()) > 0:
+		if len(list(oim_msg_dict.items())) > 0:
 			self.send_reply(YMSGService.Message, YMSGStatus.NotInOffice, self.sess_id, oim_msg_dict)
 	
 	def _verify_challenge_v1(self, yahoo_id: Optional[str], resp_6: Optional[bytes], resp_96: Optional[bytes]) -> bool:
