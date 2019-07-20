@@ -7,8 +7,8 @@ import struct
 import settings
 import time
 
+from core import error
 from util.misc import Logger, MultiDict
-
 from .misc import YMSGStatus, YMSGService
 
 KVS = MultiDict[bytes, bytes]
@@ -45,7 +45,10 @@ class YMSGCtrlBase(metaclass = ABCMeta):
 				self.logger.error(ex)
 	
 	def send_reply(self, service: YMSGService, status: YMSGStatus, session_id: int, kvs: Optional[KVS] = None) -> None:
-		self.encoder.encode(service, status, session_id, kvs)
+		try:
+			self.encoder.encode(service, status, session_id, kvs)
+		except error.DataTooLargeToSend:
+			return
 		transport = self.transport
 		if transport is not None:
 			transport.write(self.flush())
@@ -75,11 +78,6 @@ class YMSGEncoder:
 		self._buf = io.BytesIO()
 	
 	def encode(self, service: YMSGService, status: YMSGStatus, session_id: int, kvs: Optional[KVS] = None) -> None:
-		w = self._buf.write
-		w(PRE)
-		# version number and vendor id are replaced with 0x00000000
-		w(b'\x00\x00\x00\x00')
-		
 		payload_list = []
 		if kvs is not None:
 			k = None # type: Optional[bytes]
@@ -87,6 +85,17 @@ class YMSGEncoder:
 			for k, v in kvs.items():
 				payload_list.extend([k, SEP, v, SEP])
 		payload = b''.join(payload_list)
+		
+		# TODO: Yahoo!'s servers used to split large payloads into packet chunks, but there's little information on how it was exactly handled. Just drop packets if they're too big (for the length field to handle unfortunately) until we can find a solution.
+		
+		if len(payload) > 0xffff:
+			raise error.DataTooLargeToSend()
+		
+		w = self._buf.write
+		w(PRE)
+		# version number and vendor id are replaced with 0x00000000
+		w(b'\x00\x00\x00\x00')
+		
 		# Have to call `int` on these because they might be an IntEnum, which
 		# get `repr`'d to `EnumName.ValueName`. Grr.
 		w(struct.pack('!HHII', len(payload), int(service), int(status), session_id))

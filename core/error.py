@@ -63,3 +63,6 @@ class GroupChatMemberIsPending(ClientError):
 
 class MemberNotInGroupChat(ClientError):
 	pass
+
+class DataTooLargeToSend(ServerError):
+	pass

@@ -172,8 +172,6 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		bs.front_data['ymsg'] = True
 		bs.front_data['ymsg_private_chats'] = {}
 		
-		self._get_oims(user)
-		
 		self._update_buddy_list(cached_y = cached_y, cached_t = cached_t, after_login = True)
 		
 		if self.dialect >= 10:
@@ -182,6 +180,8 @@ class YMSGCtrlPager(YMSGCtrlBase):
 				(b'144', b'13')
 			]) # type: MultiDict[bytes, bytes]
 			self.send_reply(YMSGService.PingConfiguration, YMSGStatus.Available, self.sess_id, kvs)
+		
+		self._get_oims(user)
 		
 		if self.backend.notify_maintenance:
 			bs.evt.on_system_message(None, self.backend.maintenance_mins)
@@ -993,21 +993,21 @@ class YMSGCtrlPager(YMSGCtrlBase):
 	
 	def _get_oims(self, user: User) -> None:
 		oims = self.backend.user_service.get_oim_batch(user)
+		oim_msg_dict = MultiDict() # type: MultiDict[bytes, bytes]
 		
 		for oim in oims:
-			oim_msg_dict = MultiDict([
-				(b'31', b'6'),
-				(b'32', b'6'),
-				(b'1', arbitrary_encode(oim.from_user_id or misc.yahoo_id(oim.from_email))),
-				(b'5', arbitrary_encode(self.yahoo_id or '')),
-				(b'4', arbitrary_encode(oim.from_user_id or misc.yahoo_id(oim.from_email))),
-				(b'15', str(int(oim.sent.timestamp())).encode('utf-8')),
-				(b'14', arbitrary_encode(oim.message)),
-				(b'97', b'1' if oim.utf8 else b'0'),
-			]) # type: MultiDict[bytes, bytes]
+			oim_msg_dict.add(b'31', b'6')
+			oim_msg_dict.add(b'32', b'6')
+			oim_msg_dict.add(b'1', arbitrary_encode(oim.from_user_id or misc.yahoo_id(oim.from_email)))
+			oim_msg_dict.add(b'5', arbitrary_encode(self.yahoo_id or ''))
+			oim_msg_dict.add(b'4', arbitrary_encode(oim.from_user_id or misc.yahoo_id(oim.from_email)))
+			oim_msg_dict.add(b'15', str(int(oim.sent.timestamp())).encode('utf-8'))
+			oim_msg_dict.add(b'14', arbitrary_encode(oim.message))
+			oim_msg_dict.add(b'97', b'1' if oim.utf8 else b'0')
 			
 			self.backend.user_service.delete_oim(user.uuid, oim.uuid)
-			
+		
+		if len(oim_msg_dict.items()) > 0:
 			self.send_reply(YMSGService.Message, YMSGStatus.NotInOffice, self.sess_id, oim_msg_dict)
 	
 	def _verify_challenge_v1(self, yahoo_id: Optional[str], resp_6: Optional[bytes], resp_96: Optional[bytes]) -> bool:
