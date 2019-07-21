@@ -50,6 +50,7 @@ def register(app: web.Application) -> None:
 	# MSN >= 7.5
 	app.router.add_route('OPTIONS', '/NotRST.srf', handle_not_rst)
 	app.router.add_post('/NotRST.srf', handle_not_rst)
+	app.router.add_post('/', handle_posttest)
 	app.router.add_post('/RST.srf', handle_rst)
 	app.router.add_post('/RST2.srf', lambda req: handle_rst(req, rst2 = True))
 	
@@ -62,6 +63,10 @@ def register(app: web.Application) -> None:
 	
 	# Misc
 	app.router.add_get('/etc/debug', handle_debug)
+
+async def handle_posttest(req: web.Request) -> web.Response:
+	# MSN counts the login server as a "key port" by POSTing to the root of the server with no content.
+	return web.Response(status = 200)
 
 async def handle_storageservice(req: web.Request) -> web.Response:
 	header, action, bs, token = await preprocess_soap(req)
