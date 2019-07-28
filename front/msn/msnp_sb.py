@@ -231,7 +231,6 @@ class MSNPCtrlSB(MSNPCtrl):
 		except Exception as ex:
 			# WLM 2009 sends a `CAL` with the invitee being the owner when a SB session is first initiated. If there are no other
 			# PoPs of the owner, send a `JOI` for now to fool the client.
-			# TODO: Set flag to mark if PoPs of owner are already invited
 			chat_roster_single = list(chat.get_roster_single())
 			if isinstance(ex, error.ContactAlreadyOnList) and invitee_email == bs.user.email and len(chat_roster_single) == 1 and chat_roster_single[0] is cs and self.dialect >= 16:
 				self.send_reply('CAL', trid, 'RINGING', chat.ids['main'])

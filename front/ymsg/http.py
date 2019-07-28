@@ -11,6 +11,7 @@ import re
 from core.backend import Backend, BackendSession
 from core.models import Contact
 import util.misc
+import settings
 from .ymsg_ctrl import _try_decode_ymsg
 from .misc import YMSGService, yahoo_id_to_uuid, yahoo_id
 import time
@@ -215,8 +216,8 @@ async def handle_rd_yahoo(req: web.Request) -> web.Response:
 #	t_expiry = datetime.datetime.utcfromtimestamp(backend.auth_service.get_token_expiry('ymsg/cookie', t)).strftime('%a, %d %b %Y %H:%M:%S GMT') 
 #	
 #	# TODO: Replace '.yahoo.com' with '.log1p.xyz' when patched Yahoo! Messenger files are released.
-#	resp.set_cookie('Y', y, path = '/', expires = y_expiry, domain = '.yahoo.com')
-#	resp.set_cookie('T', t, path = '/', expires = t_expiry, domain = '.yahoo.com')
+#	resp.set_cookie('Y', y, path = '/', expires = y_expiry, domain = ('yahooloopback.log1p.xyz' if settings.DEBUG else settings.TARGET_HOST))
+#	resp.set_cookie('T', t, path = '/', expires = t_expiry, domain = ('yahooloopback.log1p.xyz' if settings.DEBUG else settings.TARGET_HOST))
 #	
 #	return resp
 

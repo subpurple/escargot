@@ -62,8 +62,6 @@ class AuthService:
 		return td.expiry
 	
 	def _remove_expired(self) -> None:
-		# TODO: This seems to remove perfectly good tokens (e.g., 1-day tokens; this causes errors when the MSN
-		# frontend tries to retreive the session ID for SOAP responses). Fix ASAP.
 		if not self._ordered: return
 		dummy = TokenData('', None, self._time(), '')
 		idx = bisect.bisect(self._ordered, dummy)

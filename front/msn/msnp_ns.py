@@ -2014,7 +2014,7 @@ class BackendEventHandler(event.BackendEventHandler):
 		pass
 	
 	def ymsg_on_sent_ft_http(self, yahoo_id_sender: str, url_path: str, upload_time: float, message: str) -> None:
-		# TODO: Pass file transfer message to any chats with Yahoo! user
+		# TODO: Pass file transfer message to any chats with Yahoo! user (might be impossible until MSNP21)
 		pass
 	
 	def on_login_elsewhere(self, option: LoginOption) -> None:

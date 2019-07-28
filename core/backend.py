@@ -80,7 +80,7 @@ class Backend:
 		for bs in self._sc.iter_sessions():
 			bs.evt.on_system_message(*args, message = message, **kwargs)
 		
-		if isinstance(args[1], int) and args[1] > 0:
+		if isinstance(args[1], int) and args[1] >= 0:
 			self.notify_maintenance = True
 			self.maintenance_mins = args[1]
 			self.loop.create_task(self._worker_set_server_maintenance())

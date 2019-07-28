@@ -196,13 +196,16 @@ class BackendEventHandler(event.BackendEventHandler):
 	def __init__(self, ctrl: IRCCtrl) -> None:
 		self.ctrl = ctrl
 	
-	# TODO: Implement `on_system_message` and `on_maintenance_boot`
-	
-	def on_system_message(self, *args: Any, **kwargs: Any) -> None:
-		pass
+	def on_system_message(self, *args: Any, message: str = '', **kwargs: Any) -> None:
+		if args[0] == 1 and args[1] is not None:
+			if args[1] < 0:
+				self.ctrl.send_reply('PRIVMSG', '$*', ':' + message, source = "System")
+			else:
+				self.ctrl.send_reply('NOTICE', '$*', ':Escargot is going to go down for maintenance in {} minute(s).'.format(str(args[1])), source = 'System')
 	
 	def on_maintenance_boot(self) -> None:
-		pass
+		self.ctrl.send_reply('KILL', '$*', ':Escargot is now in maintenance mode. You will be promptly disconnected and temporarily unable to log in after this point.', source = 'System')
+		self.ctrl.close()
 	
 	def on_presence_notification(self, bs_other: Optional[BackendSession], ctc: Contact, on_contact_add: bool, *, trid: Optional[str] = None, update_status: bool = True, send_status_on_bl: bool = False, sess_id: Optional[int] = None, updated_phone_info: Optional[Dict[str, Any]] = None) -> None:
 		self.ctrl.send_reply('NOTICE', ":{} is now {}".format(ctc.head.email, ctc.status.substatus))

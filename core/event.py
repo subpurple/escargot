@@ -93,16 +93,15 @@ class BackendEventHandler(metaclass = ABCMeta):
 	def msn_on_notify_circle_ab(self, chat_id: str, *, role: Optional['GroupChatRole'] = None) -> None:
 		pass
 	
-	def msn_on_put_sent(self, payload: bytes, sender: User, *, pop_id_sender: Optional[str] = None, pop_id: Optional[str] = None) -> None:
-		pass
-	
 	def ymsg_on_xfer_init(self, yahoo_data: MultiDict[bytes, bytes]) -> None:
 		pass
 	
-	def ymsg_on_upload_file_ft(self, recipient: str, message: str) -> None:
-		pass
-		
 	def ymsg_on_sent_ft_http(self, yahoo_id_sender: str, url_path: str, upload_time: float, message: str) -> None:
+		pass
+	
+	# Not used at the moment
+	
+	def ymsg_on_upload_file_ft(self, recipient: str, message: str) -> None:
 		pass
 
 class ChatEventHandler(metaclass = ABCMeta):
