@@ -62,7 +62,7 @@ class YMSGStatus(IntEnum):
 	# "Not at Home"/BadUsername
 	NotAtHome   = 0x00000003
 	NotAtDesk   = 0x00000004
-	# "Not in Office"/OfflineMessage
+	# "Not in Office"/OfflineMessage/MultiPacket
 	NotInOffice = 0x00000005
 	OnPhone     = 0x00000006
 	OnVacation  = 0x00000007
@@ -175,13 +175,19 @@ def build_http_ft_packet(bs: BackendSession, sender: str, url_path: str, upload_
 		(b'20', arbitrary_encode('{}{}'.format(settings.YAHOO_FT_DL_HOST, url_path))),
 	]))
 
-def is_blocking(blocker: User, blockee: User) -> bool:
-	detail = blocker.detail
-	assert detail is not None
-	contact = detail.contacts.get(blockee.uuid)
-	lists = (contact and contact.lists or 0)
-	if lists & Lst.BL: return True
-	return False
+def split_to_chunks(s: str, count: int) -> List[str]:
+	i = 0
+	j = 0
+	final = []
+	
+	while i < len(s):
+		j += count
+		if j > len(s):
+			j = len(s)
+		final.append(s[i:j])
+		i += count
+	
+	return final
 
 def yahoo_id(email: str) -> str:
 	email_parts = email.split('@', 1)

@@ -17,7 +17,7 @@ from core.user import UserService
 from core.auth import AuthService
 
 from .ymsg_ctrl import YMSGCtrlBase
-from .misc import YMSGService, YMSGStatus, yahoo_id_to_uuid, is_blocking
+from .misc import YMSGService, YMSGStatus, yahoo_id_to_uuid, split_to_chunks
 from . import misc, Y64
 
 # "Pre" because it's needed before BackendSession is created.
@@ -908,13 +908,32 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		if contact_list:
 			contact_group_list.append('(No Group):' + ','.join(contact_list) + '\n')
 		
-		ignore_list = [misc.yahoo_id(c.head.email) for c in cs if c.lists & Lst.BL]
+		contact_list_format = ''.join(contact_group_list)
 		
-		list_reply_kvs = MultiDict([
-			(b'87', arbitrary_encode(''.join(contact_group_list))),
-			(b'88', ','.join(ignore_list).encode('utf-8')),
-			(b'89', (self.yahoo_id or '').encode('utf-8')),
-		]) # type: MultiDict[bytes, bytes]
+		ignore_list = [misc.yahoo_id(c.head.email) for c in cs if c.lists & Lst.BL]
+		ignore_list_format = ','.join(ignore_list)
+		
+		list_reply_kvs = MultiDict() # type: MultiDict[bytes, bytes]
+		
+		if len(contact_list_format) > 750:
+			contact_chunks = split_to_chunks(contact_list_format, 750)
+			for contact_chunk in contact_chunks:
+				self.send_reply(YMSGService.List, YMSGStatus.NotInOffice, self.sess_id, MultiDict([
+					(b'87', arbitrary_encode(contact_chunk)),
+				]))
+		else:
+			list_reply_kvs.add(b'87', arbitrary_encode(contact_list_format))
+		
+		if len(ignore_list_format) > 750:
+			ignore_chunks = split_to_chunks(ignore_list_format, 750)
+			for ignore_chunk in ignore_chunks:
+				self.send_reply(YMSGService.List, YMSGStatus.NotInOffice, self.sess_id, MultiDict([
+					(b'88', ignore_chunk.encode('utf-8')),
+				]))
+		else:
+			list_reply_kvs.add(b'88', ignore_list_format.encode('utf-8'))
+		
+		list_reply_kvs.add(b'89', (self.yahoo_id or '').encode('utf-8'))
 		
 		if cached_y is not None and cached_t is not None and backend.auth_service.get_token('ymsg/cookie', cached_y) and backend.auth_service.get_token('ymsg/cookie', cached_t):
 			list_reply_kvs.add(b'59', arbitrary_encode(cached_y))
