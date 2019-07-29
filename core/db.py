@@ -72,7 +72,6 @@ class UserContact(WithFrontData):
 	groups = Col(JSONType)
 	is_messenger_user = Col(sa.Boolean)
 	
-	# TODO: Fields from AddressBookContact
 	id = Col(sa.String) # TODO: For yahoo, like group_id; need Unique(user_id, contact_id); needs new name
 	birthdate = Col(sa.DateTime, nullable = True)
 	anniversary = Col(sa.DateTime, nullable = True)
