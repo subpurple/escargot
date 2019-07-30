@@ -211,14 +211,14 @@ class MSNPCtrlNS(MSNPCtrl):
 			if stage == 'S':
 				#>>> USR trid TWN S auth_token
 				#>>> USR trid SSO S auth_token [b64_response; not included when MSIDCRL-patched clients login]
-				#>>> USR trid SSO S auth_token [b64_response; not included when MSIDCRL-patched clients login] machineguid (MSNP >= 16)
+				#>>> USR trid SSO S auth_token b64_response machineguid (MSNP >= 16)
 				token = args[0]
 				if token[0:2] == 't=':
 					token = token[2:22]
 				usr_email = self.usr_email
 				assert usr_email is not None
 				if settings.DEBUG and settings.DEBUG_MSNP: print(F"Token: {token}")
-				tpl = (backend.auth_service.get_token('nb/login', token) if dialect >= 18 else backend.auth_service.pop_token('nb/login', token))
+				tpl = (backend.auth_service.get_token('nb/login', token) if dialect >= 15 else backend.auth_service.pop_token('nb/login', token))
 				option = None
 				if tpl is not None:
 					uuid = tpl[0]
@@ -227,7 +227,7 @@ class MSNPCtrlNS(MSNPCtrl):
 						if dialect >= 15:
 							rps = False
 							if dialect >= 16:
-								if len(args) == 3:
+								if len(args) >= 3:
 									rps = True
 							else:
 								if len(args) > 1:
@@ -288,9 +288,12 @@ class MSNPCtrlNS(MSNPCtrl):
 									self.close(hard = True)
 									return
 						if dialect >= 16:
-							# Only check the # of args since people could connect from either patched `msidcrl40.dll` or vanilla `msidcrl40.dll`
-							if 2 <= len(args) <= 3:
-								machineguid = (args[2] if len(args) >= 3 else args[1])
+							try:
+								machineguid = args[2]
+							except IndexError:
+								self.send_reply(Err.AuthFail, trid)
+								self.close(hard = True)
+								return
 						
 							if machineguid is not None and not re.match(r'^\{?[A-Fa-f0-9]{8,8}-([A-Fa-f0-9]{4,4}-){3,3}[A-Fa-f0-9]{12,12}\}?', machineguid):
 								self.send_reply(Err.AuthFail, trid)
