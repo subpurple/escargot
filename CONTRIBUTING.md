@@ -70,8 +70,10 @@ Contributions are welcome via MR (Merge Requests). You don't need to request pro
 		127.0.0.1 ows.messenger.msn.com
 		127.0.0.1 rsi.hotmail.com
 		```
+		
+		- *to uninstall 14.x: run* `msiexec /x {B57EAFF2-D6EE-4C6C-9175-ED9F17BFC1BC}`
 	
-	(Note about the `127.0.0.1 login.live.com` entry: **BE SURE TO REMOVE IT OR COMMENT IT OUT AFTER TESTING OR ELSE YOU WON'T BE ABLE TO LOG ON TO ANY OFFICIAL MICROSOFT SERVICES!!**)
+	(Note about the `127.0.0.1 login.live.com` entry: **BE SURE TO REMOVE IT OR COMMENT IT OUT AFTER TESTING OR ELSE YOU WON'T BE ABLE TO LOG ON TO ANYTHING USING MICROSOFT SERVICES (THIS INCLUDES USING A MICROSOFT ACCOUNT ON WINDOWS 8 - 10 FOR YOUR DESKTOP)!!**)
 
 ## Yahoo!
 
@@ -87,7 +89,7 @@ Contributions are welcome via MR (Merge Requests). You don't need to request pro
 	127.0.0.1 us.i1.yimg.com
 	127.0.0.1 chat.yahoo.com
 	127.0.0.1 filetransfer.msg.yahoo.com
-	127.0.0.1 yahoo-ftstore.log1p.xyz
+	127.0.0.1 filestore.log1p.xyz
 	```
 
 - run `python dev` to start the dev server
