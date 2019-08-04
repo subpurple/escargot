@@ -666,6 +666,11 @@ class MSNPCtrlNS(MSNPCtrl):
 						self.close(hard = True)
 						return
 				
+				if initial and not circle_mode:
+					# core handles syncing contact lists; ignore request
+					self.send_reply('ADL', trid, 'OK')
+					return
+				
 				if circle_mode:
 					if not self.circle_authenticated:
 						self.send_reply(Err.InvalidCircleMembership, trid)
