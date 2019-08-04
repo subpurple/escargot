@@ -707,6 +707,9 @@ def ab_ABContactUpdate(req: web.Request, header: Any, action: Any, bs: BackendSe
 						if find_element(contact_info, 'contactType') == 'Me':
 							bs.me_update({ 'rlp': value })
 						continue
+					if name == 'MSN.IM.HasSharedFolder':
+						# This will have to be stored in `_front_data` somehow. Ignore for now
+						continue
 					if name == 'AB.NickName':
 						if ctc:
 							ctc.detail.nickname = value
@@ -1298,7 +1301,7 @@ _CONTACT_LOCATION_PROPERTIES = (
 
 _ANNOTATION_NAMES = (
 	'MSN.IM.InviteMessage', 'MSN.IM.MPOP', 'MSN.IM.BLP', 'MSN.IM.GTC', 'MSN.IM.RoamLiveProperties',
-	'MSN.IM.MBEA', 'MSN.IM.BuddyType', 'AB.NickName', 'AB.Profession', 'AB.Spouse', 'AB.JobTitle', 'Live.Locale', 'Live.Profile.Expression.LastChanged',
+	'MSN.IM.MBEA', 'MSN.IM.BuddyType', 'MSN.IM.HasSharedFolder', 'AB.NickName', 'AB.Profession', 'AB.Spouse', 'AB.JobTitle', 'Live.Locale', 'Live.Profile.Expression.LastChanged',
 	'Live.Passport.Birthdate', 'Live.Favorite.Order',
 )
 

@@ -88,7 +88,6 @@ class MSNPWriter:
 		w(b'\r\n')
 		if data is not None:
 			w(data)
-			print(data)
 	
 	def flush(self) -> bytes:
 		data = self._buf.getvalue()
@@ -133,7 +132,6 @@ class MSNPReader:
 		m = [unquote(x) for x in m]
 		if body:
 			m.append(body)
-			print(body)
 		return m
 	
 	def _read_raw(self, n: int) -> bytes:
@@ -165,7 +163,7 @@ _PAYLOAD_COMMANDS = {
 }
 
 def _truncated_log(logger: Logger, pre: str, m: Sequence[Any]) -> None:
-	if m[0] in ('UUX', 'MSG', 'ADL'):
+	if m[0] in ('UUX', 'MSG', 'SDG', 'ADL', 'SDC'):
 		logger.info(pre, *m[:-1], len(m[-1]))
 	elif m[0] in ('CHG', 'ILN', 'NLN') and 'msnobj' in m[-1]:
 		logger.info(pre, *m[:-1], '<truncated>')
