@@ -51,6 +51,7 @@ class MSNPCtrl(metaclass = ABCMeta):
 		self.close()
 	
 	def close(self, hard: bool = False, maintenance: bool = False) -> None:
+		# TODO: Data sent right before closure isn't actually transported. Figure out for this and other frontends
 		if self.closed: return
 		self.closed = True
 		if not hard:
