@@ -227,8 +227,7 @@ class MSNPCtrlNS(MSNPCtrl):
 						if dialect >= 15:
 							rps = False
 							if dialect >= 16:
-								if len(args) >= 3:
-									rps = True
+								rps = True
 							else:
 								if len(args) > 1:
 									rps = True
@@ -288,40 +287,36 @@ class MSNPCtrlNS(MSNPCtrl):
 									self.close(hard = True)
 									return
 						if dialect >= 16:
-							try:
-								machineguid = args[2]
-							except IndexError:
+							machineguid = args[2]
+							
+							if not re.match(r'^\{?[A-Fa-f0-9]{8,8}-([A-Fa-f0-9]{4,4}-){3,3}[A-Fa-f0-9]{12,12}\}?', machineguid):
 								self.send_reply(Err.AuthFail, trid)
 								self.close(hard = True)
 								return
-						
-							if machineguid is not None and not re.match(r'^\{?[A-Fa-f0-9]{8,8}-([A-Fa-f0-9]{4,4}-){3,3}[A-Fa-f0-9]{12,12}\}?', machineguid):
-								self.send_reply(Err.AuthFail, trid)
-								self.close(hard = True)
-								return
-							if machineguid is not None:
-								user = backend._load_user_record(uuid)
-								if user is not None:
-									bses_self = backend.util_get_sessions_by_user(user)
-									for bs_self in bses_self:
-										pop_id = bs_self.front_data.get('msn_pop_id')
-										if pop_id is not None and pop_id.lower() == normalize_pop_id(machineguid).lower():
-											option = LoginOption.BootOthers
-											break
-										if pop_id is None:
-											option = LoginOption.BootOthers
-											break
-									if not option:
-										option = LoginOption.NotifyOthers
+							
+							user = backend._load_user_record(uuid)
+							if user is not None:
+								bses_self = backend.util_get_sessions_by_user(user)
+								for bs_self in bses_self:
+									pop_id = bs_self.front_data.get('msn_pop_id')
+									if pop_id is not None and pop_id.lower() == normalize_pop_id(machineguid).lower():
+										bs_self.evt.on_login_elsewhere(LoginOption.BootOthers)
+										bs_self.close()
+										break
+								if not option:
+									option = LoginOption.NotifyOthers
 							else:
-								option = LoginOption.BootOthers
+								self.send_reply(Err.AuthFail, trid)
+								self.close(hard = True)
+								return
 						else:
 							option = LoginOption.BootOthers
 						bs = backend.login(uuid, self.client, BackendEventHandler(self), option = option)
 						assert bs is not None
 						self.bs = bs
 						bs.front_data['msn'] = True
-						if dialect >= 16 and machineguid is not None:
+						if dialect >= 16:
+							assert machineguid is not None
 							bs.front_data['msn_pop_id'] = normalize_pop_id(machineguid).lower()
 						self._util_usr_final(trid, token, machineguid)
 						return
@@ -551,7 +546,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		bs.me_update({
 			'message': ((psm.text or '') if psm is not None else None),
 			'media': ((cm.text or '') if cm is not None else None),
-			'needs_notify': (True if ddp is not None or sigsound is not None or scene is not None or colorscheme is not None else False),
+			'needs_notify': (True if None not in (ddp, sigsound, scene, colorscheme) and user.status.substatus is not Substatus.Offline else False),
 			'notify_self': (True if self.dialect >= 16 and user.status.substatus is not Substatus.Offline else False),
 		})
 		
