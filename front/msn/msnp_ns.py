@@ -669,6 +669,8 @@ class MSNPCtrlNS(MSNPCtrl):
 				if initial and not circle_mode:
 					# core handles syncing contact lists; ignore request
 					self.send_reply('ADL', trid, 'OK')
+					if not self.initial_adl_sent:
+						self.initial_adl_sent = True
 					return
 				
 				if circle_mode:
@@ -727,9 +729,7 @@ class MSNPCtrlNS(MSNPCtrl):
 							self.send_reply(Err.InvalidCircleMembership, trid)
 							return
 			
-			if initial and not circle_mode and not self.initial_adl_sent:
-				self.initial_adl_sent = True
-			elif circle_mode and self.initial_adl_sent and not self.circle_adl_sent:
+			if circle_mode and self.initial_adl_sent and not self.circle_adl_sent:
 				self.circle_adl_sent = True
 			
 			for d_el in d_els:
