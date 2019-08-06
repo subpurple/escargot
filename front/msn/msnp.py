@@ -96,7 +96,6 @@ class MSNPWriter:
 		data = self._buf.getvalue()
 		if data:
 			self._buf = io.BytesIO()
-			print('Buffer cleared')
 		return data
 
 class MSNPReader:
