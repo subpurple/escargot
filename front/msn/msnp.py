@@ -29,7 +29,10 @@ class MSNPCtrl(metaclass = ABCMeta):
 	@abstractmethod
 	def on_connect(self) -> None: pass
 	
-	def data_received(self, transport: asyncio.BaseTransport, data: bytes) -> None:
+	def data_received(self, data: bytes, *, transport: Optional[asyncio.BaseTransport] = None) -> None:
+		if transport is None:
+			transport = self.transport
+		assert transport is not None
 		self.peername = transport.get_extra_info('peername')
 		for m in self.reader.data_received(data):
 			try:
@@ -51,7 +54,6 @@ class MSNPCtrl(metaclass = ABCMeta):
 		self.close()
 	
 	def close(self, hard: bool = False, maintenance: bool = False) -> None:
-		# TODO: Data sent right before closure isn't actually transported. Figure out for this and other frontends
 		if self.closed: return
 		self.closed = True
 		if not hard:
@@ -94,6 +96,7 @@ class MSNPWriter:
 		data = self._buf.getvalue()
 		if data:
 			self._buf = io.BytesIO()
+			print('Buffer cleared')
 		return data
 
 class MSNPReader:

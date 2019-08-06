@@ -156,7 +156,10 @@ class IRCCtrl:
 	def _channel_to_chat(self, channel: str) -> Optional[Chat]:
 		return self.backend.chat_get('irc', channel)
 	
-	def data_received(self, transport: asyncio.BaseTransport, data: bytes) -> None:
+	def data_received(self, data: bytes, *, transport: Optional[asyncio.BaseTransport] = None) -> None:
+		if transport is None:
+			transport = self.transport
+		assert transport is not None
 		self.peername = transport.get_extra_info('peername')
 		for m in self.reader.data_received(data):
 			try:

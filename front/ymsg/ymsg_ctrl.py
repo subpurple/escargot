@@ -31,8 +31,12 @@ class YMSGCtrlBase(metaclass = ABCMeta):
 		self.peername = ('0.0.0.0', 5050)
 		self.closed = False
 		self.close_callback = None
+		self.transport = None
 	
-	def data_received(self, transport: asyncio.BaseTransport, data: bytes) -> None:
+	def data_received(self, data: bytes, *, transport: Optional[asyncio.BaseTransport] = None) -> None:
+		if transport is None:
+			transport = self.transport
+		assert transport is not None
 		self.peername = transport.get_extra_info('peername')
 		for y in self.decoder.data_received(data):
 			try:
