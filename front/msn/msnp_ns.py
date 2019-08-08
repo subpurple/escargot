@@ -168,7 +168,7 @@ class MSNPCtrlNS(MSNPCtrl):
 				self.send_reply('USR', trid, authtype, 'S', salt)
 				return
 			if stage == 'S':
-				#>>> USR trid MD5 I md5_hash
+				#>>> USR trid MD5 S md5_hash
 				token = None # type: Optional[str]
 				md5_hash = args[0]
 				usr_email = self.usr_email
@@ -191,8 +191,7 @@ class MSNPCtrlNS(MSNPCtrl):
 					self.close(hard = True)
 					return
 				self.usr_email = args[0]
-				uuid = backend.util_get_uuid_from_email(self.usr_email)
-				if uuid is None:
+				if '@' not in self.usr_email:
 					self.send_reply(Err.AuthFail, trid)
 					self.close(hard = True)
 					return
@@ -315,11 +314,10 @@ class MSNPCtrlNS(MSNPCtrl):
 						assert bs is not None
 						self.bs = bs
 						bs.front_data['msn'] = True
-						if dialect >= 16:
-							assert machineguid is not None
+						if dialect >= 16 and machineguid is not None:
 							bs.front_data['msn_pop_id'] = normalize_pop_id(machineguid).lower()
-						self._util_usr_final(trid, token, machineguid)
-						return
+				self._util_usr_final(trid, token, machineguid)
+				return
 		
 		self.send_reply(Err.AuthFail, trid)
 		self.close(hard = True)
@@ -925,7 +923,7 @@ class MSNPCtrlNS(MSNPCtrl):
 			#>>> ADC 278 AL N=foo@hotmail.com
 			#>>> ADC 277 FL N=foo@hotmail.com F=foo@hotmail.com
 			email = arg1[2:]
-			if not re.match(r'^[a-zA-Z0-9._\-]+@([a-zA-Z0-9\-]+\.)+[a-zA-Z]+$', email):
+			if '@' not in email:
 				self.send_reply(Err.InvalidParameter, trid)
 				return
 			contact_uuid = self.backend.util_get_uuid_from_email(arg1[2:])
@@ -945,7 +943,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		if self.dialect >= 10:
 			self.close(hard = True)
 			return
-		if not re.match(r'^[a-zA-Z0-9._\-]+@([a-zA-Z0-9\-]+\.)+[a-zA-Z]+$', email):
+		if '@' not in email:
 			self.send_reply(Err.InvalidParameter, trid)
 			return
 		contact_uuid = self.backend.util_get_uuid_from_email(email)

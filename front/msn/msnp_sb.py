@@ -200,7 +200,7 @@ class MSNPCtrlSB(MSNPCtrl):
 		bs = self.bs
 		assert bs is not None
 		
-		if not re.match(r'^[a-zA-Z0-9._\-]+@([a-zA-Z0-9\-]+\.)+[a-zA-Z]+$', invitee_email):
+		if '@' not in invitee_email:
 			self.send_reply(Err.InvalidUser2, trid)
 			return
 		
