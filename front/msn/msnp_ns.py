@@ -176,8 +176,7 @@ class MSNPCtrlNS(MSNPCtrl):
 				uuid = backend.user_service.msn_login_md5(usr_email, md5_hash)
 				if uuid is not None:
 					self.bs = backend.login(uuid, self.client, BackendEventHandler(self), option = LoginOption.BootOthers)
-					self.bs.front_data['msn'] = True
-					token = backend.auth_service.create_token('nb/login', uuid, lifetime = 86400)
+					token = backend.auth_service.create_token('nb/login', (uuid, None), lifetime = 86400)
 				self._util_usr_final(trid, token or '', None)
 				return
 		
@@ -200,11 +199,9 @@ class MSNPCtrlNS(MSNPCtrl):
 					self.close(hard = True)
 					return
 				#extra = ('ct={},rver=5.5.4177.0,wp=FS_40SEC_0_COMPACT,lc=1033,id=507,ru=http:%2F%2Fmessenger.msn.com,tw=0,kpp=1,kv=4,ver=2.1.6000.1,rn=1lgjBfIL,tpf=b0735e3a873dfb5e75054465196398e0'.format(int(time())),)
-				# This seems to work too:
-				extra = ('ct=1,rver=1,wp=FS_40SEC_0_COMPACT,lc=1,id=1',) # type: Tuple[Any, ...]
 				if dialect >= 13:
 					self.send_reply('GCF', 0, SHIELDS_MSNP13)
-				self.send_reply('USR', trid, authtype, 'S', *extra)
+				self.send_reply('USR', trid, authtype, 'S', 'ct=1,rver=1,wp=FS_40SEC_0_COMPACT,lc=1,id=1')
 				return
 			if stage == 'S':
 				#>>> USR trid TWN S auth_token
@@ -218,10 +215,7 @@ class MSNPCtrlNS(MSNPCtrl):
 				if tpl is not None:
 					uuid = tpl[0]
 					assert uuid is not None
-					bs = backend.login(uuid, self.client, BackendEventHandler(self), option = LoginOption.BootOthers)
-					assert bs is not None
-					self.bs = bs
-					bs.front_data['msn'] = True
+					self.bs = backend.login(uuid, self.client, BackendEventHandler(self), option = LoginOption.BootOthers)
 				self._util_usr_final(trid, token, None)
 				return
 		
@@ -245,10 +239,9 @@ class MSNPCtrlNS(MSNPCtrl):
 					return
 				# https://web.archive.org/web/20100819015007/http://msnpiki.msnfanatic.com/index.php/MSNP15:SSO
 				self.rps_challenge = base64.b64encode(sha384(secrets.token_bytes(128)).digest())
-				extra = ('MBI_KEY_OLD', self.rps_challenge.decode('utf-8'))
 				
 				self.send_reply('GCF', 0, SHIELDS_MSNP13)
-				self.send_reply('USR', trid, authtype, 'S', *extra)
+				self.send_reply('USR', trid, authtype, 'S', 'MBI_KEY_OLD', self.rps_challenge.decode('utf-8'))
 				return
 			if stage == 'S':
 				#>>> USR trid SSO S auth_token [b64_response; not included when MSIDCRL-patched clients login]
@@ -261,103 +254,99 @@ class MSNPCtrlNS(MSNPCtrl):
 				if settings.DEBUG and settings.DEBUG_MSNP: print(F"Token: {token}")
 				tpl = backend.auth_service.get_token('nb/login', token)
 				option = None
+				
 				if tpl is not None:
 					uuid = tpl[0]
-					if uuid is not None:
-						response = None
-						rps = False
-						
-						if dialect >= 16:
+					assert uuid is not None
+					
+					response = None
+					rps = False
+					
+					if dialect >= 16:
+						rps = True
+					else:
+						if len(args) > 1:
 							rps = True
+					
+					if settings.DEBUG and settings.DEBUG_MSNP: print('RPS authentication:', rps)
+					
+					if rps:
+						assert self.rps_challenge is not None
+						
+						response_b64 = args[1]
+						try:
+							response = base64.b64decode(response_b64)
+						except:
+							self.send_reply(Err.AuthFail, trid)
+							self.close(hard = True)
+							return
+						
+						if len(response) < 28:
+							self.send_reply(Err.AuthFail, trid)
+							self.close(hard = True)
+							return
+						
+						if struct.unpack('<I', response[0:4])[0] != 28 or struct.unpack('<I', response[4:8])[0] != 1 or struct.unpack('<I', response[8:12])[0] != 0x6603 or struct.unpack('<I', response[12:16])[0] != 0x8004 or struct.unpack('<I', response[16:20])[0] != 8 or struct.unpack('<I', response[20:24])[0] != 20 or struct.unpack('<I', response[24:28])[0] != 72:
+							self.send_reply(Err.AuthFail, trid)
+							self.close(hard = True)
+							return
+						
+						response_payload = response[28:]
+						
+						if not len(response_payload) == (8+20+72):
+							self.send_reply(Err.AuthFail, trid)
+							self.close(hard = True)
+							return
+						
+						response_iv = response_payload[0:8]
+						response_hash = response_payload[8:28]
+						response_cipher = response_payload[28:100]
+						
+						binarysecret_b64 = tpl[1]
+						
+						if binarysecret_b64 is None:
+							self.send_reply(Err.AuthFail, trid)
+							self.close(hard = True)
+							return
+						
+						binarysecret = base64.b64decode(binarysecret_b64)
+						
+						key2 = generate_rps_key(binarysecret, b'WS-SecureConversationSESSION KEY HASH')
+						key3 = generate_rps_key(binarysecret, b'WS-SecureConversationSESSION KEY ENCRYPTION')
+						
+						response_hash_server = hmac.new(key2, self.rps_challenge, sha1).digest()
+						
+						response_cipher_server = encrypt_with_key_and_iv_tripledes_cbc(key3, response_iv, (self.rps_challenge + b'\x08\x08\x08\x08\x08\x08\x08\x08'))
+						
+						if response_hash != response_hash_server or response_cipher != response_cipher_server:
+							self.send_reply(Err.AuthFail, trid)
+							self.close(hard = True)
+							return
+					if dialect >= 16:
+						machineguid = args[2]
+						
+						if not re.match(r'^\{?[A-Fa-f0-9]{8,8}-([A-Fa-f0-9]{4,4}-){3,3}[A-Fa-f0-9]{12,12}\}?', machineguid):
+							self.send_reply(Err.AuthFail, trid)
+							self.close(hard = True)
+							return
+						
+						user = backend._load_user_record(uuid)
+						if user is not None:
+							bses_self = backend.util_get_sessions_by_user(user)
+							for bs_self in bses_self:
+								pop_id = bs_self.front_data.get('msn_pop_id')
+								if pop_id is not None and pop_id.lower() == normalize_pop_id(machineguid).lower():
+									bs_self.evt.on_login_elsewhere(LoginOption.BootOthers)
+									break
+							if not option:
+								option = LoginOption.NotifyOthers
 						else:
-							if len(args) > 1:
-								rps = True
-							
-							if settings.DEBUG and settings.DEBUG_MSNP: print('RPS authentication:', rps)
-							
-							if rps:
-								assert self.rps_challenge is not None
-								
-								response_b64 = args[1]
-								try:
-									response = base64.b64decode(response_b64)
-								except:
-									self.send_reply(Err.AuthFail, trid)
-									self.close(hard = True)
-									return
-								
-								if len(response) < 28:
-									self.send_reply(Err.AuthFail, trid)
-									self.close(hard = True)
-									return
-								
-								if struct.unpack('<I', response[0:4])[0] != 28 or struct.unpack('<I', response[4:8])[0] != 1 or struct.unpack('<I', response[8:12])[0] != 0x6603 or struct.unpack('<I', response[12:16])[0] != 0x8004 or struct.unpack('<I', response[16:20])[0] != 8 or struct.unpack('<I', response[20:24])[0] != 20 or struct.unpack('<I', response[24:28])[0] != 72:
-									self.send_reply(Err.AuthFail, trid)
-									self.close(hard = True)
-									return
-								
-								response_payload = response[28:]
-								
-								if not len(response_payload) == (8+20+72):
-									self.send_reply(Err.AuthFail, trid)
-									self.close(hard = True)
-									return
-								
-								response_iv = response_payload[0:8]
-								response_hash = response_payload[8:28]
-								response_cipher = response_payload[28:100]
-								
-								binarysecret_b64 = tpl[1]
-								
-								if binarysecret_b64 is None:
-									self.send_reply(Err.AuthFail, trid)
-									self.close(hard = True)
-									return
-								
-								binarysecret = base64.b64decode(binarysecret_b64)
-								
-								key2 = generate_rps_key(binarysecret, b'WS-SecureConversationSESSION KEY HASH')
-								key3 = generate_rps_key(binarysecret, b'WS-SecureConversationSESSION KEY ENCRYPTION')
-								
-								response_hash_server = hmac.new(key2, self.rps_challenge, sha1).digest()
-								
-								response_cipher_server = encrypt_with_key_and_iv_tripledes_cbc(key3, response_iv, (self.rps_challenge + b'\x08\x08\x08\x08\x08\x08\x08\x08'))
-								
-								if response_hash != response_hash_server or response_cipher != response_cipher_server:
-									self.send_reply(Err.AuthFail, trid)
-									self.close(hard = True)
-									return
-						if dialect >= 16:
-							machineguid = args[2]
-							
-							if not re.match(r'^\{?[A-Fa-f0-9]{8,8}-([A-Fa-f0-9]{4,4}-){3,3}[A-Fa-f0-9]{12,12}\}?', machineguid):
-								self.send_reply(Err.AuthFail, trid)
-								self.close(hard = True)
-								return
-							
-							user = backend._load_user_record(uuid)
-							if user is not None:
-								bses_self = backend.util_get_sessions_by_user(user)
-								for bs_self in bses_self:
-									pop_id = bs_self.front_data.get('msn_pop_id')
-									if pop_id is not None and pop_id.lower() == normalize_pop_id(machineguid).lower():
-										bs_self.evt.on_login_elsewhere(LoginOption.BootOthers)
-										bs_self.close()
-										break
-								if not option:
-									option = LoginOption.NotifyOthers
-							else:
-								self.send_reply(Err.AuthFail, trid)
-								self.close(hard = True)
-								return
-						else:
-							option = LoginOption.BootOthers
-						bs = backend.login(uuid, self.client, BackendEventHandler(self), option = option)
-						assert bs is not None
-						self.bs = bs
-						bs.front_data['msn'] = True
-						if dialect >= 16 and machineguid is not None:
-							bs.front_data['msn_pop_id'] = normalize_pop_id(machineguid).lower()
+							self.send_reply(Err.AuthFail, trid)
+							self.close(hard = True)
+							return
+					else:
+						option = LoginOption.BootOthers
+					self.bs = backend.login(uuid, self.client, BackendEventHandler(self), option = option)
 				self._util_usr_final(trid, token, machineguid)
 				return
 		
@@ -369,6 +358,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		from cryptography.hazmat.primitives.asymmetric import rsa
 		
 		bs = self.bs
+		dialect = self.dialect
 		
 		if bs is None:
 			self.send_reply(Err.AuthFail, trid)
@@ -377,9 +367,13 @@ class MSNPCtrlNS(MSNPCtrl):
 		
 		self.backend.util_set_sess_token(bs, token)
 		
-		bs.front_data['msn_circleticket_sig'] = rsa.generate_private_key(public_exponent = 65537, key_size = 2048, backend = default_backend())
+		bs.front_data['msn'] = True
 		
-		dialect = self.dialect
+		if dialect >= 16:
+			assert machineguid is not None
+			bs.front_data['msn_pop_id'] = normalize_pop_id(machineguid).lower()
+		
+		bs.front_data['msn_circleticket_sig'] = rsa.generate_private_key(public_exponent = 65537, key_size = 2048, backend = default_backend())
 		
 		user = bs.user
 		
@@ -832,7 +826,7 @@ class MSNPCtrlNS(MSNPCtrl):
 							
 							if lsts & Lst.FL and not initial:
 								if ctc is not None:
-									bs.evt.on_presence_notification(None, ctc, False, trid = trid)
+									bs.evt.on_presence_notification(None, ctc, False, ctc.status.substatus, trid = trid)
 		except Exception as ex:
 			if isinstance(ex, XMLSyntaxError):
 				self.send_reply(Err.XXLInvalidPayload, trid)
@@ -1039,7 +1033,7 @@ class MSNPCtrlNS(MSNPCtrl):
 				self.send_reply('BPR', ser, ctc_head.email, 'PHM', ctc_head.settings.get('PHM') if send_bpr_info else None)
 				self.send_reply('BPR', ser, ctc_head.email, 'MOB', ctc_head.settings.get('MOB', 'N') if send_bpr_info else 'N')
 			
-			bs.evt.on_presence_notification(None, ctc, False, trid = trid, updated_phone_info = {
+			bs.evt.on_presence_notification(None, ctc, False, ctc.status.substatus, trid = trid, updated_phone_info = {
 				'PHH': ctc_head.settings.get('PHH'),
 				'PHW': ctc_head.settings.get('PHW'),
 				'PHM': ctc_head.settings.get('PHM'),
@@ -1854,7 +1848,7 @@ class BackendEventHandler(event.BackendEventHandler):
 	def on_maintenance_boot(self) -> None:
 		self.on_close(maintenance = True)
 	
-	def on_presence_notification(self, bs_other: Optional[BackendSession], ctc: Contact, on_contact_add: bool, *, trid: Optional[str] = None, update_status: bool = True, send_status_on_bl: bool = False, sess_id: Optional[int] = None, updated_phone_info: Optional[Dict[str, Any]] = None) -> None:
+	def on_presence_notification(self, bs_other: Optional[BackendSession], ctc: Contact, on_contact_add: bool, old_substatus: Substatus, *, trid: Optional[str] = None, update_status: bool = True, send_status_on_bl: bool = False, sess_id: Optional[int] = None, updated_phone_info: Optional[Dict[str, Any]] = None) -> None:
 		bs = self.ctrl.bs
 		assert bs is not None
 		user = bs.user
@@ -2063,9 +2057,11 @@ class BackendEventHandler(event.BackendEventHandler):
 	def on_login_elsewhere(self, option: LoginOption) -> None:
 		if option is LoginOption.BootOthers:
 			self.ctrl.send_reply('OUT', 'OTH')
+			self.ctrl.close()
 		elif option is LoginOption.NotifyOthers:
 			if not self.ctrl.dialect >= 16:
 				self.ctrl.send_reply('OUT', 'OTH')
+				self.ctrl.close()
 		else:
 			# TODO: What do?
 			pass

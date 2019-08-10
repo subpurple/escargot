@@ -38,7 +38,7 @@ class Backend:
 	_user_by_uuid: Dict[str, User]
 	_worklist_sync_db: Dict[User, UserDetail]
 	_worklist_sync_groupchats: Dict[str, GroupChat]
-	_worklist_notify: Dict[str, Tuple['BackendSession', Optional[int], bool, Optional[Dict[str, Any]], bool, bool, bool]]
+	_worklist_notify: Dict[str, Tuple['BackendSession', Optional[int], bool, Substatus, Optional[Dict[str, Any]], bool, bool]]
 	_worklist_notify_self: Dict[str, 'BackendSession']
 	_runners: List[Runner]
 	_linked: bool
@@ -111,14 +111,14 @@ class Backend:
 		if self._sc.get_sessions_by_user(user):
 			# There are still other people logged in as this user,
 			# so don't send offline notifications.
-			self._notify_contacts(sess, for_logout = False)
+			self._notify_contacts(sess, old_substatus, for_logout = False)
 			self._notify_self(sess)
 			return
 		
 		# User is offline, send notifications
 		user.status.substatus = Substatus.Offline
 		self._sync_contact_statuses(user)
-		self._notify_contacts(sess, for_logout = True)
+		self._notify_contacts(sess, old_substatus, for_logout = True)
 	
 	def login(self, uuid: str, client: Client, evt: event.BackendEventHandler, *, option: Optional[LoginOption] = None, only_once: bool = False) -> Optional['BackendSession']:
 		user = self._load_user_record(uuid)
@@ -190,7 +190,6 @@ class Backend:
 		if detail is None: return
 		for ctc in detail.contacts.values():
 			if ctc.lists & Lst.FL:
-				ctc.status.old_substatus = ctc.status.substatus
 				ctc.compute_visible_status(user)
 			
 			# If the contact lists ever become inconsistent (FL without matching RL),
@@ -202,14 +201,14 @@ class Backend:
 			if ctc.head.detail is None: continue
 			ctc_rev = ctc.head.detail.contacts.get(user.uuid)
 			if ctc_rev is None: continue
-			ctc_rev.status.old_substatus = ctc_rev.status.substatus
 			ctc_rev.compute_visible_status(ctc.head)
 	
-	def _notify_contacts(self, bs: 'BackendSession', *, for_logout: bool = False, sess_id: Optional[int] = None, on_contact_add: bool = False, updated_phone_info: Optional[Dict[str, Any]] = None, update_status: bool = True, send_notif_to_self: bool = True) -> None:
+	def _notify_contacts(self, bs: 'BackendSession', old_substatus: Substatus, *, for_logout: bool = False, sess_id: Optional[int] = None, on_contact_add: bool = False, updated_phone_info: Optional[Dict[str, Any]] = None, update_status: bool = True) -> None:
 		uuid = bs.user.uuid
 		if uuid in self._worklist_notify:
 			return
-		self._worklist_notify[uuid] = (bs, sess_id, on_contact_add, updated_phone_info, update_status, send_notif_to_self, for_logout)
+		
+		self._worklist_notify[uuid] = (bs, sess_id, on_contact_add, old_substatus, updated_phone_info, update_status, for_logout)
 	
 	def _notify_self(self, bs: 'BackendSession') -> None:
 		uuid = bs.user.uuid
@@ -455,17 +454,16 @@ class Backend:
 	async def _worker_notify(self) -> None:
 		# Notify relevant `BackendSession`s of status, name, message, media, etc. changes
 		worklist = self._worklist_notify
-		
 		while True:
 			await asyncio.sleep(0.2)
 			try:
-				for bs, sess_id, on_contact_add, updated_phone_info, update_status, send_notif_to_self, for_logout in worklist.values():
+				for bs, sess_id, on_contact_add, old_substatus, updated_phone_info, update_status, for_logout in worklist.values():
 					user = bs.user
 					detail = user.detail
 					assert detail is not None
 					for ctc in detail.contacts.values():
 						for bs_other in self._sc.get_sessions_by_user(ctc.head):
-							if bs_other.user is user and not send_notif_to_self: continue
+							if bs_other.user is user: continue
 							detail_other = bs_other.user.detail
 							if detail_other is None: continue
 							ctc_me = detail_other.contacts.get(user.uuid)
@@ -473,7 +471,7 @@ class Backend:
 							# an `RL` contact on the other users' list (at the very least).
 							if ctc_me is None: continue
 							if not ctc_me.lists & Lst.FL: continue
-							bs_other.evt.on_presence_notification(bs, ctc_me, on_contact_add, sess_id = sess_id, update_status = update_status, updated_phone_info = updated_phone_info)
+							bs_other.evt.on_presence_notification(bs, ctc_me, on_contact_add, old_substatus, sess_id = sess_id, update_status = update_status, updated_phone_info = updated_phone_info)
 					for groupchat in self.user_service.get_groupchat_batch(user):
 						if groupchat.chat_id not in self._cses_by_bs_by_groupchat_id: continue
 						if bs not in self._cses_by_bs_by_groupchat_id[groupchat.chat_id]: continue
@@ -549,7 +547,6 @@ class BackendSession(Session):
 		needs_notify = False
 		notify_status = False
 		notify_self = False
-		send_notif_to_self = False
 		updated_phone_info = {}
 		notify_circle = False
 		
@@ -563,8 +560,6 @@ class BackendSession(Session):
 				user.status.set_status_message(fields['message'], persistent = not fields.get('message_temp'))
 				needs_notify = True
 				notify_status = True
-				if 'send_notif_to_self' in fields:
-					send_notif_to_self = fields['send_notif_to_self']
 		if 'media' in fields:
 			if fields['media'] is not None:
 				user.status.media = fields['media']
@@ -608,13 +603,9 @@ class BackendSession(Session):
 			needs_notify = True
 			updated_phone_info['MBE'] = fields['mbe']
 		if 'substatus' in fields:
-			user.status.old_substatus = old_substatus
 			user.status.substatus = fields['substatus']
-			
 			needs_notify = True
 			notify_status = True
-			if 'send_notif_to_self' in fields:
-				send_notif_to_self = fields['send_notif_to_self']
 		if 'notify_self' in fields:
 			notify_self = fields['notify_self']
 		if 'gtc' in fields:
@@ -627,7 +618,7 @@ class BackendSession(Session):
 		self.backend._mark_modified(user)
 		if needs_notify:
 			self.backend._sync_contact_statuses(user)
-			self.backend._notify_contacts(self, updated_phone_info = updated_phone_info, update_status = notify_status, send_notif_to_self = send_notif_to_self)
+			self.backend._notify_contacts(self, old_substatus, updated_phone_info = updated_phone_info, update_status = notify_status)
 		if notify_self:
 			self.backend._notify_self(self)
 	
@@ -741,7 +732,7 @@ class BackendSession(Session):
 				if ctc_me:
 					if ctc_me.lists & Lst.FL:
 						backend._sync_contact_statuses(ctc_head)
-						sess_added.evt.on_presence_notification(self, ctc_me, False, send_status_on_bl = True, updated_phone_info = {
+						sess_added.evt.on_presence_notification(self, ctc_me, False, ctc_me.status.substatus, send_status_on_bl = True, updated_phone_info = {
 							'PHH': user.settings.get('PHH'),
 							'PHW': user.settings.get('PHW'),
 							'PHM': user.settings.get('PHM'),
@@ -786,7 +777,7 @@ class BackendSession(Session):
 				if sess_added is self: continue
 				if ctc_me:
 					if ctc_me.lists & Lst.FL:
-						sess_added.evt.on_presence_notification(self, ctc_me, False, updated_phone_info = {
+						sess_added.evt.on_presence_notification(self, ctc_me, False, ctc_me.status.substatus, updated_phone_info = {
 							'PHH': user.settings.get('PHH'),
 							'PHW': user.settings.get('PHW'),
 							'PHM': user.settings.get('PHM'),

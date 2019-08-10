@@ -167,7 +167,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		
 		self.t_cookie_token = (cached_t[4:24] if cached_y and cached_t else AuthService.GenTokenStr())
 		
-		me_status_update(bs, status, send_notif_to_self = False)
+		me_status_update(bs, status)
 		
 		bs.front_data['ymsg'] = True
 		bs.front_data['ymsg_private_chats'] = {}
@@ -1155,7 +1155,7 @@ YAHOO_ID_ENCODING = {
 	'j': '9',
 }
 
-def add_contact_status_to_data(data: Any, status: UserStatus, contact: User, *, old_substatus: Substatus = Substatus.Offline, sess_id: Optional[int] = None) -> None:
+def add_contact_status_to_data(data: Any, status: UserStatus, contact: User, *, old_substatus: Substatus = Substatus.Offline, message: Optional[str] = None, exclude_psm: bool = False, sess_id: Optional[int] = None) -> None:
 	is_offlineish = status.is_offlineish()
 	user_yahoo_id = misc.yahoo_id(contact.email)
 	# `static var YMSG_FLD_SESSION_ID = 11;`
@@ -1172,13 +1172,16 @@ def add_contact_status_to_data(data: Any, status: UserStatus, contact: User, *, 
 	
 	data.add(b'7', user_yahoo_id.encode('utf-8'))
 	
-	if is_offlineish or not status.message:
+	if not message:
+		message = status.message
+	
+	if is_offlineish or not message or exclude_psm:
 		data.add(b'10', str(int(YMSGStatus.Available if is_offlineish else YMSGStatus.FromSubstatus(status.substatus))).encode('utf-8'))
 		data.add(b'11', key_11_val.encode('utf-8'))
 	else:
 		data.add(b'10', str(int(YMSGStatus.Custom)).encode('utf-8'))
 		data.add(b'11', key_11_val.encode('utf-8'))
-		data.add(b'19', arbitrary_encode(status.message))
+		data.add(b'19', arbitrary_encode(message))
 		is_away_message = (status.substatus is not Substatus.Online)
 		data.add(b'47', str(int(is_away_message)).encode('utf-8'))
 	
@@ -1217,21 +1220,18 @@ class BackendEventHandler(event.BackendEventHandler):
 		self.ctrl.send_reply(YMSGService.LogOff, YMSGStatus.Available, 0, None)
 		self.on_close()
 	
-	def on_presence_notification(self, bs_other: Optional[BackendSession], ctc: Contact, on_contact_add: bool, *, trid: Optional[str] = None, update_status: bool = True, send_status_on_bl: bool = False, sess_id: Optional[int] = None, updated_phone_info: Optional[Dict[str, Any]] = None) -> None:
+	def on_presence_notification(self, bs_other: Optional[BackendSession], ctc: Contact, on_contact_add: bool, old_substatus: Substatus, *, trid: Optional[str] = None, update_status: bool = True, send_status_on_bl: bool = False, sess_id: Optional[int] = None, updated_phone_info: Optional[Dict[str, Any]] = None) -> None:
 		bs = self.bs
 		assert bs is not None
 		
 		if on_contact_add: return
 		
 		if update_status:
-			old_substatus = ctc.status.old_substatus
 			if not ctc.lists & Lst.FL: return
 			
 			if ctc.status.is_offlineish() and not old_substatus.is_offlineish():
 				service = YMSGService.LogOff
-			elif old_substatus.is_offlineish() and not ctc.status.is_offlineish():
-				service = YMSGService.LogOn
-			elif ctc.status.substatus is Substatus.Online and not ctc.status.message:
+			elif not old_substatus.is_offlineish() and ctc.status.substatus is Substatus.Online and not ctc.status.message:
 				service = YMSGService.IsBack
 			else:
 				service = YMSGService.IsAway
@@ -1241,9 +1241,21 @@ class BackendEventHandler(event.BackendEventHandler):
 				if service is not YMSGService.LogOff:
 					yahoo_data.add(b'0', arbitrary_encode(self.ctrl.yahoo_id or ''))
 				
-				add_contact_status_to_data(yahoo_data, ctc.status, ctc.head, old_substatus = old_substatus, sess_id = sess_id)
-				
-				self.ctrl.send_reply(service, YMSGStatus.BRB, self.sess_id, yahoo_data)
+				if old_substatus.is_offlineish() and not ctc.status.is_offlineish():
+					add_contact_status_to_data(yahoo_data, ctc.status, ctc.head, old_substatus = old_substatus, exclude_psm = True, sess_id = sess_id)
+					self.ctrl.send_reply(YMSGService.LogOn, YMSGStatus.BRB, self.sess_id, yahoo_data)
+					
+					if ctc.status.message:
+						message = ctc.status.message
+						
+						yahoo_data = MultiDict()
+						yahoo_data.add(b'0', arbitrary_encode(self.ctrl.yahoo_id or ''))
+						add_contact_status_to_data(yahoo_data, ctc.status, ctc.head, old_substatus = old_substatus, message = message, sess_id = sess_id)
+						self.ctrl.send_reply(YMSGService.IsAway, YMSGStatus.BRB, self.sess_id, yahoo_data)
+				else:
+					add_contact_status_to_data(yahoo_data, ctc.status, ctc.head, old_substatus = old_substatus, sess_id = sess_id)
+					
+					self.ctrl.send_reply(service, YMSGStatus.BRB, self.sess_id, yahoo_data)
 	
 	def on_presence_self_notification(self) -> None:
 		pass
@@ -1549,7 +1561,7 @@ def messagedata_to_ymsg(data: MessageData) -> MultiDict[bytes, bytes]:
 		])
 	return data.front_cache['ymsg']
 
-def me_status_update(bs: BackendSession, status_new: YMSGStatus, *, message: str = '', send_notif_to_self: bool = True, is_away_message: bool = False) -> None:
+def me_status_update(bs: BackendSession, status_new: YMSGStatus, *, message: str = '', is_away_message: bool = False) -> None:
 	bs.front_data['ymsg_status'] = status_new
 	if status_new is YMSGStatus.Custom:
 		substatus = (Substatus.Busy if is_away_message else Substatus.Online)
@@ -1559,7 +1571,6 @@ def me_status_update(bs: BackendSession, status_new: YMSGStatus, *, message: str
 		'message': message,
 		'message_temp': True,
 		'substatus': substatus,
-		'send_notif_to_self': send_notif_to_self,
 	})
 
 def generate_challenge_v1() -> bytes:

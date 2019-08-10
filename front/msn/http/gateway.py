@@ -21,7 +21,7 @@ async def _clean_gateway_sessions(gateway_sessions: Dict[str, 'GatewaySession'])
 		closed = []
 		for session_id, gwsess in gateway_sessions.items():
 			if gwsess.time_last_connect + gwsess.timeout <= now:
-				gwsess.controller.close()
+				gwsess.controller.close(hard = True)
 				closed.append(session_id)
 		for session_id in closed:
 			del gateway_sessions[session_id]
@@ -57,6 +57,7 @@ async def handle_http_gateway_options(req: web.Request) -> web.Response:
 async def handle_http_gateway(req: web.Request) -> web.Response:
 	query = req.query
 	session_id = query.get('SessionID')
+	action = query.get('Action')
 	backend = req.app['backend']
 	gateway_sessions = req.app['gateway_sessions'] # type: Dict[str, GatewaySession]
 	now = time.time()
@@ -85,9 +86,10 @@ async def handle_http_gateway(req: web.Request) -> web.Response:
 		raise web.HTTPBadRequest()
 	
 	assert req.transport is not None
-	gwsess.logger.log_connect()
-	gwsess.controller.data_received(await req.read(), transport = req.transport)
-	gwsess.logger.log_disconnect()
+	if action != 'poll':
+		gwsess.logger.log_connect()
+		gwsess.controller.data_received(await req.read(), transport = req.transport)
+		gwsess.logger.log_disconnect()
 	body = gwsess.controller.flush()
 	
 	return web.HTTPOk(headers = {

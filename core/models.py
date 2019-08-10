@@ -178,7 +178,6 @@ class UserStatus:
 	__slots__ = ('substatus', 'old_substatus', 'name', '_message', '_persistent', 'media')
 	
 	substatus: 'Substatus'
-	old_substatus: 'Substatus'
 	name: Optional[str]
 	_message: str
 	_persistent: bool
@@ -186,7 +185,6 @@ class UserStatus:
 	
 	def __init__(self, name: Optional[str], message: str = '') -> None:
 		self.substatus = Substatus.Offline
-		self.old_substatus = Substatus.Offline
 		self.name = name
 		self._message = message
 		self._persistent = True
