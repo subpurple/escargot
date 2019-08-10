@@ -180,12 +180,15 @@ class MSNPCtrlNS(MSNPCtrl):
 				self._util_usr_final(trid, token or '', None)
 				return
 		
-		if authtype in ('TWN', 'SSO'):
+		if authtype == 'TWN':
+			if dialect >= 15 or dialect < 8:
+				self.close(hard = True)
+				return
 			if self.bs:
 				self.send_reply(Err.InvalidUser, trid)
 				return
 			if stage == 'I':
-				#>>> USR trid TWN/SSO I email@example.com
+				#>>> USR trid TWN I email@example.com
 				if backend.maintenance_mode:
 					self.send_reply(Err.InternalServerError, trid)
 					self.close(hard = True)
@@ -195,20 +198,58 @@ class MSNPCtrlNS(MSNPCtrl):
 					self.send_reply(Err.AuthFail, trid)
 					self.close(hard = True)
 					return
-				if authtype == 'TWN':
-					#extra = ('ct={},rver=5.5.4177.0,wp=FS_40SEC_0_COMPACT,lc=1033,id=507,ru=http:%2F%2Fmessenger.msn.com,tw=0,kpp=1,kv=4,ver=2.1.6000.1,rn=1lgjBfIL,tpf=b0735e3a873dfb5e75054465196398e0'.format(int(time())),)
-					# This seems to work too:
-					extra = ('ct=1,rver=1,wp=FS_40SEC_0_COMPACT,lc=1,id=1',) # type: Tuple[Any, ...]
-				else:
-					# https://web.archive.org/web/20100819015007/http://msnpiki.msnfanatic.com/index.php/MSNP15:SSO
-					self.rps_challenge = base64.b64encode(sha384(secrets.token_bytes(128)).digest())
-					extra = ('MBI_KEY_OLD', self.rps_challenge.decode('utf-8'))
+				#extra = ('ct={},rver=5.5.4177.0,wp=FS_40SEC_0_COMPACT,lc=1033,id=507,ru=http:%2F%2Fmessenger.msn.com,tw=0,kpp=1,kv=4,ver=2.1.6000.1,rn=1lgjBfIL,tpf=b0735e3a873dfb5e75054465196398e0'.format(int(time())),)
+				# This seems to work too:
+				extra = ('ct=1,rver=1,wp=FS_40SEC_0_COMPACT,lc=1,id=1',) # type: Tuple[Any, ...]
 				if dialect >= 13:
 					self.send_reply('GCF', 0, SHIELDS_MSNP13)
 				self.send_reply('USR', trid, authtype, 'S', *extra)
 				return
 			if stage == 'S':
 				#>>> USR trid TWN S auth_token
+				token = args[0]
+				if token[0:2] == 't=':
+					token = token[2:22]
+				usr_email = self.usr_email
+				assert usr_email is not None
+				if settings.DEBUG and settings.DEBUG_MSNP: print(F"Token: {token}")
+				tpl = backend.auth_service.pop_token('nb/login', token)
+				if tpl is not None:
+					uuid = tpl[0]
+					assert uuid is not None
+					bs = backend.login(uuid, self.client, BackendEventHandler(self), option = LoginOption.BootOthers)
+					assert bs is not None
+					self.bs = bs
+					bs.front_data['msn'] = True
+				self._util_usr_final(trid, token, None)
+				return
+		
+		if authtype == 'SSO':
+			if dialect < 15:
+				self.close(hard = True)
+				return
+			if self.bs:
+				self.send_reply(Err.InvalidUser, trid)
+				return
+			if stage == 'I':
+				#>>> USR trid SSO I email@example.com
+				if backend.maintenance_mode:
+					self.send_reply(Err.InternalServerError, trid)
+					self.close(hard = True)
+					return
+				self.usr_email = args[0]
+				if '@' not in self.usr_email:
+					self.send_reply(Err.AuthFail, trid)
+					self.close(hard = True)
+					return
+				# https://web.archive.org/web/20100819015007/http://msnpiki.msnfanatic.com/index.php/MSNP15:SSO
+				self.rps_challenge = base64.b64encode(sha384(secrets.token_bytes(128)).digest())
+				extra = ('MBI_KEY_OLD', self.rps_challenge.decode('utf-8'))
+				
+				self.send_reply('GCF', 0, SHIELDS_MSNP13)
+				self.send_reply('USR', trid, authtype, 'S', *extra)
+				return
+			if stage == 'S':
 				#>>> USR trid SSO S auth_token [b64_response; not included when MSIDCRL-patched clients login]
 				#>>> USR trid SSO S auth_token b64_response machineguid (MSNP >= 16)
 				token = args[0]
@@ -217,19 +258,19 @@ class MSNPCtrlNS(MSNPCtrl):
 				usr_email = self.usr_email
 				assert usr_email is not None
 				if settings.DEBUG and settings.DEBUG_MSNP: print(F"Token: {token}")
-				tpl = (backend.auth_service.get_token('nb/login', token) if dialect >= 15 else backend.auth_service.pop_token('nb/login', token))
+				tpl = backend.auth_service.get_token('nb/login', token)
 				option = None
 				if tpl is not None:
 					uuid = tpl[0]
 					if uuid is not None:
 						response = None
-						if dialect >= 15:
-							rps = False
-							if dialect >= 16:
+						rps = False
+						
+						if dialect >= 16:
+							rps = True
+						else:
+							if len(args) > 1:
 								rps = True
-							else:
-								if len(args) > 1:
-									rps = True
 							
 							if settings.DEBUG and settings.DEBUG_MSNP: print('RPS authentication:', rps)
 							
