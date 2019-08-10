@@ -176,6 +176,7 @@ class MSNPCtrlNS(MSNPCtrl):
 				uuid = backend.user_service.msn_login_md5(usr_email, md5_hash)
 				if uuid is not None:
 					self.bs = backend.login(uuid, self.client, BackendEventHandler(self), option = LoginOption.BootOthers)
+					self.bs.front_data['msn'] = True
 					token = backend.auth_service.create_token('nb/login', uuid, lifetime = 86400)
 				self._util_usr_final(trid, token or '', None)
 				return
