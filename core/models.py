@@ -175,7 +175,7 @@ class ContactLocation:
 		self.zip_code = zip_code
 
 class UserStatus:
-	__slots__ = ('substatus', 'old_substatus', 'name', '_message', '_persistent', 'media')
+	__slots__ = ('substatus', 'name', '_message', '_persistent', 'media')
 	
 	substatus: 'Substatus'
 	name: Optional[str]
