@@ -13,7 +13,8 @@
 			
 			innerHtml = '';
 			response = JSON.parse(this.responseText);
-			for (channel in response) {
+			for (i in response) {
+				channel = response[i]
 				users = channel['users'];
 				innerHtml += '<h3>' + channel['channel'] + '</h3>';
 				innerHtml += '<br/>';
@@ -21,8 +22,8 @@
 				innerHtml += '<br/><br/>';
 				innerHtml += 'Users:';
 				innerHtml += '<ul>';
-				for (i in users) {
-					innerHtml += '<li>' + users[i] + '</li>';
+				for (j in users) {
+					innerHtml += '<li>' + users[j] + '</li>';
 				}
 				innerHtml += '</ul>';
 			}
