@@ -444,6 +444,11 @@ class MSNPCtrlNS(MSNPCtrl):
 					if cs:
 						for i, c in enumerate(cs):
 							self.send_reply('LST', trid, lst.name, ser, len(cs), i + 1, c.head.email, c.status.name or c.head.email)
+							if dialect >= 5:
+								for bpr_setting in ('PHH','PHM','PHW','MOB'):
+									bpr_value = c.head.settings.get(bpr_setting)
+									if bpr_value:
+										self.send_reply('BPR', bpr_setting, bpr_value)
 					else:
 						self.send_reply('LST', trid, lst.name, ser, 0, 0)
 				self.send_reply('GTC', trid, ser, settings.get('GTC', 'A'))
@@ -986,6 +991,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		self._add_common(trid, lst_name, contact_uuid, name, group_id)
 	
 	def _add_common(self, trid: str, lst_name: str, contact_uuid: Optional[str], name: Optional[str] = None, group_id: Optional[str] = None) -> None:
+		dialect = self.dialect
 		bs = self.bs
 		assert bs is not None
 		user = bs.user
@@ -993,7 +999,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		send_bpr_info = False
 		
 		if contact_uuid is None:
-			if self.dialect >= 10:
+			if dialect >= 10:
 				self.send_reply(Err.InvalidUser2, trid)
 			else:
 				self.send_reply(Err.InvalidUser, trid)
@@ -1009,7 +1015,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		
 		ser = self._ser()
 		
-		if self.dialect >= 10:
+		if dialect >= 10:
 			if lst == Lst.FL:
 				if group_id:
 					self.send_reply('ADC', trid, lst_name, 'C={}'.format(ctc_head.uuid), group_id)
@@ -1021,7 +1027,7 @@ class MSNPCtrlNS(MSNPCtrl):
 			self.send_reply('ADD', trid, lst_name, ser, ctc_head.email, name, group_id)
 		
 		if lst == Lst.FL and not group_id:
-			if self.syn_sent:
+			if self.syn_sent and dialect >= 5:
 				ctc_detail = ctc_head.detail
 				if ctc_detail is not None:
 					ctc_me = ctc_detail.contacts.get(user.uuid)
@@ -1159,8 +1165,9 @@ class MSNPCtrlNS(MSNPCtrl):
 			assert detail is not None
 			dialect = self.dialect
 			for ctc in detail.contacts.values():
-				for m in build_presence_notif(trid, ctc.head, user, dialect, self.backend, self.iln_sent):
-					self.send_reply(*m)
+				if ctc.lists & Lst.FL:
+					for m in build_presence_notif(trid, ctc.head, user, dialect, self.backend, self.iln_sent):
+						self.send_reply(*m)
 			# TODO: There's a weird timeout issue with the challenges on 8.x. Comment out for now
 			#if dialect >= 6:
 			#	self._send_chl(trid)
@@ -1559,11 +1566,19 @@ class MSNPCtrlNS(MSNPCtrl):
 	
 	def _m_prp(self, trid: str, key: str, value: Optional[str] = None, *rest: Optional[str]) -> None:
 		#>>> PRP 115 MFN ~~woot~~
+		dialect = self.dialect
+		if dialect < 5:
+			self.close(hard = True)
+			return
+		
 		bs = self.bs
 		assert bs is not None
 		user = bs.user
 		
 		if key == 'MFN':
+			if dialect < 10:
+				self.send_reply(Err.NotExpected, trid)
+				return
 			bs.me_update({ 'name': value })
 		elif key.startswith('PH'):
 			if len(key) > 3:
@@ -1854,7 +1869,7 @@ class BackendEventHandler(event.BackendEventHandler):
 		user = bs.user
 		
 		if not update_status or (send_status_on_bl and not update_status): return
-		if self.ctrl.dialect < 13 and updated_phone_info and self.ctrl.syn_sent:
+		if 5 <= self.ctrl.dialect < 13 and updated_phone_info and self.ctrl.syn_sent:
 			for phone_type, value in updated_phone_info.items():
 				if value is not None:
 					self.ctrl.send_reply('BPR', self.ctrl._ser(), ctc.head.email, phone_type, value)
