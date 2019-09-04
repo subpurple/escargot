@@ -100,13 +100,13 @@ class UserService:
 					ctc_head.uuid, group_entry['id'], group_entry['uuid'],
 				) for group_entry in c.groups }
 				c_detail = ContactDetail(
-					c.id, birthdate = c.birthdate, anniversary = c.anniversary, notes = c.notes, first_name = c.first_name, middle_name = c.middle_name, last_name = c.last_name, nickname = c.nickname, primary_email_type = c.primary_email_type, personal_email = c.personal_email, work_email = c.work_email, im_email = c.im_email, other_email = c.other_email, home_phone = c.home_phone, work_phone = c.work_phone, fax_phone = c.fax_phone, pager_phone = c.pager_phone, mobile_phone = c.mobile_phone, other_phone = c.other_phone, personal_website = c.personal_website, business_website = c.business_website,
+					c.index_id, birthdate = c.birthdate, anniversary = c.anniversary, notes = c.notes, first_name = c.first_name, middle_name = c.middle_name, last_name = c.last_name, nickname = c.nickname, primary_email_type = c.primary_email_type, personal_email = c.personal_email, work_email = c.work_email, im_email = c.im_email, other_email = c.other_email, home_phone = c.home_phone, work_phone = c.work_phone, fax_phone = c.fax_phone, pager_phone = c.pager_phone, mobile_phone = c.mobile_phone, other_phone = c.other_phone, personal_website = c.personal_website, business_website = c.business_website,
 				)
 				c_detail.locations = {
 					type: ContactLocation(type, name = location.get('name'), street = location.get('street'), city = location.get('city'), state = location.get('state'), country = location.get('country'), zip_code = location.get('zip_code')) for type, location in c.locations.items()
 				}
 				ctc = Contact(
-					ctc_head, ctc_groups, c.lists, status, c_detail, is_messenger_user = c.is_messenger_user,
+					ctc_head, ctc_groups, c.lists, status, c_detail, is_messenger_user = c.is_messenger_user, pending = c.pending,
 				)
 				detail.contacts[ctc.head.uuid] = ctc
 		return detail
@@ -326,7 +326,7 @@ class UserService:
 							lists = c.lists, groups = [{
 								'id': group.id, 'uuid': group.uuid,
 							} for group in c._groups.copy()], is_messenger_user = c.is_messenger_user,
-							id = c.detail.id,
+							index_id = c.detail.index_id,
 						)
 					
 					dbusercontact.name = c.status.name
@@ -336,6 +336,7 @@ class UserService:
 						'id': group.id, 'uuid': group.uuid,
 					} for group in c._groups.copy()]
 					dbusercontact.is_messenger_user = c.is_messenger_user
+					dbusercontact.pending = c.pending
 					dbusercontact.birthdate = c.detail.birthdate
 					dbusercontact.anniversary = c.detail.anniversary
 					dbusercontact.notes = c.detail.notes

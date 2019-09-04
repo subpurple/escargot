@@ -65,11 +65,15 @@ def sharing_AddMember(req: web.Request, header: Any, action: Any, bs: BackendSes
 	backend: Backend = req.app['backend']
 	cachekey = secrets.token_urlsafe(172)
 	
-	email = None # type: Optional[str]
-	circle_id = None
+	user = bs.user
+	detail = user.detail
+	assert detail is not None
 	
 	memberships = action.findall('.//{*}memberships/{*}Membership')
 	for membership in memberships:
+		email = None # type: Optional[str]
+		circle_id = None
+		
 		lst = models.Lst.Parse(str(find_element(membership, 'MemberRole')))
 		assert lst is not None
 		members = membership.findall('.//{*}Members/{*}Member')
@@ -87,13 +91,15 @@ def sharing_AddMember(req: web.Request, header: Any, action: Any, bs: BackendSes
 			if email is None and circle_id is None:
 				return web.HTTPInternalServerError()
 			if email is not None:
+				name = None
 				contact_uuid = backend.util_get_uuid_from_email(email)
 				assert contact_uuid is not None
+				ctc = detail.contacts.get(contact_uuid)
+				if ctc is None:
+					name = email
+				
 				try:
-					bs.me_contact_add(contact_uuid, lst, name = email)
-					
-					if lst == models.Lst.RL:
-						bs.me_contact_add(contact_uuid, models.Lst.AL)
+					bs.me_contact_add(contact_uuid, lst, name = name)
 				except:
 					pass
 			elif circle_id is not None:

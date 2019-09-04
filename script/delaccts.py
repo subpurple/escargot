@@ -16,24 +16,19 @@ def main(*emails: str) -> None:
 	
 	with db.Session() as sess:
 		users = sess.query(db.User).filter(db.User.email.in_(emails))
-		uuids = { u.uuid for u in users }
+		ids = { u.id for u in users }
 		print("delete account", len(uuids))
 		users.delete(synchronize_session = False)
 		for u in sess.query(db.User).all():
-			if _remove_from_contacts(u, uuids):
+			if _remove_from_contacts(u, ids):
 				sess.add(u)
 		sess.flush()
 
-def _remove_from_contacts(user: db.User, uuids: Set[str]) -> bool:
+def _remove_from_contacts(user: db.User, ids: Set[str]) -> bool:
 	none_found = True
-	for c in user.contacts:
-		if c['uuid'] in uuids:
-			none_found = False
-			break
-	if none_found: return False
-	user.contacts = [
-		c for c in user.contacts if c['uuid'] not in uuids
-	]
+	usercontacts = sess.query(db.UserContact).filter(db.UserContact.user_id.in_(ids))
+	if not usercontacts: return False
+	usercontacts.delete(synchronize_session = False)
 	print("contacts", user.email)
 	return True
 

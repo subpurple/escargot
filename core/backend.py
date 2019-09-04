@@ -806,6 +806,8 @@ class BackendSession(Session):
 		
 		if (ctc.lists & lst) != lst:
 			ctc.lists |= lst
+			if lst == Lst.RL:
+				ctc.pending = True
 			updated = True
 		else:
 			if lst == Lst.FL and group_id is not None:
@@ -856,6 +858,9 @@ class BackendSession(Session):
 				if lst == Lst.FL:
 					ctc._groups = set()
 				updated = True
+		elif (lst == Lst.RL or lst == Lst.PL) and ctc.pending:
+			ctc.pending = False
+			updated = True
 		
 		if not ctc.lists:
 			del contacts[ctc_head.uuid]

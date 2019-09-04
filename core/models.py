@@ -27,22 +27,24 @@ class User:
 		self.date_created = date_created
 
 class Contact:
-	__slots__ = ('head', '_groups', 'lists', 'status', 'is_messenger_user', 'detail')
+	__slots__ = ('head', '_groups', 'lists', 'status', 'is_messenger_user', 'pending', 'detail')
 	
 	head: User
 	_groups: Set['ContactGroupEntry']
 	lists: 'Lst'
 	status: 'UserStatus'
 	is_messenger_user: bool
+	pending: bool
 	detail: 'ContactDetail'
 	
-	def __init__(self, user: User, groups: Set['ContactGroupEntry'], lists: 'Lst', status: 'UserStatus', detail: 'ContactDetail', *, is_messenger_user: Optional[bool] = None) -> None:
+	def __init__(self, user: User, groups: Set['ContactGroupEntry'], lists: 'Lst', status: 'UserStatus', detail: 'ContactDetail', *, is_messenger_user: Optional[bool] = None, pending: Optional[bool] = None) -> None:
 		self.head = user
 		self._groups = groups
 		self.lists = lists
 		# `status`: status as known by the contact
 		self.status = status
 		self.is_messenger_user = _default_if_none(is_messenger_user, True)
+		self.pending = _default_if_none(pending, True)
 		self.detail = detail
 	
 	def compute_visible_status(self, to_user: User) -> None:
@@ -93,9 +95,9 @@ def _is_blocking(blocker: User, blockee: User) -> bool:
 	return (blocker.settings.get('BLP', 'AL') == 'BL')
 
 class ContactDetail:
-	__slots__ = ('id', 'birthdate', 'anniversary', 'notes', 'first_name', 'middle_name', 'last_name', 'nickname', 'primary_email_type', 'personal_email', 'work_email', 'im_email', 'other_email', 'home_phone', 'work_phone', 'fax_phone', 'pager_phone', 'mobile_phone', 'other_phone', 'personal_website', 'business_website', 'locations')
+	__slots__ = ('index_id', 'birthdate', 'anniversary', 'notes', 'first_name', 'middle_name', 'last_name', 'nickname', 'primary_email_type', 'personal_email', 'work_email', 'im_email', 'other_email', 'home_phone', 'work_phone', 'fax_phone', 'pager_phone', 'mobile_phone', 'other_phone', 'personal_website', 'business_website', 'locations')
 	
-	id: str
+	index_id: str
 	birthdate: Optional[datetime]
 	anniversary: Optional[datetime]
 	notes: Optional[str]
@@ -118,8 +120,8 @@ class ContactDetail:
 	business_website: Optional[str]
 	locations: Dict[str, 'ContactLocation']
 	
-	def __init__(self, id: str, *, birthdate: Optional[datetime] = None, anniversary: Optional[datetime] = None, notes: Optional[str] = None, first_name: Optional[str] = None, middle_name: Optional[str] = None, last_name: Optional[str] = None, nickname: Optional[str] = None, primary_email_type: Optional[str] = None, personal_email: Optional[str] = None, work_email: Optional[str] = None, im_email: Optional[str] = None, other_email: Optional[str] = None, home_phone: Optional[str] = None, work_phone: Optional[str] = None, fax_phone: Optional[str] = None, pager_phone: Optional[str] = None, mobile_phone: Optional[str] = None, other_phone: Optional[str] = None, personal_website: Optional[str] = None, business_website: Optional[str] = None):
-		self.id = id
+	def __init__(self, index_id: str, *, birthdate: Optional[datetime] = None, anniversary: Optional[datetime] = None, notes: Optional[str] = None, first_name: Optional[str] = None, middle_name: Optional[str] = None, last_name: Optional[str] = None, nickname: Optional[str] = None, primary_email_type: Optional[str] = None, personal_email: Optional[str] = None, work_email: Optional[str] = None, im_email: Optional[str] = None, other_email: Optional[str] = None, home_phone: Optional[str] = None, work_phone: Optional[str] = None, fax_phone: Optional[str] = None, pager_phone: Optional[str] = None, mobile_phone: Optional[str] = None, other_phone: Optional[str] = None, personal_website: Optional[str] = None, business_website: Optional[str] = None):
+		self.index_id = index_id
 		self.birthdate = birthdate
 		self.anniversary = anniversary
 		self.notes = notes

@@ -995,6 +995,8 @@ class MSNPCtrlNS(MSNPCtrl):
 		bs = self.bs
 		assert bs is not None
 		user = bs.user
+		detail = user.detail
+		assert detail is not None
 		
 		send_bpr_info = False
 		
@@ -1005,7 +1007,13 @@ class MSNPCtrlNS(MSNPCtrl):
 				self.send_reply(Err.InvalidUser, trid)
 			return
 		
+		ctc_old = detail.contacts.get(contact_uuid)
+		
 		lst = getattr(Lst, lst_name)
+		
+		if lst == Lst.RL and (dialect < 11 or (ctc_old is not None and not ctc_old.pending)):
+			self.close(hard = True)
+			return
 		
 		try:
 			ctc, ctc_head = bs.me_contact_add(contact_uuid, lst, name = name, group_id = group_id)
@@ -1921,6 +1929,7 @@ class BackendEventHandler(event.BackendEventHandler):
 		assert detail is not None
 		
 		if dialect < 13:
+			bs.me_contact_remove(user.uuid, Lst.PL)
 			if dialect < 10:
 				m: Tuple[Any, ...] = ('ADD', 0, self.ctrl._ser(), Lst.RL.name, email, name)
 			else:

@@ -86,7 +86,7 @@ async def handle_insider_ycontent(req: web.Request) -> web.Response:
 							
 							entry_id = str(req.query['id'])
 							for ctc in detail.contacts.values():
-								if ctc.detail.id == entry_id:
+								if ctc.detail.index_id == entry_id:
 									target_ctc = ctc
 							
 							if not target_ctc:
@@ -156,7 +156,7 @@ def _gen_yab_record(ctc: Contact) -> str:
 		yid = yahoo_id(ctc.head.email),
 		fname = fname or '', lname = lname or '', nname = nname or '',
 		email = email or '', hphone = hphone or '', wphone = wphone or '', mphone = mphone or '',
-		contact_id = ctc.detail.id,
+		contact_id = ctc.detail.index_id,
 	)
 
 async def handle_chat_banad(req: web.Request) -> web.Response:

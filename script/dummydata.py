@@ -100,7 +100,7 @@ def add_contact_onesided(user: User, user_contact: User, lst: Lst) -> UserContac
 def create_usercontact(user: User, user_contact: User) -> UserContact:
 	return UserContact(
 		user_id = user.id, user_uuid = user.uuid, contact_id = user_contact.id, uuid = user_contact.uuid,
-		id = str(len(usercontacts_by_id_by_uuid[user.id]) + 2),
+		index_id = str(len(usercontacts_by_id_by_uuid[user.id]) + 2),
 		name = user_contact.name, message = user_contact.message,
 		lists = Lst.Empty, groups = [], is_messenger_user = True,
 	)

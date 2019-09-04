@@ -1371,6 +1371,7 @@ class BackendEventHandler(event.BackendEventHandler):
 		ctc = contacts.get(user.uuid)
 		if ctc is not None:
 			if ctc.lists & Lst.BL: return
+			bs.me_contact_remove(ctc.head.uuid, Lst.PL)
 		
 		contact_request_data = MultiDict([
 			(b'1', arbitrary_encode(self.ctrl.yahoo_id or '')),

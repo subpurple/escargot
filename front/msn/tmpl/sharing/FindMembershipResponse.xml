@@ -64,7 +64,7 @@
 								<MemberRole>Reverse</MemberRole>
 								<Members>
 									{%- for contact in detail.contacts.values() -%}
-										{%- if contact.lists.__and__(Lst.RL) and (contact.lists.__and__(Lst.AL) or contact.lists.__and__(Lst.BL)) -%}
+										{%- if contact.lists.__and__(Lst.RL) and not contact.pending -%}
 											<Member xsi:type="PassportMember">
 												<MembershipId>Reverse/{{ contact.head.uuid }}</MembershipId>
 												<Type>Passport</Type>
@@ -90,7 +90,7 @@
 								<MemberRole>Pending</MemberRole>
 								<Members>
 									{%- for contact in detail.contacts.values() -%}
-										{%- if contact.lists.__and__(Lst.RL) and not contact.lists.__and__(Lst.AL) and not contact.lists.__and__(Lst.BL) -%}
+										{%- if contact.pending -%}
 											<Member xsi:type="PassportMember">
 												<MembershipId>Pending/{{ contact.head.uuid }}</MembershipId>
 												<Type>Passport</Type>

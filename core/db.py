@@ -69,10 +69,11 @@ class UserContact(WithFrontData):
 	name = Col(sa.String)
 	message = Col(sa.String)
 	lists = Col(sa.Integer)
+	pending = Col(sa.Boolean, default = False)
 	groups = Col(JSONType)
 	is_messenger_user = Col(sa.Boolean)
 	
-	id = Col(sa.String) # TODO: For yahoo, like group_id; need Unique(user_id, contact_id); needs new name
+	index_id = Col(sa.String)
 	birthdate = Col(sa.DateTime, nullable = True)
 	anniversary = Col(sa.DateTime, nullable = True)
 	notes = Col(sa.String, nullable = True)
