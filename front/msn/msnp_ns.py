@@ -762,6 +762,13 @@ class MSNPCtrlNS(MSNPCtrl):
 						if membership is None or (membership is not None and membership.state != GroupChatState.Accepted):
 							self.send_reply(Err.InvalidCircleMembership, trid)
 							return
+					
+					if not circle_mode:
+						email = '{}@{}'.format(username, domain)
+						contact_uuid = backend.util_get_uuid_from_email(email)
+						if contact_uuid is None:
+							self.send_reply(Err.InvalidUser2, trid)
+							return
 			
 			if circle_mode and self.initial_adl_sent and not self.circle_adl_sent:
 				self.circle_adl_sent = True
