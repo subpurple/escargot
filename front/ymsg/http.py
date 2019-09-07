@@ -96,7 +96,11 @@ async def handle_insider_ycontent(req: web.Request) -> web.Response:
 								if str(req.query['pp']) not in ('0','1','2'):
 									continue
 							
-							target_ctc.detail.first_name = req.query.get('fn')
+							old_first_name = target_ctc.detail.first_name
+							# Yahoo! will set the email/YID as the first name when editing contact details;
+							# if first_name == email, don't set
+							if old_first_name != target_ctc.head.email:
+								target_ctc.detail.first_name = req.query.get('fn')
 							target_ctc.detail.last_name = req.query.get('ln')
 							target_ctc.detail.nickname = req.query.get('nn')
 							target_ctc.detail.personal_email = req.query.get('e')
