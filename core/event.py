@@ -90,7 +90,7 @@ class BackendEventHandler(metaclass = ABCMeta):
 	def msn_on_notify_ab(self) -> None:
 		pass
 	
-	def msn_on_notify_circle_ab(self, chat_id: str, *, role: Optional['GroupChatRole'] = None) -> None:
+	def msn_on_notify_circle_ab(self, chat_id: str) -> None:
 		pass
 	
 	def ymsg_on_xfer_init(self, yahoo_data: MultiDict[bytes, bytes]) -> None:

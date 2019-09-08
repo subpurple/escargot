@@ -61,6 +61,9 @@ class MemberAlreadyInvitedToGroupChat(ClientError):
 class GroupChatMemberIsPending(ClientError):
 	pass
 
+class CantLeaveGroupChat(ClientError):
+	pass
+
 class MemberNotInGroupChat(ClientError):
 	pass
 

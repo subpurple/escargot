@@ -929,11 +929,24 @@ class MSNPCtrlNS(MSNPCtrl):
 						if backend.user_service.get_groupchat(chat_id or '') is None:
 							self.send_reply(Err.InvalidCircleMembership, trid)
 							return
+						chat = backend.chat_get('persistent', chat_id)
+						if chat is None:
+							self.send_reply(Err.InvalidCircleMembership, trid)
+							return
 				
 				for c_el in c_els:
 					lsts = Lst(int(c_el.get('l')))
 					
-					if not circle_mode:
+					if circle_mode:
+						if lsts & Lst.FL or lsts & Lst.AL:
+							chat_id = username[-12:]
+							groupchat = backend.user_service.get_groupchat(chat_id or '')
+							if groupchat is not None:
+								try:
+									bs.me_leave_groupchat_chat(groupchat)
+								except:
+									pass
+					else:
 						username = c_el.get('n')
 						email = '{}@{}'.format(username, domain)
 						
@@ -2021,22 +2034,16 @@ class BackendEventHandler(event.BackendEventHandler):
 			cid = cid_format(user.uuid, decimal = True), now = date_format(datetime.utcnow()),
 		))
 	
-	def msn_on_notify_circle_ab(self, chat_id: str, *, role: Optional[GroupChatRole] = None) -> None:
+	def msn_on_notify_circle_ab(self, chat_id: str) -> None:
 		bs = self.ctrl.bs
 		assert bs is not None
 		user = bs.user
 		
 		id_bits = _uuid_to_high_low(user.uuid)
-		role_node = ''
-		
-		if role is not None:
-			role_node = PAYLOAD_MSG_8_1.format(
-				role = role.name,
-			)
 		
 		self.ctrl.send_reply('NOT', encode_payload(PAYLOAD_MSG_8,
 			member_low = binascii.hexlify(struct.pack('!I', id_bits[1])).decode('utf-8'), member_high = binascii.hexlify(struct.pack('!I', id_bits[0])).decode('utf-8'), email = user.email,
-			chat_id = chat_id, role = role_node,
+			chat_id = chat_id,
 		))
 	
 	def on_groupchat_created(self, groupchat: GroupChat) -> None:
@@ -2052,7 +2059,7 @@ class BackendEventHandler(event.BackendEventHandler):
 		if self.ctrl.circle_authenticated:
 			membership = groupchat.memberships.get(user.uuid)
 			assert membership is not None
-			self.msn_on_notify_circle_ab(groupchat.chat_id, role = (membership.role if membership.role is not GroupChatRole.Member else None))
+			self.msn_on_notify_circle_ab(groupchat.chat_id)
 	
 	def on_left_groupchat(self, groupchat: GroupChat) -> None:
 		if self.ctrl.circle_authenticated:
@@ -2496,13 +2503,10 @@ PAYLOAD_MSG_8 = '''<NOTIFICATION id="0" siteid="45705" siteurl="http://contacts.
 		<BODY>
 			&lt;NotificationData xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"&gt;
 				&lt;CircleId&gt;00000000-0000-0000-0009-{chat_id}&lt;/CircleId&gt;
-{role}			&lt;/NotificationData&gt;
+			&lt;/NotificationData&gt;
 		</BODY>
 	</MSG>
 </NOTIFICATION>'''
-
-PAYLOAD_MSG_8_1 = '''				&lt;Role&gt;{role}&lt;/Role&gt;
-'''
 
 PAYLOAD_MSG_9 = '''Routing: 1.0
 To: 1:{to_email}

@@ -1267,6 +1267,65 @@ def ab_ManageWLConnection(req: web.Request, header: Any, action: Any, bs: Backen
 		'now': now_str,
 	})
 
+def ab_BreakConnection(req: web.Request, header: Any, action: Any, bs: BackendSession) -> web.Response:
+	backend: Backend = req.app['backend']
+	now_str = util.misc.date_format(datetime.utcnow())
+	cachekey = secrets.token_urlsafe(172)
+	
+	user = bs.user
+	detail = user.detail
+	assert detail is not None
+	
+	ab_id = find_element(action, 'ABId')
+	if ab_id is not None:
+		ab_id = str(ab_id)
+	else:
+		ab_id = '00000000-0000-0000-0000-000000000000'
+	
+	if not (ab_id == '00000000-0000-0000-0000-000000000000' or (ab_id.startswith('00000000-0000-0000-0009-') and len(ab_id[24:]) == 12)):
+		return web.HTTPInternalServerError()
+	
+	groupchat = None
+	chat_id = None
+	circle_mode = False
+	
+	contact_uuid = find_element(action, 'contactId')
+	assert contact_uuid is not None
+	if ab_id != '00000000-0000-0000-0000-000000000000':
+		# Right now, this only supports requests from the calling user
+		if contact_uuid != user.uuid:
+			return web.HTTPInternalServerError()
+		head = user
+	
+	if head is None:
+		return render(req, 'msn:abservice/Fault.contactdoesnotexist.xml', {
+			'action_str': 'BreakConnection',
+		}, status = 500)
+	
+	if ab_id.startswith('00000000-0000-0000-0009-'):
+		chat_id = ab_id[-12:]
+		uuid = contact_uuid
+		circle_mode = True
+	
+	if circle_mode:
+		assert chat_id is not None
+		groupchat = backend.user_service.get_groupchat(chat_id)
+		if groupchat is None or uuid not in groupchat.memberships:
+			return web.HTTPInternalServerError()
+		
+		try:
+			bs.me_leave_groupchat(groupchat)
+		except:
+			return web.HTTPInternalServerError()
+		
+		backend.loop.create_task(_dispatch_groupchat_left(backend, user, groupchat))
+	
+	return render(req, 'msn:abservice/BreakConnectionResponse.xml', {
+		'cachekey': cachekey,
+		'host': settings.LOGIN_HOST,
+		'session_id': util.misc.gen_uuid(),
+	})
+
 async def _dispatch_groupchat_created(backend: Backend, user: models.User, groupchat: models.GroupChat) -> None:
 	await asyncio.sleep(0.2)
 	for sess in backend.util_get_sessions_by_user(user):
@@ -1282,6 +1341,11 @@ async def _dispatch_groupchat_invite_status(backend: Backend, user: models.User,
 		if chat is None: return
 		for sess in backend.util_get_sessions_by_user(user):
 			sess.evt.on_declined_chat_invite(chat, group_chat = True)
+
+async def _dispatch_groupchat_left(backend: Backend, user: models.User, groupchat: models.GroupChat) -> None:
+	await asyncio.sleep(0.2)
+	for sess in backend.util_get_sessions_by_user(user):
+		sess.evt.on_left_groupchat(groupchat)
 
 def ab_UpdateDynamicItem(req: web.Request, header: Any, action: Any, bs: BackendSession) -> web.Response:
 	# TODO: UpdateDynamicItem

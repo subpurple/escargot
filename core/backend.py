@@ -1009,6 +1009,61 @@ class BackendSession(Session):
 			if cs.user is user: continue
 			cs.bs.evt.on_chat_invite_declined(chat, user, group_chat = True)
 	
+	def me_leave_groupchat(self, groupchat: GroupChat) -> None:
+		user = self.user
+		backend = self.backend
+		
+		if user.uuid not in groupchat.memberships: raise error.MemberNotInGroupChat()
+		
+		chat = backend.chat_get('persistent', groupchat.chat_id)
+		if chat is None: raise error.GroupChatDoesNotExist()
+		
+		membership = groupchat.memberships[user.uuid]
+		if membership.state == GroupChatState.Empty: raise error.MemberNotInGroupChat()
+		
+		other_owners = False
+		
+		if membership.role == GroupChatRole.Admin:
+			for membership_other in groupchat.memberships.values():
+				if membership_other is membership: continue
+				if membership_other.role == GroupChatRole.Admin:
+					other_owners = True
+					break
+			if not other_owners:
+				raise error.CantLeaveGroupChat()
+		
+		membership.role = GroupChatRole.Member
+		membership.state = GroupChatState.Empty
+		
+		if membership.inviter_uuid is not None:
+			membership.inviter_uuid = None
+		if membership.inviter_email is not None:
+			membership.inviter_email = None
+		if membership.inviter_name is not None:
+			membership.inviter_name = None
+		
+		backend._mark_groupchat_modified(groupchat)
+	
+	def me_leave_groupchat_chat(self, groupchat: GroupChat) -> None:
+		user = self.user
+		backend = self.backend
+		
+		if user.uuid not in groupchat.memberships: raise error.MemberNotInGroupChat()
+		
+		chat = backend.chat_get('persistent', groupchat.chat_id)
+		if chat is None: raise error.GroupChatDoesNotExist()
+		
+		membership = groupchat.memberships[user.uuid]
+		
+		if groupchat.chat_id in backend._cses_by_bs_by_groupchat_id:
+			for _, cs in backend._cses_by_bs_by_groupchat_id[groupchat.chat_id].items():
+				if cs is not None and cs.user is user:
+					cs.close()
+		
+		for cs_other in chat.get_roster():
+			if cs_other.user is not user:
+				cs_other.bs.evt.on_groupchat_updated(groupchat)
+	
 	def me_block_circle(self, groupchat: GroupChat) -> None:
 		user = self.user
 		
