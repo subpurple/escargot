@@ -3,9 +3,7 @@ from front.msn.misc import Err
 from front.msn.msnp_ns import MSNPCtrlNS
 from front.msn.msnp_sb import MSNPCtrlSB
 from util.misc import Logger
-from core.backend import Backend
 from tests.etc import misc
-import time
 
 from tests.mock import UserService, MSNPWriter, Backend, ANY
 
