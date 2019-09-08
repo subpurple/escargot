@@ -138,8 +138,6 @@ class MSNPCtrlSB(MSNPCtrl):
 			self.counter_task.cancel()
 			self.counter_task = None
 		
-		chat.send_participant_joined(cs)
-		
 		roster_chatsessions = list(chat.get_roster_single()) # type: List[ChatSession]
 		
 		if dialect >= 16:
@@ -147,7 +145,7 @@ class MSNPCtrlSB(MSNPCtrl):
 			tmp = [] # type: List[ChatSession]
 			seen_cses = set() # type: Set[ChatSession]
 			for other_cs_primary in roster_chatsessions:
-				if other_cs_primary in seen_cses: continue
+				if other_cs_primary in seen_cses or other_cs_primary is self.cs: continue
 				for other_cs in chat.get_roster():
 					if other_cs in seen_cses: continue
 					if other_cs.user.email == other_cs_primary.user.email and not other_cs.primary_pop:
@@ -189,6 +187,8 @@ class MSNPCtrlSB(MSNPCtrl):
 				self.send_reply('IRO', trid, i + 1, l, other_user.email, other_user.status.name, *extra)
 		
 		self.send_reply('ANS', trid, 'OK')
+		
+		chat.send_participant_joined(cs)
 	
 	# State = Live
 	
@@ -294,7 +294,7 @@ class ChatEventHandler(event.ChatEventHandler):
 		user = cs_other.user
 		
 		pop_id_other = cs_other.bs.front_data.get('msn_pop_id')
-		if pop_id_other is not None and ctrl.dialect >= 16:
+		if (pop_id_other is not None and (pop_id_other != cs.bs.front_data.get('msn_pop_id') or cs_other.user is not cs.user)) and ctrl.dialect >= 16:
 			email = '{};{}'.format(user.email, '{' + pop_id_other + '}')
 		else:
 			email = user.email
@@ -306,7 +306,7 @@ class ChatEventHandler(event.ChatEventHandler):
 		else:
 			extra = ()
 		ctrl.send_reply('JOI', email, user.status.name, *extra)
-		if first_pop and pop_id_other is not None and ctrl.dialect >= 16:
+		if cs_other.user is not cs.user and pop_id_other is not None and first_pop and ctrl.dialect >= 16:
 			ctrl.send_reply('JOI', user.email, user.status.name, *extra)
 	
 	def on_participant_left(self, cs_other: ChatSession, last_pop: bool) -> None:

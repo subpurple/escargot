@@ -1,4 +1,4 @@
-from util.auth import AuthService
+from core.auth import AuthService
 
 def test_can_use_existing():
 	t = MockTime()
