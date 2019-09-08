@@ -1043,6 +1043,10 @@ class BackendSession(Session):
 			membership.inviter_name = None
 		
 		backend._mark_groupchat_modified(groupchat)
+		
+		for cs_other in chat.get_roster():
+			if cs_other.user is not user:
+				cs_other.bs.evt.on_groupchat_updated(groupchat)
 	
 	def me_leave_groupchat_chat(self, groupchat: GroupChat) -> None:
 		user = self.user
@@ -1059,10 +1063,6 @@ class BackendSession(Session):
 			for _, cs in backend._cses_by_bs_by_groupchat_id[groupchat.chat_id].items():
 				if cs is not None and cs.user is user:
 					cs.close()
-		
-		for cs_other in chat.get_roster():
-			if cs_other.user is not user:
-				cs_other.bs.evt.on_groupchat_updated(groupchat)
 	
 	def me_block_circle(self, groupchat: GroupChat) -> None:
 		user = self.user
