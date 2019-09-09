@@ -375,9 +375,10 @@ class Backend:
 		
 		if chat is not None:
 			if groupchat.chat_id in self._cses_by_bs_by_groupchat_id:
-				for _, cs in self._cses_by_bs_by_groupchat_id[groupchat.chat_id].items():
+				for bs, cs in self._cses_by_bs_by_groupchat_id[groupchat.chat_id].items():
 					if cs is not None and cs.user is user:
 						cs.close()
+						del self._cses_by_bs_by_groupchat_id[groupchat.chat_id][bs]
 			
 			for cs_other in chat.get_roster():
 				if cs_other.user is not user:
@@ -478,7 +479,7 @@ class Backend:
 						cs = self._cses_by_bs_by_groupchat_id[groupchat.chat_id][bs]
 						assert cs is not None
 						cs.chat.send_participant_status_updated(cs)
-					if user.status.substatus is Substatus.Offline:
+					if not self._sc.is_session_in_collection(bs):
 						for cs_dict in self._cses_by_bs_by_groupchat_id.values():
 							cs = cs_dict.pop(bs, None)
 							if cs is not None:
@@ -1060,9 +1061,10 @@ class BackendSession(Session):
 		membership = groupchat.memberships[user.uuid]
 		
 		if groupchat.chat_id in backend._cses_by_bs_by_groupchat_id:
-			for _, cs in backend._cses_by_bs_by_groupchat_id[groupchat.chat_id].items():
+			for bs, cs in backend._cses_by_bs_by_groupchat_id[groupchat.chat_id].items():
 				if cs is not None and cs.user is user:
 					cs.close()
+					del backend._cses_by_bs_by_groupchat_id[groupchat.chat_id][bs]
 	
 	def me_block_circle(self, groupchat: GroupChat) -> None:
 		user = self.user
@@ -1115,6 +1117,9 @@ class _SessionCollection:
 		if user not in self._sessions_by_user:
 			return []
 		return self._sessions_by_user[user]
+	
+	def is_session_in_collection(self, sess: BackendSession) -> bool:
+		return sess in self._sessions
 	
 	def iter_sessions(self) -> Iterable[BackendSession]:
 		yield from self._sessions
