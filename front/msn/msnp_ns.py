@@ -482,7 +482,6 @@ class MSNPCtrlNS(MSNPCtrl):
 					prp_value = settings.get(prp_setting)
 					if prp_value:
 						self.send_reply('PRP', prp_setting, prp_value)
-				self.send_reply('PRP', 'MFN', user.status.name)
 				self.send_reply('LSG', '0', "Other Contacts", 0)
 				for g in detail._groups_by_id.values():
 					self.send_reply('LSG', g.id, g.name, 0)
@@ -497,11 +496,11 @@ class MSNPCtrlNS(MSNPCtrl):
 			self.send_reply('SYN', trid, TIMESTAMP, TIMESTAMP, len(contacts), len(detail._groups_by_id.values()))
 			self.send_reply('GTC', settings.get('GTC', 'A'))
 			self.send_reply('BLP', settings.get('BLP', 'AL'))
+			self.send_reply('PRP', 'MFN', user.status.name)
 			for prp_setting in ('PHH','PHW','PHM','MOB','MBE'):
 				prp_value = settings.get(prp_setting)
 				if prp_value:
 					self.send_reply('PRP', prp_setting, prp_value)
-			self.send_reply('PRP', 'MFN', user.status.name)
 			
 			for g in detail._groups_by_id.values():
 				self.send_reply('LSG', g.name, (g.id if self.dialect == 10 else g.uuid))
