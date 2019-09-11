@@ -2408,7 +2408,6 @@ sid: 507
 ClientIP: {ip}
 ClientPort: {port}
 ABCHMigrated: 1
-Nickname: {name}
 MPOPEnabled: {mpop}
 
 '''
