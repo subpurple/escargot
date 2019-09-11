@@ -6,6 +6,7 @@ from email.parser import Parser
 from email.message import EmailMessage
 import secrets
 from hashlib import sha384, sha1
+from urllib.parse import quote
 import hmac
 import asyncio
 import re
@@ -198,7 +199,7 @@ class MSNPCtrlNS(MSNPCtrl):
 					self.send_reply(Err.AuthFail, trid)
 					self.close(hard = True)
 					return
-				#extra = ('ct={},rver=5.5.4177.0,wp=FS_40SEC_0_COMPACT,lc=1033,id=507,ru=http:%2F%2Fmessenger.msn.com,tw=0,kpp=1,kv=4,ver=2.1.6000.1,rn=1lgjBfIL,tpf=b0735e3a873dfb5e75054465196398e0'.format(int(time())),)
+				#extra = ('ct={},rver=5.5.4177.0,wp=FS_40SEC_0_COMPACT,lc=1033,id=507,ru=http://messenger.msn.com,tw=0,kpp=1,kv=4,ver=2.1.6000.1,rn=1lgjBfIL,tpf=b0735e3a873dfb5e75054465196398e0'.format(int(time())),)
 				if dialect >= 13:
 					self.send_reply('GCF', 0, SHIELDS_MSNP13)
 				self.send_reply('USR', trid, authtype, 'S', 'ct=1,rver=1,wp=FS_40SEC_0_COMPACT,lc=1,id=1')
@@ -1959,7 +1960,7 @@ class BackendEventHandler(event.BackendEventHandler):
 			# has an `f` parameter for the friendly name it seems.
 			# Also, no `l="1"` in `ml`.
 			adl_payload = '<ml><d n="{}"><c n="{}" t="1" l="{}" f="{}" /></d></ml>'.format(
-				domain, username, int(Lst.RL), name,
+				domain, username, int(Lst.RL), quote(name),
 			)
 			m = ('ADL', 0, adl_payload.encode('utf-8'))
 		self.ctrl.send_reply(*m)

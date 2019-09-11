@@ -84,7 +84,7 @@ class MSNPWriter:
 		if isinstance(m[-1], bytes):
 			data = m[-1]
 			m[-1] = len(data)
-		mt = tuple(str(x).replace(' ', '%20').replace('\r', '%0D').replace('\n', '%0A') for x in m if x is not None)
+		mt = tuple(str(x).replace('%', '%25').replace(' ', '%20').replace('\r', '%0D').replace('\n', '%0A') for x in m if x is not None)
 		_truncated_log(self._logger, '<<<', mt)
 		w = self._buf.write
 		w(' '.join(mt).encode('utf-8'))
