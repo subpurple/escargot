@@ -328,25 +328,40 @@ class Backend:
 			for cs_other in chat.get_roster():
 				cs_other.bs.evt.on_groupchat_updated(groupchat)
 	
-	def util_change_groupchat_membership_role(self, groupchat: GroupChat, user_other: User, role: GroupChatRole) -> None:
-		if user_other.uuid not in groupchat.memberships: raise error.MemberNotInGroupChat()
+	def util_change_groupchat_membership_role(self, groupchat: GroupChat, user_other: User, role: GroupChatRole, user_self: Optional[User]) -> None:
+		if user_other.uuid not in groupchat.memberships or (user_self is not None and user_self.uuid not in groupchat.memberships): raise error.MemberNotInGroupChat()
 		
 		chat = self.chat_get('persistent', groupchat.chat_id)
 		
 		membership = groupchat.memberships[user_other.uuid]
+		membership_self = None
+		
+		if user_self is not None:
+			membership_self = groupchat.memberships[user_self.uuid]
 		
 		old_role = membership.role
 		if old_role == GroupChatRole.StatePendingOutbound:
 			raise error.GroupChatMemberIsPending()
+		if membership_self is not None:
+			if membership_self.role != GroupChatRole.Admin or old_role == GroupChatRole.Admin:
+				raise error.MemberDoesntHaveSufficientGroupChatRole()
 		membership.role = role
+		if membership_self is not None:
+			membership_self.role = GroupChatRole.Member
 		
 		if old_role is not membership.role:
 			self._mark_groupchat_modified(groupchat)
 			
 			if chat is not None:
 				for cs_other in chat.get_roster():
-					if cs_other.user is user_other:
-						cs_other.bs.evt.on_groupchat_role_updated(groupchat.chat_id, membership.role)
+					if cs_other.user is user_other or (user_self is not None and cs_other.user is user_self):
+						role_user = None
+						if (user_self is not None and cs_other.user is user_self) and membership_self is not None:
+							role_user = membership_self.role
+						elif cs_other.user is user_other:
+							role_user = membership.role
+						if role_user is not None:
+							cs_other.bs.evt.on_groupchat_role_updated(groupchat.chat_id, role_user)
 					else:
 						cs_other.bs.evt.on_groupchat_updated(groupchat)
 	

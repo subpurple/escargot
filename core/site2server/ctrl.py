@@ -151,6 +151,7 @@ class S2SCtrl:
 				self.send_numeric(Err.TooFewArguments, ':{}'.format(ts))
 				return
 			
+			user_self = None
 			uuid = args[0]
 			role_num = args[1]
 			
@@ -159,9 +160,16 @@ class S2SCtrl:
 				self.send_numeric(Err.UserNotInDB, ':{}'.format(ts))
 				return
 			
+			if len(args) >= 3:
+				uuid_self = args[2]
+				user_self = backend._load_user_record(uuid_self)
+				if user_self is None:
+					self.send_numeric(Err.UserNotInDB, ':{}'.format(ts))
+					return
+			
 			try:
 				role = GroupChatRole(int(role_num))
-				backend.util_change_groupchat_membership_role(groupchat, user, role)
+				backend.util_change_groupchat_membership_role(groupchat, user, role, user_self)
 			except ValueError:
 				self.send_numeric(Err.GroupChatRoleInvalid, ':{}'.format(ts))
 				return
@@ -173,6 +181,9 @@ class S2SCtrl:
 				return
 			except error.GroupChatMemberIsPending:
 				self.send_numeric(Err.GroupChatMemberIsPending, ':{}'.format(ts))
+				return
+			except error.MemberDoesntHaveSufficientGroupChatRole:
+				self.send_numeric(Err.DoesntHaveSufficientPermissions, ':{}'.format(ts))
 				return
 		elif action == 'REMOVE':
 			if len(args) < 1:
@@ -317,6 +328,7 @@ class Err:
 	GroupChatMemberInvalid = 203
 	MemberAlreadyInGroupChat = 204
 	GroupChatMemberIsPending = 205
+	DoesntHaveSufficientPermissions = 206
 
 class StatusCode:
 	GroupChatActionSuccessful = 201

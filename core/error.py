@@ -49,6 +49,9 @@ class NotAllowedWhileHDN(ClientError):
 class NotAllowedToJoinGroupChat(ClientError):
 	pass
 
+class MemberDoesntHaveSufficientGroupChatRole(ClientError):
+	pass
+
 class GroupChatDoesNotExist(ClientError):
 	pass
 
