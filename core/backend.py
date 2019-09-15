@@ -373,6 +373,9 @@ class Backend:
 		membership = groupchat.memberships[user.uuid]
 		if membership.state == GroupChatState.Empty: raise error.MemberNotInGroupChat()
 		
+		if membership.role == GroupChatRole.Admin:
+			raise error.CantLeaveGroupChat()
+		
 		membership.role = GroupChatRole.Member
 		membership.state = GroupChatState.Empty
 		
@@ -1040,13 +1043,7 @@ class BackendSession(Session):
 		other_owners = False
 		
 		if membership.role == GroupChatRole.Admin:
-			for membership_other in groupchat.memberships.values():
-				if membership_other is membership: continue
-				if membership_other.role == GroupChatRole.Admin:
-					other_owners = True
-					break
-			if not other_owners:
-				raise error.CantLeaveGroupChat()
+			raise error.CantLeaveGroupChat()
 		
 		membership.role = GroupChatRole.Member
 		membership.state = GroupChatState.Empty

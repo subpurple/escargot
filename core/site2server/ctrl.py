@@ -205,6 +205,9 @@ class S2SCtrl:
 			except error.MemberNotInGroupChat:
 				self.send_numeric(Err.GroupChatMemberInvalid, ':{}'.format(ts))
 				return
+			except error.CantLeaveGroupChat:
+				self.send_numeric(Err.CantLeaveGroupChat, ':{}'.format(ts))
+				return
 		else:
 			self.send_numeric(Err.InvalidArgument, ':{}'.format(ts))
 			return
@@ -329,6 +332,7 @@ class Err:
 	MemberAlreadyInGroupChat = 204
 	GroupChatMemberIsPending = 205
 	DoesntHaveSufficientPermissions = 206
+	CantLeaveGroupChat = 207
 
 class StatusCode:
 	GroupChatActionSuccessful = 201
