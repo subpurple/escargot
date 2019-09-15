@@ -289,7 +289,7 @@ class ChatEventHandler(event.ChatEventHandler):
 		assert bs is not None
 		cs = self.cs
 		
-		if not first_pop and ctrl.dialect < 16: return
+		if (not first_pop or cs_other.user is cs.user) and ctrl.dialect < 16: return
 		
 		user = cs_other.user
 		
