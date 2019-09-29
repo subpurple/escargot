@@ -30,7 +30,7 @@ class S2SCtrl:
 		self.logger = logger
 		self.reader = S2SReader(logger)
 		self.writer = S2SWriter(logger)
-		self.peername = ('0.0.0.0', 52476)
+		self.peername = ('0.0.0.0', 4309)
 		self.close_callback = None
 		self.closed = False
 		self.transport = None
@@ -173,9 +173,6 @@ class S2SCtrl:
 			except ValueError:
 				self.send_numeric(Err.GroupChatRoleInvalid, ':{}'.format(ts))
 				return
-			except error.GroupChatDoesNotExist:
-				self.send_numeric(Err.GroupChatDoesNotExist, ':{}'.format(ts))
-				return
 			except error.MemberNotInGroupChat:
 				self.send_numeric(Err.GroupChatMemberInvalid, ':{}'.format(ts))
 				return
@@ -199,9 +196,6 @@ class S2SCtrl:
 			
 			try:
 				backend.util_remove_user_from_groupchat(groupchat, user)
-			except error.GroupChatDoesNotExist:
-				self.send_numeric(Err.GroupChatDoesNotExist, ':{}'.format(ts))
-				return
 			except error.MemberNotInGroupChat:
 				self.send_numeric(Err.GroupChatMemberInvalid, ':{}'.format(ts))
 				return
