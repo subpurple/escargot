@@ -294,9 +294,7 @@ class Backend:
 			for bs_other in self.util_get_sessions_by_user(user):
 				bs_other.evt.on_declined_chat_invite(chat, group_chat = True)
 			
-			for cs in chat.get_roster():
-				if cs.user is user: continue
-				cs.bs.evt.on_chat_invite_declined(chat, user, group_chat = True)
+			chat.send_participant_declined(user, group_chat = True)
 	
 	def util_revoke_groupchat_invite(self, groupchat: GroupChat, user: User) -> None:
 		if user.uuid not in groupchat.memberships: raise error.MemberNotInGroupChat()
@@ -1024,9 +1022,7 @@ class BackendSession(Session):
 				if bs_other is self: continue
 				bs_other.evt.on_declined_chat_invite(chat, group_chat = True)
 		
-		for cs in chat.get_roster():
-			if cs.user is user: continue
-			cs.bs.evt.on_chat_invite_declined(chat, user, group_chat = True)
+		chat.send_participant_declined(user, group_chat = True)
 	
 	def me_leave_groupchat(self, groupchat: GroupChat) -> None:
 		user = self.user
@@ -1101,15 +1097,6 @@ class BackendSession(Session):
 		if groupchat.memberships[user.uuid].blocking:
 			groupchat.memberships[user.uuid].blocking = False
 			self.backend._mark_groupchat_modified(groupchat)
-	
-	def me_send_uun_invitation(self, uuid: str, type: int, data: Optional[bytes], *, pop_id_sender: Optional[str] = None, pop_id: Optional[str] = None) -> None:
-		ctc_head = self.backend._load_user_record(uuid)
-		if ctc_head is None:
-			raise error.UserDoesNotExist()
-		
-		for sess_notify in self.backend._sc.get_sessions_by_user(ctc_head):
-			#if sess_notify is self: continue
-			sess_notify.evt.msn_on_uun_sent(self.user, type, data, pop_id_sender = pop_id_sender, pop_id = pop_id)
 
 class _SessionCollection:
 	__slots__ = ('_sessions', '_sessions_by_user', '_sess_by_token', '_tokens_by_sess')
@@ -1258,6 +1245,10 @@ class Chat:
 				if self.groupchat.memberships[cs.user.uuid].blocking and cs_other.user is not cs.user: continue
 			if cs_other is cs and cs.origin is 'yahoo': continue
 			cs_other.evt.on_participant_joined(cs, first_pop, initial_join)
+	
+	def send_participant_declined(self, user: User, *, user_id: Optional[str] = None, message: Optional[str] = None, group_chat: bool = False) -> None:
+		for cs_other in self.get_roster():
+			cs_other.bs.evt.on_chat_invite_declined(self, user, invitee_id = user_id, message = message, group_chat = group_chat)
 	
 	def send_participant_status_updated(self, cs: 'ChatSession', *, initial: bool = False, send_on_bl: bool = False) -> None:
 		tmp = []

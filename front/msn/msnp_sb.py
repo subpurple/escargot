@@ -327,9 +327,6 @@ class ChatEventHandler(event.ChatEventHandler):
 	def on_participant_status_updated(self, cs_other: ChatSession, first_pop: bool, initial: bool) -> None:
 		pass
 	
-	def on_invite_declined(self, invited_user: User, *, invited_id: Optional[str] = None, message: str = '') -> None:
-		pass
-	
 	def on_message(self, data: MessageData) -> None:
 		if data.type is not MessageType.TypingDone:
 			self.ctrl.send_reply('MSG', data.sender.email, data.sender.status.name, messagedata_to_msnp(data))

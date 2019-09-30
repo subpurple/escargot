@@ -238,10 +238,13 @@ class BackendEventHandler(event.BackendEventHandler):
 		if group_chat: return
 		self.ctrl.send_reply('INVITE', self.bs.user.email, chat.ids['irc'], source = inviter.email)
 	
-	def on_declined_chat_invite(self, chat: Chat, group_chat: bool = False) -> None:
-		pass
+	def on_chat_invite_declined(self, chat: Chat, invitee: User, *, invitee_id: Optional[str] = None, message: Optional[str] = None, group_chat: bool = False) -> None:
+		if group_chat: return
+		self.ctrl.send_reply('NOTICE', ":{} declined the invitation".format(invitee.email), source = invitee.email)
+		if message:
+			self.ctrl.send_reply('NOTICE', ":\"{}\"".format(message), source = invitee.email)
 	
-	def on_chat_invite_declined(self, chat: Chat, invitee: User, *, group_chat: bool = False) -> None:
+	def on_declined_chat_invite(self, chat: Chat, group_chat: bool = False) -> None:
 		pass
 	
 	def on_added_me(self, user: User, *, adder_id: Optional[str] = None, message: Optional[TextWithData] = None) -> None:
@@ -294,11 +297,6 @@ class ChatEventHandler(event.ChatEventHandler):
 	
 	def on_participant_status_updated(self, cs_other: ChatSession, first_pop: bool, initial: bool) -> None:
 		pass
-	
-	def on_invite_declined(self, invited_user: User, *, invited_id: Optional[str] = None, message: str = '') -> None:
-		self.ctrl.send_reply('NOTICE', ":{} declined the invitation".format(invited_user.email), source = invited_user.email)
-		if message:
-			self.ctrl.send_reply('NOTICE', ":\"{}\"".format(message), source = invited_user.email)
 	
 	def on_message(self, data: MessageData) -> None:
 		if data.type is not MessageType.Chat:

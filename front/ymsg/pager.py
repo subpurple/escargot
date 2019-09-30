@@ -24,7 +24,7 @@ from . import misc, Y64
 PRE_SESSION_ID: Dict[str, int] = {}
 
 class YMSGCtrlPager(YMSGCtrlBase):
-	__slots__ = ('backend', 'dialect', 'yahoo_id', 'sess_id', 'challenge', 't_cookie_token', 'bs', 'chat_sessions', 'client')
+	__slots__ = ('backend', 'dialect', 'yahoo_id', 'sess_id', 'challenge', 't_cookie_token', 'bs', 'client')
 	
 	backend: Backend
 	dialect: int
@@ -33,7 +33,6 @@ class YMSGCtrlPager(YMSGCtrlBase):
 	challenge: Optional[bytes]
 	t_cookie_token: Optional[str]
 	bs: Optional[BackendSession]
-	chat_sessions: Dict[Chat, ChatSession]
 	client: Client
 	
 	def __init__(self, logger: Logger, via: str, backend: Backend) -> None:
@@ -45,7 +44,6 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		self.challenge = None
 		self.t_cookie_token = None
 		self.bs = None
-		self.chat_sessions = {}
 		self.client = Client('yahoo', '?', via)
 	
 	def _on_close(self, remove_sess_id: bool = True) -> None:
@@ -171,6 +169,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		
 		bs.front_data['ymsg'] = True
 		bs.front_data['ymsg_private_chats'] = {}
+		bs.front_data['ymsg_chat_sessions'] = {}
 		
 		self._update_buddy_list(cached_y = cached_y, cached_t = cached_t, after_login = True)
 		
@@ -728,7 +727,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		for cs in chat.get_roster():
 			if misc.yahoo_id(cs.user.email) not in inviter_ids:
 				continue
-			cs.evt.on_invite_declined(bs.user, invited_id = yahoo_id, message = deny_msg)
+			cs.bs.evt.on_chat_invite_declined(chat, bs.user, invitee_id = yahoo_id, message = deny_msg)
 	
 	def _y_001d(self, *args: Any) -> None:
 		# SERVICE_CONFMSG (0x1d); send a message in a conference
@@ -873,11 +872,11 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		bs = self.bs
 		assert bs is not None
 		
-		cs = self.chat_sessions.get(chat)
+		cs = bs.front_data['ymsg_chat_sessions'].get(chat)
 		if cs is None and create:
 			evt = ChatEventHandler(self.backend.loop, self, bs)
 			cs = chat.join('yahoo', bs, evt, preferred_name = yahoo_id)
-			self.chat_sessions[chat] = cs
+			bs.front_data['ymsg_chat_sessions'][chat] = cs
 			chat.send_participant_joined(cs)
 		return cs
 	
@@ -973,42 +972,45 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		self.send_reply(YMSGService.LogOn, YMSGStatus.Available, self.sess_id, logon_payload)
 	
 	async def _check_private_chat(self, chat: Chat, other_user: User, bs: BackendSession) -> None:
+		two_users = False
+		
 		while True:
 			await asyncio.sleep(0.1)
 			
 			if 'ymsg_twoway_only' in chat.front_data:
-				if len(list(chat.get_roster_single())) > 2:
+				if len(list(chat.get_roster_single())) == 2:
+					two_users = True
+				if len(list(chat.get_roster_single())) > 2 or ('ymsg_twoway_only' in chat.front_data and 'ymsg/conf' in chat.ids):
 					del chat.front_data['ymsg_twoway_only']
-					cs = bs.front_data['ymsg_private_chats'][other_user.uuid][0]
-					del bs.front_data['ymsg_private_chats'][other_user.uuid]
-					
-					self.chat_sessions[chat] = cs
-					
-					# Private YMSG chat has turned into a multi-user chat; send invite
 					if 'ymsg/conf' not in chat.ids:
 						chat.add_id('ymsg/conf', chat.ids['main'])
-					conf_invite_dict = MultiDict([
-						(b'1', arbitrary_encode(self.yahoo_id or '')),
-						(b'57', arbitrary_encode(chat.ids['ymsg/conf'])),
-						(b'50', arbitrary_encode(misc.yahoo_id(other_user.email))),
-						(b'58', b''),
-					]) # type: MultiDict[bytes, bytes]
-					
-					roster = list(chat.get_roster_single())
-					for cs in roster:
-						if cs.user.uuid in (bs.user.uuid,other_user.uuid): continue
-						conf_invite_dict.add(b'52', arbitrary_encode(cs.preferred_name or misc.yahoo_id(cs.user.email)))
-						conf_invite_dict.add(b'53', arbitrary_encode(cs.preferred_name or misc.yahoo_id(cs.user.email)))
-					
-					conf_invite_dict.add(b'13', arbitrary_encode(chat.front_data.get('ymsg_voice_chat') or '0'))
-					
-					self.send_reply(YMSGService.ConfAddInvite if len(roster) > 1 else YMSGService.ConfInvite, YMSGStatus.BRB, self.sess_id, conf_invite_dict)
+					for cs_other in chat.get_roster():
+						if cs_other.user in (bs.user,other_user) and cs_other.bs.front_data.get('ymsg'):
+							# Make sure any current YMSG users don't have the chat marked as a private chat anymore
+							target_user = None
+							if cs_other.user is bs.user:
+								target_user = other_user
+							elif cs_other.user is other_user:
+								target_user = bs.user
+							if 'ymsg_private_chats' in cs_other.bs.front_data:
+								if target_user:
+									del cs_other.bs.front_data['ymsg_private_chats'][target_user.uuid]
+							bs.front_data['ymsg_chat_sessions'][chat] = cs_other
+							if target_user:
+								# Private YMSG chat has turned into a multi-user chat; send invite
+								cs_other.bs.evt.on_chat_invite(chat, target_user, invite_msg = 'Two-way chat auto-converted to conference.')
 					break
-				elif len(list(chat.get_roster_single())) == 1:
-					cs = bs.front_data['ymsg_private_chats'][other_user.uuid][0]
-					del bs.front_data['ymsg_private_chats'][other_user.uuid]
-					cs.close()
-					break
+				elif len(list(chat.get_roster_single())) == 1 and two_users:
+					for cs_other in chat.get_roster():
+						if cs_other.user in (bs.user,other_user) and cs_other.bs.front_data.get('ymsg'):
+							if cs_other.user is bs.user:
+								target_user = other_user
+							elif cs_other.user is other_user:
+								target_user = bs.user
+							if target_user:
+								del cs_other.bs.front_data['ymsg_private_chats'][target_user.uuid]
+								cs_other.close()
+								break
 	
 	def _get_oims(self, user: User) -> None:
 		oims = self.backend.user_service.get_oim_batch(user)
@@ -1289,6 +1291,15 @@ class BackendEventHandler(event.BackendEventHandler):
 		
 		backend.user_service.delete_oim(user.uuid, oim.uuid)
 	
+	def on_chat_invite_declined(self, chat: Chat, invitee: User, *, invitee_id: Optional[str] = None, message: Optional[str] = None, group_chat: bool = False) -> None:
+		if group_chat: return
+		self.ctrl.send_reply(YMSGService.ConfDecline, YMSGStatus.BRB, self.ctrl.sess_id, MultiDict([
+			(b'1', arbitrary_encode(self.ctrl.yahoo_id or '')),
+			(b'57', arbitrary_encode(chat.ids['ymsg/conf'])),
+			(b'54', arbitrary_encode(invitee_id or misc.yahoo_id(invitee.email))),
+			(b'14', arbitrary_encode(message or '')),
+		]))
+	
 	def ymsg_on_xfer_init(self, yahoo_data: MultiDict[bytes, bytes]) -> None:
 		for y in misc.build_ft_packet(self.bs, yahoo_data):
 			self.ctrl.send_reply(y[0], y[1], self.sess_id, y[2])
@@ -1325,7 +1336,7 @@ class BackendEventHandler(event.BackendEventHandler):
 	
 	def on_chat_invite(self, chat: Chat, inviter: User, *, group_chat: bool = False, inviter_id: Optional[str] = None, invite_msg: str = '') -> None:
 		if group_chat: return
-		if chat.front_data.get('ymsg_twoway_only'):
+		if chat.front_data.get('ymsg_twoway_only') and len(list(chat.get_roster_single())) < 2:
 			# A Yahoo! non-conference chat; auto-accepted invite
 			evt = ChatEventHandler(self.loop, self.ctrl, self.bs)
 			cs = chat.join('yahoo', self.bs, evt)
@@ -1354,9 +1365,6 @@ class BackendEventHandler(event.BackendEventHandler):
 		self.ctrl.send_reply(YMSGService.ConfAddInvite if len(roster) > 1 else YMSGService.ConfInvite, YMSGStatus.BRB, self.ctrl.sess_id, conf_invite_dict)
 	
 	def on_declined_chat_invite(self, chat: Chat, group_chat: bool = False) -> None:
-		pass
-	
-	def on_chat_invite_declined(self, chat: Chat, invitee: User, *, group_chat: bool = False) -> None:
 		pass
 	
 	def on_added_me(self, user: User, *, adder_id: Optional[str] = None, message: Optional[TextWithData] = None) -> None:
@@ -1411,7 +1419,8 @@ class ChatEventHandler(event.ChatEventHandler):
 		self.bs = bs
 	
 	def on_close(self) -> None:
-		self.ctrl.chat_sessions.pop(self.cs.chat, None)
+		assert self.bs is not None
+		self.bs.front_data['ymsg_chat_sessions'].pop(self.cs.chat, None)
 	
 	def on_participant_joined(self, cs_other: ChatSession, first_pop: bool, initial_join: bool) -> None:
 		if self.cs.chat.front_data.get('ymsg_twoway_only') or not first_pop:
@@ -1439,14 +1448,6 @@ class ChatEventHandler(event.ChatEventHandler):
 	
 	def on_participant_status_updated(self, cs_other: ChatSession, first_pop: bool, initial: bool) -> None:
 		pass
-	
-	def on_invite_declined(self, invited_user: User, *, invited_id: Optional[str] = None, message: str = '') -> None:
-		self.ctrl.send_reply(YMSGService.ConfDecline, YMSGStatus.BRB, self.ctrl.sess_id, MultiDict([
-			(b'1', arbitrary_encode(self.ctrl.yahoo_id or '')),
-			(b'57', arbitrary_encode(self.cs.chat.ids['ymsg/conf'])),
-			(b'54', arbitrary_encode(invited_id or misc.yahoo_id(invited_user.email))),
-			(b'14', arbitrary_encode(message)),
-		]))
 	
 	def on_message(self, data: MessageData) -> None:
 		bs = self.bs

@@ -1736,9 +1736,14 @@ class MSNPCtrlNS(MSNPCtrl):
 		
 		(email, pop_id) = decode_email_pop(email)
 		
-		contact_uuid = self.backend.util_get_uuid_from_email(email)
-		if contact_uuid is None:
+		uuid = self.backend.util_get_uuid_from_email(email)
+		if uuid is None:
 			return
+		
+		ctc_head = self.backend._load_user_record(uuid)
+		if ctc_head is None:
+			return
+		
 		try:
 			uun_type = int(type)
 		except ValueError:
@@ -1763,7 +1768,9 @@ class MSNPCtrlNS(MSNPCtrl):
 		
 		pop_id_self = bs.front_data.get('msn_pop_id')
 		
-		bs.me_send_uun_invitation(contact_uuid, uun_type, data, pop_id_sender = pop_id_self, pop_id = pop_id)
+		for sess_notify in self.backend.util_get_sessions_by_user(ctc_head):
+			#if sess_notify is self: continue
+			sess_notify.evt.msn_on_uun_sent(bs.user, uun_type, data, pop_id_sender = pop_id_self, pop_id = pop_id)
 	
 	def _m_uum(self, trid: str, email: str, networkid: str, type: str, data: bytes) -> None:
 		# For federated messaging (with Yahoo!); also used in MSNP18+ for OIMs
@@ -1928,7 +1935,7 @@ class BackendEventHandler(event.BackendEventHandler):
 			token = self.ctrl.backend.auth_service.create_token('sb/cal', (self.ctrl.bs, dialect, chat), lifetime = 120)
 			self.ctrl.send_reply('RNG', chat.ids['main'], 'm1.escargot.log1p.xyz:1864', 'CKI', token, inviter.email, inviter.status.name, *extra)
 	
-	def on_chat_invite_declined(self, chat: Chat, invitee: User, *, group_chat: bool = False) -> None:
+	def on_chat_invite_declined(self, chat: Chat, invitee: User, *, invitee_id: Optional[str] = None, message: Optional[str] = None, group_chat: bool = False) -> None:
 		if group_chat and self.ctrl.circle_authenticated:
 			groupchat = chat.groupchat
 			assert groupchat is not None
