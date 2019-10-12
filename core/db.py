@@ -125,15 +125,6 @@ def _simplify_json_data(data: Any) -> Any:
 		return [_simplify_json_data(x) for x in data]
 	return data
 
-class Sound(Base):
-	__tablename__ = 't_sound'
-	
-	hash = Col(sa.String, primary_key = True)
-	title = Col(sa.String)
-	category = Col(sa.Integer)
-	language = Col(sa.Integer)
-	is_public = Col(sa.Boolean)
-
 engine = sa.create_engine(settings.DB)
 session_factory = sessionmaker(bind = engine)
 
