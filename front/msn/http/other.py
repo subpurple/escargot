@@ -33,6 +33,8 @@ def register(app: web.Application) -> None:
 		'datetime': datetime,
 	})
 	
+	# TODO: `/svcs/mms/tabs.asp` and the `Xmeen_XX` handler should run under HTTP
+	
 	# MSN >= 5
 	app.router.add_get('/nexus-mock', handle_nexus)
 	app.router.add_get('/rdr/pprdr.asp', handle_nexus)
@@ -379,12 +381,13 @@ async def handle_msn_redirect(req: web.Request) -> web.Response:
 	return web.HTTPFound('http://g.msn.com{}'.format(req.path_qs))
 
 async def handle_tabs(req: web.Request) -> web.Response:
+	#return web.HTTPFound('http://escargot.log1p.xyz/etc/tabs')
 	with open(TMPL_DIR + '/svcs_tabs.xml') as fh:
 		tabs_resp = fh.read()
-	with open(TMPL_DIR + '/MsgrConfig.tabs.xml') as fh:
+	with open(TMPL_DIR + '/tabs.xml') as fh:
 		config_tabs = fh.read()
 	
-	return web.Response(status = 200, content_type = 'text/xml', text = tabs_resp.format(tabs = config_tabs))
+	return web.HTTPOk(content_type = 'text/xml', text = tabs_resp.format(tabs = config_tabs))
 
 async def handle_msgrconfig(req: web.Request) -> web.Response:
 	if req.method == 'POST':
@@ -408,14 +411,14 @@ def _get_msgr_config(req: web.Request, body: Optional[bytes]) -> str:
 		if 8 <= int(config_ver[0]) <= 9:
 			with open(TMPL_DIR + '/MsgrConfig.wlm.8.xml') as fh:
 				config = fh.read()
-			with open(TMPL_DIR + '/MsgrConfig.tabs.xml') as fh:
+			with open(TMPL_DIR + '/tabs.xml') as fh:
 				config_tabs = fh.read()
 			result = config.format(tabs = config_tabs)
 		elif int(config_ver[0]) >= 14:
 			with open(TMPL_DIR + '/MsgrConfig.wlm.14.xml') as fh:
 				config = fh.read()
 			# TODO: Tabs in WLM 2009+
-			#with open(TMPL_DIR + '/MsgrConfig.tabs.xml') as fh:
+			#with open(TMPL_DIR + '/tabs.xml') as fh:
 			#	config_tabs = fh.read()
 			result = config.format()
 	elif body is not None:
@@ -423,7 +426,7 @@ def _get_msgr_config(req: web.Request, body: Optional[bytes]) -> str:
 			envelope = fh.read()
 		with open(TMPL_DIR + '/MsgrConfig.msn.xml') as fh:
 			config = fh.read()
-		with open(TMPL_DIR + '/MsgrConfig.tabs.xml') as fh:
+		with open(TMPL_DIR + '/tabs.xml') as fh:
 			config_tabs = fh.read()
 		result = envelope.format(MsgrConfig = config.format(tabs = config_tabs))
 	
