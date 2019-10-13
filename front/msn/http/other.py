@@ -37,6 +37,8 @@ def register(app: web.Application) -> None:
 	app.router.add_get('/nexus-mock', handle_nexus)
 	app.router.add_get('/rdr/pprdr.asp', handle_nexus)
 	app.router.add_get(LOGIN_PATH, handle_login)
+	app.router.add_get('/svcs/mms/tabs.asp', handle_tabs)
+	app.router.add_get('/svcs/mms/portal.asp', handle_portal)
 	
 	# MSN >= 6
 	app.router.add_get('/etc/MsgrConfig', handle_msgrconfig)
@@ -62,6 +64,7 @@ def register(app: web.Application) -> None:
 	app.router.add_post('/OimWS/oim.asmx', handle_oim)
 	
 	# Misc
+	app.router.add_get('/{i}meen_{locale}/{id}', handle_msn_redirect)
 	app.router.add_get('/etc/debug', handle_debug)
 
 async def handle_posttest(req: web.Request) -> web.Response:
@@ -361,6 +364,27 @@ async def handle_textad(req: web.Request) -> web.Response:
 		'caption': ad['caption'],
 		'hiturl': ad['hiturl'],
 	})
+
+async def handle_portal(req: web.Request) -> web.Response:
+	return web.HTTPFound('https://escargot.log1p.xyz/etc/escargot-today')
+
+async def handle_msn_redirect(req: web.Request) -> web.Response:
+	i = req.match_info['i']
+	id = req.match_info['id']
+	
+	if i == '5':
+		if id == '60':
+			return web.HTTPFound('/svcs/mms/tabs.asp')
+	
+	return web.HTTPFound('http://g.msn.com{}'.format(req.path_qs))
+
+async def handle_tabs(req: web.Request) -> web.Response:
+	with open(TMPL_DIR + '/svcs_tabs.xml') as fh:
+		tabs_resp = fh.read()
+	with open(TMPL_DIR + '/MsgrConfig.tabs.xml') as fh:
+		config_tabs = fh.read()
+	
+	return web.Response(status = 200, content_type = 'text/xml', text = tabs_resp.format(tabs = config_tabs))
 
 async def handle_msgrconfig(req: web.Request) -> web.Response:
 	if req.method == 'POST':
