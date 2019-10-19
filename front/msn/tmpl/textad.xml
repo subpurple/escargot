@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <TEXTAD>
-<adtext>{{ caption }}</adtext>
-<hiturl>{{ hiturl }}</hiturl>
+<adtext>{caption}</adtext>
+<hiturl>{hiturl}</hiturl>
 <tab />
 <ct />
 <flag>0</flag>

@@ -351,21 +351,22 @@ async def preprocess_soap_oimws(req: web.Request) -> Tuple[Any, str, str, Option
 	
 	return header, body_msgtype, body_content, bs, token
 
-async def handle_textad(req: web.Request) -> web.Response:
-	with open(ETC_DIR + '/textads.json') as f:
+async def handle_textad(req):
+	textad = ''
+	# Use 'rb' to make UTF-8 text load properly
+	with open(ETC_DIR + '/textads.json', 'rb') as f:
 		textads = json.loads(f.read())
 		f.close()
 	
-	if len(textads) == 0: return web.HTTPOk()
-	
-	if len(textads) > 1:
-		ad = textads[secrets.randbelow((len(textads)-1))]
-	else:
-		ad = textads[0]
-	return render(req, 'msn:textad.xml', {
-		'caption': ad['caption'],
-		'hiturl': ad['hiturl'],
-	})
+	if len(textads) > 0:
+		if len(textads) > 1:
+			ad = textads[secrets.randbelow((len(textads)-1))]
+		else:
+			ad = textads[0]
+		with open(TMPL_DIR + '/textad.xml') as fh:
+			textad = fh.read()
+		textad = textad.format(caption = ad['caption'], hiturl = ad['hiturl'])
+	return web.HTTPOk(content_type = 'text/xml', text = textad)
 
 async def handle_portal(req: web.Request) -> web.Response:
 	return web.HTTPFound('https://escargot.log1p.xyz/etc/escargot-today')
