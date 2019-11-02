@@ -1,7 +1,7 @@
 			<tab>
 				<type>page</type>
-				<contenturl>http://escargot.log1p.xyz/etc/escargot-today</contenturl>
-				<hiturl>http://escargot.log1p.xyz/etc/escargot-today</hiturl>
+				<contenturl>https://escargot.log1p.xyz/etc/escargot-today</contenturl>
+				<hiturl>https://escargot.log1p.xyz/etc/escargot-today</hiturl>
 				<image>http://storage.googleapis.com/escargot-storage-1/public/tabicon/escargot.png</image>
 				<name>Escargot Today</name>
 				<tooltip>Escargot Today</tooltip>
