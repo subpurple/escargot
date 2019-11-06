@@ -18,6 +18,9 @@ def main(*emails: str) -> None:
 		users = sess.query(db.User).filter(db.User.email.in_(emails))
 		ids = { u.id for u in users }
 		print("delete account", len(ids))
+		usercontacts = sess.query(db.UserContact).filter(db.UserContact.user_id.in_(ids))
+		if usercontacts:
+			usercontacts.delete(synchronize_session = False)
 		users.delete(synchronize_session = False)
 		for u in sess.query(db.User).all():
 			if _remove_from_contacts(sess, u, ids):
@@ -28,7 +31,7 @@ def main(*emails: str) -> None:
 
 def _remove_from_contacts(sess: db.Session, user: db.User, ids: Set[str]) -> bool:
 	none_found = True
-	usercontacts = sess.query(db.UserContact).filter(db.UserContact.user_id.in_(ids))
+	usercontacts = sess.query(db.UserContact).filter(db.UserContact.user_id == user.id, db.UserContact.contact_id.in_(ids))
 	if not usercontacts: return False
 	usercontacts.delete(synchronize_session = False)
 	print("contacts", user.email)

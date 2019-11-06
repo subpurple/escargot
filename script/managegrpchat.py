@@ -9,7 +9,7 @@ def main(id: str, action: str, *args: str) -> None:
 			return
 		if action.lower() == 'role':
 			if len(args) < 2:
-				print('Insufficient arguments for action {}'.format(action))
+				print('Insufficient arguments for action role')
 				return
 			email = args[0]
 			role = args[1]
