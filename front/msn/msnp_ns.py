@@ -2054,8 +2054,9 @@ class BackendEventHandler(event.BackendEventHandler):
 		))
 	
 	def on_groupchat_created(self, groupchat: GroupChat) -> None:
-		if self.ctrl.circle_authenticated:
-			self.ctrl.new_circles.append(groupchat)
+		ctrl = self.ctrl
+		if ctrl.dialect >= 18:
+			ctrl.new_circles.append(groupchat)
 			self.msn_on_notify_ab()
 	
 	def on_groupchat_updated(self, groupchat: GroupChat) -> None:
@@ -2069,7 +2070,8 @@ class BackendEventHandler(event.BackendEventHandler):
 			self.msn_on_notify_circle_ab(groupchat.chat_id)
 	
 	def on_left_groupchat(self, groupchat: GroupChat) -> None:
-		if self.ctrl.circle_authenticated:
+		ctrl = self.ctrl
+		if ctrl.dialect >= 18:
 			try:
 				self.ctrl.new_circles.remove(groupchat)
 			except:

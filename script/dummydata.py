@@ -5,7 +5,7 @@ import time
 
 from util import misc
 from core.models import Lst, NetworkID
-from core.db import Base, Session, User, UserContact, GroupChat, engine
+from core.db import Base, Session, User, UserContact, GroupChat, GroupChatMembership, engine
 
 from script.user import set_passwords
 
@@ -57,6 +57,7 @@ def main() -> None:
 		sess.query(User).delete()
 		sess.query(UserContact).delete()
 		sess.query(GroupChat).delete()
+		sess.query(GroupChatMembership).delete()
 		sess.add_all(tables)
 
 def create_user(email: str, pw: str, name: str, message: str) -> User:

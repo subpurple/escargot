@@ -351,7 +351,7 @@ async def preprocess_soap_oimws(req: web.Request) -> Tuple[Any, str, str, Option
 	
 	return header, body_msgtype, body_content, bs, token
 
-async def handle_textad(req):
+async def handle_textad(req: web.Request) -> web.Response:
 	textad = ''
 	# Use 'rb' to make UTF-8 text load properly
 	with open(ETC_DIR + '/textads.json', 'rb') as f:

@@ -108,8 +108,21 @@ class GroupChat(Base):
 	owner_friendly = Col(sa.String)
 	membership_access = Col(sa.Integer)
 	request_membership_option = Col(sa.Integer)
-	# memberships = { '000-000': { 'role': 'GroupChatRole', 'state': 'CircleState', 'member_id': '000-000' }, ... }
-	memberships = Col(JSONType)
+
+class GroupChatMembership(Base):
+	__tablename__ = 't_group_chat_membership'
+	
+	id = Col(sa.Integer, primary_key = True)
+	chat_id = Col(sa.String, sa.ForeignKey('t_group_chat.chat_id'))
+	member_id = Col(sa.Integer, sa.ForeignKey('t_user.id'))
+	member_uuid = Col(sa.String, sa.ForeignKey('t_user.uuid'))
+	role = Col(sa.Integer)
+	state = Col(sa.Integer)
+	blocking = Col(sa.Boolean)
+	inviter_uuid = Col(sa.String, nullable = True)
+	inviter_email = Col(sa.String, nullable = True)
+	inviter_name = Col(sa.String, nullable = True)
+	invite_message = Col(sa.String, nullable = True)
 
 def _simplify_json_data(data: Any) -> Any:
 	if isinstance(data, dict):

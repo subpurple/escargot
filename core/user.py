@@ -10,7 +10,7 @@ from util.hash import hasher, hasher_md5, hasher_md5crypt, gen_salt
 from util import misc
 
 from . import error
-from .db import Session, User as DBUser, UserContact as DBUserContact, GroupChat as DBGroupChat
+from .db import Session, User as DBUser, UserContact as DBUserContact, GroupChat as DBGroupChat, GroupChatMembership as DBGroupChatMembership
 from .models import User, Contact, ContactDetail, ContactLocation, ContactGroupEntry, UserStatus, UserDetail, GroupChat, GroupChatMembership, GroupChatRole, GroupChatState, NetworkID, Lst, Group, OIM, MessageData
 
 if TYPE_CHECKING:
@@ -203,14 +203,14 @@ class UserService:
 			dbgroupchat = DBGroupChat(
 				chat_id = chat_id, name = name,
 				owner_id = user.id, owner_uuid = user.uuid, owner_friendly = owner_friendly, membership_access = membership_access, request_membership_option = 0,
-				memberships = [{
-					'uuid': user.uuid,
-					'role': int(GroupChatRole.Admin), 'state': int(GroupChatState.Accepted), 'blocking': False,
-					'inviter_uuid': None, 'inviter_email': None, 'inviter_name': None, 'invite_message': None,
-				}],
 			)
-			
 			sess.add(dbgroupchat)
+			
+			dbgroupchatmembership = DBGroupChatMembership(
+				chat_id = chat_id, member_id = user.id, member_uuid = user.uuid,
+				role = int(GroupChatRole.Admin), state = int(GroupChatState.Accepted), blocking = False,
+			)
+			sess.add(dbgroupchatmembership)
 		
 		return chat_id
 	
@@ -229,15 +229,16 @@ class UserService:
 				 dbgroupchat.membership_access, dbgroupchat.request_membership_option,
 			)
 			
-			for membership in dbgroupchat.memberships:
-				head = self.get(membership['uuid'])
+			dbgroupchatmemberships = sess.query(DBGroupChatMembership).filter(DBGroupChatMembership.chat_id == chat_id)
+			for dbgroupchatmembership in dbgroupchatmemberships:
+				head = self.get(dbgroupchatmembership.member_uuid)
 				if head is None: continue
 				
-				groupchat.memberships[membership['uuid']] = GroupChatMembership(
+				groupchat.memberships[head.uuid] = GroupChatMembership(
 					dbgroupchat.chat_id, head,
-					GroupChatRole(membership['role']), GroupChatState(membership['state']),
-					blocking = membership['blocking'],
-					inviter_uuid = membership['inviter_uuid'], inviter_email = membership['inviter_email'], inviter_name = membership['inviter_name'], invite_message = membership['invite_message'],
+					GroupChatRole(dbgroupchatmembership.role), GroupChatState(dbgroupchatmembership.state),
+					blocking = dbgroupchatmembership.blocking,
+					inviter_uuid = dbgroupchatmembership.inviter_uuid, inviter_email = dbgroupchatmembership.inviter_email, inviter_name = dbgroupchatmembership.inviter_name, invite_message = dbgroupchatmembership.invite_message,
 				)
 		
 		return groupchat
@@ -270,11 +271,9 @@ class UserService:
 					if groupchat is None: continue
 					if user.uuid not in groupchat.memberships: continue
 				else:
-					for membership in dbgroupchat.memberships:
-						if membership['uuid'] == user.uuid:
-							membership_found = True
-							break
-					if not membership_found: continue
+					dbgroupchatmembership = sess.query(DBGroupChatMembership).filter(DBGroupChatMembership.chat_id == dbgroupchat.chat_id, DBGroupChatMembership.member_uuid == user.uuid).one_or_none()
+					if dbgroupchatmembership is None:
+						continue
 				
 				groupchat = self.get_groupchat(dbgroupchat.chat_id)
 				if groupchat is None: continue
@@ -285,17 +284,33 @@ class UserService:
 	
 	def save_groupchat_batch(self, to_save: List[Tuple[str, GroupChat]]) -> None:
 		with Session() as sess:
+			dbgroupchatmemberships_to_add = []
 			for chat_id, groupchat in to_save:
 				dbgroupchat = sess.query(DBGroupChat).filter(DBGroupChat.chat_id == chat_id).one()
 				dbgroupchat.name = groupchat.name
 				dbgroupchat.membership_access = groupchat.membership_access
 				dbgroupchat.request_membership_option = groupchat.request_membership_option
-				dbgroupchat.memberships = [{
-					'uuid': membership.head.uuid,
-					'role': int(membership.role), 'state': int(membership.state), 'blocking': membership.blocking,
-					'inviter_uuid': membership.inviter_uuid, 'inviter_email': membership.inviter_email, 'inviter_name': membership.inviter_name, 'invite_message': membership.invite_message,
-				} for membership in groupchat.memberships.values()]
 				sess.add(dbgroupchat)
+				
+				dbgroupchatmemberships = sess.query(DBGroupChatMembership).filter(DBGroupChatMembership.chat_id == chat_id)
+				for tmp in dbgroupchatmemberships:
+					if tmp.member_uuid not in groupchat.memberships:
+						sess.delete(tmp)
+				for membership in groupchat.memberships.values():
+					dbgroupchatmembership = sess.query(DBGroupChatMembership).filter(DBGroupChatMembership.chat_id == chat_id, DBGroupChatMembership.uuid == membership.head.uuid).one_or_none()
+					if dbgroupchatmembership is None:
+						dbgroupchatmembership = DBGroupChatMembership(
+							chat_id = chat_id, member_id = membership.head.id, member_uuid = membership.head.uuid,
+						)
+					dbgroupchatmembership.role = int(membership.role)
+					dbgroupchatmembership.state = int(membership.state)
+					dbgroupchatmembership.blocking = membership.blocking
+					dbgroupchatmembership.inviter_uuid = membership.inviter_uuid
+					dbgroupchatmembership.inviter_email = membership.inviter_email
+					dbgroupchatmembership.inviter_name = membership.inviter_name
+					dbgroupchatmembership.invite_message = membership.invite_message
+					dbgroupchatmemberships_to_add.append(dbgroupchatmembership)
+				sess.add_all(dbgroupchatmemberships_to_add)
 	
 	def save_batch(self, to_save: List[Tuple[User, UserDetail]]) -> None:
 		with Session() as sess:
@@ -321,12 +336,7 @@ class UserService:
 					status_message = _get_persisted_status_message(c.status)
 					if dbusercontact is None:
 						dbusercontact = DBUserContact(
-							user_id = user.id, contact_id = c.head.id, user_uuid = user.uuid, uuid = c.head.uuid,
-							name = c.status.name, message = status_message,
-							lists = c.lists, groups = [{
-								'id': group.id, 'uuid': group.uuid,
-							} for group in c._groups.copy()], is_messenger_user = c.is_messenger_user,
-							index_id = c.detail.index_id,
+							user_id = user.id, contact_id = c.head.id, user_uuid = user.uuid, uuid = c.head.uuid, index_id = c.detail.index_id,
 						)
 					
 					dbusercontact.name = c.status.name
