@@ -1,0 +1,66 @@
+from sqlaltery import ops
+import sqlalchemy as sa
+
+from core.db import Col
+from util.json_type import JSONType
+
+# TODO: Migrate contact data from `t_user` JSON to `t_user_contact` table
+OPS = [
+	ops.AddTable('t_user_contact', (
+		Col('anniversary', sa.DateTime(), nullable = True),
+		Col('birthdate', sa.DateTime(), nullable = True),
+		Col('business_website', sa.String(), nullable = True),
+		Col('contact_id', sa.Integer(), sa.ForeignKey('t_user.id'), primary_key = True),
+		Col('fax_phone', sa.String(), nullable = True),
+		Col('first_name', sa.String(), nullable = True),
+		Col('front_data', JSONType(), server_default='{}'),
+		Col('groups', JSONType(), server_default='{}'),
+		Col('home_phone', sa.String(), nullable = True),
+		Col('im_email', sa.String(), nullable = True),
+		Col('index_id', sa.String()),
+		Col('is_messenger_user', sa.Boolean()),
+		Col('last_name', sa.String(), nullable = True),
+		Col('lists', sa.Integer()),
+		Col('locations', JSONType(), server_default='{}'),
+		Col('message', sa.String()),
+		Col('middle_name', sa.String(), nullable = True),
+		Col('mobile_phone', sa.String(), nullable = True),
+		Col('name', sa.String()),
+		Col('nickname', sa.String(), nullable = True),
+		Col('notes', sa.String(), nullable = True),
+		Col('other_email', sa.String(), nullable = True),
+		Col('other_phone', sa.String(), nullable = True),
+		Col('pager_phone', sa.String(), nullable = True),
+		Col('pending', sa.Boolean(), server_default = False),
+		Col('personal_email', sa.String(), nullable = True),
+		Col('personal_website', sa.String(), nullable = True),
+		Col('primary_email_type', sa.String(), nullable = True),
+		Col('user_id', sa.Integer(), sa.ForeignKey('t_user.id'), primary_key = True),
+		Col('user_uuid', sa.String(), sa.ForeignKey('t_user.uuid')),
+		Col('uuid', sa.String(), sa.ForeignKey('t_user.uuid')),
+		Col('work_phone', sa.String(), nullable = True),
+	)),
+	ops.AddTable('t_group_chat', (
+		Col('chat_id', sa.String(), unique = True),
+		Col('id', sa.Integer(), primary_key = True),
+		Col('membership_access', sa.Integer()),
+		Col('name', sa.String()),
+		Col('owner_friendly', sa.String()),
+		Col('owner_id', sa.Integer(), sa.ForeignKey('t_user.id')),
+		Col('owner_uuid', sa.String(), sa.ForeignKey('t_user.uuid')),
+		Col('request_membership_option', sa.Integer()),
+	)),
+	ops.AddTable('t_group_chat_membership', (
+		Col('blocking', sa.Boolean()),
+		Col('chat_id', sa.String(), sa.ForeignKey('t_group_chat.chat_id')),
+		Col('id', sa.Integer(), primary_key = True),
+		Col('inviter_email', sa.String(), nullable = True),
+		Col('inviter_message', sa.String(), nullable = True),
+		Col('inviter_name', sa.String(), nullable = True),
+		Col('inviter_uuid', sa.String(), nullable = True),
+		Col('member_id', sa.Integer(), sa.ForeignKey('t_user.id')),
+		Col('member_uuid', sa.String(), sa.ForeignKey('t_user.uuid')),
+		Col('role', sa.Integer()),
+		Col('state', sa.Integer()),
+	)),
+]

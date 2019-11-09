@@ -103,7 +103,7 @@ class GroupChat(Base):
 	id = Col(sa.Integer, primary_key = True)
 	chat_id = Col(sa.String, unique = True)
 	name = Col(sa.String)
-	owner_id = Col(sa.String, sa.ForeignKey('t_user.id'))
+	owner_id = Col(sa.Integer, sa.ForeignKey('t_user.id'))
 	owner_uuid = Col(sa.String, sa.ForeignKey('t_user.uuid'))
 	owner_friendly = Col(sa.String)
 	membership_access = Col(sa.Integer)
