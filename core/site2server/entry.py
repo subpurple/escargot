@@ -4,6 +4,7 @@ import asyncio
 
 from core.backend import Backend
 from util.misc import Logger
+import settings
 
 from .ctrl import S2SCtrl
 
@@ -19,7 +20,7 @@ class ListenerS2S(asyncio.Protocol):
 	
 	def __init__(self, logger_prefix: str, backend: Backend, controller_factory: Callable[[Logger, str, Backend], S2SCtrl]) -> None:
 		super().__init__()
-		self.logger = Logger(logger_prefix, self)
+		self.logger = Logger(logger_prefix, self, settings.DEBUG_S2S)
 		self.backend = backend
 		self.controller = controller_factory(self.logger, 'direct', backend)
 		self.controller.close_callback = self._on_close

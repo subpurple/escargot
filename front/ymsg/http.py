@@ -9,7 +9,7 @@ import shutil
 import re
 
 from core.backend import Backend, BackendSession
-from core.models import Contact
+from core.models import Contact, Substatus
 import util.misc
 import settings
 from .ymsg_ctrl import _try_decode_ymsg
@@ -46,7 +46,7 @@ def register(app: web.Application) -> None:
 	# Yahoo HTTP file transfer fallback
 	# TODO: These should run under HTTP too
 	app.router.add_post('/notifyft', handle_ft_http)
-	app.router.add_get('/tmp/file/{file_id}/{filename}', handle_yahoo_filedl)
+	app.router.add_get('/storage/file/{file_id}/{filename}', handle_yahoo_filedl)
 
 async def handle_insider_ycontent(req: web.Request) -> web.Response:
 	backend = req.app['backend']
@@ -251,29 +251,32 @@ async def handle_ft_http(req: web.Request) -> web.Response:
 	try:
 		y_ft_pkt = _try_decode_ymsg(raw_ymsg_data, 0)[0]
 	except Exception:
-		raise web.HTTPInternalServerError
+		return web.HTTPInternalServerError(text = '')
 	
 	try:
 		# check version and vendorId
 		if y_ft_pkt[1] > 16 or y_ft_pkt[2] not in (0, 100):
-			raise web.HTTPInternalServerError
+			return web.HTTPInternalServerError(text = '')
 	except Exception:
-		raise web.HTTPInternalServerError
+		return web.HTTPInternalServerError(text = '')
 	
 	if y_ft_pkt[0] is not YMSGService.FileTransfer:
-		raise web.HTTPInternalServerError
+		return web.HTTPInternalServerError(text = '')
 	
 	ymsg_data = y_ft_pkt[5]
 	
 	yahoo_id_sender = util.misc.arbitrary_decode(ymsg_data.get(b'0') or b'')
 	(yahoo_id, bs) = _parse_cookies(req, backend)
 	if bs is None or yahoo_id is None or not yahoo_id_to_uuid(backend, yahoo_id):
-		raise web.HTTPInternalServerError
+		return web.HTTPInternalServerError(text = '')
 	
 	yahoo_id_recipient = util.misc.arbitrary_decode(ymsg_data.get(b'5') or b'')
 	recipient_uuid = yahoo_id_to_uuid(backend, yahoo_id_recipient)
 	if recipient_uuid is None:
-		raise web.HTTPInternalServerError
+		return web.HTTPInternalServerError(text = '')
+	recipient_head = backend._load_user_record(recipient_uuid)
+	if recipient_head is None or recipient_head.status.substatus is Substatus.Offline:
+		return web.HTTPInternalServerError(text = '')
 	
 	message = util.misc.arbitrary_decode(ymsg_data.get(b'14') or b'')
 	
@@ -281,16 +284,17 @@ async def handle_ft_http(req: web.Request) -> web.Response:
 	file_len = util.misc.arbitrary_decode(ymsg_data.get(b'28') or b'0')
 	
 	if file_path_raw is None or str(len(stream)) != file_len or len(stream) > (2 * (1000 ** 3)):
-		raise web.HTTPInternalServerError
+		return web.HTTPInternalServerError(text = '')
 	
 	file_path = util.misc.arbitrary_decode(file_path_raw)
 	
 	try:
 		filename = Path(file_path).name
 	except:
-		raise web.HTTPInternalServerError
+		return web.HTTPInternalServerError(text = '')
 	
-	path = _get_tmp_file_storage_path()
+	uuid = util.misc.gen_uuid()
+	path = _get_tmp_file_storage_path(uuid)
 	path.mkdir(exist_ok = True, parents = True)
 	
 	file_tmp_path = path / unquote_plus(filename)
@@ -299,16 +303,16 @@ async def handle_ft_http(req: web.Request) -> web.Response:
 	upload_time = time.time()
 	
 	expiry_task = req.app.loop.create_task(_store_tmp_file_until_expiry(path))
-	_tasks_by_uuid_store[file_tmp_path.name[12:]] = expiry_task
+	_tasks_by_uuid_store[uuid] = expiry_task
 	
 	for bs_other in bs.backend._sc.iter_sessions():
 		if bs_other.user.uuid == recipient_uuid:
-			bs_other.evt.ymsg_on_sent_ft_http(yahoo_id_sender, '/tmp/file/{}'.format(file_tmp_path.name[12:]), upload_time, message)
+			bs_other.evt.ymsg_on_sent_ft_http(yahoo_id_sender, '/storage/file/{}/{}'.format(uuid, file_tmp_path.name), upload_time, message)
 	
 	# TODO: Sending HTTP FT acknowledgement crahes Yahoo! Messenger, and ultimately freezes the computer. Ignore for now.
 	#bs.evt.ymsg_on_upload_file_ft(yahoo_id_recipient, message)
 	
-	raise web.HTTPOk
+	return web.HTTPOk(text = '')
 
 async def _store_tmp_file_until_expiry(file_storage_path: Path) -> None:
 	await asyncio.sleep(86400)
@@ -316,28 +320,22 @@ async def _store_tmp_file_until_expiry(file_storage_path: Path) -> None:
 	shutil.rmtree(str(file_storage_path), ignore_errors = True)
 
 async def handle_yahoo_filedl(req: web.Request) -> web.Response:
-	file_id = req.match_info['file_id']
+	uuid = req.match_info['uuid']
 	
-	if req.method != 'GET':
-		raise web.HTTPMethodNotAllowed
-	
-	file_storage_path = _get_tmp_file_storage_path(id = file_id)
+	file_storage_path = _get_tmp_file_storage_path(uuid)
 	filename = req.match_info['filename']
 	file_path = file_storage_path / unquote_plus(filename)
 	try:
 		file_stream = file_path.read_bytes()
 	except FileNotFoundError:
-		raise web.HTTPNotFound
-	_tasks_by_uuid_store[file_id].cancel()
-	del _tasks_by_uuid_store[file_id]
+		return web.HTTPNotFound()
+	_tasks_by_uuid_store[uuid].cancel()
+	del _tasks_by_uuid_store[uuid]
 	shutil.rmtree(file_storage_path, ignore_errors = True)
 	return web.HTTPOk(body = file_stream)
 
-def _get_tmp_file_storage_path(id: Optional[str] = None) -> Path:
-	if not id:
-		# Call `gen_uuid()` two times to make things more random =)
-		id = util.misc.gen_uuid()[0:6] + util.misc.gen_uuid()[-10:]
-	return Path('storage/yfs') / id
+def _get_tmp_file_storage_path(uuid: str) -> Path:
+	return Path('storage/yfs') / uuid[0:1] / uuid[0:2]
 
 def _parse_cookies(req: web.Request, backend: Backend, y: Optional[str] = None, t: Optional[str] = None) -> Tuple[Optional[str], Optional[BackendSession]]:
 	cookies = req.cookies

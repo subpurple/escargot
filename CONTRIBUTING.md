@@ -25,6 +25,7 @@ Contributions are welcome via MR (Merge Requests). You don't need to request pro
 		- IRC:
 		```
 		ENABLE_FRONT_IRC = True
+		DEBUG_IRC = True
 		```
 - run `python script/dbcreate.py`; if you get `ModuleNotFoundError: No module named '...'`, add `export PYTHONPATH=".;$PYTHONPATH"` in your `.bashrc`
 - run `python script/dummydata.py` (creates a few dummy accounts, passwords are all "123456")
@@ -41,7 +42,6 @@ Contributions are welcome via MR (Merge Requests). You don't need to request pro
 	127.0.0.1 nexus.passport.com
 	```
 - for 5.0 - 7.5, use a **patched** install, and in your `HOSTS` add `127.0.0.1 m1.escargot.log1p.xyz`
-	- **(6.0+ only):** add `127.0.0.1 ebyrdromegactcsmsn.log1p.xyz` in your `HOSTS`
 - for WLM:
 	- 8.1.0178 and 8.5.1302: use a **patched** install, and in your `HOSTS` add:
 	```
@@ -89,7 +89,7 @@ Contributions are welcome via MR (Merge Requests). You don't need to request pro
 	127.0.0.1 us.i1.yimg.com
 	127.0.0.1 chat.yahoo.com
 	127.0.0.1 filetransfer.msg.yahoo.com
-	127.0.0.1 filestore.log1p.xyz
+	127.0.0.1 m1.escargot.log1p.xyz
 	```
 
 - run `python dev` to start the dev server

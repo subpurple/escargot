@@ -5,6 +5,7 @@ from aiohttp import web
 
 from core.backend import Backend
 from util.misc import Logger
+import settings
 
 from .msnp import MSNPCtrl
 
@@ -27,7 +28,7 @@ class ListenerMSNP(asyncio.Protocol):
 	
 	def __init__(self, logger_prefix: str, backend: Backend, controller_factory: Callable[[Logger, str, Backend], MSNPCtrl]) -> None:
 		super().__init__()
-		self.logger = Logger(logger_prefix, self)
+		self.logger = Logger(logger_prefix, self, settings.DEBUG_MSNP)
 		self.backend = backend
 		self.controller = controller_factory(self.logger, 'direct', backend)
 		self.controller.close_callback = self._on_close

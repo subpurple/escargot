@@ -29,11 +29,12 @@ def main(*, devmode: bool = False) -> None:
 	if settings.ENABLE_FRONT_BOT:
 		import front.bot
 		front.bot.register(loop, backend)
+	if settings.ENABLE_S2S:
+		import core.site2server
+		core.site2server.register(loop, backend)
 	
 	import core.sysboard
 	core.sysboard.register(loop, backend, devmode = devmode)
-	import core.site2server
-	core.site2server.register(loop, backend)
 	
 	if devmode:
 		if settings.ENABLE_FRONT_DEVBOTS:

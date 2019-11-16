@@ -98,10 +98,10 @@ class Logger:
 	prefix: str
 	_log: bool
 	
-	def __init__(self, prefix: str, obj: object) -> None:
+	def __init__(self, prefix: str, obj: object, front_debug: bool) -> None:
 		import settings
 		self.prefix = '{}/{:04x}'.format(prefix, hash(obj) % 0xFFFF)
-		self._log = settings.DEBUG and settings.DEBUG_MSNP
+		self._log = settings.DEBUG and front_debug
 	
 	def info(self, *args: Any) -> None:
 		if self._log:

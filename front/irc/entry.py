@@ -26,7 +26,7 @@ class ListenerIRC(asyncio.Protocol):
 	
 	def __init__(self, logger_prefix: str, backend: Backend, controller_factory: Callable[[Logger, str, Backend], IRCCtrl]) -> None:
 		super().__init__()
-		self.logger = Logger(logger_prefix, self)
+		self.logger = Logger(logger_prefix, self, settings.DEBUG_IRC)
 		self.backend = backend
 		self.controller = controller_factory(self.logger, 'direct', backend)
 		self.controller.close_callback = self._on_close

@@ -5,6 +5,7 @@ from aiohttp import web
 
 from util.misc import Logger, gen_uuid
 from front.msn.msnp import MSNPCtrl
+import settings
 
 def register(loop: asyncio.AbstractEventLoop, app: web.Application) -> None:
 	gateway_sessions = {} # type: Dict[str, GatewaySession]
@@ -71,7 +72,7 @@ async def handle_http_gateway(req: web.Request) -> web.Response:
 		server_ip = query.get('IP')
 		session_id = gen_uuid()
 		
-		logger = Logger('GW-{}'.format(server_type), session_id)
+		logger = Logger('GW-{}'.format(server_type), session_id, settings.DEBUG_MSNP)
 		
 		if server_type == 'NS':
 			controller = MSNPCtrlNS(logger, 'gw', backend) # type: MSNPCtrl
