@@ -4,7 +4,6 @@ import sqlalchemy as sa
 from core.db import Col
 from util.json_type import JSONType
 
-# TODO: Migrate contact data from `t_user` JSON to `t_user_contact` table
 OPS = [
 	ops.AddTable('t_user_contact', (
 		Col('anniversary', sa.DateTime(), nullable = True),
