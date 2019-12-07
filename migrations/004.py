@@ -1,10 +1,14 @@
 from sqlaltery import ops
 import sqlalchemy as sa
+from sqlalchemy.schema import MetaData
+from sqlalchemy.engine import Connectable
 
+from core import db
 from core.db import Col
 from util.json_type import JSONType
 
 OPS = [
+	ops.DropColumn('t_user', 'password_md5'),
 	ops.AddTable('t_user_contact', (
 		Col('anniversary', sa.DateTime(), nullable = True),
 		Col('birthdate', sa.DateTime(), nullable = True),
@@ -39,6 +43,9 @@ OPS = [
 		Col('uuid', sa.String(), sa.ForeignKey('t_user.uuid')),
 		Col('work_phone', sa.String(), nullable = True),
 	)),
+	ops.DataOperation(lambda md, conn: (
+		_migrate_contact_data(md, conn)
+	)),
 	ops.AddTable('t_group_chat', (
 		Col('chat_id', sa.String(), unique = True),
 		Col('id', sa.Integer(), primary_key = True),
@@ -63,3 +70,29 @@ OPS = [
 		Col('state', sa.Integer()),
 	)),
 ]
+
+def _migrate_contact_data(md: MetaData, conn: Connectable) -> None:
+	users = md.tables['t_user']
+	for id, uuid, contacts, groups in conn.execute(sa.select([users.c.id, users.c.uuid, users.c.contacts, users.c.groups]).where(users.c.contacts != '')).fetchall():
+		i = 2
+		for c in contacts:
+			contact_id = conn.execute(sa.select([users.c.id]).where(users.c.uuid == c['uuid'])).fetchone()
+			if contact_id is None: continue
+			new_groups = []
+			for group_id in c['groups']:
+				contact_group = None
+				for group in groups:
+					if group['id'] == group_id:
+						contact_group = group
+						break
+				if contact_group is None: continue
+				new_groups.append({
+					'id': contact_group['id'],
+					'uuid': contact_group['uuid'],
+				})
+			conn.execute(md.tables['t_user_contact'].insert().values(
+				user_id = id, user_uuid = uuid,
+				uuid = c['uuid'], contact_id = contact_id[0], index_id = str(i + 2),
+				groups = new_groups, is_messenger_user = (c.get('is_messenger_user') or False), lists = c['lists'], message = c['message'], name = c['name'],
+			))
+			i += 1

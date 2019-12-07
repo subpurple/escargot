@@ -14,7 +14,7 @@ OPS = [
 	)),
 	ops.AddTable('t_user', (
 		Col('date_created', sa.DateTime()),
-		Col('date_login', sa.DateTime()),
+		Col('date_login', sa.DateTime(), nullable=True),
 		Col('email', sa.String(), unique=True),
 		Col('groups', JSONType()),
 		Col('id', sa.Integer(), primary_key=True),
