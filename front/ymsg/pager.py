@@ -529,11 +529,23 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		return
 	
 	def _y_004f(self, *args: Any) -> None:
-		# SERVICE_PEERTOPEER (0x4f); see if P2P messaging is possible
+		# SERVICE_PEERTOPEER (0x4f); see if P2P messaging is possible. Possibly also used for other P2P actions
 		
-		# P2P messaging would interfere with messaging users on other frontends; return on receiving this packet
+		backend = self.backend
+		# Formality; make sure unregistered sessions aren't able to send these packets
+		bs = self.bs
+		assert bs is not None
 		
-		return
+		yahoo_data = args[4]
+		recipient_uuid = yahoo_id_to_uuid(self.backend, arbitrary_decode(yahoo_data.get(b'5')))
+		if recipient_uuid is None:
+			return
+		recipient_head = backend._load_user_record(recipient_uuid)
+		if recipient_head is None:
+			return
+		
+		for bs_other in backend.util_get_sessions_by_user(recipient_head):
+			bs_other.evt.ymsg_on_p2p_msg_request(self.sess_id, yahoo_data)
 	
 	def _y_004b(self, *args: Any) -> None:
 		# SERVICE_NOTIFY (0x4b); notify a contact of an action (typing, games, etc.)
@@ -608,6 +620,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		
 		yahoo_data = args[4] # type: MultiDict[bytes, bytes]
 		
+		backend = self.backend
 		bs = self.bs
 		assert bs is not None
 		
@@ -616,9 +629,9 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		if contact_uuid is None:
 			return
 		
-		for bs_other in bs.backend._sc.iter_sessions():
+		for bs_other in backend._sc.iter_sessions():
 			if bs_other.user.uuid == contact_uuid:
-				bs_other.evt.ymsg_on_xfer_init(yahoo_data)
+				bs_other.evt.ymsg_on_xfer_init(self.sess_id, yahoo_data)
 	
 	def _y_0018(self, *args: Any) -> None:
 		# SERVICE_CONFINVITE (0x18); send a conference invite to one or more people
@@ -943,12 +956,12 @@ class YMSGCtrlPager(YMSGCtrlBase):
 			# can't use `yahooloopback.log1p.xyz` for cookies yet because that is intended for Switcher (Yahoo! sets the cookies on a static domain and it expects the cookie domain to encompass the domain it
 			# sets the cookie to, if the cookie domain doesn't match the domain of the URL Yahoo! uses, then it won't use the cookies). uncomment when development on Switcher is finished.
 			# 
-			#list_reply_kvs.add(b'59', arbitrary_encode('Y\t{}; expires={}; path=/; domain={}'.format(y_cookie, cookie_expiry, ('yahooloopback.log1p.xyz' if settings.DEBUG else settings.TARGET_HOST))))
-			#list_reply_kvs.add(b'59', arbitrary_encode('T\t{}; expires={}; path=/; domain={}'.format(t_cookie, cookie_expiry, ('yahooloopback.log1p.xyz' if settings.DEBUG else settings.TARGET_HOST))))
+			list_reply_kvs.add(b'59', arbitrary_encode('Y\t{}; expires={}; path=/; domain={}'.format(y_cookie, cookie_expiry, ('yahooloopback.log1p.xyz' if settings.DEBUG else settings.TARGET_HOST))))
+			list_reply_kvs.add(b'59', arbitrary_encode('T\t{}; expires={}; path=/; domain={}'.format(t_cookie, cookie_expiry, ('yahooloopback.log1p.xyz' if settings.DEBUG else settings.TARGET_HOST))))
 			# 
 			# </notice>
-			list_reply_kvs.add(b'59', 'Y\t{}; expires={}; path=/; domain={}'.format(y_cookie, cookie_expiry, '.yahoo.com').encode('utf-8'))
-			list_reply_kvs.add(b'59', 'T\t{}; expires={}; path=/; domain={}'.format(t_cookie, cookie_expiry, '.yahoo.com').encode('utf-8'))
+			#list_reply_kvs.add(b'59', 'Y\t{}; expires={}; path=/; domain={}'.format(y_cookie, cookie_expiry, '.yahoo.com').encode('utf-8'))
+			#list_reply_kvs.add(b'59', 'T\t{}; expires={}; path=/; domain={}'.format(t_cookie, cookie_expiry, '.yahoo.com').encode('utf-8'))
 		
 		list_reply_kvs.add(b'59', b'C\tmg=1')
 		list_reply_kvs.add(b'3', (self.yahoo_id or '').encode('utf-8'))
@@ -1300,12 +1313,16 @@ class BackendEventHandler(event.BackendEventHandler):
 			(b'14', arbitrary_encode(message or '')),
 		]))
 	
-	def ymsg_on_xfer_init(self, yahoo_data: MultiDict[bytes, bytes]) -> None:
-		for y in misc.build_ft_packet(self.bs, yahoo_data):
+	def ymsg_on_p2p_msg_request(self, sess_id: int, yahoo_data: MultiDict[bytes, bytes]) -> None:
+		for y in misc.build_p2p_msg_packet(self.bs, sess_id, yahoo_data):
+			self.ctrl.send_reply(y[0], y[1], self.sess_id, y[2])
+	
+	def ymsg_on_xfer_init(self, sess_id: int, yahoo_data: MultiDict[bytes, bytes]) -> None:
+		for y in misc.build_ft_packet(self.bs, sess_id, yahoo_data):
 			self.ctrl.send_reply(y[0], y[1], self.sess_id, y[2])
 	
 	def ymsg_on_upload_file_ft(self, recipient: str, message: str) -> None:
-		self.ctrl.send_reply(YMSGService.FileTransfer, YMSGStatus.BRB, self.sess_id, MultiDict([
+		self.ctrl.send_reply(YMSGService.FileTransfer, YMSGStatus.NotAtDesk, self.sess_id, MultiDict([
 			(b'1', arbitrary_encode(self.ctrl.yahoo_id or '')),
 			(b'5', arbitrary_encode(recipient)),
 			(b'4', misc.yahoo_id(self.bs.user.email).encode('utf-8')),

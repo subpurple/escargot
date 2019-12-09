@@ -2091,7 +2091,10 @@ class BackendEventHandler(event.BackendEventHandler):
 		if self.ctrl.circle_authenticated:
 			self.msn_on_notify_ab()
 	
-	def ymsg_on_xfer_init(self, yahoo_data: MultiDict[bytes, bytes]) -> None:
+	def ymsg_on_p2p_msg_request(self, sess_id: int, yahoo_data: MultiDict[bytes, bytes]) -> None:
+		pass
+	
+	def ymsg_on_xfer_init(self, sess_id: int, yahoo_data: MultiDict[bytes, bytes]) -> None:
 		pass
 	
 	def ymsg_on_upload_file_ft(self, recipient: str, message: str) -> None:

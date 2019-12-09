@@ -1,7 +1,7 @@
 from typing import Optional, Tuple, Any, Iterable, Dict, List, ClassVar
 from urllib.parse import quote_plus
 from enum import IntEnum
-import time
+import time, binascii, struct
 
 from util.misc import first_in_iterable, DefaultDict, MultiDict, arbitrary_encode, arbitrary_decode
 
@@ -68,6 +68,8 @@ class YMSGStatus(IntEnum):
 	OnVacation  = 0x00000007
 	OutToLunch  = 0x00000008
 	SteppedOut  = 0x00000009
+	# Dunno when this is used, but the `PeerToPeer` service sends this according to Pidgin
+	P2P         = 0x0000000B
 	Invisible   = 0x0000000C
 	Bad         = 0x0000000D
 	Locked      = 0x0000000E
@@ -124,12 +126,32 @@ _FromSubstatus = DefaultDict(YMSGStatus.Bad, {
 KVSType = MultiDict[bytes, bytes]
 EncodedYMSG = Tuple[YMSGService, YMSGStatus, KVSType]
 
-def build_ft_packet(bs: BackendSession, xfer_dict: KVSType) -> Iterable[EncodedYMSG]:
+def build_p2p_msg_packet(bs: BackendSession, sess_id: int, p2p_dict: KVSType) -> Iterable[EncodedYMSG]:
+	user_to = bs.user
+	
+	p2p_conn_dict = MultiDict([
+		(b'5', yahoo_id(user_to.email).encode('utf-8')),
+		(b'1', yahoo_id(user_to.email).encode('utf-8')),
+		(b'4', p2p_dict.get(b'4') or b''),
+	])
+	
+	if p2p_dict.get(b'2') is not None: p2p_conn_dict.add(b'2', p2p_dict.get(b'2') or b'')
+	if p2p_dict.get(b'13') is not None: p2p_conn_dict.add(b'13', p2p_dict.get(b'13') or b'')
+	if p2p_dict.get(b'12') is not None: p2p_conn_dict.add(b'12', p2p_dict.get(b'12') or b'')
+	p2p_conn_dict.add(b'49', p2p_dict.get(b'49') or b'')
+	p2p_conn_dict.add(b'11', binascii.hexlify(struct.pack('!I', sess_id)).decode().upper().encode('utf-8'))
+	if p2p_dict.get(b'60') is not None: p2p_conn_dict.add(b'60', p2p_dict.get(b'60') or b'')
+	if p2p_dict.get(b'61') is not None: p2p_conn_dict.add(b'61', p2p_dict.get(b'61') or b'')
+	
+	yield (YMSGService.PeerToPeer, YMSGStatus.BRB, p2p_conn_dict)
+
+
+def build_ft_packet(bs: BackendSession, sess_id: int, xfer_dict: KVSType) -> Iterable[EncodedYMSG]:
 	user_to = bs.user
 	
 	ft_dict = MultiDict([
 		(b'5', yahoo_id(user_to.email).encode('utf-8')),
-		(b'4', xfer_dict.get(b'1') or b'')
+		(b'4', xfer_dict.get(b'1') or xfer_dict.get(b'4') or b'')
 	])
 	
 	ft_type = xfer_dict.get(b'13')
@@ -138,13 +160,7 @@ def build_ft_packet(bs: BackendSession, xfer_dict: KVSType) -> Iterable[EncodedY
 		if xfer_dict.get(b'27') is not None: ft_dict.add(b'27', xfer_dict.get(b'27') or b'')
 		if xfer_dict.get(b'28') is not None: ft_dict.add(b'28', xfer_dict.get(b'28') or b'')
 		
-		# When file name in HTTP string is sent to recipient by server, it is unescaped for some reason
-		# Replace it with `urllib.parse.quote()`'d version!
-		key20_val = None
-		key20_val_raw = xfer_dict.get(b'20')
-		if key20_val_raw is not None:
-			key20_val = arbitrary_decode(key20_val_raw)
-			ft_dict.add(b'20', arbitrary_encode(quote_plus(key20_val or '', safe = '\\/')))
+		if xfer_dict.get(b'20') is not None: ft_dict.add(b'20', xfer_dict.get(b'20') or b'')
 		if xfer_dict.get(b'53') is not None: ft_dict.add(b'53', xfer_dict.get(b'53') or b'')
 		if xfer_dict.get(b'14') is not None: ft_dict.add(b'14', xfer_dict.get(b'14') or b'')
 		if xfer_dict.get(b'54') is not None: ft_dict.add(b'54', xfer_dict.get(b'54') or b'')
@@ -155,10 +171,18 @@ def build_ft_packet(bs: BackendSession, xfer_dict: KVSType) -> Iterable[EncodedY
 		
 		# For P2P messaging
 		if xfer_dict.get(b'2') is not None: ft_dict.add(b'2', xfer_dict.get(b'2') or b'')
-		if xfer_dict.get(b'11') is not None: ft_dict.add(b'11', xfer_dict.get(b'11') or b'')
+		if xfer_dict.get(b'11') is not None: ft_dict.add(b'11', binascii.hexlify(struct.pack('!I', sess_id)).decode().upper().encode('utf-8'))
 		if xfer_dict.get(b'12') is not None: ft_dict.add(b'12', xfer_dict.get(b'12') or b'')
 		if xfer_dict.get(b'60') is not None: ft_dict.add(b'60', xfer_dict.get(b'60') or b'')
 		if xfer_dict.get(b'61') is not None: ft_dict.add(b'61', xfer_dict.get(b'61') or b'')
+	if ft_type == b'5':
+		if xfer_dict.get(b'54') is not None: ft_dict.add(b'54', xfer_dict.get(b'54') or b'')
+	if ft_type == b'6':
+		if xfer_dict.get(b'20') is not None: ft_dict.add(b'20', xfer_dict.get(b'20') or b'')
+		if xfer_dict.get(b'53') is not None: ft_dict.add(b'53', xfer_dict.get(b'53') or b'')
+		if xfer_dict.get(b'54') is not None: ft_dict.add(b'54', xfer_dict.get(b'54') or b'')
+	if ft_type == b'9':
+		if xfer_dict.get(b'53') is not None: ft_dict.add(b'53', xfer_dict.get(b'53') or b'')
 	if xfer_dict.get(b'49') is not None: ft_dict.add(b'49', xfer_dict.get(b'49') or b'')
 	
 	yield (YMSGService.P2PFileXfer, YMSGStatus.BRB, ft_dict)
@@ -172,7 +196,7 @@ def build_http_ft_packet(bs: BackendSession, sender: str, url_path: str, upload_
 		(b'4', yahoo_id(user.email).encode('utf-8')),
 		(b'14', arbitrary_encode(message)),
 		(b'38', str(upload_time).encode('utf-8')),
-		(b'20', arbitrary_encode('{}{}'.format(settings.STORAGE_HOST, url_path))),
+		(b'20', arbitrary_encode('http://{}{}'.format(settings.STORAGE_HOST, url_path))),
 	]))
 
 def split_to_chunks(s: str, count: int) -> List[str]:

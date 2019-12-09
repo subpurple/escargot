@@ -6,6 +6,7 @@ from core.client import Client
 from core.models import Substatus, Lst, OIM, Contact, User, GroupChat, GroupChatRole, NetworkID, TextWithData, MessageData, MessageType, LoginOption
 from core.backend import Backend, BackendSession, Chat, ChatSession
 from core import event
+from util.misc import MultiDict
 
 CLIENT = Client('testbot', '0.1', 'direct')
 BOT_EMAIL = 'test@bot.log1p.xyz'
@@ -91,7 +92,13 @@ class BackendEventHandler(event.BackendEventHandler):
 	def on_oim_sent(self, oim: 'OIM') -> None:
 		pass
 	
-	def ymsg_on_p2p_msg_request(self, yahoo_data: Dict[str, Any]) -> None:
+	def ymsg_on_p2p_msg_request(self, sess_id: int, yahoo_data: MultiDict[bytes, bytes]) -> None:
+		pass
+	
+	def ymsg_on_xfer_init(self, sess_id: int, yahoo_data: MultiDict[bytes, bytes]) -> None:
+		pass
+	
+	def ymsg_on_sent_ft_http(self, yahoo_id_sender: str, url_path: str, upload_time: float, message: str) -> None:
 		pass
 	
 	def on_login_elsewhere(self, option: LoginOption) -> None:

@@ -11,13 +11,16 @@ import re
 from core.backend import Backend, BackendSession
 from core.models import Contact, Substatus
 import util.misc
+from util.hash import gen_salt
 import settings
 from .ymsg_ctrl import _try_decode_ymsg
 from .misc import YMSGService, yahoo_id_to_uuid, yahoo_id
 import time
 
 YAHOO_TMPL_DIR = 'front/ymsg/tmpl'
-_tasks_by_uuid_store = {} # type: Dict[str, asyncio.Task[None]]
+# https://github.com/ifwe/digsby/blob/f5fe00244744aa131e07f09348d10563f3d8fa99/digsby/src/yahoo/yahooutil.py#L33
+FILE_STORE_PATH = '/storage/file/{filename}'
+_tasks_by_token = {} # type: Dict[str, asyncio.Task[None]]
 
 def register(app: web.Application) -> None:
 	util.misc.add_to_jinja_env(app, 'ymsg', YAHOO_TMPL_DIR)
@@ -46,7 +49,7 @@ def register(app: web.Application) -> None:
 	# Yahoo HTTP file transfer fallback
 	# TODO: These should run under HTTP too
 	app.router.add_post('/notifyft', handle_ft_http)
-	app.router.add_get('/storage/file/{file_id}/{filename}', handle_yahoo_filedl)
+	app.router.add_get(FILE_STORE_PATH, handle_yahoo_filedl)
 
 async def handle_insider_ycontent(req: web.Request) -> web.Response:
 	backend = req.app['backend']
@@ -283,7 +286,9 @@ async def handle_ft_http(req: web.Request) -> web.Response:
 	file_path_raw = ymsg_data.get(b'27') # type: Optional[bytes]
 	file_len = util.misc.arbitrary_decode(ymsg_data.get(b'28') or b'0')
 	
-	if file_path_raw is None or str(len(stream)) != file_len or len(stream) > (2 * (1000 ** 3)):
+	# https://github.com/ifwe/digsby/blob/master/digsby/src/yahoo/yfiletransfer.py#L7
+	# Looks like the HTTP file transfer server had its own size limits (10 MB)
+	if file_path_raw is None or str(len(stream)) != file_len or len(stream) > (2 ** 20):
 		return web.HTTPInternalServerError(text = '')
 	
 	file_path = util.misc.arbitrary_decode(file_path_raw)
@@ -293,8 +298,8 @@ async def handle_ft_http(req: web.Request) -> web.Response:
 	except:
 		return web.HTTPInternalServerError(text = '')
 	
-	uuid = util.misc.gen_uuid()
-	path = _get_tmp_file_storage_path(uuid)
+	token = gen_salt(length = 30)
+	path = _get_tmp_file_storage_path(token)
 	path.mkdir(exist_ok = True, parents = True)
 	
 	file_tmp_path = path / unquote_plus(filename)
@@ -302,40 +307,47 @@ async def handle_ft_http(req: web.Request) -> web.Response:
 	
 	upload_time = time.time()
 	
-	expiry_task = req.app.loop.create_task(_store_tmp_file_until_expiry(path))
-	_tasks_by_uuid_store[uuid] = expiry_task
+	expiry_task = req.app.loop.create_task(_store_tmp_file_until_expiry(file_tmp_path))
+	_tasks_by_token[token] = expiry_task
 	
 	for bs_other in bs.backend._sc.iter_sessions():
 		if bs_other.user.uuid == recipient_uuid:
-			bs_other.evt.ymsg_on_sent_ft_http(yahoo_id_sender, '/storage/file/{}/{}'.format(uuid, file_tmp_path.name), upload_time, message)
+			bs_other.evt.ymsg_on_sent_ft_http(yahoo_id_sender, '{}?{}'.format(FILE_STORE_PATH.format(filename = quote(file_tmp_path.name)), token), upload_time, message)
 	
-	# TODO: Sending HTTP FT acknowledgement crahes Yahoo! Messenger, and ultimately freezes the computer. Ignore for now.
-	#bs.evt.ymsg_on_upload_file_ft(yahoo_id_recipient, message)
+	bs.evt.ymsg_on_upload_file_ft(yahoo_id_recipient, message)
 	
 	return web.HTTPOk(text = '')
 
-async def _store_tmp_file_until_expiry(file_storage_path: Path) -> None:
+async def _store_tmp_file_until_expiry(path: Path) -> None:
 	await asyncio.sleep(86400)
 	# When a day passes, delete the file (unless it has already been deleted by the downloader handler; it will cancel the according task then)
-	shutil.rmtree(str(file_storage_path), ignore_errors = True)
+	shutil.rmtree(str(path), ignore_errors = True)
 
 async def handle_yahoo_filedl(req: web.Request) -> web.Response:
-	uuid = req.match_info['uuid']
-	
-	file_storage_path = _get_tmp_file_storage_path(uuid)
 	filename = req.match_info['filename']
-	file_path = file_storage_path / unquote_plus(filename)
+	token = None
+	query_keys = list(req.query.keys())
+	if query_keys:
+		token = list(req.query.keys())[0]
+	
+	if token is None:
+		return web.HTTPNotFound(text = '')
+	
+	file_storage_path = _get_tmp_file_storage_path(token)
+	file_path = file_storage_path / unquote(filename)
 	try:
 		file_stream = file_path.read_bytes()
 	except FileNotFoundError:
-		return web.HTTPNotFound()
-	_tasks_by_uuid_store[uuid].cancel()
-	del _tasks_by_uuid_store[uuid]
-	shutil.rmtree(file_storage_path, ignore_errors = True)
+		return web.HTTPNotFound(text = '')
+	# Only delete temporary file if request is specifically `GET`
+	if req.method == 'GET':
+		_tasks_by_token[token].cancel()
+		del _tasks_by_token[token]
+		shutil.rmtree(file_storage_path, ignore_errors = True)
 	return web.HTTPOk(body = file_stream)
 
-def _get_tmp_file_storage_path(uuid: str) -> Path:
-	return Path('storage/yfs') / uuid[0:1] / uuid[0:2]
+def _get_tmp_file_storage_path(token: str) -> Path:
+	return Path('storage/file') / token
 
 def _parse_cookies(req: web.Request, backend: Backend, y: Optional[str] = None, t: Optional[str] = None) -> Tuple[Optional[str], Optional[BackendSession]]:
 	cookies = req.cookies

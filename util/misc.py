@@ -181,7 +181,7 @@ def server_temp_cleanup() -> None:
 	import shutil
 	from pathlib import Path
 	
-	path = Path('storage/yfs')
+	path = Path('storage/file')
 	if not path.exists():
 		return
 	for file_dir in path.iterdir():
