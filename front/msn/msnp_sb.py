@@ -1,21 +1,16 @@
-from typing import Tuple, Any, Optional, List, Set, TYPE_CHECKING
+from typing import Tuple, Any, Optional, List, Set
 import time
 import re
 import secrets
 import asyncio
 from email.parser import Parser
 
-from util.misc import Logger, first_in_iterable
+from util.misc import Logger, first_in_iterable, VoidTaskType
 from core.models import User, MessageData, MessageType
 from core.backend import Backend, BackendSession, ChatSession, Chat
 from core import event, error
 from .misc import Err, encode_capabilities_capabilitiesex, decode_email_pop, encode_email_pop, normalize_pop_id, MAX_CAPABILITIES_BASIC
 from .msnp import MSNPCtrl
-
-if TYPE_CHECKING:
-	VoidTaskType = asyncio.Task[None]
-else:
-	VoidTaskType = Any
 
 class MSNPCtrlSB(MSNPCtrl):
 	__slots__ = ('backend', 'dialect', 'loop', 'counter_task', 'auth_sent', 'bs', 'cs')

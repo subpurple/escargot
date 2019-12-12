@@ -297,7 +297,7 @@ class UserService:
 					if tmp.member_uuid not in groupchat.memberships:
 						sess.delete(tmp)
 				for membership in groupchat.memberships.values():
-					dbgroupchatmembership = sess.query(DBGroupChatMembership).filter(DBGroupChatMembership.chat_id == chat_id, DBGroupChatMembership.uuid == membership.head.uuid).one_or_none()
+					dbgroupchatmembership = sess.query(DBGroupChatMembership).filter(DBGroupChatMembership.chat_id == chat_id, DBGroupChatMembership.member_uuid == membership.head.uuid).one_or_none()
 					if dbgroupchatmembership is None:
 						dbgroupchatmembership = DBGroupChatMembership(
 							chat_id = chat_id, member_id = membership.head.id, member_uuid = membership.head.uuid,

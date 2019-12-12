@@ -1,4 +1,4 @@
-from typing import FrozenSet, Any, Iterable, Optional, TypeVar, List, Dict, Tuple, Generic
+from typing import FrozenSet, Any, Iterable, Optional, TypeVar, List, Dict, Tuple, Generic, TYPE_CHECKING
 from abc import ABCMeta, abstractmethod
 import asyncio
 import functools
@@ -11,6 +11,11 @@ import jinja2
 from aiohttp import web
 
 EMPTY_SET: FrozenSet[Any] = frozenset()
+
+if TYPE_CHECKING:
+	VoidTaskType = asyncio.Task[None]
+else:
+	VoidTaskType = Any
 
 def gen_uuid() -> str:
 	return str(uuid4())
