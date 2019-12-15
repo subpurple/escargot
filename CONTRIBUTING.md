@@ -77,7 +77,7 @@ Contributions are welcome via MR (Merge Requests). You don't need to request pro
 
 ## Yahoo!
 
-- for version 5.5, use a **clean** install and patch the following registry values:
+- for version 5.5, use a [**clean** install](http://www.oldversion.com/windows/yahoo-messenger-5-5-0-1244) and patch the following registry values:
 	- `HKEY_CURRENT_USER\SOFTWARE\Yahoo\Pager\socket server` -> `localhost`
 	- `HKEY_CURRENT_USER\SOFTWARE\Yahoo\Pager\FileTransfer\Server Name` -> `localhost`
 
@@ -91,6 +91,7 @@ Contributions are welcome via MR (Merge Requests). You don't need to request pro
 	127.0.0.1 filetransfer.msg.yahoo.com
 	127.0.0.1 m1.escargot.log1p.xyz
 	```
+	(*Note that `us.i1.yimg.com` is still active and it is recommended to comment its entry out from `HOSTS` after testing if you want to properly view pages containing references to said domain*) 
 
 - run `python dev` to start the dev server
 
