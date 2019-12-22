@@ -525,6 +525,9 @@ class MSNPCtrlNS(MSNPCtrl):
 		self.send_reply('GCF', trid, filename, SHIELDS)
 	
 	def _m_png(self) -> None:
+		if self.bs is None:
+			self.close(hard = True)
+			return
 		self.send_reply('QNG', (60 if self.dialect >= 9 else None))
 	
 	def _m_uux(self, trid: str, data: bytes) -> None:
