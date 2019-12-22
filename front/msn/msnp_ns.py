@@ -263,11 +263,8 @@ class MSNPCtrlNS(MSNPCtrl):
 					response = None
 					rps = False
 					
-					if dialect >= 16:
+					if dialect >= 16 or (dialect < 16 and len(args) > 1):
 						rps = True
-					else:
-						if len(args) > 1:
-							rps = True
 					
 					if settings.DEBUG and settings.DEBUG_MSNP: print('RPS authentication:', rps)
 					
