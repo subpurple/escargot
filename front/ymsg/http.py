@@ -1,5 +1,6 @@
 from typing import Any, Dict, List, Optional, Tuple
 from aiohttp import web
+import aiohttp
 import asyncio
 from markupsafe import Markup
 from urllib.parse import unquote, unquote_plus, quote
@@ -344,7 +345,9 @@ async def handle_yahoo_filedl(req: web.Request) -> web.Response:
 		_tasks_by_token[token].cancel()
 		del _tasks_by_token[token]
 		shutil.rmtree(file_storage_path, ignore_errors = True)
-	return web.HTTPOk(body = file_stream)
+	return web.Response(status = 200, headers = {
+		'Content-Disposition': 'attachment; filename="{}"'.format(filename),
+	}, body = file_stream)
 
 def _get_tmp_file_storage_path(token: str) -> Path:
 	return Path('storage/file') / token

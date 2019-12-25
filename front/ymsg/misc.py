@@ -192,7 +192,7 @@ def build_http_ft_packet(bs: BackendSession, sender: str, url_path: str, upload_
 		(b'5', arbitrary_encode(sender)),
 		(b'4', yahoo_id(user.email).encode('utf-8')),
 		(b'14', arbitrary_encode(message)),
-		(b'38', str(upload_time).encode('utf-8')),
+		(b'38', str(upload_time + 86400).encode('utf-8')),
 		(b'20', arbitrary_encode('http://{}{}'.format(settings.STORAGE_HOST, url_path))),
 	]))
 
