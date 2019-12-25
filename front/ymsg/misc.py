@@ -130,17 +130,14 @@ def build_p2p_msg_packet(bs: BackendSession, sess_id: int, p2p_dict: KVSType) ->
 	user_to = bs.user
 	
 	p2p_conn_dict = MultiDict([
-		(b'5', yahoo_id(user_to.email).encode('utf-8')),
-		(b'1', yahoo_id(user_to.email).encode('utf-8')),
 		(b'4', p2p_dict.get(b'4') or b''),
+		(b'5', yahoo_id(user_to.email).encode('utf-8')),
 	])
 	
-	if p2p_dict.get(b'2') is not None: p2p_conn_dict.add(b'2', p2p_dict.get(b'2') or b'')
-	if p2p_dict.get(b'13') is not None: p2p_conn_dict.add(b'13', p2p_dict.get(b'13') or b'')
-	if p2p_dict.get(b'12') is not None: p2p_conn_dict.add(b'12', p2p_dict.get(b'12') or b'')
-	p2p_conn_dict.add(b'49', p2p_dict.get(b'49') or b'')
 	p2p_conn_dict.add(b'11', binascii.hexlify(struct.pack('!I', sess_id)).decode().upper().encode('utf-8'))
-	if p2p_dict.get(b'60') is not None: p2p_conn_dict.add(b'60', p2p_dict.get(b'60') or b'')
+	if p2p_dict.get(b'12') is not None: p2p_conn_dict.add(b'12', p2p_dict.get(b'12') or b'')
+	if p2p_dict.get(b'13') is not None: p2p_conn_dict.add(b'13', p2p_dict.get(b'13') or b'')
+	p2p_conn_dict.add(b'49', p2p_dict.get(b'49') or b'')
 	if p2p_dict.get(b'61') is not None: p2p_conn_dict.add(b'61', p2p_dict.get(b'61') or b'')
 	
 	yield (YMSGService.PeerToPeer, YMSGStatus.BRB, p2p_conn_dict)
