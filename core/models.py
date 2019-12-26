@@ -231,10 +231,10 @@ class UserDetail:
 	def get_groups_by_name(self, name: str) -> Optional[List['Group']]:
 		groups = [] # type: List[Group]
 		for group in self._groups_by_id.values():
-			if group.name == name or (group.name.startswith(name) and len(group.name) > len(name) and group.name[len(group.name):].isnumeric()):
+			if group.name == name:
 				if group not in groups: groups.append(group)
 		for group in self._groups_by_uuid.values():
-			if group.name == name or (group.name.startswith(name) and len(group.name) > len(name) and group.name[len(group.name):].isnumeric()):
+			if group.name == name:
 				if group not in groups: groups.append(group)
 		return groups or None
 	

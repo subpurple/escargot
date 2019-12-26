@@ -649,7 +649,7 @@ class BackendSession(Session):
 			raise error.GroupAlreadyExists()
 		groups = detail.get_groups_by_name(name)
 		if groups is not None:
-			name += str(len(groups))
+			raise error.GroupAlreadyExists()
 		group = Group(_gen_group_id(detail), gen_uuid(), name, False)
 		detail.insert_group(group)
 		self.backend._mark_modified(user)
@@ -681,6 +681,9 @@ class BackendSession(Session):
 				raise error.GroupAlreadyExists()
 			if len(new_name) > MAX_GROUP_NAME_LENGTH:
 				raise error.GroupNameTooLong()
+			groups = detail.get_groups_by_name(new_name)
+			if groups is not None:
+				raise error.GroupAlreadyExists()
 			g.name = new_name
 		if is_favorite is not None:
 			g.is_favorite = is_favorite

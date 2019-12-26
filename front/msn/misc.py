@@ -616,7 +616,10 @@ class Err:
 		if isinstance(exc, error.GroupDoesNotExist):
 			return cls.GroupInvalid
 		if isinstance(exc, error.CannotRemoveSpecialGroup):
-			return cls.GroupZeroUnremovable
+			if dialect >= 10:
+				return cls.GroupInvalid
+			else:
+				return cls.GroupZeroUnremovable
 		if isinstance(exc, error.ContactDoesNotExist):
 			if dialect >= 10:
 				return cls.InvalidUser2
