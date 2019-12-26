@@ -2,9 +2,10 @@ import io
 from abc import ABCMeta, abstractmethod
 import asyncio
 from typing import List, Tuple, Any, Optional, Callable, Iterable, Sequence
-from urllib.parse import unquote
+from urllib.parse import unquote, quote
 
 from util.misc import Logger
+from .misc import MSNObj
 
 class MSNPCtrl(metaclass = ABCMeta):
 	__slots__ = ('logger', 'reader', 'writer', 'peername', 'closed', 'close_callback', 'transport')
@@ -80,12 +81,19 @@ class MSNPWriter:
 	
 	def write(self, m: Iterable[Any]) -> None:
 		m = list(m)
+		msnobj = None
 		data = None
 		if isinstance(m[-1], bytes):
 			data = m[-1]
 			m[-1] = len(data)
-		#TODO: Escape `%` properly for anything that isn't already escaped of that character
-		mt = tuple(str(x).replace(' ', '%20').replace('\r', '%0D').replace('\n', '%0A') for x in m if x is not None)
+		elif isinstance(m[-1], MSNObj):
+			msnobj = m[-1].data
+			m[-1] = None
+		mt = tuple(str(x).replace('%', '%25').replace(' ', '%20').replace('\r', '%0D').replace('\n', '%0A') for x in m if x is not None)
+		if msnobj:
+			msnobj_encoded = _encode_msnobj(msnobj)
+			assert msnobj_encoded is not None
+			mt += (msnobj_encoded,)
 		_truncated_log(self._logger, '<<<', mt)
 		w = self._buf.write
 		w(' '.join(mt).encode('utf-8'))
@@ -161,6 +169,10 @@ def _msnp_try_decode(d: bytes, i: int) -> Tuple[List[Any], Optional[bytes], int]
 		body = d[e:e+n]
 		e += n
 	return m, body, e
+
+def _encode_msnobj(msnobj: Optional[str]) -> Optional[str]:
+	if msnobj is None: return None
+	return quote(msnobj, safe = '')
 
 _PAYLOAD_COMMANDS = {
 	'UUX', 'MSG', 'QRY', 'NOT', 'ADL', 'FQY', 'RML', 'UUN', 'UUM', 'PUT', 'DEL', 'SDG', 'VAS', 'SDC',

@@ -1,5 +1,4 @@
 from typing import Optional, Tuple, Any, Iterable, List, ClassVar, Dict
-from urllib.parse import quote
 from hashlib import md5, sha1
 import hmac
 from pytz import timezone
@@ -143,7 +142,7 @@ def build_presence_notif(trid: Optional[str], ctc_head: User, user_me: User, dia
 	elif dialect >= 16:
 		rst.append(('0:0' if groupchat is not None and groupchat_owner else encode_capabilities_capabilitiesex(((ctc_sess.front_data.get('msn_capabilities') or 0) if ctc_sess.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC), ctc_sess.front_data.get('msn_capabilitiesex') or 0)))
 	if dialect >= 9:
-		rst.append(encode_msnobj(ctc_sess.front_data.get('msn_msnobj') or '<msnobj/>'))
+		rst.append(MSNObj(ctc_sess.front_data.get('msn_msnobj') or '<msnobj/>'))
 	
 	if dialect >= 18:
 		yield (*frst, msn_status.name, encode_email_networkid(head.email, None, groupchat = groupchat), status.name, *rst)
@@ -172,10 +171,6 @@ def decode_email_networkid(email_networkid: str) -> Tuple[NetworkID, str]:
 	parts = email_networkid.split(':', 1)
 	networkid = NetworkID(int(parts[0]))
 	return networkid, parts[1]
-
-def encode_msnobj(msnobj: Optional[str]) -> Optional[str]:
-	if msnobj is None: return None
-	return quote(msnobj, safe = '')
 
 def encode_xml_he(data: Optional[str], dialect: int) -> Optional[str]:
 	if data is None: return None
@@ -534,6 +529,14 @@ NFY_PUT_PRESENCE_USER_SEP_PD = '<sep n="PD" epid="{mguid}">{ped_data}</sep>'
 NFY_PUT_PRESENCE_USER_SEP_EPID = ' epid="{mguid}"'
 
 MAX_CAPABILITIES_BASIC = 1073741824
+
+class MSNObj:
+	__slots__ = ('data',)
+	
+	data: Optional[str]
+	
+	def __init__(self, data: Optional[str]) -> None:
+		self.data = data
 
 class MSNStatus(Enum):
 	FLN = object()

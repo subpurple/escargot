@@ -22,7 +22,7 @@ from core.models import Substatus, Lst, NetworkID, User, OIM, GroupChat, GroupCh
 from core.client import Client
 
 from .msnp import MSNPCtrl
-from .misc import build_presence_notif, cid_format, encode_msnobj, encode_payload, decode_capabilities_capabilitiesex, decode_email_networkid, encode_email_networkid, normalize_pop_id, decode_email_pop, gen_mail_data, gen_chal_response, gen_signedticket_xml, generate_rps_key, encrypt_with_key_and_iv_tripledes_cbc, Err, MSNStatus
+from .misc import build_presence_notif, cid_format, encode_payload, decode_capabilities_capabilitiesex, decode_email_networkid, encode_email_networkid, normalize_pop_id, decode_email_pop, gen_mail_data, gen_chal_response, gen_signedticket_xml, generate_rps_key, encrypt_with_key_and_iv_tripledes_cbc, Err, MSNStatus, MSNObj
 
 MSNP_DIALECTS = ['MSNP{}'.format(d) for d in (
 	# Actually supported
@@ -1181,7 +1181,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		
 		extra = () # type: Tuple[Any, ...]
 		if dialect >= 9:
-			extra = (encode_msnobj(msnobj),)
+			extra = (MSNObj(msnobj),)
 		
 		self.send_reply('CHG', trid, sts_name, capabilities, *extra)
 		
