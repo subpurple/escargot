@@ -391,7 +391,7 @@ class Backend:
 		
 		if chat is not None:
 			if groupchat.chat_id in self._cses_by_bs_by_groupchat_id:
-				for bs, cs in self._cses_by_bs_by_groupchat_id[groupchat.chat_id].items():
+				for bs, cs in list(self._cses_by_bs_by_groupchat_id[groupchat.chat_id].items()):
 					if cs is not None and cs.user is user:
 						cs.close()
 						del self._cses_by_bs_by_groupchat_id[groupchat.chat_id][bs]
@@ -1056,26 +1056,15 @@ class BackendSession(Session):
 		
 		backend._mark_groupchat_modified(groupchat)
 		
-		for cs_other in chat.get_roster():
-			if cs_other.user is not user:
-				cs_other.bs.evt.on_groupchat_updated(groupchat)
-	
-	def me_leave_groupchat_chat(self, groupchat: GroupChat) -> None:
-		user = self.user
-		backend = self.backend
-		
-		if user.uuid not in groupchat.memberships: raise error.MemberNotInGroupChat()
-		
-		chat = backend.chat_get('persistent', groupchat.chat_id)
-		if chat is None: raise error.GroupChatDoesNotExist()
-		
-		membership = groupchat.memberships[user.uuid]
-		
 		if groupchat.chat_id in backend._cses_by_bs_by_groupchat_id:
-			for bs, cs in backend._cses_by_bs_by_groupchat_id[groupchat.chat_id].items():
+			for bs, cs in list(backend._cses_by_bs_by_groupchat_id[groupchat.chat_id].items()):
 				if cs is not None and cs.user is user:
 					cs.close()
 					del backend._cses_by_bs_by_groupchat_id[groupchat.chat_id][bs]
+		
+		for cs_other in chat.get_roster():
+			if cs_other.user is not user:
+				cs_other.bs.evt.on_groupchat_updated(groupchat)
 	
 	def me_block_circle(self, groupchat: GroupChat) -> None:
 		user = self.user

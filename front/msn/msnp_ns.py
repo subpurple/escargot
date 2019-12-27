@@ -937,16 +937,7 @@ class MSNPCtrlNS(MSNPCtrl):
 				for c_el in c_els:
 					lsts = Lst(int(c_el.get('l')))
 					
-					if circle_mode:
-						if lsts & Lst.FL or lsts & Lst.AL:
-							chat_id = username[-12:]
-							groupchat = backend.user_service.get_groupchat(chat_id or '')
-							if groupchat is not None:
-								try:
-									bs.me_leave_groupchat_chat(groupchat)
-								except:
-									pass
-					else:
+					if not circle_mode:
 						username = c_el.get('n')
 						email = '{}@{}'.format(username, domain)
 						
