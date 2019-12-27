@@ -11,6 +11,7 @@ from core.client import Client
 from core.backend import BackendSession, _SessionCollection, Chat, GroupChat
 from core import event
 from core.models import User, Contact, UserDetail, Group, UserStatus, Lst, OIM, LoginOption, Substatus
+from front.msn.misc import MSNObj
 
 class UserService:
 	_user_by_uuid: Dict[str, User]
@@ -249,7 +250,7 @@ class Backend:
 			traceback.print_exc()
 
 class Logger:
-	def __init__(self, prefix: str, obj: object) -> None:
+	def __init__(self, prefix: str, obj: object, front_debug: bool) -> None:
 		pass
 	
 	def info(self, *args: Any) -> None:
@@ -275,7 +276,7 @@ class MSNPWriter:
 		self._q = deque()
 	
 	def write(self, m: Iterable[Any]) -> None:
-		self._q.append(tuple(str(x) for x in m if x is not None))
+		self._q.append(tuple(str(x) for x in m if (not isinstance(x, MSNObj) and x is not None) or (isinstance(x, MSNObj) and x.data is not None)))
 	
 	def pop_message(self, *msg_expected: Any) -> DecodedMSNP:
 		msg = self._q.popleft()

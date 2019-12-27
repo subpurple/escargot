@@ -10,7 +10,7 @@ def test_msnp_commands() -> None:
 	user_service = UserService()
 	auth_service = AuthService()
 	backend = Backend(user_service, auth_service)
-	logger = Logger('MK', object())
+	logger = Logger('MK', object(), False)
 	
 	email = 'test1@example.com'
 	
