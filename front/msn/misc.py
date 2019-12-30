@@ -301,7 +301,7 @@ def gen_chal_response(chal: str, id: str, id_key: str, *, msnp11: bool = False) 
 	high = 0
 	low = 0
 	
-	for n in range(0, len(chl_array), 2):
+	for n in range(0, len(chl_array) - 1, 2):
 		temp = chl_array[n]
 		temp = (0x0E79A9C1 * temp) % 0x7FFFFFFF
 		temp += high
@@ -317,8 +317,6 @@ def gen_chal_response(chal: str, id: str, id_key: str, *, msnp11: bool = False) 
 	
 	high = (high + key_array[1]) % 0x7FFFFFFF
 	low = (low + key_array[3]) % 0x7FFFFFFF
-	
-	# TODO: High XORs are messed up
 	
 	key_array[0] ^= high
 	key_array[1] ^= low
