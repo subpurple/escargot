@@ -2,7 +2,7 @@ from typing import Optional, Any, Dict, Tuple, List
 from datetime import datetime, timedelta
 from email.parser import Parser
 from email.header import decode_header
-from urllib.parse import unquote
+from urllib.parse import unquote, parse_qsl
 from pathlib import Path
 import re
 import secrets
@@ -62,6 +62,7 @@ def register(app: web.Application) -> None:
 	app.router.add_post('/storageservice/SchematizedStore.asmx', handle_storageservice)
 	app.router.add_get('/storage/usertile/{uuid}/static', handle_usertile)
 	app.router.add_get('/storage/usertile/{uuid}/small', lambda req: handle_usertile(req, small = True))
+	app.router.add_post('/ppsecure/sha1auth.srf', handle_sha1auth)
 	app.router.add_post('/rsi/rsi.asmx', handle_rsi)
 	app.router.add_post('/OimWS/oim.asmx', handle_oim)
 	
@@ -129,6 +130,20 @@ async def handle_storageservice(req: web.Request) -> web.Response:
 		# TODO: ShareItem
 		return unknown_soap(req, header, action, expected = True)
 	return unknown_soap(req, header, action)
+
+async def handle_sha1auth(req: web.Request) -> web.Response:
+	# We have no use for any of the actual tokens sent here right now (this is primarily for WLM 8's MSN Today function), so just redirect to the URL specified by `ru`
+	post = await req.post()
+	
+	token_data = post.get('token')
+	if token_data is None:
+		return web.HTTPInternalServerError()
+	
+	token_fields = dict(parse_qsl(str(token_data)))
+	if 'ru' not in token_fields:
+		return web.HTTPInternalServerError()
+	
+	return web.HTTPFound(token_fields['ru'])
 
 async def handle_rsi(req: web.Request) -> web.Response:
 	header, action, bs, token = await preprocess_soap_rsi(req)
