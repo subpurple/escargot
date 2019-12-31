@@ -87,6 +87,8 @@ async def handle_http_gateway(req: web.Request) -> web.Response:
 		raise web.HTTPBadRequest()
 	
 	assert req.transport is not None
+	if gwsess.time_last_connect != now:
+		gwsess.time_last_connect = now
 	if action != 'poll':
 		gwsess.logger.log_connect()
 		gwsess.controller.data_received(await req.read(), transport = req.transport)
