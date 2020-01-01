@@ -237,6 +237,9 @@ class Backend:
 	def util_get_sessions_by_user(self, user: User) -> List['BackendSession']:
 		return self._sc.get_sessions_by_user(user)
 	
+	def util_get_groupchat_memberships_by_role(self, groupchat: GroupChat, role: GroupChatRole) -> Iterable[GroupChatMembership]:
+		return [membership for membership in groupchat.memberships.values() if membership.role == role]
+	
 	def util_user_online_in_groupchat(self, groupchat: GroupChat, user: User) -> bool:
 		if user.uuid not in groupchat.memberships: raise error.MemberNotInGroupChat()
 		
@@ -326,38 +329,27 @@ class Backend:
 			for cs_other in chat.get_roster():
 				cs_other.bs.evt.on_groupchat_updated(groupchat)
 	
-	def util_change_groupchat_membership_role(self, groupchat: GroupChat, user_other: User, role: GroupChatRole, user_self: Optional[User]) -> None:
-		if user_other.uuid not in groupchat.memberships or (user_self is not None and user_self.uuid not in groupchat.memberships): raise error.MemberNotInGroupChat()
+	def util_change_groupchat_membership_role(self, groupchat: GroupChat, user_other: User, role: GroupChatRole) -> None:
+		if user_other.uuid not in groupchat.memberships: raise error.MemberNotInGroupChat()
 		
 		chat = self.chat_get('persistent', groupchat.chat_id)
 		
 		membership = groupchat.memberships[user_other.uuid]
-		membership_self = None
-		
-		if user_self is not None:
-			membership_self = groupchat.memberships[user_self.uuid]
 		
 		old_role = membership.role
 		if old_role == GroupChatRole.StatePendingOutbound:
 			raise error.GroupChatMemberIsPending()
-		if membership_self is not None:
-			if membership_self.role != GroupChatRole.Admin or old_role == GroupChatRole.Admin:
-				raise error.MemberDoesntHaveSufficientGroupChatRole()
+		if old_role == GroupChatRole.Admin and len(list(self.util_get_groupchat_memberships_by_role(groupchat, GroupChatRole.Admin))) < 2:
+			raise error.MemberDoesntHaveSufficientGroupChatRole()
 		membership.role = role
-		if membership_self is not None:
-			membership_self.role = GroupChatRole.Member
 		
 		if old_role is not membership.role:
 			self._mark_groupchat_modified(groupchat)
 			
 			if chat is not None:
 				for cs_other in chat.get_roster():
-					if cs_other.user is user_other or (user_self is not None and cs_other.user is user_self):
-						role_user = None
-						if (user_self is not None and cs_other.user is user_self) and membership_self is not None:
-							role_user = membership_self.role
-						elif cs_other.user is user_other:
-							role_user = membership.role
+					if cs_other.user is user_other:
+						role_user = membership.role
 						if role_user is not None:
 							cs_other.bs.evt.on_groupchat_role_updated(groupchat.chat_id, role_user)
 					else:
@@ -371,7 +363,7 @@ class Backend:
 		membership = groupchat.memberships[user.uuid]
 		if membership.state == GroupChatState.Empty: raise error.MemberNotInGroupChat()
 		
-		if membership.role == GroupChatRole.Admin:
+		if membership.role == GroupChatRole.Admin and len(list(self.util_get_groupchat_memberships_by_role(groupchat, GroupChatRole.Admin))) < 2:
 			raise error.CantLeaveGroupChat()
 		
 		membership.role = GroupChatRole.Member
@@ -946,6 +938,9 @@ class BackendSession(Session):
 		
 		for bs in backend.util_get_sessions_by_user(invitee):
 			bs.evt.on_chat_invite(chat, inviter, group_chat = True)
+		
+		for cs in chat.get_roster():
+			cs.bs.evt.on_groupchat_updated(groupchat)
 	
 	def me_change_groupchat_membership(self, groupchat: GroupChat, user_other: User, *, role: Optional[GroupChatRole] = None, state: Optional[GroupChatState] = None) -> None:
 		user = self.user
@@ -1041,7 +1036,7 @@ class BackendSession(Session):
 		
 		other_owners = False
 		
-		if membership.role == GroupChatRole.Admin:
+		if membership.role == GroupChatRole.Admin and len(list(backend.util_get_groupchat_memberships_by_role(groupchat, GroupChatRole.Admin))) < 2:
 			raise error.CantLeaveGroupChat()
 		
 		membership.role = GroupChatRole.Member
@@ -1240,7 +1235,7 @@ class Chat:
 	
 	def send_participant_declined(self, user: User, *, user_id: Optional[str] = None, message: Optional[str] = None, group_chat: bool = False) -> None:
 		for cs_other in self.get_roster():
-			cs_other.bs.evt.on_chat_invite_declined(self, user, invitee_id = user_id, message = message, group_chat = group_chat)
+			cs_other.evt.on_chat_invite_declined(self, user, invitee_id = user_id, message = message, group_chat = group_chat)
 	
 	def send_participant_status_updated(self, cs: 'ChatSession', *, initial: bool = False, send_on_bl: bool = False) -> None:
 		tmp = []

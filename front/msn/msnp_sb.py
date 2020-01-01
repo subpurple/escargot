@@ -316,7 +316,13 @@ class ChatEventHandler(event.ChatEventHandler):
 		if last_pop and pop_id_other is not None and ctrl.dialect >= 16:
 			self.ctrl.send_reply('BYE', cs_other.user.email)
 	
+	def on_chat_invite_declined(self, chat: Chat, invitee: User, *, invitee_id: Optional[str] = None, message: Optional[str] = None, group_chat: bool = False) -> None:
+		pass
+	
 	def on_chat_updated(self) -> None:
+		pass
+	
+	def on_chat_roster_updated(self) -> None:
 		pass
 	
 	def on_participant_status_updated(self, cs_other: ChatSession, first_pop: bool, initial: bool) -> None:

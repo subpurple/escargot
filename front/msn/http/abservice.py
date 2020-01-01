@@ -41,7 +41,7 @@ async def handle_abservice(req: web.Request, *, sharing: bool = False) -> web.Re
 		import traceback
 		return render(req, 'msn:Fault.generic.xml', {
 			'exception': traceback.format_exc(),
-		})
+		}, status = 500)
 
 def sharing_FindMembership(req: web.Request, header: Any, action: Any, bs: BackendSession) -> web.Response:
 	backend: Backend = req.app['backend']

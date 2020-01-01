@@ -1926,12 +1926,6 @@ class BackendEventHandler(event.BackendEventHandler):
 			token = self.ctrl.backend.auth_service.create_token('sb/cal', (self.ctrl.bs, dialect, chat), lifetime = 120)
 			self.ctrl.send_reply('RNG', chat.ids['main'], 'm1.escargot.log1p.xyz:1864', 'CKI', token, inviter.email, inviter.status.name, *extra)
 	
-	def on_chat_invite_declined(self, chat: Chat, invitee: User, *, invitee_id: Optional[str] = None, message: Optional[str] = None, group_chat: bool = False) -> None:
-		if group_chat and self.ctrl.circle_authenticated:
-			groupchat = chat.groupchat
-			assert groupchat is not None
-			self.msn_on_notify_circle_ab(groupchat.chat_id)
-	
 	def on_declined_chat_invite(self, chat: Chat, group_chat: bool = False) -> None:
 		if group_chat and self.ctrl.circle_authenticated:
 			self.msn_on_notify_ab()
@@ -2150,8 +2144,6 @@ class GroupChatEventHandler(event.ChatEventHandler):
 		groupchat = chat.groupchat
 		assert groupchat is not None
 		
-		users = ''
-		
 		if (cs_other.user.status.substatus is Substatus.Invisible and cs_other.user is user) or not cs_other.user.status.is_offlineish():
 			if cs_other.user.uuid == groupchat.owner_uuid:
 				for m in build_presence_notif(None, cs_other.user, user, self.ctrl.dialect, self.ctrl.backend, self.ctrl.iln_sent, bs_other = cs_other.bs, groupchat = groupchat, groupchat_owner = True):
@@ -2162,18 +2154,7 @@ class GroupChatEventHandler(event.ChatEventHandler):
 		
 		if not first_pop: return
 		
-		for cs1 in chat.get_roster_single():
-			if (cs1.user.status.is_offlineish() or groupchat.memberships[cs1.user.uuid].blocking) and cs1.user is not cs.user: continue
-			users += CIRCLE_USER.format(email = cs1.user.email)
-		
-		roster = CIRCLE_ROSTER.format(users = users)
-		
-		result = CIRCLE.format(roster)
-		
-		self.ctrl.send_reply('NFY', 'PUT', encode_payload(PAYLOAD_MSG_5,
-			email = user.email, chat_id = groupchat.chat_id,
-			cl = len(result), payload = result,
-		))
+		self.on_chat_roster_updated()
 	
 	def on_participant_left(self, cs_other: ChatSession, last_pop: bool) -> None:
 		bs = self.ctrl.bs
@@ -2192,6 +2173,16 @@ class GroupChatEventHandler(event.ChatEventHandler):
 					to_email = user.email, nid = str(int(NetworkID.CIRCLE)), uuid = '00000000-0000-0000-0009-{}'.format(groupchat.chat_id),
 					from_email = cs_other.user.email,
 				))
+	
+	def on_chat_invite_declined(self, chat: Chat, invitee: User, *, invitee_id: Optional[str] = None, message: Optional[str] = None, group_chat: bool = False) -> None:
+		bs = self.ctrl.bs
+		assert bs is not None
+		
+		if group_chat and self.ctrl.circle_authenticated:
+			groupchat = chat.groupchat
+			assert groupchat is not None
+			self.on_chat_roster_updated()
+			bs.evt.msn_on_notify_circle_ab(groupchat.chat_id)
 	
 	def on_chat_updated(self) -> None:
 		bs = self.ctrl.bs
@@ -2213,6 +2204,27 @@ class GroupChatEventHandler(event.ChatEventHandler):
 			cl = len(result), payload = result,
 		))
 	
+	def on_chat_roster_updated(self) -> None:
+		bs = self.ctrl.bs
+		assert bs is not None
+		user = bs.user
+		
+		cs = self.cs
+		chat = cs.chat
+		groupchat = chat.groupchat
+		assert groupchat is not None
+		
+		users = _get_circle_roster(chat, cs)
+			
+		roster = CIRCLE_ROSTER.format(users = users)
+		
+		result = CIRCLE.format(roster)
+		
+		self.ctrl.send_reply('NFY', 'PUT', encode_payload(PAYLOAD_MSG_5,
+			email = user.email, chat_id = groupchat.chat_id,
+			cl = len(result), payload = result,
+		))
+	
 	def on_participant_status_updated(self, cs_other: ChatSession, first_pop: bool, initial: bool) -> None:
 		bs = self.ctrl.bs
 		assert bs is not None
@@ -2223,8 +2235,6 @@ class GroupChatEventHandler(event.ChatEventHandler):
 		groupchat = chat.groupchat
 		assert groupchat is not None
 		
-		users = ''
-		
 		membership = groupchat.memberships[cs_other.user.uuid]
 		if membership.state == GroupChatState.Empty: return
 		
@@ -2233,18 +2243,7 @@ class GroupChatEventHandler(event.ChatEventHandler):
 				self.ctrl.send_reply(*m)
 		
 		if not cs_other.user.status.is_offlineish():
-			for cs1 in chat.get_roster_single():
-				if (cs1.user.status.is_offlineish() or groupchat.memberships[cs1.user.uuid].blocking) and cs1.user is not cs.user: continue
-				users += CIRCLE_USER.format(email = cs1.user.email)
-			
-			roster = CIRCLE_ROSTER.format(users = users)
-			
-			result = CIRCLE.format(roster)
-			
-			self.ctrl.send_reply('NFY', 'PUT', encode_payload(PAYLOAD_MSG_5,
-				email = user.email, chat_id = groupchat.chat_id,
-				cl = len(result), payload = result,
-			))
+			self.on_chat_roster_updated()
 	
 	def on_invite_declined(self, invited_user: User, *, invited_id: Optional[str] = None, message: str = '') -> None:
 		pass
@@ -2263,6 +2262,17 @@ class GroupChatEventHandler(event.ChatEventHandler):
 		
 		if data.type is not MessageType.TypingDone:
 			self.ctrl.send_reply('SDG', 0, messagedata_to_sdg(data, user, groupchat = groupchat))
+
+def _get_circle_roster(chat: Chat, cs: ChatSession) -> str:
+	users = ''
+	groupchat = chat.groupchat
+	assert groupchat is not None
+	
+	for cs1 in chat.get_roster_single():
+		if (cs1.user.status.is_offlineish() or groupchat.memberships[cs1.user.uuid].blocking) and cs1.user is not cs.user: continue
+		users += CIRCLE_USER.format(email = cs1.user.email)
+	
+	return users
 
 def _split_email_epid(email: str) -> Tuple[str, NetworkID, Optional[str]]:
 	epid = None # type: Optional[str]
@@ -2504,6 +2514,7 @@ PAYLOAD_MSG_8 = '''<NOTIFICATION id="0" siteid="45705" siteurl="http://contacts.
 		<ACTION url="a.htm" />
 		<BODY>
 			&lt;NotificationData xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"&gt;
+				&lt;HasNewItem&gt;true&lt;/HasNewItem&gt;
 				&lt;CircleId&gt;00000000-0000-0000-0009-{chat_id}&lt;/CircleId&gt;
 			&lt;/NotificationData&gt;
 		</BODY>

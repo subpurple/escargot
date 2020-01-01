@@ -740,7 +740,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		for cs in chat.get_roster():
 			if misc.yahoo_id(cs.user.email) not in inviter_ids:
 				continue
-			cs.bs.evt.on_chat_invite_declined(chat, bs.user, invitee_id = yahoo_id, message = deny_msg)
+			cs.evt.on_chat_invite_declined(chat, bs.user, invitee_id = yahoo_id, message = deny_msg)
 	
 	def _y_001d(self, *args: Any) -> None:
 		# SERVICE_CONFMSG (0x1d); send a message in a conference
@@ -1304,15 +1304,6 @@ class BackendEventHandler(event.BackendEventHandler):
 		
 		backend.user_service.delete_oim(user.uuid, oim.uuid)
 	
-	def on_chat_invite_declined(self, chat: Chat, invitee: User, *, invitee_id: Optional[str] = None, message: Optional[str] = None, group_chat: bool = False) -> None:
-		if group_chat: return
-		self.ctrl.send_reply(YMSGService.ConfDecline, YMSGStatus.BRB, self.ctrl.sess_id, MultiDict([
-			(b'1', arbitrary_encode(self.ctrl.yahoo_id or '')),
-			(b'57', arbitrary_encode(chat.ids['ymsg/conf'])),
-			(b'54', arbitrary_encode(invitee_id or misc.yahoo_id(invitee.email))),
-			(b'14', arbitrary_encode(message or '')),
-		]))
-	
 	def ymsg_on_p2p_msg_request(self, sess_id: int, yahoo_data: MultiDict[bytes, bytes]) -> None:
 		for y in misc.build_p2p_msg_packet(self.bs, sess_id, yahoo_data):
 			self.ctrl.send_reply(y[0], y[1], self.sess_id, y[2])
@@ -1460,7 +1451,19 @@ class ChatEventHandler(event.ChatEventHandler):
 			(b'56', arbitrary_encode(cs_other.preferred_name or misc.yahoo_id(cs_other.user.email))),
 		]))
 	
+	def on_chat_invite_declined(self, chat: Chat, invitee: User, *, invitee_id: Optional[str] = None, message: Optional[str] = None, group_chat: bool = False) -> None:
+		if group_chat: return
+		self.ctrl.send_reply(YMSGService.ConfDecline, YMSGStatus.BRB, self.ctrl.sess_id, MultiDict([
+			(b'1', arbitrary_encode(self.ctrl.yahoo_id or '')),
+			(b'57', arbitrary_encode(chat.ids['ymsg/conf'])),
+			(b'54', arbitrary_encode(invitee_id or misc.yahoo_id(invitee.email))),
+			(b'14', arbitrary_encode(message or '')),
+		]))
+	
 	def on_chat_updated(self) -> None:
+		pass
+	
+	def on_chat_roster_updated(self) -> None:
 		pass
 	
 	def on_participant_status_updated(self, cs_other: ChatSession, first_pop: bool, initial: bool) -> None:

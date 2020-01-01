@@ -2,7 +2,7 @@
 <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
 	<soap:Body>
 		<soap:Fault>
-			<faultcode>generic</faultcode>
+			<faultcode>soap:Client</faultcode>
 			<faultstring>Generic SOAP fault</faultstring>
 			<notAValidSoapTag>{{ exception }}</notAValidSoapTag>
 		</soap:Fault>

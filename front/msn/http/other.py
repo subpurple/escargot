@@ -1,5 +1,6 @@
 from typing import Optional, Any, Dict, Tuple, List
 from datetime import datetime, timedelta
+from io import BytesIO
 from email.parser import Parser
 from email.header import decode_header
 from urllib.parse import unquote, parse_qsl
@@ -77,35 +78,60 @@ async def handle_posttest(req: web.Request) -> web.Response:
 async def handle_storageservice(req: web.Request) -> web.Response:
 	header, action, bs, token = await preprocess_soap(req)
 	assert bs is not None
+	soapaction = (req.headers.get('SOAPAction') or '')
+	if soapaction.startswith('"') and soapaction.endswith('"'):
+		soapaction = soapaction[1:-1]
+	storage_ns = ('w10' if soapaction.startswith('http://www.msn.com/webservices/storage/w10/') else '2008')
 	action_str = get_tag_localname(action)
 	now_str = util.misc.date_format(datetime.utcnow())
-	timestamp = int(time.time())
 	user = bs.user
 	cachekey = secrets.token_urlsafe(172)
 	
 	cid = cid_format(user.uuid)
 	
 	if action_str == 'GetProfile':
+		storage_path = _get_storage_path(user.uuid)
+		files = None
+		if storage_path.exists() and storage_path.is_dir():
+			files = [x for x in storage_path.iterdir() if '_thumb' not in x.stem]
+		
+		mime = None
+		image_size = 0
+		image_thumb_size = 0
+		
+		if files:
+			ext = files[0].suffix
+			mime = ext[1:]
+			
+			image_path = storage_path / '{}{}'.format(user.uuid, ext)
+			image_size = image_path.stat().st_size
+			image_thumb_path = storage_path / '{}_thumb{}'.format(user.uuid, ext)
+			image_thumb_size = image_thumb_path.stat().st_size
+		
 		return render(req, 'msn:storageservice/GetProfileResponse.xml', {
+			'storage_ns': storage_ns,
 			'cachekey': cachekey,
 			'cid': cid,
 			'pptoken1': token,
 			'user': user,
 			'now': now_str,
-			'timestamp': timestamp,
-			'host': settings.STORAGE_HOST
+			'mime': mime,
+			'size_static': image_size,
+			'size_small': image_thumb_size,
+			'host': settings.STORAGE_HOST,
 		})
 	if action_str == 'FindDocuments':
 		# TODO: FindDocuments
 		return render(req, 'msn:storageservice/FindDocumentsResponse.xml', {
+			'storage_ns': storage_ns,
 			'cachekey': cachekey,
 			'cid': cid,
 			'pptoken1': token,
-			'user': user,
 		})
 	if action_str == 'UpdateProfile':
 		# TODO: UpdateProfile
 		return render(req, 'msn:storageservice/UpdateProfileResponse.xml', {
+			'storage_ns': storage_ns,
 			'cachekey': cachekey,
 			'cid': cid,
 			'pptoken1': token,
@@ -113,15 +139,17 @@ async def handle_storageservice(req: web.Request) -> web.Response:
 	if action_str == 'DeleteRelationships':
 		# TODO: DeleteRelationships
 		return render(req, 'msn:storageservice/DeleteRelationshipsResponse.xml', {
+			'storage_ns': storage_ns,
 			'cachekey': cachekey,
 			'cid': cid,
 			'pptoken1': token,
 		})
-	if action_str == 'CreateDocument':
-		return handle_create_document(req, action, user, cid, token, timestamp)
+	if action_str in ('CreateDocument','UpdateDocument'):
+		return handle_document(req, action, ('Update' if action_str == 'UpdateDocument' else 'Create'), storage_ns, user, cid, token)
 	if action_str == 'CreateRelationships':
 		# TODO: CreateRelationships
 		return render(req, 'msn:storageservice/CreateRelationshipsResponse.xml', {
+			'storage_ns': storage_ns,
 			'cachekey': cachekey,
 			'cid': cid,
 			'pptoken1': token,
@@ -183,13 +211,16 @@ async def handle_rsi(req: web.Request) -> web.Response:
 
 async def handle_oim(req: web.Request) -> web.Response:
 	header, body_msgtype, body_content, bs, token = await preprocess_soap_oimws(req)
-	soapaction = req.headers.get('SOAPAction').strip('"')
+	soapaction = (req.headers.get('SOAPAction') or '')
+	if soapaction.startswith('"') and soapaction.endswith('"'):
+		soapaction = soapaction[1:-1]
+	owsns = ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/')
 	
 	lockkey_result = header.find('.//{*}Ticket').get('lockkey')
 	
 	if bs is None or lockkey_result in (None,''):
 		return render(req, 'msn:oim/Fault.authfailed.xml', {
-			'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
+			'owsns': owsns,
 		}, status = 500)
 	
 	backend: Backend = req.app['backend']
@@ -209,7 +240,7 @@ async def handle_oim(req: web.Request) -> web.Response:
 	
 	if email != user.email or recipient_uuid is None or not _is_on_al(recipient_uuid, backend, user, detail):
 		return render(req, 'msn:oim/Fault.unavailable.xml', {
-			'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
+			'owsns': owsns,
 		}, status = 500)
 	
 	assert req.transport is not None
@@ -222,7 +253,7 @@ async def handle_oim(req: web.Request) -> web.Response:
 	oim_msg_seq = str(find_element(header, 'Sequence/MessageNumber'))
 	if not oim_msg_seq.isnumeric():
 		return render(req, 'msn:oim/Fault.invalidcontent.xml', {
-			'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
+			'owsns': owsns,
 		}, status = 500)
 	
 	if friendlyname_mime is not None:
@@ -230,7 +261,7 @@ async def handle_oim(req: web.Request) -> web.Response:
 			friendlyname, friendly_charset = decode_header(friendlyname_mime)[0]
 		except:
 			return render(req, 'msn:oim/Fault.invalidcontent.xml', {
-				'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
+				'owsns': owsns,
 			}, status = 500)
 	
 	if friendly_charset is None:
@@ -245,43 +276,43 @@ async def handle_oim(req: web.Request) -> web.Response:
 		oim_mime = Parser().parsestr(body_content)
 	except:
 		return render(req, 'msn:oim/Fault.invalidcontent.xml', {
-			'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
+			'owsns': owsns,
 		}, status = 500)
 	
 	oim_run_id = str(oim_mime.get('X-OIM-Run-Id'))
 	if oim_run_id is None:
 		return render(req, 'msn:oim/Fault.invalidcontent.xml', {
-			'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
+			'owsns': owsns,
 		}, status = 500)
 	if not re.match(r'^\{?[A-Fa-f0-9]{8,8}-([A-Fa-f0-9]{4,4}-){3,3}[A-Fa-f0-9]{12,12}\}?', oim_run_id):
 		return render(req, 'msn:oim/Fault.invalidcontent.xml', {
-			'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
+			'owsns': owsns,
 		}, status = 500)
 	oim_run_id = oim_run_id.replace('{', '').replace('}', '')
 	if ('X-Message-Info','Received','From','To','Subject','X-OIM-originatingSource','X-OIMProxy','Message-ID','X-OriginalArrivalTime','Date','Return-Path') in oim_mime.keys():
 		return render(req, 'msn:oim/Fault.invalidcontent.xml', {
-			'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
+			'owsns': owsns,
 		}, status = 500)
 	if str(oim_mime.get('MIME-Version')) != '1.0':
 		return render(req, 'msn:oim/Fault.invalidcontent.xml', {
-			'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
+			'owsns': owsns,
 		}, status = 500)
 	if not str(oim_mime.get('Content-Type')).startswith('text/plain'):
 		return render(req, 'msn:oim/Fault.invalidcontent.xml', {
-			'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
+			'owsns': owsns,
 		}, status = 500)
 	if str(oim_mime.get('Content-Transfer-Encoding')) != 'base64':
 		return render(req, 'msn:oim/Fault.invalidcontent.xml', {
-			'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
+			'owsns': owsns,
 		}, status = 500)
 	if str(oim_mime.get('X-OIM-Message-Type')) != 'OfflineMessage':
 		return render(req, 'msn:oim/Fault.invalidcontent.xml', {
-			'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
+			'owsns': owsns,
 		}, status = 500)
 	oim_seq_num = str(oim_mime.get('X-OIM-Sequence-Num'))
 	if oim_seq_num != oim_msg_seq:
 		return render(req, 'msn:oim/Fault.invalidcontent.xml', {
-			'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
+			'owsns': owsns,
 		}, status = 500)
 	oim_headers = {name: str(value) for name, value in oim_mime.items()}
 	
@@ -291,7 +322,7 @@ async def handle_oim(req: web.Request) -> web.Response:
 		for oim_b64_line in oim_body.split('\n'):
 			if len(oim_b64_line) > 77:
 				return render(req, 'msn:oim/Fault.invalidcontent.xml', {
-					'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
+					'owsns': owsns,
 				}, status = 500)
 		oim_body_normal = oim_body.strip()
 		oim_body_normal = base64.b64decode(oim_body_normal).decode('utf-8')
@@ -299,12 +330,12 @@ async def handle_oim(req: web.Request) -> web.Response:
 		backend.user_service.save_oim(bs, recipient_uuid, oim_run_id, host, oim_body_normal, True, from_friendly = friendlyname_str, from_friendly_charset = friendly_charset, headers = oim_headers, oim_proxy = oim_proxy_string)
 	except:
 		return render(req, 'msn:oim/Fault.invalidcontent.xml', {
-			'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
+			'owsns': owsns,
 		}, status = 500)
 	
 	return render(req, 'msn:oim/StoreResponse.xml', {
 		'seq': oim_msg_seq,
-		'owsns': ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/'),
+		'owsns': owsns,
 	})
 
 def _is_on_al(uuid: str, backend: Backend, user: models.User, detail: models.UserDetail) -> bool:
@@ -587,7 +618,7 @@ async def handle_rst(req: web.Request, rst2: bool = False) -> web.Response:
 def _get_storage_path(uuid: str) -> Path:
 	return Path('storage/dp') / uuid[0:1] / uuid[0:2]
 
-def handle_create_document(req: web.Request, action: Any, user: models.User, cid: str, token: str, timestamp: int) -> web.Response:
+def handle_document(req: web.Request, action: Any, type: str, storage_ns: str, user: models.User, cid: str, token: str) -> web.Response:
 	from PIL import Image
 	
 	# get image data
@@ -595,34 +626,53 @@ def handle_create_document(req: web.Request, action: Any, user: models.User, cid
 	streamtype = find_element(action, 'DocumentStreamType')
 	
 	if streamtype == 'UserTileStatic':
-		mime = find_element(action, 'MimeType')
+		#mime = find_element(action, 'MimeType')
+		mime = None
 		data = find_element(action, 'Data')
 		data = base64.b64decode(data)
 		
-		# store display picture as file
-		path = _get_storage_path(user.uuid)
-		path.mkdir(exist_ok = True, parents = True)
+		# WLM sends either `png` or `image/png` as the MIME type no matter what type of file is sent over. Guess image type from header
 		
-		image_path = path / '{uuid}.{mime}'.format(uuid = user.uuid, mime = mime)
+		# TODO: BMPs
+		if data[:6] in (b'GIF87a',b'GIF89a'):
+			mime = 'gif'
+		elif data[:2] == b'\xff\xd8':
+			mime = 'jpeg'
+		elif data[:8] == b'\x89PNG\x0d\x0a\x1a\x0a':
+			mime = 'png'
 		
-		image_path.write_bytes(data)
-		
-		image = Image.open(image_path)
-		thumb = image.resize((21, 21))
-		
-		thumb_path = path / '{uuid}_thumb.{mime}'.format(uuid = user.uuid, mime = mime)
-		thumb.save(str(thumb_path))
+		if mime is not None:
+			# Verify image contents
+			try:
+				image = Image.open(BytesIO(data))
+			except:
+				return web.HTTPInternalServerError(text = '')
+			
+			# store display picture as file
+			path = _get_storage_path(user.uuid)
+			path.mkdir(exist_ok = True, parents = True)
+			
+			image_path = path / '{uuid}.{mime}'.format(uuid = user.uuid, mime = mime)
+			
+			image_path.write_bytes(data)
+			
+			thumb = image.resize((21, 21))
+			
+			thumb_path = path / '{uuid}_thumb.png'.format(uuid = user.uuid)
+			thumb.save(str(thumb_path))
 	
-	return render(req, 'msn:storageservice/CreateDocumentResponse.xml', {
-		'user': user,
+	return render(req, 'msn:storageservice/{}DocumentResponse.xml'.format(type), {
+		'storage_ns': storage_ns,
 		'cid': cid,
 		'pptoken1': token,
-		'timestamp': timestamp,
 	})
 
 async def handle_usertile(req: web.Request, small: bool = False) -> web.Response:
 	uuid = req.match_info['uuid']
 	storage_path = _get_storage_path(uuid)
+	if not (storage_path.is_dir() and storage_path.exists()):
+		raise web.HTTPNotFound()
+	
 	files = list(storage_path.iterdir())
 	
 	if not files:

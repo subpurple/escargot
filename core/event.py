@@ -41,9 +41,6 @@ class BackendEventHandler(metaclass = ABCMeta):
 	@abstractmethod
 	def on_declined_chat_invite(self, chat: 'Chat', group_chat: bool = False) -> None: pass
 	
-	@abstractmethod
-	def on_chat_invite_declined(self, chat: 'Chat', invitee: User, *, invitee_id: Optional[str] = None, message: Optional[str] = None, group_chat: bool = False) -> None: pass
-	
 	# `user` added me to their FL, and they're now on my RL.
 	@abstractmethod
 	def on_added_me(self, user: User, *, adder_id: Optional[str] = None, message: Optional[TextWithData] = None) -> None: pass
@@ -128,7 +125,13 @@ class ChatEventHandler(metaclass = ABCMeta):
 	def on_participant_left(self, cs_other: 'ChatSession', last_pop: bool) -> None: pass
 	
 	@abstractmethod
+	def on_chat_invite_declined(self, chat: 'Chat', invitee: User, *, invitee_id: Optional[str] = None, message: Optional[str] = None, group_chat: bool = False) -> None: pass
+	
+	@abstractmethod
 	def on_chat_updated(self) -> None: pass
+	
+	@abstractmethod
+	def on_chat_roster_updated(self) -> None: pass
 	
 	@abstractmethod
 	def on_participant_status_updated(self, cs_other: 'ChatSession', first_pop: bool, initial: bool) -> None: pass

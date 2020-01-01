@@ -238,12 +238,6 @@ class BackendEventHandler(event.BackendEventHandler):
 		if group_chat: return
 		self.ctrl.send_reply('INVITE', self.bs.user.email, chat.ids['irc'], source = inviter.email)
 	
-	def on_chat_invite_declined(self, chat: Chat, invitee: User, *, invitee_id: Optional[str] = None, message: Optional[str] = None, group_chat: bool = False) -> None:
-		if group_chat: return
-		self.ctrl.send_reply('NOTICE', ":{} declined the invitation".format(invitee.email), source = invitee.email)
-		if message:
-			self.ctrl.send_reply('NOTICE', ":\"{}\"".format(message), source = invitee.email)
-	
 	def on_declined_chat_invite(self, chat: Chat, group_chat: bool = False) -> None:
 		pass
 	
@@ -292,7 +286,16 @@ class ChatEventHandler(event.ChatEventHandler):
 		if last_pop:
 			self.ctrl.send_reply('PART', self.cs.chat.ids['irc'], source = cs_other.user.email)
 	
+	def on_chat_invite_declined(self, chat: Chat, invitee: User, *, invitee_id: Optional[str] = None, message: Optional[str] = None, group_chat: bool = False) -> None:
+		if group_chat: return
+		self.ctrl.send_reply('NOTICE', ":{} declined the invitation".format(invitee.email), source = invitee.email)
+		if message:
+			self.ctrl.send_reply('NOTICE', ":\"{}\"".format(message), source = invitee.email)
+	
 	def on_chat_updated(self) -> None:
+		pass
+	
+	def on_chat_roster_updated(self) -> None:
 		pass
 	
 	def on_participant_status_updated(self, cs_other: ChatSession, first_pop: bool, initial: bool) -> None:

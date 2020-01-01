@@ -18,6 +18,6 @@
 		</StorageUserHeader>
 	</soap:Header>
 	<soap:Body>
-		<UpdateProfileResponse xmlns="http://www.msn.com/webservices/storage/{{ storage_ns }}" />
+		<UpdateDocumentResponse xmlns="http://www.msn.com/webservices/storage/{{ storage_ns }}" />
 	</soap:Body>
 </soap:Envelope>
