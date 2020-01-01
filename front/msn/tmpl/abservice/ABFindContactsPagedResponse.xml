@@ -38,7 +38,7 @@
 									<quickName>circle</quickName>
 									<passportName>00000000-0000-0000-0009-{{ groupchat.chat_id.upper() }}@hotmail.com</passportName>
 									<IsPassportNameHidden>false</IsPassportNameHidden>
-									<displayName>{%- if user.uuid == groupchat.owner_uuid -%}{{ groupchat.name }}{%- else -%}00000000-0000-0000-0009-{{ groupchat.chat_id.upper() }}@hotmail.com{%- endif -%}</displayName>
+									<displayName>{%- if groupchat.memberships[user.uuid].role == GroupChatRole.Admin -%}{{ groupchat.name }}{%- else -%}00000000-0000-0000-0009-{{ groupchat.chat_id.upper() }}@hotmail.com{%- endif -%}</displayName>
 									<puid>0</puid>
 									<CID>{{ cid_format('00000000-0000-0000-0009-' + groupchat.chat_id, decimal = True) }}</CID>
 									<IsNotMobileVisible>false</IsNotMobileVisible>
@@ -60,7 +60,7 @@
 										<NetworkInfo>
 											<DomainId>1</DomainId>
 											<SourceId>WL</SourceId>
-											{%- if user.uuid != groupchat.owner_uuid -%}
+											{%- if groupchat.memberships[user.uuid].role != GroupChatRole.Admin -%}
 												<DomainTag>00000000-0000-0000-0009-{{ groupchat.chat_id.upper() }}</DomainTag>
 												<DisplayName>00000000-0000-0000-0009-{{ groupchat.chat_id.upper() }}</DisplayName>
 											{%- endif -%}
