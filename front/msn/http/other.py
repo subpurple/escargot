@@ -433,10 +433,9 @@ def _get_msgr_config(req: web.Request, body: Optional[bytes]) -> str:
 		elif int(config_ver[0]) >= 14:
 			with open(TMPL_DIR + '/MsgrConfig.wlm.14.xml') as fh:
 				config = fh.read()
-			# TODO: Tabs in WLM 2009+
-			#with open(TMPL_DIR + '/tabs.xml') as fh:
-			#	config_tabs = fh.read()
-			result = config.format()
+			with open(TMPL_DIR + '/tabs.xml') as fh:
+				config_tabs = fh.read()
+			result = config.format(tabs = config_tabs)
 	elif body is not None:
 		with open(TMPL_DIR + '/MsgrConfig.msn.envelope.xml') as fh:
 			envelope = fh.read()
