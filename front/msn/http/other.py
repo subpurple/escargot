@@ -533,13 +533,16 @@ async def handle_rst(req: web.Request, rst2: bool = False) -> web.Response:
 	from lxml.objectify import fromstring as parse_xml
 	
 	body = await req.read()
-	root = parse_xml(body)
+	try:
+		root = parse_xml(body)
+	except:
+		return render(req, 'msn:RST/{}.error.xml'.format('RST2' if rst2 else 'RST'))
 	
 	email = find_element(root, 'Username')
 	pwd = str(find_element(root, 'Password'))
 
 	if email is None or pwd is None:
-		raise web.HTTPBadRequest()
+		return render(req, 'msn:RST/{}.error.xml'.format('RST2' if rst2 else 'RST'))
 	
 	backend: Backend = req.app['backend']
 	
@@ -571,7 +574,7 @@ async def handle_rst(req: web.Request, rst2: bool = False) -> web.Response:
 		assert tpl is not None
 		_, bsecret = tpl
 		
-		tmpl = req.app['jinja_env'].get_template(('msn:RST/RST2.token.xml' if rst2 else 'msn:RST/RST.token.xml'))
+		tmpl = req.app['jinja_env'].get_template('msn:RST/{}.token.xml'.format('RST2' if rst2 else 'RST'))
 		# collect tokens for requested domains
 		tokenxmls = [tmpl.render(
 			i = i + 1,
@@ -582,7 +585,7 @@ async def handle_rst(req: web.Request, rst2: bool = False) -> web.Response:
 			binarysecret = bsecret,
 		) for i, domain in enumerate(domains)]
 		
-		tmpl = req.app['jinja_env'].get_template(('msn:RST/RST2.xml' if rst2 else 'msn:RST/RST.xml'))
+		tmpl = req.app['jinja_env'].get_template('msn:RST/{}.xml'.format('RST2' if rst2 else 'RST'))
 		return web.HTTPOk(
 			content_type = 'text/xml',
 			text = (tmpl.render(
@@ -611,7 +614,7 @@ async def handle_rst(req: web.Request, rst2: bool = False) -> web.Response:
 			)),
 		)
 	
-	return render(req, 'msn:RST/RST.error.xml', {
+	return render(req, 'msn:RST/{}.authfailed.xml'.format('RST2' if rst2 else 'RST'), {
 		'timez': util.misc.date_format(datetime.utcnow()),
 	}, status = 403)
 
