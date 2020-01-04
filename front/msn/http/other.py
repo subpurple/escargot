@@ -616,7 +616,7 @@ async def handle_rst(req: web.Request, rst2: bool = False) -> web.Response:
 	
 	return render(req, 'msn:RST/{}.authfailed.xml'.format('RST2' if rst2 else 'RST'), {
 		'timez': util.misc.date_format(datetime.utcnow()),
-	}, status = 403)
+	})
 
 def _get_storage_path(uuid: str) -> Path:
 	return Path('storage/dp') / uuid[0:1] / uuid[0:2]
