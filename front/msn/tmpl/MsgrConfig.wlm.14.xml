@@ -1,14 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <MsgrConfig>
-	<Brands>
-		<Client v="def" bv="1.0.1.0">
-			<b i="FT01" v="10.0" f="FT01_fr-fr_R10.cab" u="http://g.msn.com/0USWLPIT/65" p="FT01"/>
-			<b i="FT01" v="9.0" f="FT01_fr-FR_R9.cab" u="http://g.msn.com/0USWLPIT/47" p="FT01" r="http://rad.msn.com/ADSAdClient31.dll?GetAD=&amp;PG=ORFRB1&amp;AP=1007"/>
-			<b i="FT01" v="7.0" f="FT01_fr-fr_R7.cab" u="http://g.msn.com/0USWLPIT/18" p="FT01" r="http://rad.msn.com/ADSAdClient31.dll?GetAD=&amp;PG=ORFRB1&amp;AP=1007"/>
-			<b i="FT02" v="7.0" f="FT02_fr-fr_R1.cab" u="http://g.msn.com/0USWLPIT/17" p="FT02" r="http://rad.msn.com/ADSAdClient31.dll?GetAD=&amp;PG=ORFRB1&amp;AP=1007"/>
-		</Client>
-		<Client v="2" CDNVER="http://cba.domains.live.com/cdn1" CDNCAB="http://cba.domains.live.com/cdn3" CDNPRV="http://cba.domains.live.com/prvw"/>
-	</Brands>
 	<Simple>
 		<Config>
 			<ExpiresInDays>0</ExpiresInDays>
