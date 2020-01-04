@@ -142,7 +142,6 @@ def build_p2p_msg_packet(bs: BackendSession, sess_id: int, p2p_dict: KVSType) ->
 	
 	yield (YMSGService.PeerToPeer, YMSGStatus.BRB, p2p_conn_dict)
 
-
 def build_ft_packet(bs: BackendSession, sess_id: int, xfer_dict: KVSType) -> Iterable[EncodedYMSG]:
 	user_to = bs.user
 	

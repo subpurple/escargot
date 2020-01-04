@@ -1844,19 +1844,19 @@ class MSNPCtrlNS(MSNPCtrl):
 		except:
 			return
 	
-	def _send_chl(self, trid: str) -> None:
-		backend = self.backend
-		
-		self.challenge = str(secrets.randbelow(89999999999999999999) + 10000000000000000000)
-		backend.loop.create_task(self._check_qry_sent(trid))
-		self.send_reply('CHL', 0, self.challenge)
-	
-	async def _check_qry_sent(self, trid: str) -> None:
-		await asyncio.sleep(50)
-		
-		if self.challenge:
-			self.send_reply(Err.ChallengeResponseFailed, trid)
-			self.close(hard = True)
+	#def _send_chl(self, trid: str) -> None:
+	#	backend = self.backend
+	#	
+	#	self.challenge = str(secrets.randbelow(89999999999999999999) + 10000000000000000000)
+	#	backend.loop.create_task(self._check_qry_sent(trid))
+	#	self.send_reply('CHL', 0, self.challenge)
+	#
+	#async def _check_qry_sent(self, trid: str) -> None:
+	#	await asyncio.sleep(50)
+	#	
+	#	if self.challenge:
+	#		self.send_reply(Err.ChallengeResponseFailed, trid)
+	#		self.close(hard = True)
 	
 	def _ser(self) -> Optional[int]:
 		if self.dialect >= 10:
@@ -2555,29 +2555,29 @@ CIRCLE = '<circle>{}</circle>'
 CIRCLE_PROPS = '<props><presence dtype="xml"><Data><UTL></UTL><MFN>{friendly}</MFN><PSM>{psm}</PSM><CurrentMedia>{cm}</CurrentMedia></Data></presence></props>'
 TIMESTAMP = '2000-01-01T00:00:00.0-00:00'
 
-_QRY_ID_CODES = {
-	# MSNP6 - 9
-	'msmsgs@msnmsgr.com': ('Q1P7W2E4J9R8U3S5', 10),
-	'PROD0038W!61ZTF9': ('VT6PX?UQTM4WM%YR', 10),
-	'PROD0058#7IL2{QD': ('QHDCY@7R1TB6W?5B', 10),
-	'PROD0061VRRZH@4F': ('JXQ6J@TUOGYV@N0M', 10),
-	'PROD00504RLUG%WL': ('I2EBK%PYNLZL5_J4', 10),
-	'PROD0076ENE8*@AW': ('CEQJ8}OE0!WTSWII', 10),
-	#'PROD00517IFH4@RV': ('<unknown>', 10),
-	# MSNP11 - 12
-	'PROD0090YUAUV{2B': ('YMM8C_H7KCQ2S_KL', 12),
-	'PROD0101{0RM?UBW': ('CFHUR$52U_{VIX5T', 12),
-	# MSNP13 - 14
-	'PROD01065C%ZFN6F': ('O4BG@C7BWLYQX?5G', 14),
-	'PROD0112J1LW7%NB': ('RH96F{PHI8PPX_TJ', 14),
-	# MSNP15+
-	'PROD0113H11T8$X_': ('RG@XY*28Q5QHS%Q5', 21),
-	'PROD0114ES4Z%Q5W': ('PK}_A_0N_K%O?A9S', 21),
-	'PROD0118R6%2WYOS': ('YIXPX@5I2P0UT*LK', 21),
-	'PROD0119GSJUC$18': ('ILTXC!4IXB5FB*PX', 21),
-	# Thanks J.M. for making the tweet with this WLM 2009 ID-key combo. ^_^
-	'PROD0120PW!CCV9@': ('C1BX{V4W}Q3*10SM', 21),
-}
+#_QRY_ID_CODES = {
+#	# MSNP6 - 9
+#	'msmsgs@msnmsgr.com': ('Q1P7W2E4J9R8U3S5', 10),
+#	'PROD0038W!61ZTF9': ('VT6PX?UQTM4WM%YR', 10),
+#	'PROD0058#7IL2{QD': ('QHDCY@7R1TB6W?5B', 10),
+#	'PROD0061VRRZH@4F': ('JXQ6J@TUOGYV@N0M', 10),
+#	'PROD00504RLUG%WL': ('I2EBK%PYNLZL5_J4', 10),
+#	'PROD0076ENE8*@AW': ('CEQJ8}OE0!WTSWII', 10),
+#	#'PROD00517IFH4@RV': ('<unknown>', 10),
+#	# MSNP11 - 12
+#	'PROD0090YUAUV{2B': ('YMM8C_H7KCQ2S_KL', 12),
+#	'PROD0101{0RM?UBW': ('CFHUR$52U_{VIX5T', 12),
+#	# MSNP13 - 14
+#	'PROD01065C%ZFN6F': ('O4BG@C7BWLYQX?5G', 14),
+#	'PROD0112J1LW7%NB': ('RH96F{PHI8PPX_TJ', 14),
+#	# MSNP15+
+#	'PROD0113H11T8$X_': ('RG@XY*28Q5QHS%Q5', 21),
+#	'PROD0114ES4Z%Q5W': ('PK}_A_0N_K%O?A9S', 21),
+#	'PROD0118R6%2WYOS': ('YIXPX@5I2P0UT*LK', 21),
+#	'PROD0119GSJUC$18': ('ILTXC!4IXB5FB*PX', 21),
+#	# Thanks J.M. for making the tweet with this WLM 2009 ID-key combo. ^_^
+#	'PROD0120PW!CCV9@': ('C1BX{V4W}Q3*10SM', 21),
+#}
 
 def _uuid_to_high_low(uuid_str: str) -> Tuple[int, int]:
 	import uuid
