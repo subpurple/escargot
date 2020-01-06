@@ -117,12 +117,9 @@ def build_presence_notif(trid: Optional[str], ctc_head: User, user_me: User, dia
 		if dialect >= 18:
 			reply = ('FLN', encode_email_networkid(head.email, None, groupchat = groupchat)) # type: Tuple[Any, ...]
 		else:
-			reply = ('FLN', head.email)
+			reply = ('FLN', head.email, (int(NetworkID.WINDOWS_LIVE) if 14 <= dialect <= 17 else None))
 		
-		if 13 <= dialect <= 17:
-			# Mypy incorrectly gives a type error here. Must be a bug.
-			reply += (int(NetworkID.WINDOWS_LIVE),) # type: ignore
-		if 13 <= dialect <= 15:
+		if 14 <= dialect <= 15:
 			reply += ('0',)
 		elif dialect >= 16:
 			reply += ('0:0',)
