@@ -18,7 +18,7 @@ import settings
 
 from core import event
 from core.backend import Backend, BackendSession, Chat, ChatSession
-from core.models import Substatus, Lst, NetworkID, User, OIM, GroupChat, GroupChatRole, GroupChatState, Contact, TextWithData, MessageData, MessageType, LoginOption
+from core.models import Substatus, Lst, NetworkID, User, Group, OIM, GroupChat, GroupChatRole, GroupChatState, Contact, TextWithData, MessageData, MessageType, LoginOption
 from core.client import Client
 
 from .msnp import MSNPCtrl
@@ -379,10 +379,12 @@ class MSNPCtrlNS(MSNPCtrl):
 			args = (user.status.name,) # type: Tuple[Any, ...]
 		else:
 			args = ()
-		if dialect >= 8:
+		if dialect >= 6:
 			#verified = user.verified
 			verified = True
-			args += ((1 if verified else 0), 0)
+			args += ((1 if verified else 0),)
+		if dialect >= 8:
+			args += (0,)
 		
 		self.send_reply('USR', trid, 'OK', user.email, *args)
 		
@@ -437,22 +439,33 @@ class MSNPCtrlNS(MSNPCtrl):
 			ser = self._ser()
 			if dialect < 7:
 				self.send_reply('SYN', trid, ser)
+				self.send_reply('GTC', trid, ser, settings.get('GTC', 'A'))
+				self.send_reply('BLP', trid, ser, settings.get('BLP', 'AL'))
+				if dialect >= 5:
+					for prp_setting in ('PHH','PHW','PHM','MOB','MBE'):
+						prp_value = settings.get(prp_setting)
+						if prp_value:
+							self.send_reply('PRP', ser, prp_setting, prp_value)
 				for lst in (Lst.FL, Lst.AL, Lst.BL, Lst.RL):
 					cs = [c for c in contacts.values() if c.lists & lst]
 					if cs:
 						for i, c in enumerate(cs):
-							self.send_reply('LST', trid, lst.name, ser, len(cs), i + 1, c.head.email, c.status.name or c.head.email)
+							self.send_reply('LST', trid, lst.name, ser, i + 1, len(cs), c.head.email, c.status.name or c.head.email)
 							if dialect >= 5:
 								for bpr_setting in ('PHH','PHM','PHW','MOB'):
 									bpr_value = c.head.settings.get(bpr_setting)
 									if bpr_value:
-										self.send_reply('BPR', bpr_setting, bpr_value)
+										self.send_reply('BPR', ser, bpr_setting, bpr_value)
 					else:
 						self.send_reply('LST', trid, lst.name, ser, 0, 0)
-				self.send_reply('GTC', trid, ser, settings.get('GTC', 'A'))
-				self.send_reply('BLP', trid, ser, settings.get('BLP', 'AL'))
 			elif dialect == 7:
 				self.send_reply('SYN', trid, ser)
+				self.send_reply('GTC', trid, ser, settings.get('GTC', 'A'))
+				self.send_reply('BLP', trid, ser, settings.get('BLP', 'AL'))
+				for prp_setting in ('PHH','PHW','PHM','MOB','MBE'):
+					prp_value = settings.get(prp_setting)
+					if prp_value:
+						self.send_reply('PRP', ser, prp_setting, prp_value)
 				num_groups = len(detail._groups_by_id.values()) + 1
 				self.send_reply('LSG', trid, ser, 1, num_groups, '0', "Other Contacts", 0)
 				for i, g in enumerate(detail._groups_by_id.values()):
@@ -466,11 +479,9 @@ class MSNPCtrlNS(MSNPCtrl):
 							for bpr_setting in ('PHH','PHM','PHW','MOB'):
 								bpr_value = c.head.settings.get(bpr_setting)
 								if bpr_value:
-									self.send_reply('BPR', bpr_setting, bpr_value)
+									self.send_reply('BPR', ser, bpr_setting, bpr_value)
 					else:
 						self.send_reply('LST', trid, lst.name, ser, 0, 0)
-				self.send_reply('GTC', trid, ser, settings.get('GTC', 'A'))
-				self.send_reply('BLP', trid, ser, settings.get('BLP', 'AL'))
 			else:
 				num_groups = len(detail._groups_by_id.values()) + 1
 				self.send_reply('SYN', trid, ser, len(contacts), num_groups)
@@ -501,10 +512,10 @@ class MSNPCtrlNS(MSNPCtrl):
 					self.send_reply('PRP', prp_setting, prp_value)
 			
 			for g in detail._groups_by_id.values():
-				self.send_reply('LSG', g.name, (g.id if self.dialect == 10 else g.uuid))
+				self.send_reply('LSG', g.name, g.uuid)
 			for c in contacts.values():
 				self.send_reply('LST', 'N={}'.format(c.head.email), 'F={}'.format(c.status.name or c.head.email), 'C={}'.format(c.head.uuid),
-					int(c.lists), (None if dialect < 12 else '1'), ','.join([(group.id if self.dialect == 10 else group.uuid) for group in c._groups.copy()])
+					int(c.lists), (None if dialect < 12 else '1'), ','.join([group.uuid for group in c._groups.copy()])
 				)
 				for bpr_setting in ('PHH','PHM','PHW','MOB'):
 					bpr_value = c.head.settings.get(bpr_setting)
@@ -603,22 +614,33 @@ class MSNPCtrlNS(MSNPCtrl):
 		except Exception as ex:
 			self.send_reply(Err.GetCodeForException(ex, self.dialect), trid)
 			return
-		self.send_reply('ADG', trid, self._ser(), name, (group.id if self.dialect < 11 else group.uuid), 0)
+		self.send_reply('ADG', trid, self._ser(), name, (group.id if self.dialect < 10 else group.uuid), 0)
 	
 	def _m_rmg(self, trid: str, group_id: str) -> None:
 		#>>> RMG 250 00000000-0000-0000-0001-000000000001
 		bs = self.bs
 		assert bs is not None
+		detail = bs.user.detail
+		assert detail is not None
+		
+		g = None # type: Optional[Group]
 		
 		if group_id == 'New%20Group':
 			# Bug: MSN 7.0 sends name instead of id in a particular scenario
-			detail = bs.user.detail
-			assert detail is not None
 			
 			for g in detail._groups_by_id.values():
 				if g.name != 'New Group': continue
-				group_id = (g.id if self.dialect < 11 else g.uuid)
+				group_id = (g.id if self.dialect < 10 else g.uuid)
 				break
+		else:
+			if self.dialect < 10:
+				g = detail._groups_by_id.get(group_id)
+			else:
+				g = detail._groups_by_uuid.get(group_id)
+			
+			if g is None:
+				self.send_reply(Err.GroupInvalid, trid)
+				return
 		
 		try:
 			bs.me_group_remove(group_id)
@@ -632,6 +654,17 @@ class MSNPCtrlNS(MSNPCtrl):
 		#>>> REG 275 00000000-0000-0000-0001-000000000001 newname
 		bs = self.bs
 		assert bs is not None
+		detail = bs.user.detail
+		assert detail is not None
+		
+		if self.dialect < 10:
+			g = detail._groups_by_id.get(group_id)
+		else:
+			g = detail._groups_by_uuid.get(group_id)
+		
+		if g is None:
+			self.send_reply(Err.GroupInvalid, trid)
+			return
 		
 		try:
 			bs.me_group_edit(group_id, new_name = name)
@@ -1573,10 +1606,13 @@ class MSNPCtrlNS(MSNPCtrl):
 	
 	def _m_sdc(self, trid: str, email: str, lcid: str, arg4: str, arg5: str, arg6: str, arg7: str, name: str, message: bytes) -> None:
 		# Also sends email about how to use MSN, but with the ability to plug in your display name and a custom message. Ignore too.
+		if self.dialect < 5:
+			self.close(hard = True)
+			return
 		self.send_reply('SDC', trid, 'OK')
 	
 	def _m_vas(self, trid: str, email: str, arg3: str, arg4: str, data: bytes) -> None:
-		# Report user as a spammer. Don't know how to respond.
+		# Report user. Don't know how to respond.
 		if self.dialect < 18:
 			self.close(hard = True)
 			return
@@ -1641,6 +1677,9 @@ class MSNPCtrlNS(MSNPCtrl):
 	def _m_sbp(self, trid: str, uuid: str, key: str, value: str) -> None:
 		#>>> SBP 153 00000000-0000-0000-0002-000000000002 MFN Bob%201%20New
 		# Can be ignored: core handles syncing contact names
+		if self.dialect >= 13 or self.dialect < 10:
+			self.close(hard = True)
+			return
 		self.send_reply('SBP', trid, uuid, key, value)
 	
 	def _m_xfr(self, trid: str, dest: str) -> None:
@@ -1722,6 +1761,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		
 		bs = self.bs
 		assert bs is not None
+		user = bs.user
 		
 		pop_id_self = None
 		
@@ -1735,33 +1775,37 @@ class MSNPCtrlNS(MSNPCtrl):
 		if ctc_head is None:
 			return
 		
+		if ctc_head.status.is_offlineish():
+			self.send_reply(Err.PrincipalNotOnline, trid)
+			return
+		
+		ctc_detail = self.backend._load_detail(ctc_head)
+		assert ctc_detail is not None
+		
+		ctc_me = ctc_detail.contacts.get(user.uuid)
+		if ctc_me is not None:
+			if ctc_me.lists & Lst.BL:
+				self.send_reply(Err.PrincipalNotOnline, trid)
+				return
+		else:
+			if ctc_head.settings.get('BLP', 'AL') == 'BL':
+				self.send_reply(Err.PrincipalNotOnline, trid)
+				return
+		
 		try:
 			uun_type = int(type)
 		except ValueError:
 			return
 		
-		if uun_type is not None:
-			if uun_type == 1 and data:
-				try:
-					snm = parse_xml(data.decode('utf-8'))
-					opcode = snm.get('opcode')
-					
-					if opcode in ('SNM','ACK'):
-						self.send_reply('UUN', trid, 'OK')
-				except:
-					return
-			elif uun_type in (3, 11):
-				# Initiating a voice call on WLM sends a `UUN` command with some integers instead of an `<SNM>` XML ('UUN <trid> <passport> 11\r\n\r\n1 1 0 134546710 144000000')
-				# Send a response in that case.
-				self.send_reply('UUN', trid, 'OK')
-		else:
-			return
+		if uun_type is None: return
 		
 		pop_id_self = bs.front_data.get('msn_pop_id')
 		
 		for sess_notify in self.backend.util_get_sessions_by_user(ctc_head):
 			#if sess_notify is self: continue
 			sess_notify.evt.msn_on_uun_sent(bs.user, uun_type, data, pop_id_sender = pop_id_self, pop_id = pop_id)
+		
+		self.send_reply('UUN', trid, 'OK')
 	
 	def _m_uum(self, trid: str, email: str, networkid: str, type: str, data: bytes) -> None:
 		# For federated messaging (with Yahoo!); also used in MSNP18+ for OIMs

@@ -228,7 +228,7 @@ class UserDetail:
 		
 		return group
 	
-	def get_groups_by_name(self, name: str) -> Optional[List['Group']]:
+	def get_groups_by_name(self, name: str) -> List['Group']:
 		groups = [] # type: List[Group]
 		for group in self._groups_by_id.values():
 			if group.name == name:
@@ -236,7 +236,7 @@ class UserDetail:
 		for group in self._groups_by_uuid.values():
 			if group.name == name:
 				if group not in groups: groups.append(group)
-		return groups or None
+		return groups
 	
 	def delete_group(self, grp: 'Group') -> None:
 		if grp.id in self._groups_by_id:
