@@ -34,9 +34,7 @@ def test_msnp_commands() -> None:
 	for ctc in user.detail.contacts.values():
 		if ctc.head.email == 'test2@example.com':
 			break
-	if not ctc or ctc.head.email != 'test2@example.com':
-		# Do stuff here
-		pass
+	assert ctc and ctc.head.email == 'test2@example.com'
 	assert ctc.lists == Lst.FL
 	#assert not ctc.groups
 	#nc1._l_adc(17, 'FL', 'C={}'.format(uuid), group_uuid)
@@ -60,7 +58,7 @@ def test_msnp_commands() -> None:
 	#nc1._l_rem(21, 'FL', uuid, group_uuid)
 	#w1.pop_message('REM', 21, 'FL', uuid, group_uuid)
 	#assert not user.detail.contacts[uuid].groups
-	# Remove "notvalid@email.com" from FL with `RML`; this will return an `OK` anyway as Messenger will remove non-existent contacts with this command
+	# Remove "notvalid@email.com" from FL with `RML`; this will return an `OK` anyway as Messenger will possibly already remove contacts with the `ABContactDelete` SOAP function beforehand and we want to avoid any conflicts between that and the NS.
 	nc1._m_rml('11', b'<ml><d n="email.com"><c n="notvalid" l="1" t="1" /></d></ml>')
 	w1.pop_message('RML', '11', 'OK')
 	# Remove "test2@example.com" from FL with `RML`

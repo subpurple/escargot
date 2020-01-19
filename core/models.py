@@ -44,7 +44,7 @@ class Contact:
 		# `status`: status as known by the contact
 		self.status = status
 		self.is_messenger_user = _default_if_none(is_messenger_user, True)
-		self.pending = _default_if_none(pending, True)
+		self.pending = _default_if_none(pending, False)
 		self.detail = detail
 	
 	def compute_visible_status(self, to_user: User) -> None:

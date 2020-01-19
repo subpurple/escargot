@@ -874,6 +874,8 @@ class BackendSession(Session):
 		elif (lst == Lst.RL or lst == Lst.PL) and ctc.pending:
 			ctc.pending = False
 			updated = True
+		else:
+			raise error.ContactNotOnList()
 		
 		if not ctc.lists:
 			del contacts[ctc_head.uuid]

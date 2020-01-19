@@ -514,8 +514,14 @@ class MSNPCtrlNS(MSNPCtrl):
 			for g in detail._groups_by_id.values():
 				self.send_reply('LSG', g.name, g.uuid)
 			for c in contacts.values():
+				lists = c.lists
+				if c.pending:
+					# Forge `PL` to lists for pending contacts
+					lists |= Lst.PL
+					if lists & Lst.RL:
+						lists &= ~Lst.RL
 				self.send_reply('LST', 'N={}'.format(c.head.email), 'F={}'.format(c.status.name or c.head.email), 'C={}'.format(c.head.uuid),
-					int(c.lists), (None if dialect < 12 else '1'), ','.join([group.uuid for group in c._groups.copy()])
+					int(lists), (None if dialect < 12 else '1'), ','.join([group.uuid for group in c._groups.copy()])
 				)
 				for bpr_setting in ('PHH','PHM','PHW','MOB'):
 					bpr_value = c.head.settings.get(bpr_setting)
@@ -1953,8 +1959,9 @@ class BackendEventHandler(event.BackendEventHandler):
 		assert bs is not None
 		user = bs.user
 		
-		for m in build_presence_notif(None, user, user, self.ctrl.dialect, self.ctrl.backend, self.ctrl.iln_sent, self_presence = True):
-			self.ctrl.send_reply(*m)
+		if self.ctrl.iln_sent:
+			for m in build_presence_notif(None, user, user, self.ctrl.dialect, self.ctrl.backend, self.ctrl.iln_sent, self_presence = True):
+				self.ctrl.send_reply(*m)
 		return
 	
 	def on_chat_invite(self, chat: Chat, inviter: User, *, group_chat: bool = False, inviter_id: Optional[str] = None, invite_msg: str = '') -> None:
@@ -1985,8 +1992,8 @@ class BackendEventHandler(event.BackendEventHandler):
 		assert detail is not None
 		
 		if dialect < 13:
-			bs.me_contact_remove(user.uuid, Lst.PL)
 			if dialect < 10:
+				bs.me_contact_remove(user.uuid, Lst.PL)
 				m: Tuple[Any, ...] = ('ADD', 0, self.ctrl._ser(), Lst.RL.name, email, name)
 			else:
 				m = ('ADC', 0, Lst.RL.name, 'N={}'.format(email), 'F={}'.format(name))
@@ -2014,7 +2021,7 @@ class BackendEventHandler(event.BackendEventHandler):
 		assert detail is not None
 		
 		if dialect < 13:
-			m: Tuple[Any, ...] = ('REM', 0, Lst.RL.name, 'N={}'.format(email))
+			m: Tuple[Any, ...] = ('REM', 0, Lst.RL.name, email)
 		else:
 			username, domain = email.split('@', 1)
 			rml_payload = '<ml><d n="{}"><c n="{}" t="1" l="{}" /></d></ml>'.format(
