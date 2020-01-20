@@ -78,7 +78,14 @@ class BackendEventHandler(event.BackendEventHandler):
 		pass
 	
 	def on_added_me(self, user: User, *, adder_id: Optional[str] = None, message: Optional[TextWithData] = None) -> None:
-		pass
+		# Auto-remove people from pending list
+		bs = self.bs
+		detail = bs.user.detail
+		assert detail is not None
+		
+		ctc = detail.contacts.get(user.uuid)
+		if ctc is not None:
+			bs.me_contact_remove(ctc.head.uuid, Lst.PL)
 	
 	def on_removed_me(self, user: User) -> None:
 		pass

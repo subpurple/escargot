@@ -5,11 +5,15 @@ http://web.archive.org/web/20010801212305/http://www.venkydude.com:80/articles/y
 http://libyahoo2.sourceforge.net/ymsg-9.txt (YMSG9)
 http://www.engr.mun.ca/~sircar/ymsg9.htm (YMSG9)
 http://web.archive.org/web/20020806213426/http://www.venkydude.com:80/articles/yahoo.htm (YMSG9, Archive of http://www.venkydude.com/articles/yahoo.htm from 2002)
+http://web.archive.org/web/20021203013158/http://www.cse.iitb.ac.in/varunk/YahooProtocol.php (YMSG9)
 http://web.archive.org/web/20030811172816/http://venkydude.com:80/articles/yahoo.htm (YMSG10, Archive of http://www.venkydude.com/articles/yahoo.htm from 2003)
 
 --- YMSG11 ---
 http://web.archive.org/web/20031205031525/venkydude.com/articles/yahoo.htm (Archive of http://www.venkydude.com/articles/yahoo.htm from 2003, first revision)
 https://web.archive.org/web/20100615081758/http://www.venkydude.com/articles/yahoo.htm (Last archive of http://www.venkydude.com/articles/yahoo.htm from 2010, second revision)
+
+--- YMSG12 ---
+http://web.archive.org/web/20070910203807/http://www.ycoderscookbook.com/index.html
 
 --- YMSG16 ---
 https://wiki.imfreedom.org/wiki/Yahoo
@@ -18,6 +22,10 @@ http://web.archive.org/web/20090912133315/http://www.adrensoftware.com/tools/yah
 
 --- YMSG18 ---
 http://web.archive.org/web/20120626082942/http://www.adrensoftware.com/tools/yahoo_v16_protocol.php
+
+--- Misc. ---
+https://github.com/ifwe/digsby/blob/master/digsby/src/yahoo/
+https://bitbucket.org/pidgin/main/src/soc.2006.msnp13/src/protocols/yahoo/
 
 --- Yahoo! Messenger client archives ---
 http://www.oldversion.com/windows/yahoo-messenger/

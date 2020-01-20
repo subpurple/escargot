@@ -79,11 +79,9 @@ class YMSGCtrlPager(YMSGCtrlBase):
 				(b'66', str(int(YMSGStatus.NotAtHome)).encode('utf-8'))
 			]) # type: MultiDict[bytes, bytes]
 			self.send_reply(YMSGService.AuthResp, YMSGStatus.LoginError, 0, kvs)
+			self.close()
 			return
 		
-		if self.yahoo_id in PRE_SESSION_ID:
-			self.close(remove_sess_id = True)
-			return
 		self.sess_id = secrets.randbelow(4294967294) + 1
 		PRE_SESSION_ID[self.yahoo_id] = self.sess_id
 		
@@ -130,6 +128,8 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		]) # type: MultiDict[bytes, bytes]
 		if yahoo_id != self.yahoo_id or yahoo_id_actual != yahoo_id:
 			self.send_reply(YMSGService.AuthResp, YMSGStatus.LoginError, self.sess_id, kvs_error)
+			self.close()
+			return
 		is_resp_correct = self._verify_challenge_v1(yahoo_id, resp_6, resp_96)
 		if is_resp_correct:
 			uuid = yahoo_id_to_uuid(self.backend, yahoo_id)
@@ -144,6 +144,8 @@ class YMSGCtrlPager(YMSGCtrlBase):
 					tpl = list(yahoo_data.getall(b'59') or [])
 					if len(tpl) != 2:
 						self.send_reply(YMSGService.LogOff, YMSGStatus.Available, 0, None)
+						self.close()
+						return
 					y = arbitrary_decode(tpl[0])
 					t = arbitrary_decode(tpl[1])
 				bs = self.backend.login(uuid, self.client, BackendEventHandler(self.backend.loop, self), option = LoginOption.BootOthers)
@@ -156,6 +158,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		if not is_resp_correct:
 			self.yahoo_id = None
 			self.send_reply(YMSGService.AuthResp, YMSGStatus.LoginError, self.sess_id, kvs_error)
+			self.close()
 	
 	def _util_authresp_final(self, status: YMSGStatus, *, cached_y: Optional[str] = None, cached_t: Optional[str] = None) -> None:
 		bs = self.bs
@@ -927,8 +930,8 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		
 		list_reply_kvs = MultiDict() # type: MultiDict[bytes, bytes]
 		
-		if len(contact_list_format) > 750:
-			contact_chunks = split_to_chunks(contact_list_format, 750)
+		if len(contact_list_format) > 815:
+			contact_chunks = split_to_chunks(contact_list_format, 815)
 			for contact_chunk in contact_chunks:
 				self.send_reply(YMSGService.List, YMSGStatus.NotInOffice, self.sess_id, MultiDict([
 					(b'87', arbitrary_encode(contact_chunk)),
@@ -936,8 +939,8 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		else:
 			list_reply_kvs.add(b'87', arbitrary_encode(contact_list_format))
 		
-		if len(ignore_list_format) > 750:
-			ignore_chunks = split_to_chunks(ignore_list_format, 750)
+		if len(ignore_list_format) > 815:
+			ignore_chunks = split_to_chunks(ignore_list_format, 815)
 			for ignore_chunk in ignore_chunks:
 				self.send_reply(YMSGService.List, YMSGStatus.NotInOffice, self.sess_id, MultiDict([
 					(b'88', ignore_chunk.encode('utf-8')),
@@ -973,13 +976,15 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		
 		self.send_reply(YMSGService.List, YMSGStatus.Available, self.sess_id, list_reply_kvs)
 		
+		cs_fl_online = [c for c in cs_fl if not c.status.is_offlineish()]
+		
 		logon_payload = MultiDict([
 			(b'0', arbitrary_encode(self.yahoo_id or '')),
 			(b'1', arbitrary_encode(self.yahoo_id or '')),
-			(b'8', str(len(cs_fl)).encode('utf-8')),
+			(b'8', str(len(cs_fl_online)).encode('utf-8')),
 		]) # type: MultiDict[bytes, bytes]
 		
-		for c in cs_fl:
+		for c in cs_fl_online:
 			add_contact_status_to_data(logon_payload, c.status, c.head)
 		
 		self.send_reply(YMSGService.LogOn, YMSGStatus.Available, self.sess_id, logon_payload)
@@ -1180,10 +1185,7 @@ def add_contact_status_to_data(data: Any, status: UserStatus, contact: User, *, 
 	elif sess_id is not None:
 		key_11_val = binascii.hexlify(struct.pack('!I', sess_id)).decode().upper()
 	else:
-		if not (old_substatus.is_offlineish() and is_offlineish):
-			key_11_val = contact.uuid[:8].upper()
-		else:
-			key_11_val = '0'
+		key_11_val = '0'
 	
 	data.add(b'7', user_yahoo_id.encode('utf-8'))
 	
@@ -1408,6 +1410,7 @@ class BackendEventHandler(event.BackendEventHandler):
 	
 	def on_login_elsewhere(self, option: LoginOption) -> None:
 		if option is LoginOption.BootOthers:
+			self.ctrl.send_reply(YMSGService.LogOff, YMSGStatus.LoginError, self.sess_id, None)
 			self.ctrl.close()
 	
 	def on_close(self) -> None:
