@@ -434,6 +434,8 @@ class MSNPCtrlNS(MSNPCtrl):
 		
 		contacts = detail.contacts
 		
+		self.syn_sent = True
+		
 		if dialect < 10:
 			self.syn_ser = int(extra[0])
 			ser = self._ser()
@@ -500,7 +502,6 @@ class MSNPCtrlNS(MSNPCtrl):
 						bpr_value = c.head.settings.get(bpr_setting)
 						if bpr_value:
 							self.send_reply('BPR', bpr_setting, bpr_value)
-			self.syn_sent = True
 		elif 10 <= self.dialect <= 12:
 			self.send_reply('SYN', trid, TIMESTAMP, TIMESTAMP, len(contacts), len(detail._groups_by_id.values()))
 			self.send_reply('GTC', settings.get('GTC', 'A'))
@@ -527,7 +528,6 @@ class MSNPCtrlNS(MSNPCtrl):
 					bpr_value = c.head.settings.get(bpr_setting)
 					if bpr_value:
 						self.send_reply('BPR', bpr_setting, bpr_value)
-			self.syn_sent = True
 		else:
 			self.send_reply(Err.CommandDisabled, trid)
 			return
