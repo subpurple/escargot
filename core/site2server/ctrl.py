@@ -224,9 +224,10 @@ class S2SCtrl:
 	async def _ping_conn(self) -> None:
 		while True:
 			await asyncio.sleep(60)
-			if not self.alive:
-				self.close()
-				break
+			if self.closed or not self.alive:
+				if not self.alive:
+					self.close()
+					break
 			self.alive = False
 			self.current_challenge = gen_salt()
 			self.send_reply('PING', ':{}'.format(self.current_challenge))
