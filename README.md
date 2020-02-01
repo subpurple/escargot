@@ -13,6 +13,8 @@ Currently, MSNP2 through MSNP18 are implemented. Its been tested and works with 
 
 - Because of MSNP limitations, if you want to log in to MSN < 5, you have to store an MD5-encoded password (`User.front_data['msn']['pw_md5']`)
 
+- Some WLM 8 betas don't work with Escargot even though it supports their protocol mainly due to the way they login or subtle differences in the way they use services
+
 - Circles/Groups for WLM 2009 are fully implemented. However, managing member roles is expected to be done from an external source (in Messenger's case, a website). Running `script/managegrpchat.py` will let you perform a few actions on a group chat and its users (run `python script/managegrpchat.py -h` to see instructions)
 
 YMSG:
