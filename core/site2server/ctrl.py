@@ -227,7 +227,7 @@ class S2SCtrl:
 			if self.closed or not self.alive:
 				if not self.alive:
 					self.close()
-					break
+				break
 			self.alive = False
 			self.current_challenge = gen_salt()
 			self.send_reply('PING', ':{}'.format(self.current_challenge))
