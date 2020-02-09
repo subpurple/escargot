@@ -9,7 +9,7 @@ import settings
 
 from .ymsg_ctrl import YMSGCtrlBase
 
-def register(loop: asyncio.AbstractEventLoop, backend: Backend, http_app: web.Application) -> None:
+def register(loop: asyncio.AbstractEventLoop, backend: Backend, http_app: web.Application, *, devmode: bool = False) -> None:
 	from util.misc import ProtocolRunner
 	from . import pager, http, voicechat, videochat
 	

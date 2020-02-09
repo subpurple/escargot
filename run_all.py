@@ -19,7 +19,7 @@ def main(*, devmode: bool = False) -> None:
 		front.msn.register(loop, backend, http_app)
 	if settings.ENABLE_FRONT_YMSG:
 		import front.ymsg
-		front.ymsg.register(loop, backend, http_app)
+		front.ymsg.register(loop, backend, http_app, devmode = devmode)
 	if settings.ENABLE_FRONT_IRC:
 		import front.irc
 		front.irc.register(loop, backend, devmode = devmode)

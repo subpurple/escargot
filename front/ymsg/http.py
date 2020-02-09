@@ -23,22 +23,22 @@ YAHOO_TMPL_DIR = 'front/ymsg/tmpl'
 FILE_STORE_PATH = '/storage/file/{filename}'
 _tasks_by_token = {} # type: Dict[str, asyncio.Task[None]]
 
-def register(app: web.Application) -> None:
+def register(app: web.Application, *, devmode: bool = False) -> None:
 	util.misc.add_to_jinja_env(app, 'ymsg', YAHOO_TMPL_DIR)
 	
 	# Yahoo! Insider
-	# TODO: This should run under HTTP
 	app.router.add_get('/ycontent/', handle_insider_ycontent)
 	
 	# Yahoo! Chat/Ads
-	# TODO: These should run under HTTP
 	app.router.add_get('/us.yimg.com/i/msgr/chat/conf-banner.html', handle_chat_banad)
 	app.router.add_get('/c/msg/tabs.html', handle_chat_tabad)
 	app.router.add_get('/etc/yahoo-tab-ad', handle_chat_tabad)
 	app.router.add_get('/c/msg/chat.html', handle_chat_notice)
 	app.router.add_get('/c/msg/alerts.html', handle_chat_alertad)
 	app.router.add_get('/etc/yahoo-placeholder', handle_placeholder)
-	app.router.add_static('/etc/img', YAHOO_TMPL_DIR + '/placeholders/img')
+	
+	if devmode:
+		app.router.add_static('/static/img', YAHOO_TMPL_DIR + '/static/img')
 	
 	# Yahoo!'s redirector to cookie-based services
 	#app.router.add_get('/config/reset_cookies', handle_cookies_redirect)
@@ -48,7 +48,6 @@ def register(app: web.Application) -> None:
 	app.router.add_get('/messenger/client/', handle_rd_yahoo)
 	
 	# Yahoo HTTP file transfer fallback
-	# TODO: These should run under HTTP too
 	app.router.add_post('/notifyft', handle_ft_http)
 	app.router.add_get(FILE_STORE_PATH, handle_yahoo_filedl)
 

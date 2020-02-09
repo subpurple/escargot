@@ -34,8 +34,6 @@ def register(app: web.Application) -> None:
 		'datetime': datetime,
 	})
 	
-	# TODO: `/svcs/mms/tabs.asp` and the `Xmeen_XX` handler should run under HTTP
-	
 	# MSN >= 5
 	app.router.add_get('/nexus-mock', handle_nexus)
 	app.router.add_get('/rdr/pprdr.asp', handle_nexus)

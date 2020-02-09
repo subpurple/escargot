@@ -2,9 +2,10 @@
 # used as the "default" certificate for non-SNI requests (WinXP).
 
 # MSN Gateway only works over HTTP
-http://*.log1p.xyz/gateway/gateway.dll {
-	proxy /gateway/gateway.dll 127.0.0.1:8081 {
+http://*.log1p.xyz/gateway/gateway.dll, http://*.log1p.xyz/etc/text-ad-service, http://*.log1p.xyz/svcs/mms/tabs.asp, http://*.log1p.xyz/*meen_*/*, http://*.log1p.xyz/static/*. http://*.log1p.xyz/ycontent/, http://*.log1p.xyz/us.yimg.com/i/msgr/chat/conf-banner.html, http://*.log1p.xyz/c/msg/*, http://*.log1p.xyz/etc/yahoo-tab-ad, http://*.log1p.xyz/etc/yahoo-placeholder, http://*.log1p.xyz/messenger/search/, http://*.log1p.xyz/messenger/client/, http://*.log1p.xyz/notifyft, http://*,log1p.xyz/storage/file/* {
+	proxy {uri} 127.0.0.1:8081 {
 		transparent
+		except /static
 	}
 	root /var/www/escargot/server
 }
@@ -22,11 +23,7 @@ m00000001.escargot.log1p.xyz {
 	}
 	proxy / 127.0.0.1:8081 {
 		transparent
-	}
-	redir {
-		if {scheme} is http
-		if {path} not /etc/text-ad-service
-		/ https://{host}{uri}
+		except /static
 	}
 	root /var/www/escargot/server
 }
