@@ -24,7 +24,7 @@ def register(loop: asyncio.AbstractEventLoop, backend: Backend, http_app: web.Ap
 	#backend.add_runner(ProtocolRunner('0.0.0.0', 80, ListenerYMSG, args = ['YH', backend, pager.YMSGCtrlPager]))
 	backend.add_runner(ProtocolRunner('0.0.0.0', 8001, ListenerYMSG, args = ['YH', backend, pager.YMSGCtrlPager]))
 	backend.add_runner(ProtocolRunner('0.0.0.0', 8002, ListenerYMSG, args = ['YH', backend, pager.YMSGCtrlPager]))
-	http.register(http_app)
+	http.register(http_app, devmode = devmode)
 	#voicechat.register(backend)
 	videochat.register(backend)
 

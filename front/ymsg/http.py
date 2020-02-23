@@ -38,7 +38,7 @@ def register(app: web.Application, *, devmode: bool = False) -> None:
 	app.router.add_get('/etc/yahoo-placeholder', handle_placeholder)
 	
 	if devmode:
-		app.router.add_static('/static/img', YAHOO_TMPL_DIR + '/static/img')
+		app.router.add_static('/static', YAHOO_TMPL_DIR + '/static')
 	
 	# Yahoo!'s redirector to cookie-based services
 	#app.router.add_get('/config/reset_cookies', handle_cookies_redirect)

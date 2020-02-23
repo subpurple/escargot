@@ -244,11 +244,15 @@ class MSNPCtrlSB(MSNPCtrl):
 		cs = self.cs
 		assert cs is not None
 		
-		if len(data) > 1664:
+		if ack not in ('U','N','A','D') or len(data) > 1664:
 			self.close(hard = True)
 			return
 		
-		cs.send_message_to_everyone(messagedata_from_msnp(cs.user, bs.front_data.get('msn_pop_id'), data))
+		try:
+			cs.send_message_to_everyone(messagedata_from_msnp(cs.user, bs.front_data.get('msn_pop_id'), ack, data))
+		except error.SpecialMessageNotSentWithDType:
+			self.close(hard = True)
+			return
 		
 		# TODO: Implement ACK/NAK
 		if ack == 'U':
@@ -335,7 +339,7 @@ class ChatEventHandler(event.ChatEventHandler):
 	def on_close(self) -> None:
 		self.ctrl.close()
 
-def messagedata_from_msnp(sender: User, sender_pop_id: Optional[str], data: bytes) -> MessageData:
+def messagedata_from_msnp(sender: User, sender_pop_id: Optional[str], ack: str, data: bytes) -> MessageData:
 	# TODO: Implement these `Content-Type`s:
 	# voice:
 	# b'MIME-Version: 1.0\r\nContent-Type: text/x-msmsgsinvite; charset=UTF-8\r\n\r\nInvitation-Command: CANCEL\r\nCancel-Code: TIMEOUT\r\nInvitation-Cookie: 126868552\r\nSession-ID: {CE64F989-2AAD-44C4-A780-2C55A812B0B6}\r\nConn-Type: Firewall\r\nSip-Capability: 1\r\n\r\n'
@@ -352,34 +356,38 @@ def messagedata_from_msnp(sender: User, sender_pop_id: Optional[str], data: byte
 		i = data.index(b'\r\n\r\n') + 4
 		headers = Parser().parsestr(data[:i].decode('utf-8'))
 		body_raw = data[i:]
-		
-		content_type = headers.get('Content-Type')
-		if content_type is not None:
-			content_type = str(content_type)
-			if content_type.startswith('text/x-msmsgscontrol'):
-				type = MessageType.Typing
+	except:
+		type = MessageType.Chat
+		text = "(Unsupported MSNP Content-Type)"
+	
+	content_type = headers.get_content_type()
+	if content_type is not None:
+		if content_type == 'text/x-msmsgscontrol':
+			type = MessageType.Typing
+			text = ''
+		elif content_type == 'text/x-msnmsgr-datacast':
+			body = body_raw.decode('utf-8')
+			id_start = body.index('ID:') + 3
+			id_end = body.index('\r\n', id_start)
+			id = body[id_start:id_end].strip()
+			if id is '1':
+				type = MessageType.Nudge
 				text = ''
-			elif content_type.startswith('text/x-msnmsgr-datacast'):
-				body = body_raw.decode('utf-8')
-				id_start = body.index('ID:') + 3
-				id_end = body.index('\r\n', id_start)
-				id = body[id_start:id_end].strip()
-				if id is '1':
-					type = MessageType.Nudge
-					text = ''
-				else:
-					type = MessageType.Chat
-					text = "(Unsupported MSNP Content-Type)"
-			elif content_type.startswith('text/plain'):
-				type = MessageType.Chat
-				text = body_raw.decode('utf-8')
 			else:
 				type = MessageType.Chat
 				text = "(Unsupported MSNP Content-Type)"
+		elif content_type == 'application/x-msnmsgrp2p':
+			if ack != 'D':
+				raise error.SpecialMessageNotSentWithDType()
+			type = MessageType.Chat
+			text = "(Unsupported MSNP Content-Type)"
+		elif content_type == 'text/plain':
+			type = MessageType.Chat
+			text = body_raw.decode('utf-8')
 		else:
 			type = MessageType.Chat
 			text = "(Unsupported MSNP Content-Type)"
-	except:
+	else:
 		type = MessageType.Chat
 		text = "(Unsupported MSNP Content-Type)"
 	

@@ -25,6 +25,9 @@ class ContactAlreadyOnList(ClientError):
 class NicknameExceedsLengthLimit(ClientError):
 	pass
 
+class SpecialMessageNotSentWithDType(ClientError):
+	pass
+
 class EmptyDomainInXXL(ClientError):
 	pass
 
