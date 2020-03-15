@@ -89,13 +89,16 @@ class YMSGCtrlPager(YMSGCtrlBase):
 			(b'1', arbitrary_encode(self.yahoo_id or '')),
 		]) # type: MultiDict[bytes, bytes]
 		
-		if 9 <= self.dialect <= 10:
+		if self.dialect == 9:
 			self.challenge = generate_challenge_v1()
 			auth_dict.add(b'94', self.challenge)
-		elif self.dialect <= 11:
+		elif self.dialect >= 10:
 			# Implement V2 challenge string generation later
-			auth_dict.add(b'94', b'')
-			auth_dict.add(b'13', b'1')
+			# YMSG10 apparently supported the v2 challenge response too, use YMSG9 auth for that protocol for now
+			if self.dialect == 10:
+				self.challenge = generate_challenge_v1()
+			auth_dict.add(b'94', self.challenge or b'')
+			auth_dict.add(b'13', (b'0' if self.dialect == 10 else b'1'))
 		
 		self.send_reply(YMSGService.Auth, YMSGStatus.BRB, self.sess_id, auth_dict)
 	
