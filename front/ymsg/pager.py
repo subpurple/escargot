@@ -98,7 +98,8 @@ class YMSGCtrlPager(YMSGCtrlBase):
 			if self.dialect == 10:
 				self.challenge = generate_challenge_v1()
 			auth_dict.add(b'94', self.challenge or b'')
-			auth_dict.add(b'13', (b'0' if self.dialect == 10 else b'1'))
+			if self.dialect >= 11:
+				auth_dict.add(b'13', b'1')
 		
 		self.send_reply(YMSGService.Auth, YMSGStatus.BRB, self.sess_id, auth_dict)
 	
