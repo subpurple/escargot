@@ -56,7 +56,7 @@ Contributions are welcome via MR (Merge Requests). You don't need to request pro
 			- 9.0.1407.1107: https://archive.org/download/MsnMessengerClients2/Windows%20Live%20Messenger%209.0.1407.1107%20%28English%20-%20United%20States%29.zip
 			- 14.0.8117.0416: https://archive.org/download/MsnMessengerClients2/Windows%20Live%20Messenger%2014.0.8117.0416%20%28English%29.zip
 		
-		- **(14.x only):** install the [Windows Live Communications Platform](http://messenger.jonathankay.com/redir/w3qfe2update/contacts.asp)
+		- **(14.x only):** install the [Windows Live Communications Platform](http://messenger.jonathankay.com/redir/w3qfe2update/contacts.asp) if you don't have it installed already through Windows Live Essentials 2009 - 2012 or otherwise
 		
 		- in your `HOSTS` add:
 		```
@@ -71,7 +71,7 @@ Contributions are welcome via MR (Merge Requests). You don't need to request pro
 		127.0.0.1 rsi.hotmail.com
 		```
 		
-		- *to uninstall 14.x: run* `msiexec /x {B57EAFF2-D6EE-4C6C-9175-ED9F17BFC1BC}`
+		- *to uninstall 14.x: run* `msiexec /x {B57EAFF2-D6EE-4C6C-9175-ED9F17BFC1BC}` *(uninstalls Messenger), and if you don't have any other Essentials programs installed, run* `msiexec /x {ED00D08A-3C5F-488D-93A0-A04F21F23956}` *(uninstalls Communications Platform)*
 	
 	(Note about the `127.0.0.1 login.live.com` entry: **BE SURE TO REMOVE IT OR COMMENT IT OUT AFTER TESTING OR ELSE YOU WON'T BE ABLE TO LOG ON TO ANYTHING USING MICROSOFT SERVICES (THIS INCLUDES USING A MICROSOFT ACCOUNT ON WINDOWS 8 - 10 FOR YOUR DESKTOP)!!**)
 
