@@ -22,7 +22,7 @@ async def _clean_gateway_sessions(gateway_sessions: Dict[str, 'GatewaySession'])
 		closed = []
 		for session_id, gwsess in gateway_sessions.items():
 			if gwsess.time_last_connect + gwsess.timeout <= now:
-				gwsess.controller.close(hard = True)
+				gwsess.controller.close()
 				closed.append(session_id)
 		for session_id in closed:
 			del gateway_sessions[session_id]

@@ -53,7 +53,7 @@ class MSNPCtrlSB(MSNPCtrl):
 		#>>> USR trid email@example.com;{00000000-0000-0000-0000-000000000000} token (MSNP >= 16)
 		self.auth_sent = True
 		if trid is None or arg is None or token is None or len(args) > 0:
-			self.close(hard = True)
+			self.close()
 			return
 		
 		(email, pop_id) = decode_email_pop(arg)
@@ -61,14 +61,14 @@ class MSNPCtrlSB(MSNPCtrl):
 		data = self.backend.auth_service.pop_token('sb/xfr', token) # type: Optional[Tuple[BackendSession, int]]
 		if data is None:
 			self.send_reply(Err.AuthFail, trid)
-			self.close(hard = True)
+			self.close()
 			return
 		
 		bs, dialect = data
 		bs_pop_id = bs.front_data.get('msn_pop_id') or ''
 		if bs.user.email != email or (dialect >= 16 and pop_id is not None and bs_pop_id.lower() != normalize_pop_id(pop_id).lower()):
 			self.send_reply(Err.AuthFail, trid)
-			self.close(hard = True)
+			self.close()
 			return
 		
 		chat = self.backend.chat_create()
@@ -92,7 +92,7 @@ class MSNPCtrlSB(MSNPCtrl):
 		#>>> ANS trid email@example.com;{00000000-0000-0000-0000-000000000000} token sessionid (MSNP >= 16)
 		self.auth_sent = True
 		if trid is None or arg is None or token is None or sessid is None or len(args) > 0:
-			self.close(hard = True)
+			self.close()
 			return
 		
 		(email, pop_id) = decode_email_pop(arg)
@@ -100,23 +100,23 @@ class MSNPCtrlSB(MSNPCtrl):
 		data = self.backend.auth_service.get_token('sb/cal', token) # type: Optional[Tuple[BackendSession, int, Chat]]
 		if data is None:
 			self.send_reply(Err.AuthFail, trid)
-			self.close(hard = True)
+			self.close()
 			return
 		expiry = self.backend.auth_service.get_token_expiry('sb/cal', token) or 0
 		self.backend.auth_service.pop_token('sb/cal', token)
 		if round(time.time() - expiry) >= 60:
-			self.close(hard = True)
+			self.close()
 			return
 		
 		(bs, dialect, chat) = data
 		bs_pop_id = bs.front_data.get('msn_pop_id') or ''
 		if bs.user.email != email or (dialect >= 16 and pop_id is not None and bs_pop_id.lower() != normalize_pop_id(pop_id).lower()):
 			self.send_reply(Err.AuthFail, trid)
-			self.close(hard = True)
+			self.close()
 			return
 		
 		if chat is None or sessid != chat.ids.get('main'):
-			self.close(hard = True)
+			self.close()
 			return
 		
 		try:
@@ -245,13 +245,13 @@ class MSNPCtrlSB(MSNPCtrl):
 		assert cs is not None
 		
 		if ack not in ('U','N','A','D') or len(data) > 1664:
-			self.close(hard = True)
+			self.close()
 			return
 		
 		try:
 			cs.send_message_to_everyone(messagedata_from_msnp(cs.user, bs.front_data.get('msn_pop_id'), ack, data))
 		except error.SpecialMessageNotSentWithDType:
-			self.close(hard = True)
+			self.close()
 			return
 		
 		# TODO: Implement ACK/NAK
@@ -272,7 +272,7 @@ class MSNPCtrlSB(MSNPCtrl):
 		
 		if counter == 1:
 			if not self.auth_sent:
-				self.close(hard = True)
+				self.close()
 
 class ChatEventHandler(event.ChatEventHandler):
 	__slots__ = ('ctrl',)

@@ -82,20 +82,20 @@ class MSNPCtrlNS(MSNPCtrl):
 		#>>> VER trid MSNPz MSNPy MSNPx [CVR0]
 		if self.dialect != 0:
 			self.send_reply(Err.NotExpected, trid)
-			self.close(hard = True)
+			self.close()
 			return
 		
 		dialects = [a.upper() for a in args]
 		try:
 			t = int(trid)
 		except ValueError:
-			self.close(hard = True)
+			self.close()
 		d = None
 		for d in MSNP_DIALECTS:
 			if d in dialects: break
 		if d not in dialects:
 			self.send_reply('VER', trid, 0)
-			self.close(hard = True)
+			self.close()
 			return
 		self.client = Client('msn', d, self.client.via)
 		self.dialect = int(d[4:])
@@ -111,7 +111,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		if dialect < 8:
 			self.send_reply('INF', trid, 'MD5')
 		else:
-			self.close(hard = True)
+			self.close()
 	
 	def _m_usr(self, trid: str, authtype: str, stage: str, *args: str) -> None:
 		dialect = self.dialect
@@ -120,7 +120,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		
 		if authtype == 'SHA':
 			if dialect < 18:
-				self.close(hard = True)
+				self.close()
 				return
 			# Used in MSNP18 (at least, for now) to validate Circle tickets
 			# found in ABFindContactsPaged responses
@@ -146,7 +146,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		
 		if authtype == 'MD5':
 			if dialect >= 8:
-				self.close(hard = True)
+				self.close()
 				return
 			if self.bs:
 				self.send_reply(Err.InvalidUser, trid)
@@ -155,7 +155,7 @@ class MSNPCtrlNS(MSNPCtrl):
 				#>>> USR trid MD5 I email@example.com
 				if backend.maintenance_mode:
 					self.send_reply(Err.InternalServerError, trid)
-					self.close(hard = True)
+					self.close()
 					return
 				email = args[0]
 				salt = backend.user_service.msn_get_md5_salt(email)
@@ -163,7 +163,7 @@ class MSNPCtrlNS(MSNPCtrl):
 					# Account is not enabled for login via MD5
 					# TODO: Can we pass an informative message to user?
 					self.send_reply(Err.AuthFail, trid)
-					self.close(hard = True)
+					self.close()
 					return
 				self.usr_email = email
 				self.send_reply('USR', trid, authtype, 'S', salt)
@@ -183,7 +183,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		
 		if authtype == 'TWN':
 			if dialect >= 15 or dialect < 8:
-				self.close(hard = True)
+				self.close()
 				return
 			if self.bs:
 				self.send_reply(Err.InvalidUser, trid)
@@ -192,12 +192,12 @@ class MSNPCtrlNS(MSNPCtrl):
 				#>>> USR trid TWN I email@example.com
 				if backend.maintenance_mode:
 					self.send_reply(Err.InternalServerError, trid)
-					self.close(hard = True)
+					self.close()
 					return
 				self.usr_email = args[0]
 				if '@' not in self.usr_email:
 					self.send_reply(Err.AuthFail, trid)
-					self.close(hard = True)
+					self.close()
 					return
 				#extra = ('ct={},rver=5.5.4177.0,wp=FS_40SEC_0_COMPACT,lc=1033,id=507,ru=http://messenger.msn.com,tw=0,kpp=1,kv=4,ver=2.1.6000.1,rn=1lgjBfIL,tpf=b0735e3a873dfb5e75054465196398e0'.format(int(time())),)
 				if dialect >= 13:
@@ -222,7 +222,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		
 		if authtype == 'SSO':
 			if dialect < 15:
-				self.close(hard = True)
+				self.close()
 				return
 			if self.bs:
 				self.send_reply(Err.InvalidUser, trid)
@@ -231,12 +231,12 @@ class MSNPCtrlNS(MSNPCtrl):
 				#>>> USR trid SSO I email@example.com
 				if backend.maintenance_mode:
 					self.send_reply(Err.InternalServerError, trid)
-					self.close(hard = True)
+					self.close()
 					return
 				self.usr_email = args[0]
 				if '@' not in self.usr_email:
 					self.send_reply(Err.AuthFail, trid)
-					self.close(hard = True)
+					self.close()
 					return
 				# https://web.archive.org/web/20100819015007/http://msnpiki.msnfanatic.com/index.php/MSNP15:SSO
 				self.rps_challenge = base64.b64encode(sha384(secrets.token_bytes(128)).digest())
@@ -276,24 +276,24 @@ class MSNPCtrlNS(MSNPCtrl):
 							response = base64.b64decode(response_b64)
 						except:
 							self.send_reply(Err.AuthFail, trid)
-							self.close(hard = True)
+							self.close()
 							return
 						
 						if len(response) < 28:
 							self.send_reply(Err.AuthFail, trid)
-							self.close(hard = True)
+							self.close()
 							return
 						
 						if struct.unpack('<I', response[0:4])[0] != 28 or struct.unpack('<I', response[4:8])[0] != 1 or struct.unpack('<I', response[8:12])[0] != 0x6603 or struct.unpack('<I', response[12:16])[0] != 0x8004 or struct.unpack('<I', response[16:20])[0] != 8 or struct.unpack('<I', response[20:24])[0] != 20 or struct.unpack('<I', response[24:28])[0] != 72:
 							self.send_reply(Err.AuthFail, trid)
-							self.close(hard = True)
+							self.close()
 							return
 						
 						response_payload = response[28:]
 						
 						if not len(response_payload) == (8+20+72):
 							self.send_reply(Err.AuthFail, trid)
-							self.close(hard = True)
+							self.close()
 							return
 						
 						response_iv = response_payload[0:8]
@@ -304,7 +304,7 @@ class MSNPCtrlNS(MSNPCtrl):
 						
 						if binarysecret_b64 is None:
 							self.send_reply(Err.AuthFail, trid)
-							self.close(hard = True)
+							self.close()
 							return
 						
 						binarysecret = base64.b64decode(binarysecret_b64)
@@ -318,14 +318,14 @@ class MSNPCtrlNS(MSNPCtrl):
 						
 						if response_hash != response_hash_server or response_cipher != response_cipher_server:
 							self.send_reply(Err.AuthFail, trid)
-							self.close(hard = True)
+							self.close()
 							return
 					if dialect >= 16:
 						machineguid = args[2]
 						
 						if not re.match(r'^\{?[A-Fa-f0-9]{8,8}-([A-Fa-f0-9]{4,4}-){3,3}[A-Fa-f0-9]{12,12}\}?', machineguid):
 							self.send_reply(Err.AuthFail, trid)
-							self.close(hard = True)
+							self.close()
 							return
 						
 						user = backend._load_user_record(uuid)
@@ -340,7 +340,7 @@ class MSNPCtrlNS(MSNPCtrl):
 								option = LoginOption.NotifyOthers
 						else:
 							self.send_reply(Err.AuthFail, trid)
-							self.close(hard = True)
+							self.close()
 							return
 					else:
 						option = LoginOption.BootOthers
@@ -349,7 +349,7 @@ class MSNPCtrlNS(MSNPCtrl):
 				return
 		
 		self.send_reply(Err.AuthFail, trid)
-		self.close(hard = True)
+		self.close()
 	
 	def _util_usr_final(self, trid: str, token: str, machineguid: Optional[str]) -> None:
 		from cryptography.hazmat.backends import default_backend
@@ -360,7 +360,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		
 		if bs is None:
 			self.send_reply(Err.AuthFail, trid)
-			self.close(hard = True)
+			self.close()
 			return
 		
 		self.backend.util_set_sess_token(bs, token)
@@ -534,7 +534,7 @@ class MSNPCtrlNS(MSNPCtrl):
 	
 	def _m_gcf(self, trid: str, filename: str) -> None:
 		if self.dialect < 11:
-			self.close(hard = True)
+			self.close()
 			return
 		if self.dialect < 13 and not self.syn_sent:
 			self.send_reply(Err.NotExpected, trid)
@@ -543,7 +543,7 @@ class MSNPCtrlNS(MSNPCtrl):
 	
 	def _m_png(self) -> None:
 		if self.bs is None:
-			self.close(hard = True)
+			self.close()
 			return
 		self.send_reply('QNG', (60 if self.dialect >= 9 else None))
 	
@@ -578,7 +578,7 @@ class MSNPCtrlNS(MSNPCtrl):
 			try:
 				bs.front_data['msn_ep_state'] = getattr(MSNStatus, state.text).name
 			except:
-				self.close(hard = True)
+				self.close()
 				return
 		
 		psm = elm.find('PSM')
@@ -684,7 +684,7 @@ class MSNPCtrlNS(MSNPCtrl):
 	
 	def _m_adl(self, trid: str, data: bytes) -> None:
 		if self.dialect < 13:
-			self.close(hard = True)
+			self.close()
 			return
 		
 		backend = self.backend
@@ -707,13 +707,13 @@ class MSNPCtrlNS(MSNPCtrl):
 				
 				if len(d_el.getchildren()) == 0:
 					self.send_reply(Err.XXLEmptyDomain, trid)
-					self.close(hard = True)
+					self.close()
 					return
 				else:
 					domain = d_el.get('n')
 					if domain in domains or domain is None:
 						self.send_reply(Err.XXLInvalidPayload, trid)
-						self.close(hard = True)
+						self.close()
 						return
 					domains.append(domain)
 			for i, d_el in enumerate(d_els):
@@ -725,18 +725,18 @@ class MSNPCtrlNS(MSNPCtrl):
 						if NetworkID.CIRCLE in c_nids:
 							if NetworkID.WINDOWS_LIVE in c_nids or NetworkID.OFFICE_COMMUNICATOR in c_nids or NetworkID.TELEPHONE in c_nids or NetworkID.MNI in c_nids or NetworkID.SMTP in c_nids or NetworkID.YAHOO in c_nids:
 								self.send_reply(Err.XXLInvalidPayload, trid)
-								self.close(hard = True)
+								self.close()
 								return
 							if domain == 'live.com':
 								d_els_rest = d_els[1:]
 								if d_els_rest:
 									self.send_reply(Err.XXLInvalidPayload, trid)
-									self.close(hard = True)
+									self.close()
 									return
 								circle_mode = True
 					except ValueError:
 						self.send_reply(Err.InvalidNetworkID, trid)
-						self.close(hard = True)
+						self.close()
 						return
 				
 				if initial and not circle_mode:
@@ -761,7 +761,7 @@ class MSNPCtrlNS(MSNPCtrl):
 					#				lsts = Lst(int(s_el.get('l')))
 					#			except ValueError:
 					#				self.send_reply(Err.XXLInvalidPayload, trid)
-					#				self.close(hard = True)
+					#				self.close()
 					#				return
 					#	if lsts is None: continue
 					
@@ -769,12 +769,12 @@ class MSNPCtrlNS(MSNPCtrl):
 						lsts = Lst(int(c_el.get('l')))
 					except ValueError:
 						self.send_reply(Err.XXLInvalidPayload, trid)
-						self.close(hard = True)
+						self.close()
 						return
 					
 					if lsts & (Lst.RL | Lst.PL):
 						self.send_reply(Err.XXLInvalidPayload, trid)
-						self.close(hard = True)
+						self.close()
 						return
 					
 					username = c_el.get('n')
@@ -881,7 +881,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		except Exception as ex:
 			if isinstance(ex, XMLSyntaxError):
 				self.send_reply(Err.XXLInvalidPayload, trid)
-				self.close(hard = True)
+				self.close()
 			else:
 				self.send_reply(Err.GetCodeForException(ex, self.dialect), trid)
 				return
@@ -890,7 +890,7 @@ class MSNPCtrlNS(MSNPCtrl):
 	
 	def _m_rml(self, trid: str, data: bytes) -> None:
 		if self.dialect < 13:
-			self.close(hard = True)
+			self.close()
 			return
 		
 		backend = self.backend
@@ -906,7 +906,7 @@ class MSNPCtrlNS(MSNPCtrl):
 			for d_el in d_els:
 				if len(d_el.getchildren()) == 0:
 					self.send_reply(Err.XXLEmptyDomain, trid)
-					self.close(hard = True)
+					self.close()
 					return
 			
 			for d_el in d_els:
@@ -923,7 +923,7 @@ class MSNPCtrlNS(MSNPCtrl):
 					#				lsts = Lst(int(s_el.get('l')))
 					#			except ValueError:
 					#				self.send_reply(Err.XXLInvalidPayload, trid)
-					#				self.close(hard = True)
+					#				self.close()
 					#				return
 					#	if lsts is None: continue
 					
@@ -932,23 +932,23 @@ class MSNPCtrlNS(MSNPCtrl):
 						if NetworkID.CIRCLE in c_nids:
 							if NetworkID.WINDOWS_LIVE in c_nids or NetworkID.OFFICE_COMMUNICATOR in c_nids or NetworkID.TELEPHONE in c_nids or NetworkID.MNI in c_nids or NetworkID.SMTP in c_nids or NetworkID.YAHOO in c_nids:
 								self.send_reply(Err.XXLInvalidPayload, trid)
-								self.close(hard = True)
+								self.close()
 								return
 							circle_mode = True
 					except ValueError:
 						self.send_reply(Err.InvalidNetworkID, trid)
-						self.close(hard = True)
+						self.close()
 						return
 					try:
 						lsts = Lst(int(c_el.get('l')))
 					except ValueError:
 						self.send_reply(Err.XXLInvalidPayload, trid)
-						self.close(hard = True)
+						self.close()
 						return
 					
 					if lsts & (Lst.RL | Lst.PL):
 						self.send_reply(Err.XXLInvalidPayload, trid)
-						self.close(hard = True)
+						self.close()
 						return
 					
 					username = c_el.get('n')
@@ -997,7 +997,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		except Exception as ex:
 			if isinstance(ex, XMLSyntaxError):
 				self.send_reply(Err.XXLInvalidPayload, trid)
-				self.close(hard = True)
+				self.close()
 				return
 			else:
 				self.send_reply(Err.GetCodeForException(ex, self.dialect), trid)
@@ -1007,7 +1007,7 @@ class MSNPCtrlNS(MSNPCtrl):
 	
 	def _m_adc(self, trid: str, lst_name: str, arg1: str, arg2: Optional[str] = None) -> None:
 		if self.dialect < 10:
-			self.close(hard = True)
+			self.close()
 			return
 		if arg1.startswith('N='):
 			#>>> ADC 249 BL N=bob1@hotmail.com
@@ -1032,7 +1032,7 @@ class MSNPCtrlNS(MSNPCtrl):
 	def _m_add(self, trid: str, lst_name: str, email: str, name: Optional[str] = None, group_id: Optional[str] = None) -> None:
 		#>>> ADD 122 FL email name group
 		if self.dialect >= 10:
-			self.close(hard = True)
+			self.close()
 			return
 		if '@' not in email:
 			self.send_reply(Err.InvalidParameter, trid)
@@ -1062,7 +1062,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		lst = getattr(Lst, lst_name)
 		
 		if lst == Lst.RL and (dialect < 11 or (ctc_old is not None and not ctc_old.pending)):
-			self.close(hard = True)
+			self.close()
 			return
 		
 		try:
@@ -1110,7 +1110,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		
 		lst = getattr(Lst, lst_name)
 		if lst is Lst.RL:
-			bs.close(hard = True)
+			bs.close()
 			return
 		if lst is Lst.FL:
 			#>>> REM 279 FL 00000000-0000-0000-0002-000000000001
@@ -1134,7 +1134,7 @@ class MSNPCtrlNS(MSNPCtrl):
 	
 	def _m_gtc(self, trid: str, value: str) -> None:
 		if self.dialect >= 13:
-			self.close(hard = True)
+			self.close()
 			return
 		# "Alert me when other people add me ..." Y/N
 		#>>> GTC 152 N
@@ -1143,7 +1143,8 @@ class MSNPCtrlNS(MSNPCtrl):
 		user = bs.user
 		
 		if value not in ('A','N'):
-			self.close(hard = True)
+			self.close()
+			return
 		if user.settings.get('GTC') == value:
 			self.send_reply(Err.AlreadyInMode, trid)
 			return
@@ -1158,7 +1159,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		user = bs.user
 		
 		if value not in ('AL','BL'):
-			self.close(hard = True)
+			self.close()
 			return
 		if user.settings.get('BLP') == value and self.dialect < 13:
 			self.send_reply(Err.AlreadyInMode, trid)
@@ -1179,7 +1180,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		try:
 			msn_substatus = MSNStatus.ToSubstatus(getattr(MSNStatus, sts_name))
 		except:
-			self.close(hard = True)
+			self.close()
 			return
 		
 		if msn_substatus is Substatus.Offline:
@@ -1252,21 +1253,21 @@ class MSNPCtrlNS(MSNPCtrl):
 		#
 		#if client_id not in _QRY_ID_CODES or not challenge:
 		#	self.send_reply(Err.ChallengeResponseFailed, trid)
-		#	self.close(hard = True)
+		#	self.close()
 		#	return
 		#
 		#id_key, max_dialect = _QRY_ID_CODES[client_id]
 		#
 		#if self.dialect > max_dialect:
 		#	self.send_reply(Err.ChallengeResponseFailed, trid)
-		#	self.close(hard = True)
+		#	self.close()
 		#	return
 		#
 		#server_response = gen_chal_response(challenge, client_id, id_key, msnp11 = (self.dialect >= 11))
 		#
 		#if response.decode() != server_response:
 		#	self.send_reply(Err.ChallengeResponseFailed, trid)
-		#	self.close(hard = True)
+		#	self.close()
 		#	return
 		#
 		#self.send_reply('QRY', trid)
@@ -1277,7 +1278,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		# `PUT` only used for circles in MSNP18
 		
 		if self.dialect < 18:
-			self.close(hard = True)
+			self.close()
 			return
 		
 		backend = self.backend
@@ -1415,7 +1416,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		#					try:
 		#						substatus = MSNStatus.ToSubstatus(getattr(MSNStatus, substatus_elm.text))
 		#					except ValueError:
-		#						self.close(hard = True)
+		#						self.close()
 		#						return
 		#				currentmedia_elm = s_el.find('CurrentMedia')
 		#				if currentmedia_elm is not None:
@@ -1453,7 +1454,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		#						if capabilitiesex is not None:
 		#							capabilitiesex = str(int(capabilitiesex))
 		#					except ValueError:
-		#						self.close(hard = True)
+		#						self.close()
 		#						return
 		#					
 		#					bs.front_data['msn_capabilities'] = capabilities or 0
@@ -1473,7 +1474,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		#					try:
 		#						bs.front_data['msn_ep_state'] = getattr(MSNStatus, state.text).name
 		#					except:
-		#						self.close(hard = True)
+		#						self.close()
 		#						return
 		#			if sep_elm.get('n') == 'PE':
 		#				bs.front_data['msn_PE'] = True
@@ -1494,7 +1495,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		#						if pe_capabilitiesex is not None:
 		#							pe_capabilitiesex = str(int(pe_capabilitiesex))
 		#					except ValueError:
-		#						self.close(hard = True)
+		#						self.close()
 		#						return
 		#					
 		#					bs.front_data['msn_PE_capabilities'] = pe_capabilities or 0
@@ -1519,7 +1520,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		#		self.send_reply('PUT', trid, 'OK', b'')
 		#		return
 		#	except XMLSyntaxError:
-		#		self.close(hard = True)
+		#		self.close()
 		#		return
 		#
 		self.send_reply('PUT', trid, 'OK', b'')
@@ -1528,7 +1529,7 @@ class MSNPCtrlNS(MSNPCtrl):
 	
 	def _m_sdg(self, trid: str, data: bytes) -> None:
 		if self.dialect < 18:
-			self.close(hard = True)
+			self.close()
 			return
 		
 		backend = self.backend
@@ -1613,14 +1614,14 @@ class MSNPCtrlNS(MSNPCtrl):
 	def _m_sdc(self, trid: str, email: str, lcid: str, arg4: str, arg5: str, arg6: str, arg7: str, name: str, message: bytes) -> None:
 		# Also sends email about how to use MSN, but with the ability to plug in your display name and a custom message. Ignore too.
 		if self.dialect < 5:
-			self.close(hard = True)
+			self.close()
 			return
 		self.send_reply('SDC', trid, 'OK')
 	
 	def _m_vas(self, trid: str, email: str, arg3: str, arg4: str, data: bytes) -> None:
 		# Report user. Don't know how to respond.
 		if self.dialect < 18:
-			self.close(hard = True)
+			self.close()
 			return
 		
 		return
@@ -1629,7 +1630,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		#>>> PRP 115 MFN ~~woot~~
 		dialect = self.dialect
 		if dialect < 5:
-			self.close(hard = True)
+			self.close()
 			return
 		
 		bs = self.bs
@@ -1643,7 +1644,7 @@ class MSNPCtrlNS(MSNPCtrl):
 			bs.me_update({ 'name': value })
 		elif key.startswith('PH'):
 			if len(key) > 3:
-				self.close(hard = True)
+				self.close()
 				return
 			elif len(key) < 3:
 				self.send_reply(Err.NotExpected, trid)
@@ -1660,7 +1661,7 @@ class MSNPCtrlNS(MSNPCtrl):
 				return
 			
 			if value is not None and len(value) > 95:
-				self.close(hard = True)
+				self.close()
 				return
 			
 			bs.me_update({ phone_type: value })
@@ -1684,7 +1685,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		#>>> SBP 153 00000000-0000-0000-0002-000000000002 MFN Bob%201%20New
 		# Can be ignored: core handles syncing contact names
 		if self.dialect >= 13 or self.dialect < 10:
-			self.close(hard = True)
+			self.close()
 			return
 		self.send_reply('SBP', trid, uuid, key, value)
 	
@@ -1718,7 +1719,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		contact_uuid = None
 		
 		if self.dialect < 14:
-			self.close(hard = True)
+			self.close()
 			return
 		
 		try:
@@ -1728,15 +1729,15 @@ class MSNPCtrlNS(MSNPCtrl):
 				d_el = d_els[0]
 				if len(d_el.getchildren()) == 0:
 					self.send_reply(Err.XXLEmptyDomain, trid)
-					self.close(hard = True)
+					self.close()
 					return
 				elif len(d_el.getchildren()) > 1:
 					self.send_reply(Err.XXLInvalidPayload, trid)
-					self.close(hard = True)
+					self.close()
 					return
 			else:
 				self.send_reply(Err.XXLInvalidPayload, trid)
-				self.close(hard = True)
+				self.close()
 				return
 			
 			domain = d_el.get('n')
@@ -1751,7 +1752,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		except Exception as ex:
 			if isinstance(ex, XMLSyntaxError):
 				self.send_reply(Err.XXLInvalidPayload, trid)
-				self.close(hard = True)
+				self.close()
 				return
 		
 		self.send_reply('FQY', trid, '<ml><d n="{}"><c n="{}" t="1" /></d></ml>'.format(
@@ -1762,7 +1763,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		# "Send sharing invitation or reply to invitation"
 		# https://web.archive.org/web/20130926060507/http://msnpiki.msnfanatic.com/index.php/MSNP13:Changes#UUN
 		if self.dialect < 13:
-			self.close(hard = True)
+			self.close()
 			return
 		
 		bs = self.bs
@@ -1817,7 +1818,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		# For federated messaging (with Yahoo!); also used in MSNP18+ for OIMs
 		
 		if self.dialect < 14:
-			self.close(hard = True)
+			self.close()
 			return
 		
 		bs = self.bs
@@ -1829,26 +1830,26 @@ class MSNPCtrlNS(MSNPCtrl):
 		message = None
 		
 		if type not in ('1','2','3','4'):
-			self.close(hard = True)
+			self.close()
 			return
 		
 		try:
 			nid = NetworkID(int(networkid))
 		except ValueError:
-			self.close(hard = True)
+			self.close()
 			return
 		
 		assert nid is not None
 		
 		if nid is NetworkID.WINDOWS_LIVE and self.dialect < 18:
-			self.close(hard = True)
+			self.close()
 			return
 		
 		if nid is not NetworkID.WINDOWS_LIVE:
 			return
 		
 		if type != '1':
-			self.close(hard = True)
+			self.close()
 			return
 		
 		contact_uuid = self.backend.util_get_uuid_from_email(email)
@@ -1906,7 +1907,7 @@ class MSNPCtrlNS(MSNPCtrl):
 	#	
 	#	if self.challenge:
 	#		self.send_reply(Err.ChallengeResponseFailed, trid)
-	#		self.close(hard = True)
+	#		self.close()
 	
 	def _ser(self) -> Optional[int]:
 		if self.dialect >= 10:
@@ -2157,7 +2158,9 @@ class BackendEventHandler(event.BackendEventHandler):
 		assert bs is not None
 		backend = bs.backend
 		
-		self.ctrl.close(maintenance = maintenance)
+		if maintenance:
+			self.ctrl.send_reply('OUT', 'SSD')
+		self.ctrl.close()
 
 class GroupChatEventHandler(event.ChatEventHandler):
 	__slots__ = ('ctrl', 'cs')
