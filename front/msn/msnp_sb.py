@@ -6,7 +6,7 @@ import asyncio
 from email.parser import Parser
 
 from util.misc import Logger, first_in_iterable, VoidTaskType
-from core.models import User, MessageData, MessageType
+from core.models import User, MessageData, MessageType, Substatus
 from core.backend import Backend, BackendSession, ChatSession, Chat
 from core import event, error
 from .misc import Err, encode_capabilities_capabilitiesex, decode_email_pop, encode_email_pop, normalize_pop_id, MAX_CAPABILITIES_BASIC
@@ -329,7 +329,7 @@ class ChatEventHandler(event.ChatEventHandler):
 	def on_chat_roster_updated(self) -> None:
 		pass
 	
-	def on_participant_status_updated(self, cs_other: ChatSession, first_pop: bool, initial: bool) -> None:
+	def on_participant_status_updated(self, cs_other: ChatSession, first_pop: bool, initial: bool, old_substatus: Substatus, *, update_status: bool = True, update_info_other: bool = True) -> None:
 		pass
 	
 	def on_message(self, data: MessageData) -> None:

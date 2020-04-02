@@ -46,10 +46,10 @@ class BackendEventHandler(event.BackendEventHandler):
 	def on_maintenance_boot(self) -> None:
 		pass
 	
-	def on_presence_notification(self, bs_other: Optional[BackendSession], ctc: Contact, on_contact_add: bool, old_substatus: Substatus, *, trid: Optional[str] = None, update_status: bool = True, send_status_on_bl: bool = False, sess_id: Optional[int] = None, updated_phone_info: Optional[Dict[str, Any]] = None) -> None:
+	def on_presence_notification(self, bs_other: Optional[BackendSession], ctc: Contact, on_contact_add: bool, old_substatus: Substatus, *, trid: Optional[str] = None, update_status: bool = True, update_info_other: bool = True, send_status_on_bl: bool = False, sess_id: Optional[int] = None, updated_phone_info: Optional[Dict[str, Any]] = None) -> None:
 		pass
 	
-	def on_presence_self_notification(self) -> None:
+	def on_presence_self_notification(self, old_substatus: Substatus, *, update_status: bool = True, update_info: bool = True) -> None:
 		pass
 	
 	def on_groupchat_created(self, groupchat: GroupChat) -> None:
@@ -143,7 +143,7 @@ class ChatEventHandler(event.ChatEventHandler):
 	def on_chat_roster_updated(self) -> None:
 		pass
 	
-	def on_participant_status_updated(self, cs_other: ChatSession, first_pop: bool, initial: bool) -> None:
+	def on_participant_status_updated(self, cs_other: ChatSession, first_pop: bool, initial: bool, old_substatus: Substatus, *, update_status: bool = True, update_info_other: bool = True) -> None:
 		pass
 	
 	def on_invite_declined(self, invited_user: User, *, invited_id: Optional[str] = None, message: str = '') -> None:

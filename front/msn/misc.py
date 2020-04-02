@@ -17,7 +17,7 @@ from core import error, event
 from core.backend import Backend, BackendSession, ChatSession
 from core.models import User, Contact, GroupChat, Lst, MessageData, OIM, Substatus, NetworkID, GroupChatState
 
-def build_presence_notif(trid: Optional[str], ctc_head: User, user_me: User, dialect: int, backend: Backend, iln_sent: bool, *, self_presence: bool = False, bs_other: Optional['BackendSession'] = None, groupchat: Optional['GroupChat'] = None, groupchat_owner: bool = False, send_to_self: bool = False) -> Iterable[Tuple[Any, ...]]:
+def build_presence_notif(trid: Optional[str], old_substatus: Optional[Substatus], ctc_head: User, user_me: User, dialect: int, backend: Backend, iln_sent: bool, update_info: bool, *, self_presence: bool = False, bs_other: Optional['BackendSession'] = None, groupchat: Optional['GroupChat'] = None, groupchat_owner: bool = False, send_to_self: bool = False) -> Iterable[Tuple[Any, ...]]:
 	detail = user_me.detail
 	assert detail is not None
 	
@@ -113,40 +113,42 @@ def build_presence_notif(trid: Optional[str], ctc_head: User, user_me: User, dia
 	#	yield ('NFY', 'PUT', nfy_payload)
 	#	return
 	
-	if (is_offlineish or (groupchat is not None and groupchat.memberships[head.uuid].blocking)) and head is not user_me:
-		if dialect >= 18:
-			reply = ('FLN', encode_email_networkid(head.email, None, groupchat = groupchat)) # type: Tuple[Any, ...]
-		else:
-			reply = ('FLN', head.email, (int(NetworkID.WINDOWS_LIVE) if 14 <= dialect <= 17 else None))
+	if status.substatus is not old_substatus:
+		if (is_offlineish or (groupchat is not None and groupchat.memberships[head.uuid].blocking)) and head is not user_me:
+			if dialect >= 18:
+				reply = ('FLN', encode_email_networkid(head.email, None, groupchat = groupchat)) # type: Tuple[Any, ...]
+			else:
+				reply = ('FLN', head.email, (int(NetworkID.WINDOWS_LIVE) if 14 <= dialect <= 17 else None))
+			
+			if 14 <= dialect <= 15:
+				reply += ('0',)
+			elif dialect >= 16:
+				reply += ('0:0',)
+			yield reply
+			return
 		
-		if 14 <= dialect <= 15:
-			reply += ('0',)
-		elif dialect >= 16:
-			reply += ('0:0',)
-		yield reply
-		return
-	
 	assert ctc_sess is not None
 	
-	msn_status = MSNStatus.FromSubstatus(status.substatus)
+	if status.substatus is not old_substatus:
+		msn_status = MSNStatus.FromSubstatus(status.substatus)
+		
+		if trid and dialect < 18: frst = ('ILN', trid) # type: Tuple[Any, ...]
+		else: frst = ('NLN',)
+		rst = []
+		
+		if 8 <= dialect <= 15:
+			rst.append(((ctc_sess.front_data.get('msn_capabilities') or 0) if ctc_sess.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC))
+		elif dialect >= 16:
+			rst.append(('0:0' if groupchat is not None and groupchat_owner else encode_capabilities_capabilitiesex(((ctc_sess.front_data.get('msn_capabilities') or 0) if ctc_sess.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC), ctc_sess.front_data.get('msn_capabilitiesex') or 0)))
+		if dialect >= 9:
+			rst.append(MSNObj(ctc_sess.front_data.get('msn_msnobj') or '<msnobj/>'))
+		
+		if dialect >= 18:
+			yield (*frst, msn_status.name, encode_email_networkid(head.email, None, groupchat = groupchat), status.name, *rst)
+		else:
+			yield (*frst, msn_status.name, head.email, (int(NetworkID.WINDOWS_LIVE) if 14 <= dialect <= 17 else None), status.name, *rst)
 	
-	if trid and dialect < 18: frst = ('ILN', trid) # type: Tuple[Any, ...]
-	else: frst = ('NLN',)
-	rst = []
-	
-	if 8 <= dialect <= 15:
-		rst.append(((ctc_sess.front_data.get('msn_capabilities') or 0) if ctc_sess.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC))
-	elif dialect >= 16:
-		rst.append(('0:0' if groupchat is not None and groupchat_owner else encode_capabilities_capabilitiesex(((ctc_sess.front_data.get('msn_capabilities') or 0) if ctc_sess.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC), ctc_sess.front_data.get('msn_capabilitiesex') or 0)))
-	if dialect >= 9:
-		rst.append(MSNObj(ctc_sess.front_data.get('msn_msnobj') or '<msnobj/>'))
-	
-	if dialect >= 18:
-		yield (*frst, msn_status.name, encode_email_networkid(head.email, None, groupchat = groupchat), status.name, *rst)
-	else:
-		yield (*frst, msn_status.name, head.email, (int(NetworkID.WINDOWS_LIVE) if 14 <= dialect <= 17 else None), status.name, *rst)
-	
-	if dialect < 11 or groupchat_owner:
+	if dialect < 11 or not update_info:
 		return
 	
 	ubx_payload = '<Data><PSM>{}</PSM><CurrentMedia>{}</CurrentMedia>{}</Data>'.format(

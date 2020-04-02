@@ -38,8 +38,8 @@ class Backend:
 	_user_by_uuid: Dict[str, User]
 	_worklist_sync_db: Dict[User, UserDetail]
 	_worklist_sync_groupchats: Dict[str, GroupChat]
-	_worklist_notify: Dict[str, Tuple['BackendSession', Optional[int], bool, Substatus, Optional[Dict[str, Any]], bool, bool]]
-	_worklist_notify_self: Dict[str, 'BackendSession']
+	_worklist_notify: List[Tuple['BackendSession', Optional[int], bool, Substatus, Optional[Dict[str, Any]], bool, bool, bool]]
+	_worklist_notify_self: List[Tuple['BackendSession', Substatus, bool, bool]]
 	_runners: List[Runner]
 	_linked: bool
 	_dev: Optional[Any]
@@ -58,8 +58,8 @@ class Backend:
 		self._user_by_uuid = {}
 		self._worklist_sync_db = {}
 		self._worklist_sync_groupchats = {}
-		self._worklist_notify = {}
-		self._worklist_notify_self = {}
+		self._worklist_notify = []
+		self._worklist_notify_self = []
 		self._runners = []
 		self._linked = False
 		self._dev = None
@@ -111,8 +111,8 @@ class Backend:
 		if self._sc.get_sessions_by_user(user):
 			# There are still other people logged in as this user,
 			# so don't send offline notifications.
-			self._notify_contacts(sess, old_substatus, for_logout = False)
-			self._notify_self(sess)
+			self._notify_contacts(sess, old_substatus, for_logout = False, update_status = False)
+			self._notify_self(sess, old_substatus, update_status = False)
 			return
 		
 		# User is offline, send notifications
@@ -203,18 +203,11 @@ class Backend:
 			if ctc_rev is None: continue
 			ctc_rev.compute_visible_status(ctc.head)
 	
-	def _notify_contacts(self, bs: 'BackendSession', old_substatus: Substatus, *, for_logout: bool = False, sess_id: Optional[int] = None, on_contact_add: bool = False, updated_phone_info: Optional[Dict[str, Any]] = None, update_status: bool = True) -> None:
-		uuid = bs.user.uuid
-		if uuid in self._worklist_notify:
-			return
-		
-		self._worklist_notify[uuid] = (bs, sess_id, on_contact_add, old_substatus, updated_phone_info, update_status, for_logout)
+	def _notify_contacts(self, bs: 'BackendSession', old_substatus: Substatus, *, for_logout: bool = False, sess_id: Optional[int] = None, on_contact_add: bool = False, updated_phone_info: Optional[Dict[str, Any]] = None, update_status: bool = True, update_info_other: bool = True) -> None:
+		self._worklist_notify.append((bs, sess_id, on_contact_add, old_substatus, updated_phone_info, update_status, update_info_other, for_logout))
 	
-	def _notify_self(self, bs: 'BackendSession') -> None:
-		uuid = bs.user.uuid
-		if uuid in self._worklist_notify_self:
-			return
-		self._worklist_notify_self[uuid] = bs
+	def _notify_self(self, bs: 'BackendSession', old_substatus: Substatus, *, update_status: bool = True, update_info: bool = True) -> None:
+		self._worklist_notify_self.append((bs, old_substatus, update_status, update_info))
 	
 	def _mark_modified(self, user: User, *, detail: Optional[UserDetail] = None) -> None:
 		ud = user.detail or detail
@@ -466,7 +459,7 @@ class Backend:
 		while True:
 			await asyncio.sleep(0.2)
 			try:
-				for bs, sess_id, on_contact_add, old_substatus, updated_phone_info, update_status, for_logout in worklist.values():
+				for bs, sess_id, on_contact_add, old_substatus, updated_phone_info, update_status, update_info_other, for_logout in worklist:
 					user = bs.user
 					detail = user.detail
 					assert detail is not None
@@ -480,13 +473,13 @@ class Backend:
 							# an `RL` contact on the other users' list (at the very least).
 							if ctc_me is None: continue
 							if not ctc_me.lists & Lst.FL: continue
-							bs_other.evt.on_presence_notification(bs, ctc_me, on_contact_add, old_substatus, sess_id = sess_id, update_status = update_status, updated_phone_info = updated_phone_info)
+							bs_other.evt.on_presence_notification(bs, ctc_me, on_contact_add, old_substatus, sess_id = sess_id, updated_phone_info = updated_phone_info, update_status = update_status, update_info_other = update_info_other)
 					for groupchat in self.user_service.get_groupchat_batch(user):
 						if groupchat.chat_id not in self._cses_by_bs_by_groupchat_id: continue
 						if bs not in self._cses_by_bs_by_groupchat_id[groupchat.chat_id]: continue
 						cs = self._cses_by_bs_by_groupchat_id[groupchat.chat_id][bs]
 						assert cs is not None
-						cs.chat.send_participant_status_updated(cs)
+						cs.chat.send_participant_status_updated(cs, old_substatus, update_status = update_status, update_info_other = update_info_other)
 					if not self._sc.is_session_in_collection(bs):
 						for cs_dict in self._cses_by_bs_by_groupchat_id.values():
 							cs = cs_dict.pop(bs, None)
@@ -504,10 +497,10 @@ class Backend:
 		while True:
 			await asyncio.sleep(0.2)
 			try:
-				for bs in worklist.values():
+				for bs, old_substatus, update_status, update_info in worklist:
 					user = bs.user
 					for bs_other in self._sc.get_sessions_by_user(user):
-						bs_other.evt.on_presence_self_notification()
+						bs_other.evt.on_presence_self_notification(old_substatus, update_status = update_status, update_info = update_info)
 			except:
 				traceback.print_exc()
 			worklist.clear()
@@ -555,9 +548,9 @@ class BackendSession(Session):
 		
 		needs_notify = False
 		notify_status = False
+		notify_info_other = False
 		notify_self = False
 		updated_phone_info = {}
-		notify_circle = False
 		
 		old_substatus = user.status.substatus
 		
@@ -568,16 +561,18 @@ class BackendSession(Session):
 				old_message = user.status.message
 				user.status.set_status_message(fields['message'], persistent = not fields.get('message_temp'))
 				needs_notify = True
-				notify_status = True
+				notify_info_other = True
 		if 'media' in fields:
 			if fields['media'] is not None:
 				user.status.media = fields['media']
 				needs_notify = True
-				notify_status = True
+				notify_info_other = True
 		if 'name' in fields:
-			user.status.name = fields['name']
-			needs_notify = True
-			notify_status = True
+			old_name = user.status.name
+			if fields['name'] != old_name:
+				user.status.name = fields['name']
+				needs_notify = True
+				notify_status = True
 		if 'home_phone' in fields:
 			if fields['home_phone'] is None and 'PHH' in user.settings:
 				del user.settings['PHH']
@@ -612,11 +607,16 @@ class BackendSession(Session):
 			needs_notify = True
 			updated_phone_info['MBE'] = fields['mbe']
 		if 'substatus' in fields:
-			user.status.substatus = fields['substatus']
-			needs_notify = True
-			notify_status = True
+			if old_substatus is not fields['substatus']:
+				user.status.substatus = fields['substatus']
+				needs_notify = True
+				notify_status = True
 		if 'notify_self' in fields:
 			notify_self = fields['notify_self']
+		if 'notify_status' in fields:
+			notify_status = fields['notify_status']
+		if 'notify_info' in fields:
+			notify_info_other = fields['notify_info']
 		if 'gtc' in fields:
 			user.settings['GTC'] = fields['gtc']
 		if 'rlp' in fields:
@@ -627,9 +627,9 @@ class BackendSession(Session):
 		self.backend._mark_modified(user)
 		if needs_notify:
 			self.backend._sync_contact_statuses(user)
-			self.backend._notify_contacts(self, old_substatus, updated_phone_info = updated_phone_info, update_status = notify_status)
+			self.backend._notify_contacts(self, old_substatus, updated_phone_info = updated_phone_info, update_status = notify_status, update_info_other = notify_info_other)
 		if notify_self:
-			self.backend._notify_self(self)
+			self.backend._notify_self(self, old_substatus, update_status = notify_status, update_info = notify_info_other)
 	
 	def me_group_add(self, name: str) -> Group:
 		if len(name) > MAX_GROUP_NAME_LENGTH:
@@ -777,8 +777,11 @@ class BackendSession(Session):
 		if ctc is None: 
 			raise error.ContactDoesNotExist()
 		assert not lst & Lst.RL
-		self._remove_from_list(user, ctc.head, lst, group_id)
-		if lst & Lst.FL:
+		try:
+			ctc_new = self._remove_from_list(user, ctc.head, lst, group_id)
+		except Exception as ex:
+			raise ex
+		if lst & Lst.FL and ctc_new is None:
 			# Remove matching RL
 			self._remove_from_list(ctc.head, user, Lst.RL, None)
 			for sess_added in backend._sc.get_sessions_by_user(ctc.head):
@@ -850,12 +853,12 @@ class BackendSession(Session):
 		
 		return ctc
 	
-	def _remove_from_list(self, user: User, ctc_head: User, lst: Lst, group_id: Optional[str]) -> None:
+	def _remove_from_list(self, user: User, ctc_head: User, lst: Lst, group_id: Optional[str]) -> Optional[Contact]:
 		# Remove `ctc_head` from `user`'s `lst`
 		detail = self.backend._load_detail(user)
 		contacts = detail.contacts
 		ctc = contacts.get(ctc_head.uuid)
-		if ctc is None: return
+		if ctc is None: raise error.ContactDoesNotExist()
 		
 		updated = False
 		if ctc.lists & lst:
@@ -879,11 +882,14 @@ class BackendSession(Session):
 		
 		if not ctc.lists:
 			del contacts[ctc_head.uuid]
+			ctc = None
 			updated = True
 		
 		if updated:
 			self.backend._mark_modified(user, detail = detail)
 			self.backend._sync_contact_statuses(user)
+		
+		return ctc
 	
 	def me_contact_notify_oim(self, uuid: str, oim: OIM) -> None:
 		ctc_head = self.backend._load_user_record(uuid)
@@ -1077,7 +1083,7 @@ class BackendSession(Session):
 			if sess is None: return
 			cs = self.backend.get_groupchat_cs(groupchat.chat_id, sess)
 			if cs is None: return
-			cs.chat.send_participant_status_updated(cs, send_on_bl = True)
+			cs.chat.send_participant_status_updated(cs, user.status.substatus, send_on_bl = True)
 	
 	def me_unblock_circle(self, groupchat: GroupChat) -> None:
 		user = self.user
@@ -1240,7 +1246,7 @@ class Chat:
 		for cs_other in self.get_roster():
 			cs_other.evt.on_chat_invite_declined(self, user, invitee_id = user_id, message = message, group_chat = group_chat)
 	
-	def send_participant_status_updated(self, cs: 'ChatSession', *, initial: bool = False, send_on_bl: bool = False) -> None:
+	def send_participant_status_updated(self, cs: 'ChatSession', old_substatus: Substatus, *, initial: bool = False, send_on_bl: bool = False, update_status: bool = True, update_info_other: bool = True) -> None:
 		tmp = []
 		
 		for cs_self in self.get_roster():
@@ -1257,7 +1263,7 @@ class Chat:
 			if self.groupchat is not None:
 				if self.groupchat.memberships[cs.user.uuid].blocking and cs_other.user is not cs.user and not send_on_bl: continue
 			if cs.bs.user.status.substatus is Substatus.Offline and cs_other.user is cs.user: continue
-			cs_other.evt.on_participant_status_updated(cs, first_pop, initial)
+			cs_other.evt.on_participant_status_updated(cs, first_pop, initial, old_substatus, update_status = update_status, update_info_other = update_info_other)
 	
 	def on_leave(self, sess: 'ChatSession') -> None:
 		su = self._users_by_sess.pop(sess, None)

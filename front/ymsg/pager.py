@@ -1241,13 +1241,13 @@ class BackendEventHandler(event.BackendEventHandler):
 		self.ctrl.send_reply(YMSGService.LogOff, YMSGStatus.Available, 0, None)
 		self.on_close()
 	
-	def on_presence_notification(self, bs_other: Optional[BackendSession], ctc: Contact, on_contact_add: bool, old_substatus: Substatus, *, trid: Optional[str] = None, update_status: bool = True, send_status_on_bl: bool = False, sess_id: Optional[int] = None, updated_phone_info: Optional[Dict[str, Any]] = None) -> None:
+	def on_presence_notification(self, bs_other: Optional[BackendSession], ctc: Contact, on_contact_add: bool, old_substatus: Substatus, *, trid: Optional[str] = None, update_status: bool = True, update_info_other: bool = True, send_status_on_bl: bool = False, sess_id: Optional[int] = None, updated_phone_info: Optional[Dict[str, Any]] = None) -> None:
 		bs = self.bs
 		assert bs is not None
 		
 		if on_contact_add: return
 		
-		if update_status:
+		if update_status or update_info_other:
 			if not ctc.lists & Lst.FL: return
 			
 			if ctc.status.is_offlineish() and not old_substatus.is_offlineish():
@@ -1278,7 +1278,7 @@ class BackendEventHandler(event.BackendEventHandler):
 					
 					self.ctrl.send_reply(service, YMSGStatus.BRB, self.sess_id, yahoo_data)
 	
-	def on_presence_self_notification(self) -> None:
+	def on_presence_self_notification(self, old_substatus: Substatus, *, update_status: bool = True, update_info: bool = True) -> None:
 		pass
 	
 	def on_contact_request_denied(self, user_added: User, message: str, *, contact_id: Optional[str] = None) -> None:
@@ -1473,7 +1473,7 @@ class ChatEventHandler(event.ChatEventHandler):
 	def on_chat_roster_updated(self) -> None:
 		pass
 	
-	def on_participant_status_updated(self, cs_other: ChatSession, first_pop: bool, initial: bool) -> None:
+	def on_participant_status_updated(self, cs_other: ChatSession, first_pop: bool, initial: bool, old_substatus: Substatus, *, update_status: bool = True, update_info_other: bool = True) -> None:
 		pass
 	
 	def on_message(self, data: MessageData) -> None:
@@ -1600,6 +1600,8 @@ def me_status_update(bs: BackendSession, status_new: YMSGStatus, *, message: str
 		'message': message,
 		'message_temp': True,
 		'substatus': substatus,
+		'notify_status': True,
+		'notify_info': (True if message else False),
 	})
 
 def generate_challenge_v1() -> bytes:

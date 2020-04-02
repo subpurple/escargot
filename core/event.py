@@ -30,10 +30,10 @@ class BackendEventHandler(metaclass = ABCMeta):
 		pass
 	
 	@abstractmethod
-	def on_presence_notification(self, bs_other: Optional['BackendSession'], ctc: Contact, on_contact_add: bool, old_substatus: Substatus, *, trid: Optional[str] = None, update_status: bool = True, send_status_on_bl: bool = False, sess_id: Optional[int] = None, updated_phone_info: Optional[Dict[str, Any]] = None) -> None: pass
+	def on_presence_notification(self, bs_other: Optional['BackendSession'], ctc: Contact, on_contact_add: bool, old_substatus: Substatus, *, trid: Optional[str] = None, update_status: bool = True, update_info_other: bool = True, send_status_on_bl: bool = False, sess_id: Optional[int] = None, updated_phone_info: Optional[Dict[str, Any]] = None) -> None: pass
 	
 	@abstractmethod
-	def on_presence_self_notification(self) -> None: pass
+	def on_presence_self_notification(self, old_substatus: Substatus, *, update_status: bool = True, update_info: bool = True) -> None: pass
 	
 	@abstractmethod
 	def on_chat_invite(self, chat: 'Chat', inviter: User, *, group_chat: bool = False, inviter_id: Optional[str] = None, invite_msg: str = '') -> None: pass
@@ -134,7 +134,7 @@ class ChatEventHandler(metaclass = ABCMeta):
 	def on_chat_roster_updated(self) -> None: pass
 	
 	@abstractmethod
-	def on_participant_status_updated(self, cs_other: 'ChatSession', first_pop: bool, initial: bool) -> None: pass
+	def on_participant_status_updated(self, cs_other: 'ChatSession', first_pop: bool, initial: bool, old_substatus: Substatus, *, update_status: bool = True, update_info_other: bool = True) -> None: pass
 	
 	@abstractmethod
 	def on_message(self, data: MessageData) -> None: pass
