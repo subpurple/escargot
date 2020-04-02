@@ -878,7 +878,7 @@ class MSNPCtrlNS(MSNPCtrl):
 							
 							if lsts & Lst.FL and not initial:
 								if ctc is not None:
-									bs.evt.on_presence_notification(None, ctc, False, ctc.status.substatus, trid = trid)
+									bs.evt.on_presence_notification(None, ctc, False, Substatus.Offline, trid = trid)
 		except Exception as ex:
 			if isinstance(ex, XMLSyntaxError):
 				self.send_reply(Err.XXLInvalidPayload, trid)
@@ -1081,7 +1081,7 @@ class MSNPCtrlNS(MSNPCtrl):
 				else:
 					self.send_reply('ADC', trid, lst_name, 'N={}'.format(ctc_head.email), ('F={}'.format(ctc.status.name) if ctc.status.name else None), 'C={}'.format(ctc_head.uuid))
 			else:
-				self.send_reply('ADC', trid, lst_name, 'N={}'.format(ctc.status.name or ctc_head.email))
+				self.send_reply('ADC', trid, lst_name, 'N={}'.format(ctc_head.email))
 		else:
 			self.send_reply('ADD', trid, lst_name, ser, ctc_head.email, name, group_id)
 		
@@ -1947,15 +1947,16 @@ class BackendEventHandler(event.BackendEventHandler):
 		assert bs is not None
 		user = bs.user
 		
-		if not (update_status or update_info_other) or (send_status_on_bl and not update_status): return
+		if send_status_on_bl and not update_status: return
 		if 5 <= self.ctrl.dialect < 13 and updated_phone_info and self.ctrl.syn_sent:
 			for phone_type, value in updated_phone_info.items():
 				if value is not None:
-					self.ctrl.send_reply('BPR', self.ctrl._ser(), ctc.head.email, phone_type, value)
+					self.ctrl.send_reply('BPR', self.ctrl._ser(), ctc.head.email, phone_type, None if send_status_on_bl else value)
 		
-		for m in build_presence_notif(trid, old_substatus, ctc.head, user, self.ctrl.dialect, self.ctrl.backend, self.ctrl.iln_sent, update_info_other, bs_other = bs_other):
-			self.ctrl.send_reply(*m)
-		return
+		if update_status or update_info_other:
+			for m in build_presence_notif(trid, old_substatus, ctc.head, user, self.ctrl.dialect, self.ctrl.backend, self.ctrl.iln_sent, update_info_other, bs_other = bs_other):
+				self.ctrl.send_reply(*m)
+			return
 	
 	def on_presence_self_notification(self, old_substatus: Substatus, *, update_status: bool = True, update_info: bool = True) -> None:
 		bs = self.ctrl.bs
@@ -2281,7 +2282,7 @@ class GroupChatEventHandler(event.ChatEventHandler):
 			cl = len(result), payload = result,
 		))
 	
-	def on_participant_status_updated(self, cs_other: ChatSession, first_pop: bool, initial: bool, old_substatus: Substatus, *, update_status: bool = True, update_info_other: bool = True) -> None:
+	def on_participant_status_updated(self, cs_other: ChatSession, first_pop: bool, initial: bool, old_substatus: Substatus) -> None:
 		bs = self.ctrl.bs
 		assert bs is not None
 		user = bs.user
@@ -2292,10 +2293,10 @@ class GroupChatEventHandler(event.ChatEventHandler):
 		assert groupchat is not None
 		
 		membership = groupchat.memberships[cs_other.user.uuid]
-		if membership.state == GroupChatState.Empty or not (update_status or update_info_other): return
+		if membership.state == GroupChatState.Empty: return
 		
-		if not (initial or cs_other.user.status.is_offlineish()):
-			for m in build_presence_notif(None, old_substatus, cs_other.user, user, self.ctrl.dialect, self.ctrl.backend, self.ctrl.iln_sent, update_info_other, bs_other = cs_other.bs, groupchat = groupchat):
+		if not (initial and cs_other.user.status.is_offlineish()):
+			for m in build_presence_notif(None, old_substatus, cs_other.user, user, self.ctrl.dialect, self.ctrl.backend, self.ctrl.iln_sent, True, bs_other = cs_other.bs, groupchat = groupchat):
 				self.ctrl.send_reply(*m)
 		
 		if not cs_other.user.status.is_offlineish():

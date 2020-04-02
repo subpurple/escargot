@@ -17,7 +17,7 @@ from core import error, event
 from core.backend import Backend, BackendSession, ChatSession
 from core.models import User, Contact, GroupChat, Lst, MessageData, OIM, Substatus, NetworkID, GroupChatState
 
-def build_presence_notif(trid: Optional[str], old_substatus: Optional[Substatus], ctc_head: User, user_me: User, dialect: int, backend: Backend, iln_sent: bool, update_info: bool, *, self_presence: bool = False, bs_other: Optional['BackendSession'] = None, groupchat: Optional['GroupChat'] = None, groupchat_owner: bool = False, send_to_self: bool = False) -> Iterable[Tuple[Any, ...]]:
+def build_presence_notif(trid: Optional[str], old_substatus: Optional[Substatus], ctc_head: User, user_me: User, dialect: int, backend: Backend, iln_sent: bool, update_info: bool, *, self_presence: bool = False, bs_other: Optional['BackendSession'] = None, groupchat: Optional['GroupChat'] = None, groupchat_owner: bool = False) -> Iterable[Tuple[Any, ...]]:
 	detail = user_me.detail
 	assert detail is not None
 	
@@ -148,7 +148,8 @@ def build_presence_notif(trid: Optional[str], old_substatus: Optional[Substatus]
 		else:
 			yield (*frst, msn_status.name, head.email, (int(NetworkID.WINDOWS_LIVE) if 14 <= dialect <= 17 else None), status.name, *rst)
 	
-	if dialect < 11 or not update_info:
+	# MSNP16/18 requires `UBX`s when a user changes any sort of state (this makes MPoP and Circles work effectively)
+	if dialect < 11 or (not update_info and dialect < 16):
 		return
 	
 	ubx_payload = '<Data><PSM>{}</PSM><CurrentMedia>{}</CurrentMedia>{}</Data>'.format(

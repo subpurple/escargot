@@ -299,7 +299,7 @@ class ChatEventHandler(event.ChatEventHandler):
 	def on_chat_roster_updated(self) -> None:
 		pass
 	
-	def on_participant_status_updated(self, cs_other: ChatSession, first_pop: bool, initial: bool, old_substatus: Substatus, *, update_status: bool = True, update_info_other: bool = True) -> None:
+	def on_participant_status_updated(self, cs_other: ChatSession, first_pop: bool, initial: bool, old_substatus: Substatus) -> None:
 		pass
 	
 	def on_message(self, data: MessageData) -> None:
