@@ -11,7 +11,7 @@ from util.misc import Logger, gen_uuid, MultiDict, arbitrary_decode, arbitrary_e
 
 from core import event, error
 from core.backend import Backend, BackendSession, Chat, ChatSession
-from core.models import Substatus, Lst, OIM, User, Contact, Group, GroupChat, GroupChatRole, TextWithData, MessageData, MessageType, UserStatus, LoginOption
+from core.models import Substatus, Lst, OIM, User, UserDetail, Contact, Group, GroupChat, GroupChatRole, TextWithData, MessageData, MessageType, UserStatus, LoginOption
 from core.client import Client
 from core.user import UserService
 from core.auth import AuthService
@@ -178,7 +178,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		bs.front_data['ymsg_private_chats'] = {}
 		bs.front_data['ymsg_chat_sessions'] = {}
 		
-		self._update_buddy_list(cached_y = cached_y, cached_t = cached_t, after_login = True)
+		self._update_buddy_list(cached_y = cached_y, cached_t = cached_t)
 		
 		if self.dialect >= 10:
 			kvs = MultiDict([
@@ -509,14 +509,15 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		bs = self.bs
 		assert bs is not None
 		user = bs.user
+		detail = user.detail
+		assert detail is not None
 		
-		self.send_reply(YMSGService.UserStat, bs.front_data.get('ymsg_status') or YMSGStatus.FromSubstatus(user.status.substatus), self.sess_id, None)
-		self._update_buddy_list()
+		self.send_reply(YMSGService.UserStat, bs.front_data.get('ymsg_status') or YMSGStatus.FromSubstatus(user.status.substatus), self.sess_id, self._gen_multi_user_status_dict(detail))
 	
 	def _y_0055(self, *args: Any) -> None:
 		# SERVICE_LIST (0x55); send a user's buddy list
 		
-		self._update_buddy_list()
+		self._update_buddy_list(after_login = True)
 	
 	def _y_008a(self, *args: Any) -> None:
 		# SERVICE_PING (0x8a); send a response ping after the client pings
@@ -980,7 +981,12 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		
 		self.send_reply(YMSGService.List, YMSGStatus.Available, self.sess_id, list_reply_kvs)
 		
-		cs_fl_online = [c for c in cs_fl if not c.status.is_offlineish()]
+		if not after_login:
+			self.send_reply(YMSGService.LogOn, YMSGStatus.Available, self.sess_id, self._gen_multi_user_status_dict(detail))
+	
+	def _gen_multi_user_status_dict(self, detail: UserDetail) -> MultiDict[bytes, bytes]:
+		cs = list(detail.contacts.values())
+		cs_fl_online = [c for c in cs if c.lists & Lst.FL and not c.lists & Lst.BL and not c.status.is_offlineish()]
 		
 		logon_payload = MultiDict([
 			(b'0', arbitrary_encode(self.yahoo_id or '')),
@@ -991,7 +997,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		for c in cs_fl_online:
 			add_contact_status_to_data(logon_payload, c.status, c.head)
 		
-		self.send_reply(YMSGService.LogOn, YMSGStatus.Available, self.sess_id, logon_payload)
+		return logon_payload
 	
 	async def _check_private_chat(self, chat: Chat, other_user: User, bs: BackendSession) -> None:
 		two_users = False
