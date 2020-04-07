@@ -59,7 +59,7 @@ async def handle_insider_ycontent(req: web.Request) -> web.Response:
 	config_xml = []
 	for query_xml in req.query.keys():
 		# Ignore any `chatroom_##########` requests for now
-		if query_xml in UNUSED_QUERIES or query_xml.startswith('chatroom_'): continue
+		if query_xml in IGNORED_QUERIES or query_xml.startswith('chatroom_'): continue
 		if query_xml in ('ab2','addab2'):
 			(_, bs) = _parse_cookies(req, backend)
 			if bs is not None:
@@ -103,11 +103,12 @@ async def handle_insider_ycontent(req: web.Request) -> web.Response:
 									continue
 							
 							new_first_name = req.query.get('fn')
+							new_last_name = req.query.get('ln')
 							# Yahoo! will set the email/YID as the first name when editing contact details;
-							# if new_first_name == email, don't set
-							if new_first_name != target_ctc.head.email:
+							# if new_first_name == email and last name isn't set, don't set first name
+							if new_first_name != target_ctc.head.email and new_last_name:
 								target_ctc.detail.first_name = new_first_name
-							target_ctc.detail.last_name = req.query.get('ln')
+							target_ctc.detail.last_name = new_last_name
 							target_ctc.detail.nickname = req.query.get('nn')
 							target_ctc.detail.personal_email = req.query.get('e')
 							target_ctc.detail.home_phone = req.query.get('hp')
@@ -129,10 +130,11 @@ async def handle_insider_ycontent(req: web.Request) -> web.Response:
 	})
 
 # 'intl', 'os', 'ver', 'fn', 'ln', 'yid', 'nn', 'e', 'hp', 'wp', 'mp', 'pp', 'ee', 'ow', and 'id' are NOT queries to retrieve config XML files;
-# 'getwc' and 'getgp' are unsure of their use
-UNUSED_QUERIES = {
+# 'getwc' and 'getgp' are undocumented as of now
+# Other queries most likely are just not implemented
+IGNORED_QUERIES = {
 	'intl', 'os', 'ver',
-	'getimv', 'getwc', 'getgp',
+	'imv', 'sms', 'getimv', 'getwc', 'getgp',
 	'fn', 'ln', 'yid',
 	'nn', 'e', 'hp',
 	'wp', 'mb', 'pp',
