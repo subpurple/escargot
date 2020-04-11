@@ -158,13 +158,15 @@ class MSNPCtrlNS(MSNPCtrl):
 					self.close()
 					return
 				email = args[0]
-				salt = backend.user_service.msn_get_md5_salt(email)
-				if salt is None:
-					# Account is not enabled for login via MD5
-					# TODO: Can we pass an informative message to user?
+				if '@' not in email:
 					self.send_reply(Err.AuthFail, trid)
 					self.close()
 					return
+				salt = backend.user_service.msn_get_md5_salt(email)
+				if salt is None:
+					# Account is not enabled for login via MD5; send `USR S` with Unix time as salt simply to keep MSNP `USR` flow consistent (`USR I` doesn't validate existence of email, but rather whether its format it correct, `USR S` actually does account checks)
+					# TODO: Can we pass an informative message to user?
+					salt = str(time.time())
 				self.usr_email = email
 				self.send_reply('USR', trid, authtype, 'S', salt)
 				return
