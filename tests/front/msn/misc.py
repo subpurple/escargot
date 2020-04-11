@@ -1,10 +1,11 @@
-from front.msn.msnp_ns import MSNPCtrlNS
-from front.msn.misc import generate_rps_key, encrypt_with_key_and_iv_tripledes_cbc
-from tests.mock import ANY
-from core.models import User
-
 import base64, struct, hmac
 from hashlib import sha1
+
+from front.msn.msnp_ns import MSNPCtrlNS
+from front.msn.misc import generate_rps_key, encrypt_with_key_and_iv_tripledes_cbc
+from core.models import User
+
+from .mock import ANY
 
 def login_msnp(nc: MSNPCtrlNS, email: str, pop_id: str) -> User:
 	w = nc.writer

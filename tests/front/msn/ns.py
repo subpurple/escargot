@@ -1,12 +1,12 @@
 from front.msn.msnp_ns import MSNPCtrlNS
 from front.msn.misc import Err
 from core.models import Service, Lst, Substatus
-from tests.etc import misc
 
-from tests.mock import MSNPWriter, Logger, ANY, get_backend
+from . import misc
+from .mock import MSNPWriter, Logger, ANY
 
-def test_msnp_commands() -> None:
-	backend = get_backend()
+def test_msnp_commands(backend_with_data) -> None:
+	backend = backend_with_data
 	logger = Logger('MK', object(), False)
 	
 	email = 'test1@example.com'

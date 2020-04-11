@@ -2,12 +2,12 @@ from front.msn.misc import Err
 from front.msn.msnp_ns import MSNPCtrlNS
 from front.msn.msnp_sb import MSNPCtrlSB
 from util.misc import Logger
-from tests.etc import misc
 
-from tests.mock import MSNPWriter, ANY, get_backend
+from . import misc
+from .mock import MSNPWriter, ANY
 
-def test_msnp_commands():
-	backend = get_backend()
+def test_msnp_commands(backend_with_data):
+	backend = backend_with_data
 	logger = Logger('MK', object(), False)
 	
 	# User 1 login
