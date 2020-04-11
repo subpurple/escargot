@@ -1,15 +1,12 @@
-from typing import Dict, List, Optional, Any, Iterator
+from typing import Dict, List, Optional, Any
 import json
 from contextlib import contextmanager
 from datetime import datetime, timedelta
-import time
 import sqlalchemy as sa
-from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 
 from util import hash
 from util.json_type import JSONType
-import settings
 
 def Col(*args: Any, **kwargs: Any) -> sa.Column:
 	if 'nullable' not in kwargs:
@@ -137,27 +134,3 @@ def _simplify_json_data(data: Any) -> Any:
 	if isinstance(data, (list, tuple)):
 		return [_simplify_json_data(x) for x in data]
 	return data
-
-engine = sa.create_engine(settings.DB)
-session_factory = sessionmaker(bind = engine)
-
-@contextmanager
-def Session() -> Iterator[Any]:
-	if Session._depth > 0: # type: ignore
-		yield Session._global # type: ignore
-		return
-	session = session_factory()
-	Session._global = session # type: ignore
-	Session._depth += 1 # type: ignore
-	try:
-		yield session
-		session.commit()
-	except:
-		session.rollback()
-		raise
-	finally:
-		session.close()
-		Session._global = None # type: ignore
-		Session._depth -= 1 # type: ignore
-Session._global = None # type: ignore
-Session._depth = 0 # type: ignore

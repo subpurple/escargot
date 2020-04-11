@@ -1,30 +1,30 @@
-from typing import Dict, Any, Optional, Iterator
+from typing import Dict, Any, Optional
 from datetime import datetime
-from contextlib import contextmanager
 import sqlalchemy as sa
-from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from HLL import HyperLogLog
 
+from core.conn import Conn
 from core.client import Client
 from core.models import User
 from util.json_type import JSONType
-import settings
 
 class Stats:
-	__slots__ = ('logged_in', 'by_client', '_client_id_cache')
+	__slots__ = ('logged_in', 'by_client', '_conn', '_client_id_cache')
 	
 	logged_in: int
 	by_client: Dict[int, Dict[str, Any]]
+	_conn: Conn
 	_client_id_cache: Optional[Dict[Client, int]]
 	
-	def __init__(self) -> None:
+	def __init__(self, conn: Conn) -> None:
 		self.logged_in = 0
 		self.by_client = {}
+		self._conn = conn
 		self._client_id_cache = None
 		
 		hour = _current_hour()
-		with Session() as sess:
+		with self._conn.session() as sess:
 			current = sess.query(CurrentStats).filter(CurrentStats.key == 'current_hour').one_or_none()
 			if not current:
 				return
@@ -73,7 +73,7 @@ class Stats:
 		hour = _current_hour()
 		now = datetime.utcnow()
 		
-		with Session() as sess:
+		with self._conn.session() as sess:
 			current = sess.query(CurrentStats).filter(CurrentStats.key == 'logged_in').one_or_none()
 			if not current:
 				current = CurrentStats(key = 'logged_in')
@@ -118,13 +118,13 @@ class Stats:
 	
 	def _get_client_id(self, client: Client) -> int:
 		if self._client_id_cache is None:
-			with Session() as sess:
+			with self._conn.session() as sess:
 				self._client_id_cache = {
 					Client.FromJSON(row.data): row.id
 					for row in sess.query(DBClient).all()
 				}
 		if client not in self._client_id_cache:
-			with Session() as sess:
+			with self._conn.session() as sess:
 				dbobj = DBClient(data = Client.ToJSON(client))
 				sess.add(dbobj)
 				sess.flush()
@@ -182,27 +182,3 @@ class CurrentStats(Base):
 	key = sa.Column(sa.String, nullable = False, primary_key = True)
 	date_updated = sa.Column(sa.DateTime, nullable = False)
 	value = sa.Column(JSONType, nullable = False)
-
-engine = sa.create_engine(settings.STATS_DB)
-session_factory = sessionmaker(bind = engine)
-
-@contextmanager
-def Session() -> Iterator[Any]:
-	if Session._depth > 0: # type: ignore
-		yield Session._global # type: ignore
-		return
-	session = session_factory()
-	Session._global = session # type: ignore
-	Session._depth += 1 # type: ignore
-	try:
-		yield session
-		session.commit()
-	except:
-		session.rollback()
-		raise
-	finally:
-		session.close()
-		Session._global = None # type: ignore
-		Session._depth -= 1 # type: ignore
-Session._global = None # type: ignore
-Session._depth = 0 # type: ignore

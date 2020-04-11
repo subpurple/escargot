@@ -1,15 +1,12 @@
-from core.auth import AuthService
 from front.msn.msnp_ns import MSNPCtrlNS
 from front.msn.misc import Err
 from core.models import Service, Lst, Substatus
 from tests.etc import misc
 
-from tests.mock import UserService, MSNPWriter, Logger, Backend, ANY
+from tests.mock import MSNPWriter, Logger, ANY, get_backend
 
 def test_msnp_commands() -> None:
-	user_service = UserService()
-	auth_service = AuthService()
-	backend = Backend(user_service, auth_service)
+	backend = get_backend()
 	logger = Logger('MK', object(), False)
 	
 	email = 'test1@example.com'
@@ -35,7 +32,7 @@ def test_msnp_commands() -> None:
 		if ctc.head.email == 'test2@example.com':
 			break
 	assert ctc and ctc.head.email == 'test2@example.com'
-	assert ctc.lists == Lst.FL
+	assert ctc.lists | Lst.FL
 	#assert not ctc.groups
 	#nc1._l_adc(17, 'FL', 'C={}'.format(uuid), group_uuid)
 	#w1.pop_message('ADC', 17, 'FL', 'C={}'.format(uuid), group_uuid)
@@ -48,11 +45,11 @@ def test_msnp_commands() -> None:
 	# Add "test2@example.com" to BL with `ADL`
 	nc1._m_adl('9', b'<ml><d n="example.com"><c n="test2" l="4" t="1" /></d></ml>')
 	w1.pop_message('ADL', '9', 'OK')
-	assert ctc.lists == Lst.FL | Lst.BL
+	assert ctc.lists | Lst.BL
 	# Remove "test2@example.com" from BL with `RML`
 	nc1._m_rml('10', b'<ml><d n="example.com"><c n="test2" l="4" t="1" /></d></ml>')
 	w1.pop_message('RML', '10', 'OK')
-	assert ctc.lists == Lst.FL
+	assert not (ctc.lists & Lst.BL)
 	#nc1._l_rem(20, 'FL', uuid, 'notvalidgroupid')
 	#w1.pop_message(Err.GroupInvalid, 20)
 	#nc1._l_rem(21, 'FL', uuid, group_uuid)

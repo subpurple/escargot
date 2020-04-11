@@ -1,4 +1,4 @@
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Any, Optional
 from datetime import datetime, timedelta
 from pathlib import Path
 import ssl
@@ -18,14 +18,16 @@ class TLSContext:
 		ssl_context = ssl.create_default_context(purpose = ssl.Purpose.CLIENT_AUTH)
 		
 		cache = self._cert_cache
-		# TODO: Typing?
-		def servername_callback(socket, domain, ssl_context) -> None:
+		def servername_callback(socket: Any, domain: Optional[str], ssl_context: ssl.SSLSocket) -> Optional[int]:
+			if domain is None:
+				domain = 'no-domain'
 			if domain not in cache:
 				ctxt = ssl.create_default_context(purpose = ssl.Purpose.CLIENT_AUTH)
 				p_crt, p_key = self._get_cert(domain)
 				ctxt.load_cert_chain(str(p_crt), keyfile = str(p_key))
 				cache[domain] = ctxt
 			socket.context = cache[domain]
+			return None
 		
 		ssl_context.set_servername_callback(servername_callback)
 		return ssl_context

@@ -44,14 +44,17 @@ class Backend:
 	_linked: bool
 	_dev: Optional[Any]
 	
-	def __init__(self, loop: asyncio.AbstractEventLoop, *, user_service: Optional[UserService] = None, auth_service: Optional[AuthService] = None) -> None:
-		self.user_service = user_service or UserService()
-		self.auth_service = auth_service or AuthService()
+	def __init__(self,
+		loop: asyncio.AbstractEventLoop, *,
+		user_service: UserService, auth_service: AuthService, stats_service: Stats,
+	) -> None:
+		self.user_service = user_service
+		self.auth_service = auth_service
 		self.loop = loop
 		self.notify_maintenance = False
 		self.maintenance_mode = False
 		self.maintenance_mins = 0
-		self._stats = Stats()
+		self._stats = stats_service
 		self._sc = _SessionCollection()
 		self._chats_by_id = {}
 		self._cses_by_bs_by_groupchat_id = {}
@@ -455,41 +458,44 @@ class Backend:
 	
 	async def _worker_notify(self) -> None:
 		# Notify relevant `BackendSession`s of status, name, message, media, etc. changes
-		worklist = self._worklist_notify
 		while True:
 			await asyncio.sleep(0.2)
 			try:
-				for bs, sess_id, on_contact_add, old_substatus, updated_phone_info, update_status, update_info_other, for_logout in worklist:
-					user = bs.user
-					detail = user.detail
-					assert detail is not None
-					for ctc in detail.contacts.values():
-						for bs_other in self._sc.get_sessions_by_user(ctc.head):
-							if bs_other.user is user: continue
-							detail_other = bs_other.user.detail
-							if detail_other is None: continue
-							ctc_me = detail_other.contacts.get(user.uuid)
-							# This shouldn't be `None`, since every contact should have
-							# an `RL` contact on the other users' list (at the very least).
-							if ctc_me is None: continue
-							if not ctc_me.lists & Lst.FL or _is_blocking(user, ctc.head): continue
-							bs_other.evt.on_presence_notification(bs, ctc_me, on_contact_add, old_substatus, sess_id = sess_id, updated_phone_info = updated_phone_info, update_status = update_status, update_info_other = update_info_other)
-					for groupchat in self.user_service.get_groupchat_batch(user):
-						if groupchat.chat_id not in self._cses_by_bs_by_groupchat_id: continue
-						if bs not in self._cses_by_bs_by_groupchat_id[groupchat.chat_id]: continue
-						cs = self._cses_by_bs_by_groupchat_id[groupchat.chat_id][bs]
-						assert cs is not None
-						cs.chat.send_participant_status_updated(cs, old_substatus)
-					if not self._sc.is_session_in_collection(bs):
-						for cs_dict in self._cses_by_bs_by_groupchat_id.values():
-							cs = cs_dict.pop(bs, None)
-							if cs is not None:
-								cs.close()
-					if for_logout:
-						if not self._sc.get_sessions_by_user(user): user.detail = None
+				self._handle_worklist_notify()
 			except:
 				traceback.print_exc()
-			worklist.clear()
+			self._worklist_notify.clear()
+	
+	def _handle_worklist_notify(self) -> None:
+		worklist = self._worklist_notify
+		for bs, sess_id, on_contact_add, old_substatus, updated_phone_info, update_status, update_info_other, for_logout in worklist:
+			user = bs.user
+			detail = user.detail
+			assert detail is not None
+			for ctc in detail.contacts.values():
+				for bs_other in self._sc.get_sessions_by_user(ctc.head):
+					if bs_other.user is user: continue
+					detail_other = bs_other.user.detail
+					if detail_other is None: continue
+					ctc_me = detail_other.contacts.get(user.uuid)
+					# This shouldn't be `None`, since every contact should have
+					# an `RL` contact on the other users' list (at the very least).
+					if ctc_me is None: continue
+					if not ctc_me.lists & Lst.FL or _is_blocking(user, ctc.head): continue
+					bs_other.evt.on_presence_notification(bs, ctc_me, on_contact_add, old_substatus, sess_id = sess_id, updated_phone_info = updated_phone_info, update_status = update_status, update_info_other = update_info_other)
+			for groupchat in self.user_service.get_groupchat_batch(user):
+				if groupchat.chat_id not in self._cses_by_bs_by_groupchat_id: continue
+				if bs not in self._cses_by_bs_by_groupchat_id[groupchat.chat_id]: continue
+				cs = self._cses_by_bs_by_groupchat_id[groupchat.chat_id][bs]
+				assert cs is not None
+				cs.chat.send_participant_status_updated(cs, old_substatus)
+			if not self._sc.is_session_in_collection(bs):
+				for cs_dict in self._cses_by_bs_by_groupchat_id.values():
+					cs = cs_dict.pop(bs, None)
+					if cs is not None:
+						cs.close()
+			if for_logout:
+				if not self._sc.get_sessions_by_user(user): user.detail = None
 	
 	async def _worker_notify_self(self) -> None:
 		# Notify relevant `BackendSession`s of status, name, message, media, etc. changes

@@ -1,6 +1,10 @@
 from typing import Any, Type
 from types import TracebackType
 import sys
+from core.conn import Conn
+from core.auth import AuthService
+from core.user import UserService
+from core.stats import Stats
 
 def main(*, devmode: bool = False) -> None:
 	sys.excepthook = _excepthook
@@ -11,7 +15,11 @@ def main(*, devmode: bool = False) -> None:
 	import settings
 	
 	loop = asyncio.get_event_loop()
-	backend = Backend(loop)
+	
+	user_service = UserService(Conn(settings.DB))
+	auth_service = AuthService()
+	stats_service = Stats(Conn(settings.STATS_DB))
+	backend = Backend(loop, user_service = user_service, auth_service = auth_service, stats_service = stats_service)
 	http_app = http.register(loop, backend, devmode = devmode)
 	
 	if settings.ENABLE_FRONT_MSN:
@@ -48,7 +56,7 @@ def main(*, devmode: bool = False) -> None:
 
 def _excepthook(type_: Type[BaseException], value: BaseException, traceback: TracebackType) -> None:
 	# TODO: Something useful
-	sys.__excepthook__(type, value, traceback)
+	sys.__excepthook__(type_, value, traceback)
 
 if __name__ == '__main__':
 	main()

@@ -133,11 +133,11 @@ There are no actual tests right now. Contributions to the tests are greatly appr
 Run all tests:
 
 ```
-python tests
+python -m pytest
 ```
 
 Run a specific test:
 
 ```
-python tests tests/auth_service.py::test_multiple_in_order
+python -m pytest -k "search string"
 ```

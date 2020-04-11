@@ -1,0 +1,52 @@
+image: python:3.6-buster
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+cache:
+  paths:
+    - .cache/pip
+    - .venv
+
+stages:
+  - test
+  - deploy
+
+test:
+  stage: test
+  script:
+    - export PYTHONPATH=.
+    - python -m venv .venv
+    - .venv/bin/python -m pip install -U pip
+    - .venv/bin/python -m pip install -r requirements.txt
+    - touch settings_local.py
+    - .venv/bin/python -m mypy dev
+    - .venv/bin/python -m pytest
+  only:
+    - merge_requests
+
+deploy_live:
+  stage: deploy
+  environment:
+    name: live
+    url: https://escargot.log1p.xyz
+  only:
+    - live
+  script:
+    - 'which ssh-agent || ( apt update -y && apt install openssh-client -y )'
+    - eval $(ssh-agent -s)
+    - ssh-add <(echo "$SSH_PRIVATE_KEY")
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+    - chmod 644 ~/.ssh/known_hosts
+    - |-
+        ssh userbane@escargot.log1p.xyz <<END
+        set -e
+        cd /var/www/escargot/server
+        git fetch --prune
+        git reset --hard origin/live
+        sudo systemctl daemon-reload
+        sudo systemctl reset-failed
+        sudo systemctl restart escargot-server
+        END

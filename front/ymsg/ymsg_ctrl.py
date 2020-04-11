@@ -194,7 +194,7 @@ def _truncated_kvs(logger: Logger, service: YMSGService, kvs: KVS) -> None:
 	
 	if settings.DEBUG and settings.DEBUG_YMSG:
 		for k, v in kvs.items():
-			 print('{} -> {}'.format(k, v if k not in restricted_keys else '<truncated>'))
+			 print('{!r} -> {}'.format(k, (v if k not in restricted_keys else '<truncated>')))
 
 PRE = b'YMSG'
 SEP = b'\xC0\x80'

@@ -120,8 +120,8 @@ def profile(*restrictions: Any) -> None:
 	ps.print_stats(*restrictions)
 	_PROFILE = None
 
-def useful_dir(*args: Any, **kwargs: Any) -> List[str]:
+def useful_dir(*args: Any) -> List[str]:
 	return [
-		x for x in dir(*args, **kwargs)
+		x for x in dir(*args)
 		if not x.endswith('__')
 	]

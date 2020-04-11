@@ -10,36 +10,41 @@ from util.hash import hasher, hasher_md5, hasher_md5crypt, gen_salt
 from util import misc
 
 from . import error
-from .db import Session, User as DBUser, UserContact as DBUserContact, GroupChat as DBGroupChat, GroupChatMembership as DBGroupChatMembership
+from .conn import Conn
+from .db import User as DBUser, UserContact as DBUserContact, GroupChat as DBGroupChat, GroupChatMembership as DBGroupChatMembership
 from .models import User, Contact, ContactDetail, ContactLocation, ContactGroupEntry, UserStatus, UserDetail, GroupChat, GroupChatMembership, GroupChatRole, GroupChatState, NetworkID, Lst, Group, OIM, MessageData
 
 if TYPE_CHECKING:
 	from .backend import BackendSession
 
 class UserService:
+	__slots__ = ('_conn', '_cache_by_uuid', '_groupchat_cache_by_chat_id')
+	
+	_conn: Conn
 	_cache_by_uuid: Dict[str, Optional[User]]
 	_groupchat_cache_by_chat_id: Dict[str, Optional[GroupChat]]
 	
-	def __init__(self) -> None:
+	def __init__(self, conn: Conn) -> None:
+		self._conn = conn
 		self._cache_by_uuid = {}
 		self._groupchat_cache_by_chat_id = {}
 	
 	def login(self, email: str, pwd: str) -> Optional[str]:
-		with Session() as sess:
+		with self._conn.session() as sess:
 			dbuser = sess.query(DBUser).filter(DBUser.email == email).one_or_none()
 			if dbuser is None: return None
 			if not hasher.verify(pwd, dbuser.password): return None
 			return dbuser.uuid
 	
 	def msn_login_md5(self, email: str, md5_hash: str) -> Optional[str]:
-		with Session() as sess:
+		with self._conn.session() as sess:
 			dbuser = sess.query(DBUser).filter(DBUser.email == email).one_or_none()
 			if dbuser is None: return None
 			if not hasher_md5.verify_hash(md5_hash, dbuser.get_front_data('msn', 'pw_md5') or ''): return None
 			return dbuser.uuid
 	
 	def msn_get_md5_salt(self, email: str) -> Optional[str]:
-		with Session() as sess:
+		with self._conn.session() as sess:
 			dbuser = sess.query(DBUser).filter(DBUser.email == email).one_or_none()
 			if dbuser is None: return None
 			pw_md5 = dbuser.get_front_data('msn', 'pw_md5')
@@ -47,25 +52,25 @@ class UserService:
 		return hasher.extract_salt(pw_md5)
 	
 	def yahoo_get_md5_password(self, uuid: str) -> Optional[bytes]:
-		with Session() as sess:
+		with self._conn.session() as sess:
 			dbuser = sess.query(DBUser).filter(DBUser.uuid == uuid).one_or_none()
 			if dbuser is None: return None
 			return hasher_md5.extract_hash(dbuser.get_front_data('ymsg', 'pw_md5_unsalted') or '')
 	
 	def yahoo_get_md5crypt_password(self, uuid: str) -> Optional[bytes]:
-		with Session() as sess:
+		with self._conn.session() as sess:
 			dbuser = sess.query(DBUser).filter(DBUser.uuid == uuid).one_or_none()
 			if dbuser is None: return None
 			return hasher_md5crypt.extract_hash(dbuser.get_front_data('ymsg', 'pw_md5crypt') or '')
 	
 	def update_date_login(self, uuid: str) -> None:
-		with Session() as sess:
+		with self._conn.session() as sess:
 			sess.query(DBUser).filter(DBUser.uuid == uuid).update({
 				'date_login': datetime.utcnow(),
 			})
 	
 	def get_uuid(self, email: str) -> Optional[str]:
-		with Session() as sess:
+		with self._conn.session() as sess:
 			dbuser = sess.query(DBUser).filter(DBUser.email == email).one_or_none()
 			if dbuser is None: return None
 			return dbuser.uuid
@@ -76,14 +81,14 @@ class UserService:
 		return self._cache_by_uuid[uuid]
 	
 	def _get_uncached(self, uuid: str) -> Optional[User]:
-		with Session() as sess:
+		with self._conn.session() as sess:
 			dbuser = sess.query(DBUser).filter(DBUser.uuid == uuid).one_or_none()
 			if dbuser is None: return None
 			status = UserStatus(dbuser.name, dbuser.message)
 			return User(dbuser.id, dbuser.uuid, dbuser.email, dbuser.verified, status, dbuser.settings, dbuser.date_created)
 	
 	def get_detail(self, uuid: str) -> Optional[UserDetail]:
-		with Session() as sess:
+		with self._conn.session() as sess:
 			dbuser = sess.query(DBUser).filter(DBUser.uuid == uuid).one_or_none()
 			if dbuser is None: return None
 			detail = UserDetail()
@@ -197,7 +202,7 @@ class UserService:
 		oim_path.unlink()
 	
 	def create_groupchat(self, user: User, name: str, owner_friendly: str, membership_access: int) -> str:
-		with Session() as sess:
+		with self._conn.session() as sess:
 			chat_id = misc.gen_uuid()[-12:]
 			
 			dbgroupchat = DBGroupChat(
@@ -220,7 +225,7 @@ class UserService:
 		return self._groupchat_cache_by_chat_id[chat_id]
 	
 	def _get_groupchat_uncached(self, chat_id: str) -> Optional[GroupChat]:
-		with Session() as sess:
+		with self._conn.session() as sess:
 			dbgroupchat = sess.query(DBGroupChat).filter(DBGroupChat.chat_id == chat_id).one_or_none()
 			if dbgroupchat is None: return None
 			
@@ -246,7 +251,7 @@ class UserService:
 	def get_all_groupchats(self) -> List[GroupChat]:
 		groupchats = []
 		
-		with Session() as sess:
+		with self._conn.session() as sess:
 			dbgroupchats = sess.query(DBGroupChat)
 			
 			for dbgroupchat in dbgroupchats:
@@ -260,7 +265,7 @@ class UserService:
 	def get_groupchat_batch(self, user: User) -> List[GroupChat]:
 		groupchats = []
 		
-		with Session() as sess:
+		with self._conn.session() as sess:
 			dbgroupchats = sess.query(DBGroupChat)
 			
 			for dbgroupchat in dbgroupchats:
@@ -283,7 +288,7 @@ class UserService:
 		return groupchats
 	
 	def save_groupchat_batch(self, to_save: List[Tuple[str, GroupChat]]) -> None:
-		with Session() as sess:
+		with self._conn.session() as sess:
 			dbgroupchatmemberships_to_add = []
 			for chat_id, groupchat in to_save:
 				dbgroupchat = sess.query(DBGroupChat).filter(DBGroupChat.chat_id == chat_id).one()
@@ -313,7 +318,7 @@ class UserService:
 				sess.add_all(dbgroupchatmemberships_to_add)
 	
 	def save_batch(self, to_save: List[Tuple[User, UserDetail]]) -> None:
-		with Session() as sess:
+		with self._conn.session() as sess:
 			for user, detail in to_save:
 				dbusercontacts_to_add = []
 				
