@@ -22,16 +22,25 @@ test:
     - touch settings_local.py
     - .venv/bin/python -m mypy dev
     - .venv/bin/python -m pytest
-  only:
-    - merge_requests
+  rules:
+    # Means:
+    # `if MR/commit to master
+    #   run if previous stages succeeded
+    # else don't run`
+    - if: '$CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"'
+    - if: '$CI_COMMIT_BRANCH == "master"'
 
 deploy_live:
   stage: deploy
   environment:
     name: live
     url: https://escargot.log1p.xyz
-  only:
-    - live
+  rules:
+    # Means:
+    # `if commit to live
+    #   run if previous stages succeeded
+    # else don't run`
+    - if: '$CI_COMMIT_BRANCH == "live"'
   script:
     - 'which ssh-agent || ( apt update -y && apt install openssh-client -y )'
     - eval $(ssh-agent -s)
