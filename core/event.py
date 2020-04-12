@@ -56,7 +56,7 @@ class BackendEventHandler(metaclass = ABCMeta):
 	def on_login_elsewhere(self, option: LoginOption) -> None: pass
 	
 	@abstractmethod
-	def on_oim_sent(self, oim: 'OIM') -> None: pass
+	def on_oim_sent(self, oim: OIM) -> None: pass
 	
 	@abstractmethod
 	def on_groupchat_created(self, groupchat: GroupChat) -> None: pass

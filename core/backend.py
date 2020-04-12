@@ -10,7 +10,10 @@ from .user import UserService
 from .auth import AuthService
 from .stats import Stats
 from .client import Client
-from .models import User, UserDetail, Group, Lst, OIM, Contact, ContactDetail, GroupChat, GroupChatRole, GroupChatState, GroupChatMembership, UserStatus, TextWithData, MessageData, Substatus, LoginOption, _is_blocking
+from .models import (
+	User, UserDetail, Group, Lst, OIM, Contact, ContactDetail, GroupChat, GroupChatRole, GroupChatState,
+	GroupChatMembership, UserStatus, TextWithData, MessageData, Substatus, LoginOption, _is_blocking,
+)
 from . import error, event
 
 class Ack(IntFlag):
