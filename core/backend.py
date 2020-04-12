@@ -485,7 +485,7 @@ class Backend:
 					# an `RL` contact on the other users' list (at the very least).
 					if ctc_me is None: continue
 					if not ctc_me.lists & Lst.FL or _is_blocking(user, ctc.head): continue
-					bs_other.evt.on_presence_notification(bs, ctc_me, on_contact_add, old_substatus, sess_id = sess_id, updated_phone_info = updated_phone_info, update_status = update_status, update_info_other = update_info_other)
+					bs_other.evt.on_presence_notification(ctc_me, on_contact_add, old_substatus, sess_id = sess_id, updated_phone_info = updated_phone_info, update_status = update_status, update_info_other = update_info_other)
 			for groupchat in self.user_service.get_groupchat_batch(user):
 				if groupchat.chat_id not in self._cses_by_bs_by_groupchat_id: continue
 				if bs not in self._cses_by_bs_by_groupchat_id[groupchat.chat_id]: continue
@@ -754,7 +754,7 @@ class BackendSession(Session):
 				if ctc_me:
 					if ctc_me.lists & Lst.FL:
 						backend._sync_contact_statuses(ctc_head)
-						sess_added.evt.on_presence_notification(self, ctc_me, False, user.status.substatus, send_status_on_bl = (True if lst & Lst.BL else False), updated_phone_info = {
+						sess_added.evt.on_presence_notification(ctc_me, False, user.status.substatus, send_status_on_bl = (True if lst & Lst.BL else False), updated_phone_info = {
 							'PHH': user.settings.get('PHH'),
 							'PHW': user.settings.get('PHW'),
 							'PHM': user.settings.get('PHM'),
@@ -802,7 +802,7 @@ class BackendSession(Session):
 				if sess_added is self: continue
 				if ctc_me:
 					if ctc_me.lists & Lst.FL:
-						sess_added.evt.on_presence_notification(self, ctc_me, False, Substatus.Offline, updated_phone_info = {
+						sess_added.evt.on_presence_notification(ctc_me, False, Substatus.Offline, updated_phone_info = {
 							'PHH': user.settings.get('PHH'),
 							'PHW': user.settings.get('PHW'),
 							'PHM': user.settings.get('PHM'),

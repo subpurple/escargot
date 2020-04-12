@@ -17,7 +17,7 @@ from core import error, event
 from core.backend import Backend, BackendSession, ChatSession
 from core.models import User, Contact, GroupChat, Lst, MessageData, OIM, Substatus, NetworkID, GroupChatState
 
-def build_presence_notif(trid: Optional[str], old_substatus: Optional[Substatus], ctc_head: User, user_me: User, dialect: int, backend: Backend, iln_sent: bool, update_info: bool, *, self_presence: bool = False, bs_other: Optional['BackendSession'] = None, groupchat: Optional['GroupChat'] = None, groupchat_owner: bool = False) -> Iterable[Tuple[Any, ...]]:
+def build_presence_notif(trid: Optional[str], old_substatus: Optional[Substatus], ctc_head: User, user_me: User, dialect: int, backend: Backend, iln_sent: bool, update_info: bool, *, self_presence: bool = False, groupchat: Optional['GroupChat'] = None, groupchat_owner: bool = False) -> Iterable[Tuple[Any, ...]]:
 	detail = user_me.detail
 	assert detail is not None
 	

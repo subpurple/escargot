@@ -1247,7 +1247,7 @@ class BackendEventHandler(event.BackendEventHandler):
 		self.ctrl.send_reply(YMSGService.LogOff, YMSGStatus.Available, 0, None)
 		self.on_close()
 	
-	def on_presence_notification(self, bs_other: Optional[BackendSession], ctc: Contact, on_contact_add: bool, old_substatus: Substatus, *, trid: Optional[str] = None, update_status: bool = True, update_info_other: bool = True, send_status_on_bl: bool = False, sess_id: Optional[int] = None, updated_phone_info: Optional[Dict[str, Any]] = None) -> None:
+	def on_presence_notification(self, ctc: Contact, on_contact_add: bool, old_substatus: Substatus, *, trid: Optional[str] = None, update_status: bool = True, update_info_other: bool = True, send_status_on_bl: bool = False, sess_id: Optional[int] = None, updated_phone_info: Optional[Dict[str, Any]] = None) -> None:
 		bs = self.bs
 		assert bs is not None
 		

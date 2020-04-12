@@ -210,7 +210,7 @@ class BackendEventHandler(event.BackendEventHandler):
 		self.ctrl.send_reply('KILL', '$*', ':Escargot is now in maintenance mode. You will be promptly disconnected and temporarily unable to log in after this point.', source = 'System')
 		self.ctrl.close()
 	
-	def on_presence_notification(self, bs_other: Optional[BackendSession], ctc: Contact, on_contact_add: bool, old_substatus: Substatus, *, trid: Optional[str] = None, update_status: bool = True, update_info_other: bool = True, send_status_on_bl: bool = False, sess_id: Optional[int] = None, updated_phone_info: Optional[Dict[str, Any]] = None) -> None:
+	def on_presence_notification(self, ctc: Contact, on_contact_add: bool, old_substatus: Substatus, *, trid: Optional[str] = None, update_status: bool = True, update_info_other: bool = True, send_status_on_bl: bool = False, sess_id: Optional[int] = None, updated_phone_info: Optional[Dict[str, Any]] = None) -> None:
 		if update_status:
 			self.ctrl.send_reply('NOTICE', ":{} is now {}".format(ctc.head.email, ctc.status.substatus))
 	
