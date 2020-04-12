@@ -30,7 +30,7 @@
 				<psf:credProperty Name="MainBrandID">MSFT</psf:credProperty>
 				<psf:credProperty Name="BrandIDList"></psf:credProperty>
 				<psf:credProperty Name="IsWinLiveUser">true</psf:credProperty>
-				<psf:credProperty Name="CID">{{ email }}</psf:credProperty>
+				<psf:credProperty Name="CID">{{ cid }}</psf:credProperty>
 				<psf:credProperty Name="AuthMembername">{{ email }}</psf:credProperty>
 				<psf:credProperty Name="Country">US</psf:credProperty>
 				<psf:credProperty Name="Language">1033</psf:credProperty>

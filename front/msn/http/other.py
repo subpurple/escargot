@@ -16,7 +16,7 @@ from aiohttp import web
 import settings
 from core import models, event
 from core.backend import Backend, BackendSession, MAX_GROUP_NAME_LENGTH
-from ..misc import gen_mail_data, format_oim, cid_format
+from ..misc import gen_mail_data, format_oim, cid_format, puid_format
 import util.misc
 from .util import find_element, get_tag_localname, render, preprocess_soap, unknown_soap, bool_to_str
 
@@ -554,8 +554,9 @@ async def handle_rst(req: web.Request, rst2: bool = False) -> web.Response:
 		tomorrowz = util.misc.date_format((day_before_expiry + timedelta(days = 1)))
 		time_5mz = util.misc.date_format((day_before_expiry + timedelta(minutes = 5)))
 		
-		# load PUID and CID, assume them to be the same for our purposes
+		# load PUID and CID
 		cid = cid_format(uuid)
+		puid = puid_format(uuid)
 		
 		assert req.transport is not None
 		peername = req.transport.get_extra_info('peername')
@@ -587,7 +588,7 @@ async def handle_rst(req: web.Request, rst2: bool = False) -> web.Response:
 		return web.HTTPOk(
 			content_type = 'text/xml',
 			text = (tmpl.render(
-				puidhex = cid.upper(),
+				puidhex = puid,
 				time_5mz = time_5mz,
 				timez = timez,
 				tomorrowz = tomorrowz,
@@ -599,7 +600,7 @@ async def handle_rst(req: web.Request, rst2: bool = False) -> web.Response:
 				pptoken1 = token,
 				tokenxml = Markup(''.join(tokenxmls)),
 			) if rst2 else tmpl.render(
-				puidhex = cid.upper(),
+				puidhex = puid,
 				timez = timez,
 				tomorrowz = tomorrowz,
 				cid = cid,

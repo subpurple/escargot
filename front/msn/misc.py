@@ -202,6 +202,18 @@ def cid_format(uuid: str, *, decimal: bool = False) -> str:
 	# convert to decimal string
 	return str(struct.unpack('<q', binascii.unhexlify(cid))[0])
 
+def uuid_to_high_low(uuid_str: str) -> Tuple[int, int]:
+	import uuid
+	u = uuid.UUID(uuid_str)
+	high = u.time_low % (1<<32)
+	low = u.node % (1<<32)
+	return (high, low)
+
+def puid_format(uuid_str: str) -> str:
+	high, low = uuid_to_high_low(uuid_str)
+	n = (high * (2 ** 32)) + low
+	return binascii.hexlify(struct.pack('>Q', n)).decode('utf-8').upper()
+
 def encode_email_pop(email: str, pop_id: Optional[str]) -> str:
 	result = email
 	if pop_id:

@@ -23,7 +23,7 @@ from core.models import Substatus, Lst, NetworkID, User, Group, OIM, GroupChat, 
 from core.client import Client
 
 from .msnp import MSNPCtrl
-from .misc import build_presence_notif, cid_format, encode_payload, decode_capabilities_capabilitiesex, decode_email_networkid, encode_email_networkid, normalize_pop_id, decode_email_pop, gen_mail_data, gen_chal_response, gen_signedticket_xml, generate_rps_key, encrypt_with_key_and_iv_tripledes_cbc, Err, MSNStatus, MSNObj
+from .misc import build_presence_notif, cid_format, uuid_to_high_low, encode_payload, decode_capabilities_capabilitiesex, decode_email_networkid, encode_email_networkid, normalize_pop_id, decode_email_pop, gen_mail_data, gen_chal_response, gen_signedticket_xml, generate_rps_key, encrypt_with_key_and_iv_tripledes_cbc, Err, MSNStatus, MSNObj
 
 MSNP_DIALECTS = ['MSNP{}'.format(d) for d in (
 	# Actually supported
@@ -391,7 +391,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		
 		self.send_reply('USR', trid, 'OK', user.email, *args)
 		
-		(high, low) = _uuid_to_high_low(user.uuid)
+		(high, low) = uuid_to_high_low(user.uuid)
 		(ip, port) = self.peername
 		now = datetime.utcnow()
 		
@@ -2078,7 +2078,7 @@ class BackendEventHandler(event.BackendEventHandler):
 		assert bs is not None
 		user = bs.user
 		
-		id_bits = _uuid_to_high_low(user.uuid)
+		id_bits = uuid_to_high_low(user.uuid)
 		self.ctrl.send_reply('NOT', encode_payload(PAYLOAD_MSG_4,
 			member_low = binascii.hexlify(struct.pack('!I', id_bits[1])).decode('utf-8'), member_high = binascii.hexlify(struct.pack('!I', id_bits[0])).decode('utf-8'), email = user.email,
 			cid = cid_format(user.uuid, decimal = True), now = date_format(datetime.utcnow()),
@@ -2089,7 +2089,7 @@ class BackendEventHandler(event.BackendEventHandler):
 		assert bs is not None
 		user = bs.user
 		
-		id_bits = _uuid_to_high_low(user.uuid)
+		id_bits = uuid_to_high_low(user.uuid)
 		
 		self.ctrl.send_reply('NOT', encode_payload(PAYLOAD_MSG_8,
 			member_low = binascii.hexlify(struct.pack('!I', id_bits[1])).decode('utf-8'), member_high = binascii.hexlify(struct.pack('!I', id_bits[0])).decode('utf-8'), email = user.email,
@@ -2638,10 +2638,3 @@ TIMESTAMP = '2000-01-01T00:00:00.0-00:00'
 #	# Thanks J.M. for making the tweet with this WLM 2009 ID-key combo. ^_^
 #	'PROD0120PW!CCV9@': ('C1BX{V4W}Q3*10SM', 21),
 #}
-
-def _uuid_to_high_low(uuid_str: str) -> Tuple[int, int]:
-	import uuid
-	u = uuid.UUID(uuid_str)
-	high = u.time_low % (1<<32)
-	low = u.node % (1<<32)
-	return (high, low)
