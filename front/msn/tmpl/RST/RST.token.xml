@@ -16,8 +16,9 @@
 					<wsse:KeyIdentifier ValueType="urn:passport:compact"></wsse:KeyIdentifier>
 					<wsse:Reference URI="#Compact{{ i }}"></wsse:Reference>
 				</wst:RequestedTokenReference>
+				{%- if domain == 'messengerclear.live.com' -%}
 				<wst:RequestedProofToken>
 					<wst:BinarySecret>{{ binarysecret }}</wst:BinarySecret>
 				</wst:RequestedProofToken>
+				{%- endif -%}
 			</wst:RequestSecurityTokenResponse>
-

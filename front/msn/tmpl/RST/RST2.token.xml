@@ -28,4 +28,3 @@
 				</wst:RequestedProofToken>
 				{%- endif -%}
 			</wst:RequestSecurityTokenResponse>
-
