@@ -14,6 +14,7 @@ from core.client import Client
 from core.models import Lst
 from core import db, event, models
 
+@pytest.mark.xfail(raises = NotImplementedError)
 def test_example(conn, backend):
 	state = TState(conn, backend)
 	
@@ -26,8 +27,6 @@ def test_example(conn, backend):
 	# Calls the backend method for adding a contact,
 	# and checks that u2 received a request
 	cr = s1.do_add_contact(u2)
-	
-	raise pytest.skip("rest of framework not implemented")
 	
 	# Accepts it, and checks that status notifications
 	# get sent out
@@ -154,10 +153,18 @@ class TSession:
 				'adder_id': None,
 			})])
 		self.state.assert_no_uncleared_events()
-		return TContactRequest()
+		return TContactRequest(self.bs.user)
 	
 	def do_accept_contact_request(self, request: 'TContactRequest') -> 'TContact':
-		raise NotImplementedError("TODO: Call backend methods")
+		self.bs.me_contact_add(request.user.uuid, Lst.AL)
+		for other_user_evt in self.state.get_user_beh(request.user.uuid):
+			for ctc in request.user.detail.contacts.values():
+				if ctc.head is not self.bs.user:
+					continue
+				other_user_evt.assert_clear_events([('on_presence_notification', (ctc, False, models.Substatus.Offline), {
+					'send_status_on_bl': False,
+					'updated_phone_info': {'PHH': None, 'PHW': None, 'PHM': None, 'MOB': None},
+				})])
 		self.state.assert_no_uncleared_events()
 		return TContact()
 	
@@ -169,8 +176,8 @@ class TSession:
 		return TChatSession(self.state, core_chat_sess)
 
 class TContactRequest:
-	def __init__(self) -> None:
-		pass
+	def __init__(self, user: models.User) -> None:
+		self.user = user
 
 class TContact:
 	pass
@@ -184,4 +191,5 @@ class TChatSession:
 	def do_send_message(self, message: str) -> None:
 		md = models.MessageData(sender = self.cs.user, type = models.MessageType.Chat, text = message)
 		self.cs.send_message_to_everyone(md)
+		raise NotImplementedError("TODO: check chat event handler events")
 		self.state.assert_no_uncleared_events()
