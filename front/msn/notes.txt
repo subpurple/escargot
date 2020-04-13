@@ -45,7 +45,9 @@ MSN 7.5.0324: 0x1580ec | --             | 0x2e9e8
 WLM 8.1.0178: 0x1430ef
 
 MSN <  5: uses registry for messenger.hotmail.com
-MSN >= 5: uses nexus
+MSN 5 - 7.0: uses nexus (5 - 6 also use registry as cache for NS)
+MSN 7.5 - 8: uses RST
+WLM 2009+: uses RST2
 
 MSN/MSNP Grid
 =====================
