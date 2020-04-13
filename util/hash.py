@@ -1,6 +1,5 @@
 import hashlib
 import secrets
-import random
 import base64
 import binascii
 from typing import Dict, Optional, Tuple, Any, List, Type
@@ -37,7 +36,7 @@ class Hasher:
 	
 	@classmethod
 	def verify(cls, password: str, encoded: str) -> bool:
-		try: (algorithm, *stuff, salt, hash) = encoded.split(cls.separator)
+		try: (algorithm, *stuff, salt, _) = encoded.split(cls.separator)
 		except ValueError: return False
 		
 		try: hasher = HASHERS[algorithm]

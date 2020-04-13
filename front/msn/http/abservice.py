@@ -1,4 +1,4 @@
-from typing import Any, Tuple, List, Optional, Tuple, Dict
+from typing import Any, Tuple, List, Optional, Tuple
 from enum import IntEnum
 from datetime import datetime
 import asyncio
@@ -22,7 +22,7 @@ def register(app: web.Application) -> None:
 	app.router.add_post('/abservice/abservice.asmx', handle_abservice)
 
 async def handle_abservice(req: web.Request, *, sharing: bool = False) -> web.Response:
-	header, action, bs, token = await preprocess_soap(req)
+	header, action, bs, _ = await preprocess_soap(req)
 	if bs is None:
 		raise web.HTTPForbidden()
 	action_str = get_tag_localname(action)
@@ -231,7 +231,14 @@ def ab_ABFindContactsPaged(req: web.Request, header: Any, action: Any, bs: Backe
 		chat_id = ab_id[-12:]
 		groupchat = backend.user_service.get_groupchat(chat_id)
 	
-	groupchats = [groupchat for groupchat in backend.user_service.get_groupchat_batch(user) if not (groupchat.memberships[user.uuid].role == models.GroupChatRole.Empty or groupchat.memberships[user.uuid].state == models.GroupChatState.Empty)]
+	groupchats = [
+		groupchat
+		for groupchat in backend.user_service.get_groupchat_batch(user)
+		if not (
+			groupchat.memberships[user.uuid].role == models.GroupChatRole.Empty
+			or groupchat.memberships[user.uuid].state == models.GroupChatState.Empty
+		)
+	]
 	
 	return render(req, 'msn:abservice/ABFindContactsPagedResponse.xml', {
 		'cachekey': cachekey,
@@ -258,8 +265,6 @@ def ab_ABContactAdd(req: web.Request, header: Any, action: Any, bs: BackendSessi
 	detail = user.detail
 	assert detail is not None
 	
-	ctc_updated = False
-	head = None
 	nickname = None
 	
 	ab_id = find_element(action, 'abId')
@@ -276,7 +281,7 @@ def ab_ABContactAdd(req: web.Request, header: Any, action: Any, bs: BackendSessi
 	if contact is None:
 		return web.HTTPInternalServerError()
 	
-	type = find_element(contact, 'contactType') or 'LivePending'
+	#type = find_element(contact, 'contactType') or 'LivePending'
 	email = find_element(contact, 'passportName') or ''
 	if '@' not in email:
 		return render(req, 'msn:abservice/Fault.emailmissingatsign.xml', status = 500)
@@ -328,8 +333,6 @@ def ab_ABContactDelete(req: web.Request, header: Any, action: Any, bs: BackendSe
 	user = bs.user
 	detail = user.detail
 	assert detail is not None
-	
-	ctc = None
 	
 	ab_id = find_element(action, 'abId')
 	if ab_id is not None:
@@ -450,7 +453,11 @@ def ab_ABContactUpdate(req: web.Request, header: Any, action: Any, bs: BackendSe
 					for email_property in email_properties_changed:
 						if email_property not in _CONTACT_EMAIL_PROPERTIES:
 							return web.HTTPInternalServerError()
-					if str(find_element(contact_email, 'contactEmailType')) not in ('ContactEmailPersonal','ContactEmailBusiness','ContactEmailMessenger','ContactEmailOther'):
+					if (
+						str(find_element(contact_email, 'contactEmailType')) not in (
+							'ContactEmailPersonal', 'ContactEmailBusiness', 'ContactEmailMessenger', 'ContactEmailOther',
+						)
+					):
 						return web.HTTPInternalServerError()
 			if contact_property == 'ContactPrimaryEmailType':
 				assert ctc is not None
@@ -468,7 +475,11 @@ def ab_ABContactUpdate(req: web.Request, header: Any, action: Any, bs: BackendSe
 					for phone_property in phone_properties_changed:
 						if phone_property not in _CONTACT_PHONE_PROPERTIES:
 							return web.HTTPInternalServerError()
-					if str(find_element(contact_phone, 'contactPhoneType')) not in ('ContactPhonePersonal','ContactPhoneBusiness','ContactPhoneMobile','ContactPhoneFax','ContactPhonePager','ContactPhoneOther'):
+					if (
+						str(find_element(contact_phone, 'contactPhoneType')) not in (
+							'ContactPhonePersonal', 'ContactPhoneBusiness', 'ContactPhoneMobile', 'ContactPhoneFax', 'ContactPhonePager', 'ContactPhoneOther',
+						),
+					):
 						return web.HTTPInternalServerError()
 			if contact_property == 'ContactWebSite':
 				assert ctc is not None
@@ -609,7 +620,13 @@ def ab_ABContactUpdate(req: web.Request, header: Any, action: Any, bs: BackendSe
 								property = str(property)
 							ctc.detail.locations[contact_location_type].zip_code = property
 							updated = True
-					if ctc.detail.locations[contact_location_type].street is None and ctc.detail.locations[contact_location_type].city is None and ctc.detail.locations[contact_location_type].state is None and ctc.detail.locations[contact_location_type].country is None and ctc.detail.locations[contact_location_type].zip_code is None:
+					if (
+						ctc.detail.locations[contact_location_type].street is None
+						and ctc.detail.locations[contact_location_type].city is None
+						and ctc.detail.locations[contact_location_type].state is None
+						and ctc.detail.locations[contact_location_type].country is None
+						and ctc.detail.locations[contact_location_type].zip_code is None
+					):
 						del ctc.detail.locations[contact_location_type]
 						updated = True
 			if contact_property == 'IsMessengerUser':
@@ -750,7 +767,7 @@ def ab_ABGroupAdd(req: web.Request, header: Any, action: Any, bs: BackendSession
 		return web.HTTPInternalServerError()
 	
 	name = find_element(action, 'name')
-	is_favorite = find_element(action, 'IsFavorite')
+	#is_favorite = find_element(action, 'IsFavorite')
 	
 	if name == '(No Group)':
 		return render(req, 'msn:abservice/Fault.groupalreadyexists.xml', {
@@ -801,7 +818,7 @@ def ab_ABGroupUpdate(req: web.Request, header: Any, action: Any, bs: BackendSess
 		if not properties_changed:
 			return web.HTTPInternalServerError()
 		properties_changed = str(properties_changed).strip().split(' ')
-		for i, contact_property in enumerate(properties_changed):
+		for contact_property in properties_changed:
 			if contact_property not in _CONTACT_PROPERTIES:
 				return web.HTTPInternalServerError()
 		for contact_property in properties_changed:
@@ -828,7 +845,6 @@ def ab_ABGroupUpdate(req: web.Request, header: Any, action: Any, bs: BackendSess
 					return web.HTTPInternalServerError()
 	for group_elm in groups:
 		group_id = str(find_element(group_elm, 'groupId'))
-		g = detail.get_group_by_id(group_id)
 		group_info = group_elm.find('.//{*}groupInfo')
 		properties_changed = find_element(group_elm, 'propertiesChanged')
 		properties_changed = str(properties_changed).strip().split(' ')
@@ -994,7 +1010,12 @@ def sharing_CreateCircle(req: web.Request, header: Any, action: Any, bs: Backend
 	
 	user = bs.user
 	
-	if find_element(action, 'Domain') == 1 and find_element(action, 'HostedDomain') == 'live.com' and find_element(action, 'Type') == 2 and isinstance(find_element(action, 'IsPresenceEnabled'), bool):
+	if (
+		find_element(action, 'Domain') == 1
+		and find_element(action, 'HostedDomain') == 'live.com'
+		and find_element(action, 'Type') == 2
+		and isinstance(find_element(action, 'IsPresenceEnabled'), bool)
+	):
 		membership_access = int(find_element(action, 'MembershipAccess'))
 		name = str(find_element(action, 'DisplayName'))
 		owner_friendly = str(find_element(action, 'PublicDisplayName'))
@@ -1058,7 +1079,12 @@ def ab_CreateContact(req: web.Request, header: Any, action: Any, bs: BackendSess
 	
 	membership = groupchat.memberships.get(head.uuid)
 	
-	if membership is not None and (membership.state == models.GroupChatState.Rejected or (membership.role == models.GroupChatRole.Member and membership.state == models.GroupChatState.Empty)):
+	if (
+		membership is not None and (
+			membership.state == models.GroupChatState.Rejected
+			or (membership.role == models.GroupChatRole.Member and membership.state == models.GroupChatState.Empty)
+		)
+	):
 		bs.me_change_groupchat_membership(groupchat, head, role = models.GroupChatRole.Empty, state = models.GroupChatState.Empty)
 	else:
 		try:
@@ -1222,7 +1248,9 @@ def ab_ManageWLConnection(req: web.Request, header: Any, action: Any, bs: Backen
 						'cachekey': cachekey,
 						'host': settings.LOGIN_HOST,
 						'session_id': util.misc.gen_uuid(),
-						'error': 'RelationshipRole `{role}` not currently supported for relationship type `{type}`'.format(role = relationship_role, type = relationship_type.name),
+						'error': 'RelationshipRole `{role}` not currently supported for relationship type `{type}`'.format(
+							role = relationship_role, type = relationship_type.name
+						),
 					}, status = 500)
 			elif wl_action == 2:
 				if ab_id == '00000000-0000-0000-0000-000000000000':
@@ -1269,7 +1297,6 @@ def ab_ManageWLConnection(req: web.Request, header: Any, action: Any, bs: Backen
 
 def ab_BreakConnection(req: web.Request, header: Any, action: Any, bs: BackendSession) -> web.Response:
 	backend: Backend = req.app['backend']
-	now_str = util.misc.date_format(datetime.utcnow())
 	cachekey = secrets.token_urlsafe(172)
 	
 	user = bs.user
@@ -1352,7 +1379,8 @@ def ab_UpdateDynamicItem(req: web.Request, header: Any, action: Any, bs: Backend
 	return unknown_soap(req, header, action, expected = True)
 
 _CONTACT_PROPERTIES = (
-	'Comment', 'DisplayName', 'ContactType', 'ContactFirstName', 'ContactLastName', 'MiddleName', 'Anniversary', 'ContactBirthDate', 'ContactEmail', 'ContactLocation', 'ContactWebSite', 'ContactPrimaryEmailType', 'ContactPhone', 'GroupName',
+	'Comment', 'DisplayName', 'ContactType', 'ContactFirstName', 'ContactLastName', 'MiddleName', 'Anniversary',
+	'ContactBirthDate', 'ContactEmail', 'ContactLocation', 'ContactWebSite', 'ContactPrimaryEmailType', 'ContactPhone', 'GroupName',
 	'IsMessengerEnabled', 'IsMessengerUser', 'IsFavorite', 'HasSpace',
 	'Annotation', 'Capability', 'MessengerMemberInfo',
 )
@@ -1371,7 +1399,8 @@ _CONTACT_LOCATION_PROPERTIES = (
 
 _ANNOTATION_NAMES = (
 	'MSN.IM.InviteMessage', 'MSN.IM.MPOP', 'MSN.IM.BLP', 'MSN.IM.GTC', 'MSN.IM.RoamLiveProperties',
-	'MSN.IM.MBEA', 'MSN.IM.BuddyType', 'MSN.IM.HasSharedFolder', 'AB.NickName', 'AB.Profession', 'AB.Spouse', 'AB.JobTitle', 'Live.Locale', 'Live.Profile.Expression.LastChanged',
+	'MSN.IM.MBEA', 'MSN.IM.BuddyType', 'MSN.IM.HasSharedFolder', 'AB.NickName', 'AB.Profession', 'AB.Spouse',
+	'AB.JobTitle', 'Live.Locale', 'Live.Profile.Expression.LastChanged',
 	'Live.Passport.Birthdate', 'Live.Favorite.Order',
 )
 

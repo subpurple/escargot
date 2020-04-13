@@ -1,19 +1,15 @@
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 from aiohttp import web
-import aiohttp
 import asyncio
 from markupsafe import Markup
 from urllib.parse import unquote, unquote_plus, quote
 from pathlib import Path
-import datetime
 import shutil
-import re
 
 from core.backend import Backend, BackendSession
 from core.models import Contact, Substatus
 import util.misc
 from util.hash import gen_salt
-import settings
 from .ymsg_ctrl import _try_decode_ymsg
 from .misc import YMSGService, yahoo_id_to_uuid, yahoo_id
 import time
@@ -78,7 +74,6 @@ async def handle_insider_ycontent(req: web.Request) -> web.Response:
 						config_xml.append(ab2_tmpl.render(epoch = round(time.time()), records = Markup('\n'.join(records))))
 					if query_xml == 'addab2':
 						edit_mode = False
-						email_member = None
 						
 						if yab_set or yab_received: continue
 						if req.query.get('ee') is '1' and req.query.get('ow') is '1':
@@ -129,7 +124,8 @@ async def handle_insider_ycontent(req: web.Request) -> web.Response:
 		'configxml': Markup('\n'.join(config_xml)),
 	})
 
-# 'intl', 'os', 'ver', 'fn', 'ln', 'yid', 'nn', 'e', 'hp', 'wp', 'mp', 'pp', 'ee', 'ow', and 'id' are NOT queries to retrieve config XML files;
+# 'intl', 'os', 'ver', 'fn', 'ln', 'yid', 'nn', 'e', 'hp', 'wp', 'mp', 'pp', 'ee',
+# 'ow', and 'id' are NOT queries to retrieve config XML files;
 # 'getwc' and 'getgp' are undocumented as of now
 # Other queries most likely are just not implemented
 IGNORED_QUERIES = {
@@ -172,8 +168,6 @@ def _gen_yab_record(ctc: Contact) -> str:
 	)
 
 async def handle_chat_banad(req: web.Request) -> web.Response:
-	query = req.query
-	
 	return render(req, 'ymsg:placeholders/banad.html')
 
 async def handle_chat_tabad(req: web.Request) -> web.Response:
@@ -223,12 +217,15 @@ async def handle_rd_yahoo(req: web.Request) -> web.Response:
 #		'Location': loc,
 #	})
 #	
-#	y_expiry = datetime.datetime.utcfromtimestamp(backend.auth_service.get_token_expiry('ymsg/cookie', y)).strftime('%a, %d %b %Y %H:%M:%S GMT')
-#	t_expiry = datetime.datetime.utcfromtimestamp(backend.auth_service.get_token_expiry('ymsg/cookie', t)).strftime('%a, %d %b %Y %H:%M:%S GMT') 
+#	tok_exp_y = backend.auth_service.get_token_expiry('ymsg/cookie', y)
+#	y_expiry = datetime.datetime.utcfromtimestamp(tok_exp_y).strftime('%a, %d %b %Y %H:%M:%S GMT')
+#	tok_exp_t = backend.auth_service.get_token_expiry('ymsg/cookie', t)
+#	t_expiry = datetime.datetime.utcfromtimestamp(tok_exp_t).strftime('%a, %d %b %Y %H:%M:%S GMT') 
 #	
 #	# TODO: Replace '.yahoo.com' with '.log1p.xyz' when patched Yahoo! Messenger files are released.
-#	resp.set_cookie('Y', y, path = '/', expires = y_expiry, domain = ('yahooloopback.log1p.xyz' if settings.DEBUG else settings.TARGET_HOST))
-#	resp.set_cookie('T', t, path = '/', expires = t_expiry, domain = ('yahooloopback.log1p.xyz' if settings.DEBUG else settings.TARGET_HOST))
+#	domain = ('yahooloopback.log1p.xyz' if settings.DEBUG else settings.TARGET_HOST)
+#	resp.set_cookie('Y', y, path = '/', expires = y_expiry, domain = domain)
+#	resp.set_cookie('T', t, path = '/', expires = t_expiry, domain = domain)
 #	
 #	return resp
 
@@ -312,8 +309,12 @@ async def handle_ft_http(req: web.Request) -> web.Response:
 	_tasks_by_token[token] = expiry_task
 	
 	for bs_other in bs.backend._sc.iter_sessions():
-		if bs_other.user.uuid == recipient_uuid:
-			bs_other.evt.ymsg_on_sent_ft_http(yahoo_id_sender, '{}?{}'.format(FILE_STORE_PATH.format(filename = quote(file_tmp_path.name)), token), upload_time, message)
+		if bs_other.user.uuid != recipient_uuid:
+			continue
+		bs_other.evt.ymsg_on_sent_ft_http(
+			yahoo_id_sender, '{}?{}'.format(FILE_STORE_PATH.format(filename = quote(file_tmp_path.name)), token),
+			upload_time, message,
+		)
 	
 	bs.evt.ymsg_on_upload_file_ft(yahoo_id_recipient, message)
 	
@@ -321,7 +322,8 @@ async def handle_ft_http(req: web.Request) -> web.Response:
 
 async def _store_tmp_file_until_expiry(path: Path) -> None:
 	await asyncio.sleep(86400)
-	# When a day passes, delete the file (unless it has already been deleted by the downloader handler; it will cancel the according task then)
+	# When a day passes, delete the file (unless it has already been deleted by
+	# the downloader handler; it will cancel the according task then)
 	shutil.rmtree(str(path), ignore_errors = True)
 
 async def handle_yahoo_filedl(req: web.Request) -> web.Response:
@@ -352,7 +354,9 @@ async def handle_yahoo_filedl(req: web.Request) -> web.Response:
 def _get_tmp_file_storage_path(token: str) -> Path:
 	return Path('storage/file') / token
 
-def _parse_cookies(req: web.Request, backend: Backend, y: Optional[str] = None, t: Optional[str] = None) -> Tuple[Optional[str], Optional[BackendSession]]:
+def _parse_cookies(
+	req: web.Request, backend: Backend, y: Optional[str] = None, t: Optional[str] = None,
+) -> Tuple[Optional[str], Optional[BackendSession]]:
 	cookies = req.cookies
 	
 	if None in (y,t):

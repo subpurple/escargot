@@ -3,7 +3,10 @@ import asyncio
 import random
 
 from core.client import Client
-from core.models import Substatus, Lst, OIM, Contact, User, GroupChat, GroupChatRole, NetworkID, TextWithData, MessageData, MessageType, LoginOption
+from core.models import (
+	Substatus, Lst, Contact, User, GroupChat, GroupChatRole, TextWithData,
+	MessageData, MessageType, LoginOption, OIM,
+)
 from core.backend import Backend, BackendSession, Chat, ChatSession
 from core import event
 from util.misc import MultiDict
@@ -46,10 +49,16 @@ class BackendEventHandler(event.BackendEventHandler):
 	def on_maintenance_boot(self) -> None:
 		pass
 	
-	def on_presence_notification(self, ctc: Contact, on_contact_add: bool, old_substatus: Substatus, *, trid: Optional[str] = None, update_status: bool = True, update_info_other: bool = True, send_status_on_bl: bool = False, sess_id: Optional[int] = None, updated_phone_info: Optional[Dict[str, Any]] = None) -> None:
+	def on_presence_notification(
+		self, ctc: Contact, on_contact_add: bool, old_substatus: Substatus, *,
+		trid: Optional[str] = None, update_status: bool = True, update_info_other: bool = True,
+		send_status_on_bl: bool = False, sess_id: Optional[int] = None, updated_phone_info: Optional[Dict[str, Any]] = None,
+	) -> None:
 		pass
 	
-	def on_presence_self_notification(self, old_substatus: Substatus, *, update_status: bool = True, update_info: bool = True) -> None:
+	def on_presence_self_notification(
+		self, old_substatus: Substatus, *, update_status: bool = True, update_info: bool = True,
+	) -> None:
 		pass
 	
 	def on_groupchat_created(self, groupchat: GroupChat) -> None:
@@ -70,7 +79,9 @@ class BackendEventHandler(event.BackendEventHandler):
 	def on_groupchat_role_updated(self, chat_id: str, role: GroupChatRole) -> None:
 		pass
 	
-	def on_chat_invite(self, chat: Chat, inviter: User, *, group_chat: bool = False, inviter_id: Optional[str] = None, invite_msg: str = '') -> None:
+	def on_chat_invite(
+		self, chat: Chat, inviter: User, *, group_chat: bool = False, inviter_id: Optional[str] = None, invite_msg: str = '',
+	) -> None:
 		cs = chat.join('testbot', self.bs, ChatEventHandler(self.loop, self.bs))
 		chat.send_participant_joined(cs)
 	
@@ -134,7 +145,9 @@ class ChatEventHandler(event.ChatEventHandler):
 	def on_participant_left(self, cs_other: ChatSession, last_pop: bool) -> None:
 		pass
 	
-	def on_chat_invite_declined(self, chat: Chat, invitee: User, *, invitee_id: Optional[str] = None, message: Optional[str] = None, group_chat: bool = False) -> None:
+	def on_chat_invite_declined(
+		self, chat: Chat, invitee: User, *, invitee_id: Optional[str] = None, message: Optional[str] = None, group_chat: bool = False,
+	) -> None:
 		pass
 	
 	def on_chat_updated(self) -> None:

@@ -1,0 +1,50 @@
+[FORMAT]
+
+indent_string='\t'
+max-line-length=140
+expected-line-ending-format=LF
+
+[MESSAGES CONTROL]
+
+disable=E,W,C,R,I
+enable=unused-import,
+	unused-variable,
+	unused-argument,
+	wildcard-import,
+	line-too-long,
+	missing-final-newline,
+	mixed-line-endings,
+	unexpected-line-ending-format,
+	syntax-error,
+	init-is-generator,
+	return-in-init,
+	function-redefined,
+	not-in-loop,
+	return-outside-function,
+	yield-outside-function,
+	duplicate-argument-name,
+	abstract-class-instantiated,
+	too-many-star-expressions,
+	method-hidden,
+	access-member-before-definition,
+	no-self-argument,
+	invalid-slots-object,
+	assigning-non-slot,
+	invalid-slots,
+	unexpected-special-method-signature,
+	import-error,
+	notimplemented-raised,
+	fatal,
+	astroid-error,
+	parse-error,
+	method-check-failed,
+	raw-checker-failed,
+	useless-suppression,
+	use-symbolic-message-instead,
+	duplicate-key,
+	cell-var-from-loop,
+
+[REPORTS]
+
+reports=no
+score=no

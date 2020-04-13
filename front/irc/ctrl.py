@@ -6,7 +6,10 @@ from enum import IntEnum
 from util.misc import Logger
 
 from core import event
-from core.models import Contact, Substatus, User, GroupChat, GroupChatRole, TextWithData, OIM, MessageData, MessageType, Substatus, LoginOption, NetworkID
+from core.models import (
+	Contact, Substatus, User, GroupChat, GroupChatRole, TextWithData,
+	MessageData, MessageType, Substatus, LoginOption, OIM,
+)
 from core.backend import Backend, BackendSession, Chat, ChatSession
 from core.client import Client
 
@@ -204,13 +207,22 @@ class BackendEventHandler(event.BackendEventHandler):
 			if args[1] < 0:
 				self.ctrl.send_reply('PRIVMSG', '$*', ':' + message, source = "System")
 			else:
-				self.ctrl.send_reply('NOTICE', '$*', ':Escargot is going to go down for maintenance in {} minute(s).'.format(str(args[1])), source = 'System')
+				self.ctrl.send_reply(
+					'NOTICE', '$*', ':Escargot is going to go down for maintenance in {} minute(s).'.format(str(args[1])), source = 'System',
+				)
 	
 	def on_maintenance_boot(self) -> None:
-		self.ctrl.send_reply('KILL', '$*', ':Escargot is now in maintenance mode. You will be promptly disconnected and temporarily unable to log in after this point.', source = 'System')
+		msg = ':Escargot is now in maintenance mode. You will be promptly disconnected and temporarily unable to log in after this point.'
+		self.ctrl.send_reply(
+			'KILL', '$*', msg, source = 'System'
+		)
 		self.ctrl.close()
 	
-	def on_presence_notification(self, ctc: Contact, on_contact_add: bool, old_substatus: Substatus, *, trid: Optional[str] = None, update_status: bool = True, update_info_other: bool = True, send_status_on_bl: bool = False, sess_id: Optional[int] = None, updated_phone_info: Optional[Dict[str, Any]] = None) -> None:
+	def on_presence_notification(
+		self, ctc: Contact, on_contact_add: bool, old_substatus: Substatus, *,
+		trid: Optional[str] = None, update_status: bool = True, update_info_other: bool = True,
+		send_status_on_bl: bool = False, sess_id: Optional[int] = None, updated_phone_info: Optional[Dict[str, Any]] = None,
+	) -> None:
 		if update_status:
 			self.ctrl.send_reply('NOTICE', ":{} is now {}".format(ctc.head.email, ctc.status.substatus))
 	
@@ -235,7 +247,9 @@ class BackendEventHandler(event.BackendEventHandler):
 	def on_groupchat_role_updated(self, chat_id: str, role: GroupChatRole) -> None:
 		pass
 	
-	def on_chat_invite(self, chat: Chat, inviter: User, *, group_chat: bool = False, inviter_id: Optional[str] = None, invite_msg: str = '') -> None:
+	def on_chat_invite(
+		self, chat: Chat, inviter: User, *, group_chat: bool = False, inviter_id: Optional[str] = None, invite_msg: str = '',
+	) -> None:
 		if group_chat: return
 		self.ctrl.send_reply('INVITE', self.bs.user.email, chat.ids['irc'], source = inviter.email)
 	
@@ -287,7 +301,9 @@ class ChatEventHandler(event.ChatEventHandler):
 		if last_pop:
 			self.ctrl.send_reply('PART', self.cs.chat.ids['irc'], source = cs_other.user.email)
 	
-	def on_chat_invite_declined(self, chat: Chat, invitee: User, *, invitee_id: Optional[str] = None, message: Optional[str] = None, group_chat: bool = False) -> None:
+	def on_chat_invite_declined(
+		self, chat: Chat, invitee: User, *, invitee_id: Optional[str] = None, message: Optional[str] = None, group_chat: bool = False,
+	) -> None:
 		if group_chat: return
 		self.ctrl.send_reply('NOTICE', ":{} declined the invitation".format(invitee.email), source = invitee.email)
 		if message:

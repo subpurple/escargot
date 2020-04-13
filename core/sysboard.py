@@ -1,7 +1,6 @@
 import asyncio
 from typing import Any, Dict, Optional
 from aiohttp import web
-from urllib.parse import unquote
 from datetime import datetime
 import jinja2
 
@@ -82,7 +81,11 @@ async def handle_sysboard_login_verify(req: web.Request) -> web.Response:
 		response = web.Response(status = 302, headers = {
 			'Location': SYSBOARD_PATH,
 		})
-		response.set_cookie(SYSBOARD_COOKIE_NAME, sysboard_token, path = SYSBOARD_PATH, expires = datetime.utcfromtimestamp(req.app['backend'].auth_service.get_token_expiry('sysboard/token', sysboard_token)).strftime('%a, %d %b %Y %H:%M:%S GMT'))
+		token_expiry = req.app['backend'].auth_service.get_token_expiry('sysboard/token', sysboard_token)
+		response.set_cookie(
+			SYSBOARD_COOKIE_NAME, sysboard_token, path = SYSBOARD_PATH,
+			expires = datetime.utcfromtimestamp(token_expiry).strftime('%a, %d %b %Y %H:%M:%S GMT'),
+		)
 		return response
 	else:
 		return render(req, 'login.html', {

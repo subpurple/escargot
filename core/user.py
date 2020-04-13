@@ -1,18 +1,21 @@
-from typing import Dict, Optional, List, Tuple, Set, Any, TYPE_CHECKING
+from typing import Dict, Optional, List, Tuple, Any, TYPE_CHECKING
 from datetime import datetime
-from urllib.parse import quote
 from dateutil import parser as iso_parser
 from pathlib import Path
-import asyncio, traceback
 import json
 
-from util.hash import hasher, hasher_md5, hasher_md5crypt, gen_salt
+from util.hash import hasher, hasher_md5, hasher_md5crypt
 from util import misc
 
-from . import error
 from .conn import Conn
-from .db import User as DBUser, UserContact as DBUserContact, GroupChat as DBGroupChat, GroupChatMembership as DBGroupChatMembership
-from .models import User, Contact, ContactDetail, ContactLocation, ContactGroupEntry, UserStatus, UserDetail, GroupChat, GroupChatMembership, GroupChatRole, GroupChatState, NetworkID, Lst, Group, OIM, MessageData
+from .db import (
+	User as DBUser, UserContact as DBUserContact, GroupChat as DBGroupChat,
+	GroupChatMembership as DBGroupChatMembership,
+)
+from .models import (
+	User, Contact, ContactDetail, ContactLocation, ContactGroupEntry, UserStatus, UserDetail, GroupChat,
+	GroupChatMembership, GroupChatRole, GroupChatState, Group, OIM,
+)
 
 if TYPE_CHECKING:
 	from .backend import BackendSession
@@ -105,10 +108,21 @@ class UserService:
 					ctc_head.uuid, group_entry['id'], group_entry['uuid'],
 				) for group_entry in c.groups }
 				c_detail = ContactDetail(
-					c.index_id, birthdate = c.birthdate, anniversary = c.anniversary, notes = c.notes, first_name = c.first_name, middle_name = c.middle_name, last_name = c.last_name, nickname = c.nickname, primary_email_type = c.primary_email_type, personal_email = c.personal_email, work_email = c.work_email, im_email = c.im_email, other_email = c.other_email, home_phone = c.home_phone, work_phone = c.work_phone, fax_phone = c.fax_phone, pager_phone = c.pager_phone, mobile_phone = c.mobile_phone, other_phone = c.other_phone, personal_website = c.personal_website, business_website = c.business_website,
+					c.index_id, birthdate = c.birthdate, anniversary = c.anniversary, notes = c.notes,
+					first_name = c.first_name, middle_name = c.middle_name, last_name = c.last_name,
+					nickname = c.nickname, primary_email_type = c.primary_email_type,
+					personal_email = c.personal_email, work_email = c.work_email, im_email = c.im_email,
+					other_email = c.other_email, home_phone = c.home_phone, work_phone = c.work_phone,
+					fax_phone = c.fax_phone, pager_phone = c.pager_phone, mobile_phone = c.mobile_phone,
+					other_phone = c.other_phone, personal_website = c.personal_website,
+					business_website = c.business_website,
 				)
 				c_detail.locations = {
-					type: ContactLocation(type, name = location.get('name'), street = location.get('street'), city = location.get('city'), state = location.get('state'), country = location.get('country'), zip_code = location.get('zip_code')) for type, location in c.locations.items()
+					type: ContactLocation(
+						type, name = location.get('name'), street = location.get('street'), city = location.get('city'),
+						state = location.get('state'), country = location.get('country'), zip_code = location.get('zip_code'),
+					)
+					for type, location in c.locations.items()
 				}
 				ctc = Contact(
 					ctc_head, ctc_groups, c.lists, status, c_detail, is_messenger_user = c.is_messenger_user, pending = c.pending,
@@ -139,11 +153,12 @@ class UserService:
 			return None
 		
 		oim = OIM(
-			json_oim['uuid'], json_oim['run_id'], json_oim['from'], json_oim['from_friendly']['friendly_name'], user.email, iso_parser.parse(json_oim['sent']),
+			json_oim['uuid'], json_oim['run_id'], json_oim['from'], json_oim['from_friendly']['friendly_name'],
+			user.email, iso_parser.parse(json_oim['sent']),
 			json_oim['message']['text'], json_oim['message']['utf8'],
 			headers = json_oim['headers'],
-			from_friendly_encoding = json_oim['from_friendly']['encoding'], from_friendly_charset = json_oim['from_friendly']['charset'], from_user_id = json_oim['from_user_id'],
-			origin_ip = json_oim['origin_ip'], oim_proxy = json_oim['proxy']
+			from_friendly_encoding = json_oim['from_friendly']['encoding'], from_friendly_charset = json_oim['from_friendly']['charset'],
+			from_user_id = json_oim['from_user_id'], origin_ip = json_oim['origin_ip'], oim_proxy = json_oim['proxy'],
 		)
 		if mark_read:
 			json_oim['is_read'] = True
@@ -151,7 +166,11 @@ class UserService:
 		
 		return oim
 	
-	def save_oim(self, bs: 'BackendSession', recipient_uuid: str, run_id: str, origin_ip: str, message: str, utf8: bool, *, from_friendly: Optional[str] = None, from_friendly_charset: str = 'utf-8', from_friendly_encoding: str = 'B', from_user_id: Optional[str] = None, headers: Dict[str, str] = {}, oim_proxy: Optional[str] = None) -> None:
+	def save_oim(
+		self, bs: 'BackendSession', recipient_uuid: str, run_id: str, origin_ip: str, message: str, utf8: bool, *,
+		from_friendly: Optional[str] = None, from_friendly_charset: str = 'utf-8', from_friendly_encoding: str = 'B',
+		from_user_id: Optional[str] = None, headers: Dict[str, str] = {}, oim_proxy: Optional[str] = None,
+	) -> None:
 		assert bs is not None
 		user = bs.user
 		
@@ -186,11 +205,11 @@ class UserService:
 		oim_path.write_text(json.dumps(oim_json))
 		
 		oim = OIM(
-			oim_json['uuid'], oim_json['run_id'], oim_json['from'], oim_json['from_friendly']['friendly_name'], user.email, iso_parser.parse(oim_json['sent']),
-			oim_json['message']['text'], oim_json['message']['utf8'],
-			headers = oim_json['headers'],
-			from_friendly_encoding = oim_json['from_friendly']['encoding'], from_friendly_charset = oim_json['from_friendly']['charset'], from_user_id = oim_json['from_user_id'],
-			origin_ip = oim_json['origin_ip'], oim_proxy = oim_json['proxy']
+			oim_json['uuid'], oim_json['run_id'], oim_json['from'], oim_json['from_friendly']['friendly_name'],
+			user.email, iso_parser.parse(oim_json['sent']), oim_json['message']['text'], oim_json['message']['utf8'],
+			headers = oim_json['headers'], from_friendly_encoding = oim_json['from_friendly']['encoding'],
+			from_friendly_charset = oim_json['from_friendly']['charset'], from_user_id = oim_json['from_user_id'],
+			origin_ip = oim_json['origin_ip'], oim_proxy = oim_json['proxy'],
 		)
 		
 		bs.me_contact_notify_oim(recipient_uuid, oim)
@@ -207,7 +226,8 @@ class UserService:
 			
 			dbgroupchat = DBGroupChat(
 				chat_id = chat_id, name = name,
-				owner_id = user.id, owner_uuid = user.uuid, owner_friendly = owner_friendly, membership_access = membership_access, request_membership_option = 0,
+				owner_id = user.id, owner_uuid = user.uuid, owner_friendly = owner_friendly,
+				membership_access = membership_access, request_membership_option = 0,
 			)
 			sess.add(dbgroupchat)
 			
@@ -243,7 +263,8 @@ class UserService:
 					dbgroupchat.chat_id, head,
 					GroupChatRole(dbgroupchatmembership.role), GroupChatState(dbgroupchatmembership.state),
 					blocking = dbgroupchatmembership.blocking,
-					inviter_uuid = dbgroupchatmembership.inviter_uuid, inviter_email = dbgroupchatmembership.inviter_email, inviter_name = dbgroupchatmembership.inviter_name, invite_message = dbgroupchatmembership.invite_message,
+					inviter_uuid = dbgroupchatmembership.inviter_uuid, inviter_email = dbgroupchatmembership.inviter_email,
+					inviter_name = dbgroupchatmembership.inviter_name, invite_message = dbgroupchatmembership.invite_message,
 				)
 		
 		return groupchat
@@ -269,14 +290,14 @@ class UserService:
 			dbgroupchats = sess.query(DBGroupChat)
 			
 			for dbgroupchat in dbgroupchats:
-				membership_found = False
-				
 				if dbgroupchat.chat_id in self._groupchat_cache_by_chat_id:
 					groupchat = self._groupchat_cache_by_chat_id[dbgroupchat.chat_id]
 					if groupchat is None: continue
 					if user.uuid not in groupchat.memberships: continue
 				else:
-					dbgroupchatmembership = sess.query(DBGroupChatMembership).filter(DBGroupChatMembership.chat_id == dbgroupchat.chat_id, DBGroupChatMembership.member_uuid == user.uuid).one_or_none()
+					dbgroupchatmembership = sess.query(DBGroupChatMembership).filter(
+						DBGroupChatMembership.chat_id == dbgroupchat.chat_id, DBGroupChatMembership.member_uuid == user.uuid
+					).one_or_none()
 					if dbgroupchatmembership is None:
 						continue
 				
@@ -302,7 +323,9 @@ class UserService:
 					if tmp.member_uuid not in groupchat.memberships:
 						sess.delete(tmp)
 				for membership in groupchat.memberships.values():
-					dbgroupchatmembership = sess.query(DBGroupChatMembership).filter(DBGroupChatMembership.chat_id == chat_id, DBGroupChatMembership.member_uuid == membership.head.uuid).one_or_none()
+					dbgroupchatmembership = sess.query(DBGroupChatMembership).filter(
+						DBGroupChatMembership.chat_id == chat_id, DBGroupChatMembership.member_uuid == membership.head.uuid
+					).one_or_none()
 					if dbgroupchatmembership is None:
 						dbgroupchatmembership = DBGroupChatMembership(
 							chat_id = chat_id, member_id = membership.head.id, member_uuid = membership.head.uuid,
@@ -337,7 +360,9 @@ class UserService:
 					if tmp.uuid not in detail.contacts:
 						sess.delete(tmp)
 				for c in detail.contacts.values():
-					dbusercontact = sess.query(DBUserContact).filter(DBUserContact.user_id == user.id, DBUserContact.contact_id == c.head.id).one_or_none()
+					dbusercontact = sess.query(DBUserContact).filter(
+						DBUserContact.user_id == user.id, DBUserContact.contact_id == c.head.id
+					).one_or_none()
 					status_message = _get_persisted_status_message(c.status)
 					if dbusercontact is None:
 						dbusercontact = DBUserContact(
@@ -374,7 +399,8 @@ class UserService:
 					dbusercontact.business_website = c.detail.business_website
 					dbusercontact.locations = {
 						location.type: {
-							'name': location.name, 'street': location.street, 'city': location.city, 'state': location.state, 'country': location.country, 'zip_code': location.zip_code,
+							'name': location.name, 'street': location.street, 'city': location.city, 'state': location.state,
+							'country': location.country, 'zip_code': location.zip_code,
 						} for location in c.detail.locations.values()
 					}
 					

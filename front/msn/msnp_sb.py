@@ -1,11 +1,9 @@
 from typing import Tuple, Any, Optional, List, Set
 import time
-import re
-import secrets
 import asyncio
 from email.parser import Parser
 
-from util.misc import Logger, first_in_iterable, VoidTaskType
+from util.misc import Logger, VoidTaskType
 from core.models import User, MessageData, MessageType, Substatus
 from core.backend import Backend, BackendSession, ChatSession, Chat
 from core import event, error
@@ -157,11 +155,20 @@ class MSNPCtrlSB(MSNPCtrl):
 			for other_cs in tmp:
 				other_user = other_cs.user
 				if dialect >= 16:
-					capabilities = encode_capabilities_capabilitiesex(((other_cs.bs.front_data.get('msn_capabilities') or 0) if other_cs.bs.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC), other_cs.bs.front_data.get('msn_capabilitiesex') or 0)
+					capabilities = encode_capabilities_capabilitiesex(
+						((other_cs.bs.front_data.get('msn_capabilities') or 0) if other_cs.bs.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC),
+						other_cs.bs.front_data.get('msn_capabilitiesex') or 0,
+					)
 				else:
-					capabilities = str((other_cs.bs.front_data.get('msn_capabilities') or 0) if other_cs.bs.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC)
+					capabilities = str(
+						(other_cs.bs.front_data.get('msn_capabilities') or 0)
+						if other_cs.bs.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC
+					)
 				
-				self.send_reply('IRO', trid, i, l, encode_email_pop(other_user.email, other_cs.bs.front_data.get('msn_pop_id')), other_user.status.name, capabilities)
+				self.send_reply(
+					'IRO', trid, i, l, encode_email_pop(other_user.email, other_cs.bs.front_data.get('msn_pop_id')),
+					other_user.status.name, capabilities,
+				)
 				if other_cs.primary_pop and other_cs.bs.front_data.get('msn_pop_id') is not None:
 					i += 1
 					self.send_reply('IRO', trid, i, l, other_user.email, other_user.status.name, capabilities)
@@ -178,7 +185,13 @@ class MSNPCtrlSB(MSNPCtrl):
 				other_user = other_cs.user
 				extra = () # type: Tuple[Any, ...]
 				if dialect >= 12:
-					extra = (((other_cs.bs.front_data.get('msn_capabilities') or 0) if other_cs.bs.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC),)
+					extra = (
+						(
+							(other_cs.bs.front_data.get('msn_capabilities') or 0)
+							if other_cs.bs.front_data.get('msn') is True
+							else MAX_CAPABILITIES_BASIC
+						),
+					)
 				self.send_reply('IRO', trid, i + 1, l, other_user.email, other_user.status.name, *extra)
 		
 		self.send_reply('ANS', trid, 'OK')
@@ -227,7 +240,10 @@ class MSNPCtrlSB(MSNPCtrl):
 			# WLM 2009 sends a `CAL` with the invitee being the owner when a SB session is first initiated. If there are no other
 			# PoPs of the owner, send a `JOI` for now to fool the client.
 			chat_roster_single = list(chat.get_roster_single())
-			if isinstance(ex, error.ContactAlreadyOnList) and invitee_email == bs.user.email and len(chat_roster_single) == 1 and chat_roster_single[0] is cs and self.dialect >= 16:
+			if (
+				isinstance(ex, error.ContactAlreadyOnList) and invitee_email == bs.user.email
+				and len(chat_roster_single) == 1 and chat_roster_single[0] is cs and self.dialect >= 16
+			):
 				self.send_reply('CAL', trid, 'RINGING', chat.ids['main'])
 				cs.evt.on_participant_joined(cs, True, False)
 				return
@@ -293,15 +309,36 @@ class ChatEventHandler(event.ChatEventHandler):
 		user = cs_other.user
 		
 		pop_id_other = cs_other.bs.front_data.get('msn_pop_id')
-		if (pop_id_other is not None and (pop_id_other != cs.bs.front_data.get('msn_pop_id') or cs_other.user is not cs.user)) and ctrl.dialect >= 16:
+		if (
+			(
+				pop_id_other is not None
+				and (pop_id_other != cs.bs.front_data.get('msn_pop_id') or cs_other.user is not cs.user)
+			)
+			and ctrl.dialect >= 16
+		):
 			email = '{};{}'.format(user.email, '{' + pop_id_other + '}')
 		else:
 			email = user.email
 		
 		if 12 <= ctrl.dialect <= 15:
-			extra = (((cs_other.bs.front_data.get('msn_capabilities') or 0) if cs_other.bs.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC),) # type: Tuple[Any, ...]
+			extra = (
+				(
+					(cs_other.bs.front_data.get('msn_capabilities') or 0)
+					if cs_other.bs.front_data.get('msn') is True
+					else MAX_CAPABILITIES_BASIC
+				),
+			) # type: Tuple[Any, ...]
 		elif ctrl.dialect >= 16:
-			extra = (encode_capabilities_capabilitiesex(((cs_other.bs.front_data.get('msn_capabilities') or 0) if cs_other.bs.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC), cs_other.bs.front_data.get('msn_capabilitiesex') or 0),)
+			extra = (
+				encode_capabilities_capabilitiesex(
+					(
+						(cs_other.bs.front_data.get('msn_capabilities') or 0)
+						if cs_other.bs.front_data.get('msn') is True
+						else MAX_CAPABILITIES_BASIC
+					),
+					cs_other.bs.front_data.get('msn_capabilitiesex') or 0,
+				),
+			)
 		else:
 			extra = ()
 		ctrl.send_reply('JOI', email, user.status.name, *extra)
@@ -320,7 +357,9 @@ class ChatEventHandler(event.ChatEventHandler):
 		if last_pop and pop_id_other is not None and ctrl.dialect >= 16:
 			self.ctrl.send_reply('BYE', cs_other.user.email)
 	
-	def on_chat_invite_declined(self, chat: Chat, invitee: User, *, invitee_id: Optional[str] = None, message: Optional[str] = None, group_chat: bool = False) -> None:
+	def on_chat_invite_declined(
+		self, chat: Chat, invitee: User, *, invitee_id: Optional[str] = None, message: Optional[str] = None, group_chat: bool = False,
+	) -> None:
 		pass
 	
 	def on_chat_updated(self) -> None:
@@ -342,14 +381,36 @@ class ChatEventHandler(event.ChatEventHandler):
 def messagedata_from_msnp(sender: User, sender_pop_id: Optional[str], ack: str, data: bytes) -> MessageData:
 	# TODO: Implement these `Content-Type`s:
 	# voice:
-	# b'MIME-Version: 1.0\r\nContent-Type: text/x-msmsgsinvite; charset=UTF-8\r\n\r\nInvitation-Command: CANCEL\r\nCancel-Code: TIMEOUT\r\nInvitation-Cookie: 126868552\r\nSession-ID: {CE64F989-2AAD-44C4-A780-2C55A812B0B6}\r\nConn-Type: Firewall\r\nSip-Capability: 1\r\n\r\n'
+	# b'MIME-Version: 1.0\r\nContent-Type: text/x-msmsgsinvite; charset=UTF-8\r\n\r\nInvitation-Command: CANCEL\r\n
+	# Cancel-Code: TIMEOUT\r\nInvitation-Cookie: 126868552\r\nSession-ID: {CE64F989-2AAD-44C4-A780-2C55A812B0B6}\r\n
+	# Conn-Type: Firewall\r\nSip-Capability: 1\r\n\r\n'
 	# xfer:
-	# b'MIME-Version: 1.0\r\nContent-Type: application/x-msnmsgrp2p\r\nP2P-Dest: t2h@hotmail.com\r\n\r\n\x00\x00\x00\x00Gt\xc4\n\x00\x00\x00\x00\x00\x00\x00\x00\xfa\x04\x00\x00\x00\x00\x00\x00\xb2\x04\x00\x00\x00\x00\x00\x00wn\xc5\n\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00INVITE MSNMSGR:t2h@hotmail.com MSNSLP/1.0\r\nTo: <msnmsgr:t2h@hotmail.com>\r\nFrom: <msnmsgr:t1h@hotmail.com>\r\nVia: MSNSLP/1.0/TLP ;branch={CDE28DAF-B67C-4B2D-8186-D3F46EEF0916}\r\nCSeq: 0 \r\nCall-ID: {F87327A8-741F-4FEF-AB63-45D06F51A0C2}\r\nMax-Forwards: 0\r\nContent-Type: application/x-msnmsgr-sessionreqbody\r\nContent-Length: 948\r\n\r\nEUF-GUID: {5D3E02AB-6190-11D3-BBBB-00C04F795683}\r\nSessionID: 180646677\r\nAppID: 2\r\nContext: fgIAAAMAAAAAAAAAAAAAAAEAAABhAC4AdAB4AHQAA...AAAAAAAAA/////wAAAAAAAAAAAAAAAAAAA\x00\x00\x00\x00'
-	# b'MIME-Version: 1.0\r\nContent-Type: application/x-msnmsgrp2p\r\nP2P-Dest: t2h@hotmail.com\r\n\r\n\x00\x00\x00\x00Gt\xc4\n\xb2\x04\x00\x00\x00\x00\x00\x00\xfa\x04\x00\x00\x00\x00\x00\x00H\x00\x00\x00\x00\x00\x00\x00wn\xc5\n\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\r\n\r\n\x00\x00\x00\x00\x00'
-	# b'MIME-Version: 1.0\r\nContent-Type: application/x-msnmsgrp2p\r\nP2P-Dest: t1h@hotmail.com\r\n\r\n\x00\x00\x00\x00Wt\xc4\n\x00\x00\x00\x00\x00\x00\x00\x00\xfa\x04\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00Gt\xc4\nwn\xc5\n\xfa\x04\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+	# 	b'MIME-Version: 1.0\r\nContent-Type: application/x-msnmsgrp2p\r\nP2P-Dest: t2h@hotmail.com\r\n\r\n
+	# 	\x00\x00\x00\x00Gt\xc4\n\x00\x00\x00\x00\x00\x00\x00\x00\xfa\x04\x00\x00\x00\x00\x00\x00\xb2\x04\x00
+	# 	\x00\x00\x00\x00\x00wn\xc5\n\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00INVITE MSNMSGR:t2h@hotmail.com MSNSLP/1.0\r\n
+	# 	To: <msnmsgr:t2h@hotmail.com>\r\nFrom: <msnmsgr:t1h@hotmail.com>\r\nVia: MSNSLP/1.0/TLP ;
+	# 	branch={CDE28DAF-B67C-4B2D-8186-D3F46EEF0916}\r\nCSeq: 0 \r\nCall-ID: {F87327A8-741F-4FEF-AB63-45D06F51A0C2}\r\n
+	# 	Max-Forwards: 0\r\nContent-Type: application/x-msnmsgr-sessionreqbody\r\nContent-Length: 948\r\n\r\n
+	# 	EUF-GUID: {5D3E02AB-6190-11D3-BBBB-00C04F795683}\r\nSessionID: 180646677\r\nAppID: 2\r\n
+	# 	Context: fgIAAAMAAAAAAAAAAAAAAAEAAABhAC4AdAB4AHQAA...AAAAAAAAA/////wAAAAAAAAAAAAAAAAAAA\x00\x00\x00\x00'
+	# b'MIME-Version: 1.0\r\nContent-Type: application/x-msnmsgrp2p\r\nP2P-Dest: t2h@hotmail.com\r\n\r\n
+	# 	\x00\x00\x00\x00Gt\xc4\n\xb2\x04\x00\x00\x00\x00\x00\x00\xfa\x04\x00\x00\x00\x00\x00\x00H\x00\x00\x00
+	# 	\x00\x00\x00\x00wn\xc5\n\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+	# 	AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\r\n\r\n\x00\x00\x00\x00\x00'
+	# b'MIME-Version: 1.0\r\nContent-Type: application/x-msnmsgrp2p\r\nP2P-Dest: t1h@hotmail.com\r\n\r\n
+	# 	\x00\x00\x00\x00Wt\xc4\n\x00\x00\x00\x00\x00\x00\x00\x00\xfa\x04\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00
+	# 	\x02\x00\x00\x00Gt\xc4\nwn\xc5\n\xfa\x04\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
 	# xfer decline:
-	# b'MIME-Version: 1.0\r\nContent-Type: application/x-msnmsgrp2p\r\nP2P-Dest: t1h@hotmail.com\r\n\r\n\x00\x00\x00\x00Xt\xc4\n\x00\x00\x00\x00\x00\x00\x00\x00K\x01\x00\x00\x00\x00\x00\x00K\x01\x00\x00\x00\x00\x00\x00N\x0b\xc7\n\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00MSNSLP/1.0 603 Decline\r\nTo: <msnmsgr:t1h@hotmail.com>\r\nFrom: <msnmsgr:t2h@hotmail.com>\r\nVia: MSNSLP/1.0/TLP ;branch={CDE28DAF-B67C-4B2D-8186-D3F46EEF0916}\r\nCSeq: 1 \r\nCall-ID: {F87327A8-741F-4FEF-AB63-45D06F51A0C2}\r\nMax-Forwards: 0\r\nContent-Type: application/x-msnmsgr-sessionreqbody\r\nContent-Length: 25\r\n\r\nSessionID: 180646677\r\n\r\n\x00\x00\x00\x00\x00'
-	# b'MIME-Version: 1.0\r\nContent-Type: application/x-msnmsgrp2p\r\nP2P-Dest: t2h@hotmail.com\r\n\r\n\x00\x00\x00\x00Ht\xc4\n\x00\x00\x00\x00\x00\x00\x00\x00K\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00Xt\xc4\nN\x0b\xc7\nK\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+	# b'MIME-Version: 1.0\r\nContent-Type: application/x-msnmsgrp2p\r\nP2P-Dest: t1h@hotmail.com\r\n\r\n
+	# 	\x00\x00\x00\x00Xt\xc4\n\x00\x00\x00\x00\x00\x00\x00\x00K\x01\x00\x00\x00\x00\x00\x00K\x01\x00\x00\x00
+	# 	\x00\x00\x00N\x0b\xc7\n\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00MSNSLP/1.0 603 Decline\r\n
+	# 	To: <msnmsgr:t1h@hotmail.com>\r\nFrom: <msnmsgr:t2h@hotmail.com>\r\nVia: MSNSLP/1.0/TLP ;
+	# 	branch={CDE28DAF-B67C-4B2D-8186-D3F46EEF0916}\r\nCSeq: 1 \r\nCall-ID: {F87327A8-741F-4FEF-AB63-45D06F51A0C2}\r\n
+	# 	Max-Forwards: 0\r\nContent-Type: application/x-msnmsgr-sessionreqbody\r\nContent-Length: 25\r\n\r\n
+	# 	SessionID: 180646677\r\n\r\n\x00\x00\x00\x00\x00'
+	# b'MIME-Version: 1.0\r\nContent-Type: application/x-msnmsgrp2p\r\nP2P-Dest: t2h@hotmail.com\r\n\r\n
+	# 	\x00\x00\x00\x00Ht\xc4\n\x00\x00\x00\x00\x00\x00\x00\x00K\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00
+	# 	\x02\x00\x00\x00Xt\xc4\nN\x0b\xc7\nK\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
 	# etc.
 	
 	try:

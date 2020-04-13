@@ -1,10 +1,7 @@
-import binascii
-
 Y64 = b'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._'
 
 def Y64Encode(string_encode: bytes) -> bytes:
 	limit = len(string_encode) - (len(string_encode) % 3)
-	pos = 0
 	out = b''
 	buff = [0] * len(string_encode)
 	i = 0

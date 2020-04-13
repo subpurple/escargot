@@ -1,29 +1,32 @@
-from typing import Optional, Tuple, Any, Iterable, List, ClassVar, Dict
+from typing import Optional, Tuple, Any, Iterable
 from hashlib import md5, sha1
 import hmac
 from pytz import timezone
 from datetime import datetime
 import base64
 import binascii
-import sys
 from quopri import encodestring as quopri_encode
 import struct
-from enum import Enum, IntEnum
+from enum import Enum
 
-from util.misc import first_in_iterable, last_in_iterable, date_format, DefaultDict
+from util.misc import first_in_iterable, date_format, DefaultDict
 from typing import Optional
 
-from core import error, event
-from core.backend import Backend, BackendSession, ChatSession
-from core.models import User, Contact, GroupChat, Lst, MessageData, OIM, Substatus, NetworkID, GroupChatState
+from core import error
+from core.backend import Backend, BackendSession
+from core.models import User, OIM, Substatus, NetworkID, GroupChatState, GroupChat
 
-def build_presence_notif(trid: Optional[str], old_substatus: Optional[Substatus], ctc_head: User, user_me: User, dialect: int, backend: Backend, iln_sent: bool, update_info: bool, *, self_presence: bool = False, groupchat: Optional['GroupChat'] = None, groupchat_owner: bool = False) -> Iterable[Tuple[Any, ...]]:
+def build_presence_notif(
+	trid: Optional[str], old_substatus: Optional[Substatus], ctc_head: User, user_me: User,
+	dialect: int, backend: Backend, iln_sent: bool, update_info: bool, *,
+	self_presence: bool = False, groupchat: Optional['GroupChat'] = None, groupchat_owner: bool = False,
+) -> Iterable[Tuple[Any, ...]]:
 	detail = user_me.detail
 	assert detail is not None
 	
 	if not iln_sent: return
 	
-	nfy_rst = ''
+	#nfy_rst = ''
 	
 	if not groupchat:
 		if not self_presence and ctc_head is not user_me:
@@ -61,20 +64,32 @@ def build_presence_notif(trid: Optional[str], old_substatus: Optional[Substatus]
 	#		nfy_rst += NFY_PUT_PRESENCE_USER_S_PE.format(
 	#			msnobj = encode_xml_he(ctc_sess.front_data.get('msn_msnobj') or '', dialect),
 	#			name = status.name or head.email, message = status.message,
-	#			ddp = encode_xml_he(ctc_sess.front_data.get('msn_msnobj_ddp') or '', dialect), colorscheme = encode_xml_he(ctc_sess.front_data.get('msn_colorscheme') or '', dialect), scene = encode_xml_he(ctc_sess.front_data.get('msn_msnobj_scene') or '', dialect), sigsound = encode_xml_he(ctc_sess.front_data.get('msn_sigsound') or '', dialect),
+	#			ddp = encode_xml_he(ctc_sess.front_data.get('msn_msnobj_ddp') or '', dialect),
+	#			colorscheme = encode_xml_he(ctc_sess.front_data.get('msn_colorscheme') or '', dialect),
+	#			scene = encode_xml_he(ctc_sess.front_data.get('msn_msnobj_scene') or '', dialect),
+	#			sigsound = encode_xml_he(ctc_sess.front_data.get('msn_sigsound') or '', dialect),
 	#		)
 	#		if ctc_sess.front_data.get('msn_pop_id') is not None:
 	#			pop_id_ctc = '{' + ctc_sess.front_data['msn_pop_id'] + '}'
 	#		nfy_rst += NFY_PUT_PRESENCE_USER_SEP_IM.format(
-	#			epid_attrib = (NFY_PUT_PRESENCE_USER_SEP_EPID.format(mguid = pop_id_ctc or '') if pop_id_ctc is not None else ''), capabilities = encode_capabilities_capabilitiesex(((ctc_sess.front_data.get('msn_capabilities') or 0) if ctc_sess.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC), ctc_sess.front_data.get('msn_capabilitiesex') or 0),
+	#			epid_attrib = (NFY_PUT_PRESENCE_USER_SEP_EPID.format(mguid = pop_id_ctc or '') if pop_id_ctc is not None else ''),
+	#			capabilities = encode_capabilities_capabilitiesex(
+	#				((ctc_sess.front_data.get('msn_capabilities') or 0) if ctc_sess.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC),
+	#				ctc_sess.front_data.get('msn_capabilitiesex') or 0,
+	#			),
 	#		)
 	#		if ctc_sess.front_data.get('msn_PE'):
 	#			pe_data = ''
 	#			pe_data += NFY_PUT_PRESENCE_USER_SEP_PE_VER.format(ver = ctc_sess.front_data.get('msn_PE_VER') or '')
 	#			pe_data += NFY_PUT_PRESENCE_USER_SEP_PE_TYP.format(typ = ctc_sess.front_data.get('msn_PE_TYP') or '')
-	#			pe_data += NFY_PUT_PRESENCE_USER_SEP_PE_CAP.format(pe_capabilities = encode_capabilities_capabilitiesex(ctc_sess.front_data.get('msn_PE_capabilities') or 0, ctc_sess.front_data.get('msn_PE_capabilitiesex') or 0))
+	#			pe_data += NFY_PUT_PRESENCE_USER_SEP_PE_CAP.format(
+	#				pe_capabilities = encode_capabilities_capabilitiesex(
+	#					ctc_sess.front_data.get('msn_PE_capabilities') or 0, ctc_sess.front_data.get('msn_PE_capabilitiesex') or 0,
+	#				)
+	#			)
 	#			nfy_rst += NFY_PUT_PRESENCE_USER_SEP_PE.format(
-	#				epid_attrib = (NFY_PUT_PRESENCE_USER_SEP_EPID.format(mguid = pop_id_ctc or '') if pop_id_ctc is not None else ''), pe_data = pe_data,
+	#				epid_attrib = (NFY_PUT_PRESENCE_USER_SEP_EPID.format(mguid = pop_id_ctc or '') if pop_id_ctc is not None else ''),
+	#				pe_data = pe_data,
 	#			)
 	#		if pop_id_ctc is not None:
 	#			nfy_rst += NFY_PUT_PRESENCE_USER_SEP_PD.format(
@@ -86,15 +101,28 @@ def build_presence_notif(trid: Optional[str], old_substatus: Optional[Substatus]
 	#			if ctc_sess_other.front_data.get('msn_pop_id') is None: continue
 	#			
 	#			nfy_rst += NFY_PUT_PRESENCE_USER_SEP_IM.format(
-	#				epid_attrib = NFY_PUT_PRESENCE_USER_SEP_EPID.format(mguid = '{' + ctc_sess_other.front_data['msn_pop_id'] + '}'), capabilities = encode_capabilities_capabilitiesex(((ctc_sess_other.front_data.get('msn_capabilities') or 0) if ctc_sess_other.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC), ctc_sess_other.front_data.get('msn_capabilitiesex') or 0),
+	#				epid_attrib = NFY_PUT_PRESENCE_USER_SEP_EPID.format(mguid = '{' + ctc_sess_other.front_data['msn_pop_id'] + '}'),
+	#				capabilities = encode_capabilities_capabilitiesex(
+	#					(
+	#						(ctc_sess_other.front_data.get('msn_capabilities') or 0)
+	#						if ctc_sess_other.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC
+	#					),
+	#					ctc_sess_other.front_data.get('msn_capabilitiesex') or 0,
+	#				),
 	#			)
 	#			if ctc_sess_other.front_data.get('msn_PE'):
 	#				pe_data = ''
 	#				pe_data += NFY_PUT_PRESENCE_USER_SEP_PE_VER.format(ver = ctc_sess_other.front_data.get('msn_PE_VER') or '')
 	#				pe_data += NFY_PUT_PRESENCE_USER_SEP_PE_TYP.format(typ = ctc_sess_other.front_data.get('msn_PE_TYP') or '')
-	#				pe_data += NFY_PUT_PRESENCE_USER_SEP_PE_CAP.format(capabilities = encode_capabilities_capabilitiesex(ctc_sess_other.front_data.get('msn_PE_capabilities') or 0, ctc_sess_other.front_data.get('msn_PE_capabilitiesex') or 0))
+	#				pe_data += NFY_PUT_PRESENCE_USER_SEP_PE_CAP.format(
+	#					capabilities = encode_capabilities_capabilitiesex(
+	#						ctc_sess_other.front_data.get('msn_PE_capabilities') or 0,
+	#						ctc_sess_other.front_data.get('msn_PE_capabilitiesex') or 0,
+	#					),
+	#				)
 	#				nfy_rst += NFY_PUT_PRESENCE_USER_SEP_PE.format(
-	#					epid_attrib = NFY_PUT_PRESENCE_USER_SEP_EPID.format(mguid = '{' + ctc_sess_other.front_data['msn_pop_id'] + '}'), pe_data = pe_data,
+	#					epid_attrib = NFY_PUT_PRESENCE_USER_SEP_EPID.format(mguid = '{' + ctc_sess_other.front_data['msn_pop_id'] + '}'),
+	#					pe_data = pe_data,
 	#				)
 	#			nfy_rst += NFY_PUT_PRESENCE_USER_SEP_PD.format(
 	#				mguid = '{' + ctc_sess_other.front_data['msn_pop_id'] + '}', ped_data = _list_private_endpoint_data(ctc_sess_other)
@@ -139,7 +167,12 @@ def build_presence_notif(trid: Optional[str], old_substatus: Optional[Substatus]
 		if 8 <= dialect <= 15:
 			rst.append(((ctc_sess.front_data.get('msn_capabilities') or 0) if ctc_sess.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC))
 		elif dialect >= 16:
-			rst.append(('0:0' if groupchat is not None and groupchat_owner else encode_capabilities_capabilitiesex(((ctc_sess.front_data.get('msn_capabilities') or 0) if ctc_sess.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC), ctc_sess.front_data.get('msn_capabilitiesex') or 0)))
+			rst.append((
+				'0:0' if groupchat is not None and groupchat_owner else encode_capabilities_capabilitiesex(
+					((ctc_sess.front_data.get('msn_capabilities') or 0) if ctc_sess.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC),
+					ctc_sess.front_data.get('msn_capabilitiesex') or 0,
+				)
+			))
 		if dialect >= 9:
 			rst.append(MSNObj(ctc_sess.front_data.get('msn_msnobj') or '<msnobj/>'))
 		
@@ -153,7 +186,9 @@ def build_presence_notif(trid: Optional[str], old_substatus: Optional[Substatus]
 		return
 	
 	ubx_payload = '<Data><PSM>{}</PSM><CurrentMedia>{}</CurrentMedia>{}</Data>'.format(
-		(encode_xml_he(status.message, dialect) if dialect >= 13 else encode_xml_ne(status.message)) or '', (encode_xml_he(status.media, dialect) if dialect >= 13 else encode_xml_ne(status.media)) or '', extend_ubx_payload(dialect, backend, user_me, ctc_sess)
+		(encode_xml_he(status.message, dialect) if dialect >= 13 else encode_xml_ne(status.message)) or '',
+		(encode_xml_he(status.media, dialect) if dialect >= 13 else encode_xml_ne(status.media)) or '',
+		extend_ubx_payload(dialect, backend, user_me, ctc_sess),
 	).encode('utf-8')
 	
 	if dialect >= 18:
@@ -241,22 +276,40 @@ def extend_ubx_payload(dialect: int, backend: Backend, user: User, ctc_sess: 'Ba
 	
 	if dialect >= 16:
 		response += '{}<SignatureSound>{}</SignatureSound>{}'.format(
-			('<DDP>{}</DDP>'.format(encode_xml_he(ctc_sess.front_data.get('msn_msnobj_ddp'), dialect) or '') if dialect >= 18 else ''), encode_xml_he(ctc_sess.front_data.get('msn_sigsound'), dialect) or '', ('<Scene>{}</Scene><ColorScheme>{}</ColorScheme>'.format(encode_xml_he(ctc_sess.front_data.get('msn_msnobj_scene'), dialect) or '', ctc_sess.front_data.get('msn_colorscheme') or '') if dialect >= 18 else ''),
+			('<DDP>{}</DDP>'.format(encode_xml_he(ctc_sess.front_data.get('msn_msnobj_ddp'), dialect) or '') if dialect >= 18 else ''),
+			encode_xml_he(ctc_sess.front_data.get('msn_sigsound'), dialect) or '',
+			(
+				'<Scene>{}</Scene><ColorScheme>{}</ColorScheme>'.format(
+					encode_xml_he(ctc_sess.front_data.get('msn_msnobj_scene'), dialect) or '',
+					ctc_sess.front_data.get('msn_colorscheme') or '',
+				) if dialect >= 18 else ''
+			),
 		)
 		if pop_id_ctc:
-			response += EPDATA_PAYLOAD.format(mguid = '{' + pop_id_ctc + '}', capabilities = encode_capabilities_capabilitiesex(((ctc_sess.front_data.get('msn_capabilities') or 0) if ctc_sess.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC), ctc_sess.front_data.get('msn_capabilitiesex') or 0))
+			response += EPDATA_PAYLOAD.format(
+				mguid = '{' + pop_id_ctc + '}', capabilities = encode_capabilities_capabilitiesex(
+					((ctc_sess.front_data.get('msn_capabilities') or 0) if ctc_sess.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC),
+					ctc_sess.front_data.get('msn_capabilitiesex') or 0,
+				),
+			)
 			for ctc_sess_other in backend.util_get_sessions_by_user(ctc_sess.user):
 				pop_id = ctc_sess_other.front_data.get('msn_pop_id') or ''
 				if pop_id.lower() == pop_id_ctc.lower(): continue
 				response += EPDATA_PAYLOAD.format(
 					mguid = '{' + pop_id + '}',
-					capabilities = encode_capabilities_capabilitiesex(((ctc_sess.front_data.get('msn_capabilities') or 0) if ctc_sess.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC), ctc_sess_other.front_data.get('msn_capabilitiesex') or 0)
+					capabilities = encode_capabilities_capabilitiesex(
+						((ctc_sess.front_data.get('msn_capabilities') or 0) if ctc_sess.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC),
+						ctc_sess_other.front_data.get('msn_capabilitiesex') or 0,
+					)
 				)
 			if ctc_sess.user is user:
 				for ctc_sess_other in backend.util_get_sessions_by_user(ctc_sess.user):
 					if ctc_sess_other.front_data.get('msn_pop_id') is None: continue
-					
-					response += PRIVATEEPDATA_PAYLOAD.format(mguid = '{' + (ctc_sess_other.front_data.get('msn_pop_id') or '') + '}', ped_data = _list_private_endpoint_data(ctc_sess_other))
+					response += PRIVATEEPDATA_PAYLOAD.format(
+						mguid = '{' + (ctc_sess_other.front_data.get('msn_pop_id') or '') + '}',
+						ped_data = _list_private_endpoint_data(ctc_sess_other),
+					)
+	
 	return response
 
 def _list_private_endpoint_data(ctc_sess: 'BackendSession') -> str:
@@ -281,14 +334,18 @@ def gen_signedticket_xml(bs: BackendSession, backend: Backend) -> str:
 	circleticket_sig = bs.front_data.get('msn_circleticket_sig')
 	assert circleticket_sig is not None
 	
-	circles = [CIRCLETICKET_CIRCLE.format(groupchat.chat_id) for groupchat in backend.user_service.get_groupchat_batch(user) if groupchat.memberships[user.uuid].state is GroupChatState.Accepted]
+	circles = [
+		CIRCLETICKET_CIRCLE.format(groupchat.chat_id) for groupchat in backend.user_service.get_groupchat_batch(user)
+		if groupchat.memberships[user.uuid].state is GroupChatState.Accepted
+	]
 	
 	circleticket = encode_payload(CIRCLETICKET,
 		circles = ''.join(circles), cid = cid_format(user.uuid, decimal = True),
 	)
 	
 	return SIGNEDTICKET.format(
-		base64.b64encode(circleticket).decode('ascii'), base64.b64encode(circleticket_sig.sign(circleticket, padding.PKCS1v15(), hashes.SHA1())).decode('ascii'),
+		base64.b64encode(circleticket).decode('ascii'),
+		base64.b64encode(circleticket_sig.sign(circleticket, padding.PKCS1v15(), hashes.SHA1())).decode('ascii'),
 	)
 
 def encode_payload(tmpl: str, **kwargs: Any) -> bytes:
@@ -335,7 +392,12 @@ def gen_chal_response(chal: str, id: str, id_key: str, *, msnp11: bool = False) 
 	key_array[2] ^= high
 	key_array[3] ^= low
 	
-	final = (binascii.hexlify(struct.pack('<I', key_array[0])) + binascii.hexlify(struct.pack('<I', key_array[1])) + binascii.hexlify(struct.pack('<I', key_array[2])) + binascii.hexlify(struct.pack('<I', key_array[3]))).decode('utf-8')
+	final = (
+		binascii.hexlify(struct.pack('<I', key_array[0]))
+		+ binascii.hexlify(struct.pack('<I', key_array[1]))
+		+ binascii.hexlify(struct.pack('<I', key_array[2]))
+		+ binascii.hexlify(struct.pack('<I', key_array[3]))
+	).decode('utf-8')
 	
 	return final
 
@@ -361,7 +423,11 @@ def encrypt_with_key_and_iv_tripledes_cbc(key: bytes, iv: bytes, msg: bytes) -> 
 	
 	return final
 
-def gen_mail_data(user: User, backend: Backend, *, oim: Optional[OIM] = None, just_sent: bool = False, on_ns: bool = True, e_node: bool = True, q_node: bool = True) -> str:
+def gen_mail_data(
+	user: User, backend: Backend, *,
+	oim: Optional[OIM] = None, just_sent: bool = False,
+	on_ns: bool = True, e_node: bool = True, q_node: bool = True,
+) -> str:
 	md_m_pl = ''
 	oim_collection = []
 	if just_sent:
@@ -377,7 +443,10 @@ def gen_mail_data(user: User, backend: Backend, *, oim: Optional[OIM] = None, ju
 				senttime = date_format(oim.sent)
 			) if not just_sent else ''), oimsz = len(format_oim(oim)),
 			frommember = oim.from_email, guid = oim.uuid, fid = ('00000000-0000-0000-0000-000000000009' if not just_sent else '.!!OIM'),
-			fromfriendly = (_encode_friendly(oim.from_friendly, oim.from_friendly_charset, oim.from_friendly_encoding, space = True if just_sent else False) if oim.from_friendly is not None else ''),
+			fromfriendly = (
+				_encode_friendly(oim.from_friendly, oim.from_friendly_charset, oim.from_friendly_encoding, space = True if just_sent else False)
+				if oim.from_friendly is not None else ''
+			),
 			su = ('<SU> </SU>' if just_sent else ''),
 		)
 	
@@ -450,7 +519,8 @@ E_MAIL_DATA_PAYLOAD = '<E><I>0</I><IU>0</IU><O>0</O><OU>0</OU></E>'
 
 Q_MAIL_DATA_PAYLOAD = '<Q><QTM>409600</QTM><QNM>204800</QNM></Q>'
 
-M_MAIL_DATA_PAYLOAD = '<M><T>11</T><S>6</S>{rt}<RS>0</RS><SZ>{oimsz}</SZ><E>{frommember}</E><I>{guid}</I><F>{fid}</F><N>{fromfriendly}</N></M>{su}'
+M_MAIL_DATA_PAYLOAD = '<M><T>11</T><S>6</S>{rt}<RS>0</RS><SZ>{oimsz}</SZ><E>{frommember}</E>\
+<I>{guid}</I><F>{fid}</F><N>{fromfriendly}</N></M>{su}'
 
 RT_M_MAIL_DATA_PAYLOAD = '<RT>{senttime}</RT>'
 
@@ -466,7 +536,11 @@ PRIVATEEPDATA_CLIENTTYPE_PAYLOAD = '<ClientType>{ct}</ClientType>'
 
 PRIVATEEPDATA_STATE_PAYLOAD = '<State>{state}</State>'
 
-SIGNEDTICKET = '<?xml version="1.0" encoding="utf-16"?><SignedTicket xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" ver="1" keyVer="1"><Data>{}</Data><Sig>{}</Sig></SignedTicket>'
+SIGNEDTICKET = '''<?xml version="1.0" encoding="utf-16"?>
+<SignedTicket xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" ver="1" keyVer="1">
+	<Data>{}</Data>
+	<Sig>{}</Sig>
+</SignedTicket>'''
 
 CIRCLETICKET = '''<?xml version="1.0" encoding="utf-16"?>
 <Ticket xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">{circles}
@@ -522,7 +596,9 @@ NFY_PUT_PRESENCE_USER = '<user><s n="IM"><Status>{substatus}</Status>{cm}</s>{rs
 
 NFY_PUT_PRESENCE_USER_S_CM = '<CurrentMedia>{cm}</CurrentMedia>'
 
-NFY_PUT_PRESENCE_USER_S_PE = '<s n="PE"><UserTileLocation>{msnobj}</UserTileLocation><FriendlyName>{name}</FriendlyName><PSM>{message}</PSM><DDP>{ddp}</DDP><ColorScheme>{colorscheme}</ColorScheme><Scene>{scene}</Scene><SignatureSound>{sigsound}</SignatureSound></s>'
+NFY_PUT_PRESENCE_USER_S_PE = '<s n="PE"><UserTileLocation>{msnobj}</UserTileLocation><FriendlyName>{name}</FriendlyName>\
+<PSM>{message}</PSM><DDP>{ddp}</DDP><ColorScheme>{colorscheme}</ColorScheme>\
+<Scene>{scene}</Scene><SignatureSound>{sigsound}</SignatureSound></s>'
 
 NFY_PUT_PRESENCE_USER_SEP_IM = '<sep n="IM"{epid_attrib}><Capabilities>{capabilities}</Capabilities></sep>'
 

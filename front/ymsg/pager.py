@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any, List, Iterable, Set, Tuple
+from typing import Optional, Dict, Any, Tuple
 import secrets
 import datetime
 import asyncio
@@ -6,14 +6,15 @@ import time
 import binascii
 import struct
 
-import settings
 from util.misc import Logger, gen_uuid, MultiDict, arbitrary_decode, arbitrary_encode
 
 from core import event, error
 from core.backend import Backend, BackendSession, Chat, ChatSession
-from core.models import Substatus, Lst, OIM, User, UserDetail, Contact, Group, GroupChat, GroupChatRole, TextWithData, MessageData, MessageType, UserStatus, LoginOption
+from core.models import (
+	Substatus, Lst, User, UserDetail, Contact, GroupChat, GroupChatRole, TextWithData,
+	MessageData, MessageType, UserStatus, LoginOption, OIM,
+)
 from core.client import Client
-from core.user import UserService
 from core.auth import AuthService
 
 from .ymsg_ctrl import YMSGCtrlBase
@@ -279,8 +280,6 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		
 		contacts = detail.contacts
 		
-		cs = list(contacts.values())
-		
 		contact = contacts.get(contact_uuid)
 		if contact is not None:
 			old_lists = contact.lists
@@ -309,7 +308,10 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		ctc_head = self.backend._load_user_record(contact_uuid)
 		assert ctc_head is not None
 		
-		contact_new = bs.me_contact_add(ctc_head.uuid, Lst.FL | Lst.AL, message = (TextWithData(message, utf8) if message is not None else None), adder_id = yahoo_id, needs_notify = True)[0]
+		contact_new = bs.me_contact_add(
+			ctc_head.uuid, Lst.FL | Lst.AL, message = (TextWithData(message, utf8) if message is not None else None),
+			adder_id = yahoo_id, needs_notify = True,
+		)[0]
 		
 		if (contact_new is not None and contact is None) or (old_lists is not None and (not old_lists & Lst.FL and not old_lists & Lst.BL)):
 			if not contact_new.status.is_offlineish():
@@ -512,7 +514,10 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		detail = user.detail
 		assert detail is not None
 		
-		self.send_reply(YMSGService.UserStat, bs.front_data.get('ymsg_status') or YMSGStatus.FromSubstatus(user.status.substatus), self.sess_id, self._gen_multi_user_status_dict(detail))
+		self.send_reply(
+			YMSGService.UserStat, bs.front_data.get('ymsg_status') or YMSGStatus.FromSubstatus(user.status.substatus),
+			self.sess_id, self._gen_multi_user_status_dict(detail),
+		)
 	
 	def _y_0055(self, *args: Any) -> None:
 		# SERVICE_LIST (0x55); send a user's buddy list
@@ -586,7 +591,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		
 		yahoo_data = args[4] # type: MultiDict[bytes, bytes]
 		
-		yahoo_id = arbitrary_decode(yahoo_data.get(b'1') or b'')
+		#yahoo_id = arbitrary_decode(yahoo_data.get(b'1') or b'')
 		contact_yahoo_id = arbitrary_decode(yahoo_data.get(b'5') or b'')
 		
 		self._message_common(yahoo_data, contact_yahoo_id)
@@ -624,7 +629,8 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		return
 	
 	def _y_004d(self, *args: Any) -> None:
-		# SERVICE_P2PFILEXFER (0x4d); initiate P2P file transfer. Due to this service being present in 3rd-party libraries; we can implement it here
+		# SERVICE_P2PFILEXFER (0x4d); initiate P2P file transfer. Due to this service being present
+		# in 3rd-party libraries; we can implement it here
 		
 		yahoo_data = args[4] # type: MultiDict[bytes, bytes]
 		
@@ -681,10 +687,10 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		if conf_new_roster_str is None:
 			return
 		conf_new_roster = arbitrary_decode(conf_new_roster_str).split(',')
-		conf_roster = [
-			arbitrary_decode(conf_member)
-			for conf_member in (yahoo_data.getall(b'52') or yahoo_data.getall(b'53') or [])
-		]
+		#conf_roster = [
+		#	arbitrary_decode(conf_member)
+		#	for conf_member in (yahoo_data.getall(b'52') or yahoo_data.getall(b'53') or [])
+		#]
 		conf_id = arbitrary_decode(yahoo_data.get(b'57') or b'')
 		if not conf_id:
 			return
@@ -821,7 +827,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 			cs, evt = self._get_private_chat_with(contact_uuid)
 			if None not in (cs, evt):
 				evt._send_when_user_joins(contact_uuid, messagedata_from_ymsg(cs.user, yahoo_data))
-		except error.ContactNotOnline as ex:
+		except error.ContactNotOnline:
 			contact_user = self.backend._load_user_record(contact_uuid)
 			if contact_user is None:
 				return
@@ -955,17 +961,24 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		
 		list_reply_kvs.add(b'89', (self.yahoo_id or '').encode('utf-8'))
 		
-		if cached_y is not None and cached_t is not None and backend.auth_service.get_token('ymsg/cookie', cached_y) and backend.auth_service.get_token('ymsg/cookie', cached_t):
+		if (
+			cached_y is not None and cached_t is not None
+			and backend.auth_service.get_token('ymsg/cookie', cached_y)
+			and backend.auth_service.get_token('ymsg/cookie', cached_t)
+		):
 			list_reply_kvs.add(b'59', arbitrary_encode(cached_y))
 			list_reply_kvs.add(b'59', arbitrary_encode(cached_t))
 		else:
 			(y_cookie, t_cookie, cookie_expiry) = self._refresh_cookies()
 			# <notice>
-			# can't use `yahooloopback.log1p.xyz` for cookies yet because that is intended for Switcher (Yahoo! sets the cookies on a static domain and it expects the cookie domain to encompass the domain it
-			# sets the cookie to, if the cookie domain doesn't match the domain of the URL Yahoo! uses, then it won't use the cookies). uncomment when development on Switcher is finished.
+			# can't use `yahooloopback.log1p.xyz` for cookies yet because that is intended for Switcher
+			# (Yahoo! sets the cookies on a static domain and it expects the cookie domain to encompass the domain it
+			# sets the cookie to, if the cookie domain doesn't match the domain of the URL Yahoo! uses, then it won't use the cookies).
+			# uncomment when development on Switcher is finished.
 			# 
-			#list_reply_kvs.add(b'59', arbitrary_encode('Y\t{}; expires={}; path=/; domain={}'.format(y_cookie, cookie_expiry, ('yahooloopback.log1p.xyz' if settings.DEBUG else settings.TARGET_HOST))))
-			#list_reply_kvs.add(b'59', arbitrary_encode('T\t{}; expires={}; path=/; domain={}'.format(t_cookie, cookie_expiry, ('yahooloopback.log1p.xyz' if settings.DEBUG else settings.TARGET_HOST))))
+			#loopback_url = ('yahooloopback.log1p.xyz' if settings.DEBUG else settings.TARGET_HOST)
+			#list_reply_kvs.add(b'59', arbitrary_encode('Y\t{}; expires={}; path=/; domain={}'.format(y_cookie, cookie_expiry, loopback_url)))
+			#list_reply_kvs.add(b'59', arbitrary_encode('T\t{}; expires={}; path=/; domain={}'.format(t_cookie, cookie_expiry, loopback_url)))
 			# 
 			# </notice>
 			list_reply_kvs.add(b'59', 'Y\t{}; expires={}; path=/; domain={}'.format(y_cookie, cookie_expiry, '.yahoo.com').encode('utf-8'))
@@ -1130,15 +1143,18 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		auth_service.pop_token('ymsg/cookie', y_cookie)
 		auth_service.pop_token('ymsg/cookie', t_cookie)
 		
-		y_cookie_new = auth_service.create_token('ymsg/cookie', self.yahoo_id, token = y_cookie, lifetime = 86400)
-		t_cookie_new = auth_service.create_token('ymsg/cookie', self.bs, token = t_cookie, lifetime = 86400)
+		_ = auth_service.create_token('ymsg/cookie', self.yahoo_id, token = y_cookie, lifetime = 86400)
+		_ = auth_service.create_token('ymsg/cookie', self.bs, token = t_cookie, lifetime = 86400)
 		
 		return (y_cookie, t_cookie, expiry)
 
 Y_COOKIE_TEMPLATE = 'v=1&n=&l={encodedname}&p=&r=&lg=&intl=&np='
 T_COOKIE_TEMPLATE = 'z={token}&a=&sk={token}&ks={token}&kt=&ku=&d={token}'
 
-YAHOO_HELPER_MSG = '"YahooHelper" was a bot initially developed by Yahoo! to help guide new users using Yahoo! Messenger for the first time and introduce them to its features. Escargot has no current plans to reimplement this bot.'
+YAHOO_HELPER_MSG = """\
+"YahooHelper" was a bot initially developed by Yahoo! to help guide new users using \
+Yahoo! Messenger for the first time and introduce them to its features. Escargot has \
+no current plans to reimplement this bot."""
 
 def _encode_yahoo_id(yahoo_id: str) -> str:
 	return ''.join(
@@ -1185,7 +1201,11 @@ YAHOO_ID_ENCODING = {
 	'j': '9',
 }
 
-def add_contact_status_to_data(data: Any, status: UserStatus, contact: User, *, old_substatus: Substatus = Substatus.Offline, message: Optional[str] = None, exclude_psm: bool = False, sess_id: Optional[int] = None) -> None:
+def add_contact_status_to_data(
+	data: Any, status: UserStatus, contact: User, *,
+	old_substatus: Substatus = Substatus.Offline, message: Optional[str] = None,
+	exclude_psm: bool = False, sess_id: Optional[int] = None,
+) -> None:
 	is_offlineish = status.is_offlineish()
 	user_yahoo_id = misc.yahoo_id(contact.email)
 	# `static var YMSG_FLD_SESSION_ID = 11;`
@@ -1232,7 +1252,8 @@ class BackendEventHandler(event.BackendEventHandler):
 	
 	def on_system_message(self, *args: Any, message: str = '', **kwargs: Any) -> None:
 		if args[1] is not None and args[1] > 0:
-			msg = 'Escargot will be down for maintenance in around ' + str(args[1]) + ' minute(s). Be sure to wrap up any conversations before this time period.'
+			msg = """Escargot will be down for maintenance in around {} minute(s). \
+Be sure to wrap up any conversations before this time period.""".format(args[1])
 		else:
 			msg = message
 		kvs = MultiDict([
@@ -1247,7 +1268,11 @@ class BackendEventHandler(event.BackendEventHandler):
 		self.ctrl.send_reply(YMSGService.LogOff, YMSGStatus.Available, 0, None)
 		self.on_close()
 	
-	def on_presence_notification(self, ctc: Contact, on_contact_add: bool, old_substatus: Substatus, *, trid: Optional[str] = None, update_status: bool = True, update_info_other: bool = True, send_status_on_bl: bool = False, sess_id: Optional[int] = None, updated_phone_info: Optional[Dict[str, Any]] = None) -> None:
+	def on_presence_notification(
+		self, ctc: Contact, on_contact_add: bool, old_substatus: Substatus, *,
+		trid: Optional[str] = None, update_status: bool = True, update_info_other: bool = True,
+		send_status_on_bl: bool = False, sess_id: Optional[int] = None, updated_phone_info: Optional[Dict[str, Any]] = None,
+	) -> None:
 		bs = self.bs
 		assert bs is not None
 		
@@ -1354,7 +1379,9 @@ class BackendEventHandler(event.BackendEventHandler):
 	def on_groupchat_role_updated(self, chat_id: str, role: GroupChatRole) -> None:
 		pass
 	
-	def on_chat_invite(self, chat: Chat, inviter: User, *, group_chat: bool = False, inviter_id: Optional[str] = None, invite_msg: str = '') -> None:
+	def on_chat_invite(
+		self, chat: Chat, inviter: User, *, group_chat: bool = False, inviter_id: Optional[str] = None, invite_msg: str = '',
+	) -> None:
 		if group_chat: return
 		if chat.front_data.get('ymsg_twoway_only') and len(list(chat.get_roster_single())) < 2:
 			# A Yahoo! non-conference chat; auto-accepted invite
@@ -1382,7 +1409,10 @@ class BackendEventHandler(event.BackendEventHandler):
 		
 		conf_invite_dict.add(b'13', arbitrary_encode(chat.front_data.get('ymsg_voice_chat') or '0'))
 		
-		self.ctrl.send_reply(YMSGService.ConfAddInvite if len(roster) > 1 else YMSGService.ConfInvite, YMSGStatus.BRB, self.ctrl.sess_id, conf_invite_dict)
+		self.ctrl.send_reply(
+			YMSGService.ConfAddInvite if len(roster) > 1 else YMSGService.ConfInvite,
+			YMSGStatus.BRB, self.ctrl.sess_id, conf_invite_dict,
+		)
 	
 	def on_declined_chat_invite(self, chat: Chat, group_chat: bool = False) -> None:
 		pass
@@ -1464,7 +1494,9 @@ class ChatEventHandler(event.ChatEventHandler):
 			(b'56', arbitrary_encode(cs_other.preferred_name or misc.yahoo_id(cs_other.user.email))),
 		]))
 	
-	def on_chat_invite_declined(self, chat: Chat, invitee: User, *, invitee_id: Optional[str] = None, message: Optional[str] = None, group_chat: bool = False) -> None:
+	def on_chat_invite_declined(
+		self, chat: Chat, invitee: User, *, invitee_id: Optional[str] = None, message: Optional[str] = None, group_chat: bool = False,
+	) -> None:
 		if group_chat: return
 		self.ctrl.send_reply(YMSGService.ConfDecline, YMSGStatus.BRB, self.ctrl.sess_id, MultiDict([
 			(b'1', arbitrary_encode(self.ctrl.yahoo_id or '')),
@@ -1562,7 +1594,9 @@ class ChatEventHandler(event.ChatEventHandler):
 				return True
 		return False
 
-def messagedata_from_ymsg(sender: User, data: MultiDict[bytes, bytes], *, notify_type: Optional[bytes] = None, typing_flag: Optional[str] = None) -> MessageData:
+def messagedata_from_ymsg(
+	sender: User, data: MultiDict[bytes, bytes], *, notify_type: Optional[bytes] = None, typing_flag: Optional[str] = None,
+) -> MessageData:
 	text = arbitrary_decode(data.get(b'14') or b'')
 	
 	if notify_type is None:

@@ -9,13 +9,12 @@ import re
 import secrets
 import base64
 import json
-import time
 from markupsafe import Markup
 from aiohttp import web
 
 import settings
-from core import models, event
-from core.backend import Backend, BackendSession, MAX_GROUP_NAME_LENGTH
+from core import models
+from core.backend import Backend, BackendSession
 from ..misc import gen_mail_data, format_oim, cid_format, puid_format
 import util.misc
 from .util import find_element, get_tag_localname, render, preprocess_soap, unknown_soap, bool_to_str
@@ -158,7 +157,8 @@ async def handle_storageservice(req: web.Request) -> web.Response:
 	return unknown_soap(req, header, action)
 
 async def handle_sha1auth(req: web.Request) -> web.Response:
-	# We have no use for any of the actual tokens sent here right now (this is primarily for WLM 8's MSN Today function), so just redirect to the URL specified by `ru`
+	# We have no use for any of the actual tokens sent here right now (this is primarily for WLM 8's MSN Today function),
+	# so just redirect to the URL specified by `ru`
 	post = await req.post()
 	
 	token_data = post.get('token')
@@ -172,7 +172,7 @@ async def handle_sha1auth(req: web.Request) -> web.Response:
 	return web.HTTPFound(token_fields['ru'])
 
 async def handle_rsi(req: web.Request) -> web.Response:
-	header, action, bs, token = await preprocess_soap_rsi(req)
+	_, action, bs, token = await preprocess_soap_rsi(req)
 	
 	if token is None or bs is None:
 		return render(req, 'msn:oim/Fault.validation.xml', status = 500)
@@ -208,11 +208,15 @@ async def handle_rsi(req: web.Request) -> web.Response:
 	return render(req, 'msn:Fault.unsupported.xml', { 'faultactor': action_str })
 
 async def handle_oim(req: web.Request) -> web.Response:
-	header, body_msgtype, body_content, bs, token = await preprocess_soap_oimws(req)
+	header, _, body_content, bs, _ = await preprocess_soap_oimws(req)
 	soapaction = (req.headers.get('SOAPAction') or '')
 	if soapaction.startswith('"') and soapaction.endswith('"'):
 		soapaction = soapaction[1:-1]
-	owsns = ('http://messenger.msn.com/ws/2004/09/oim/' if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/') else 'http://messenger.live.com/ws/2006/09/oim/')
+	owsns = (
+		'http://messenger.msn.com/ws/2004/09/oim/'
+		if soapaction.startswith('http://messenger.msn.com/ws/2004/09/oim/')
+		else 'http://messenger.live.com/ws/2006/09/oim/'
+	)
 	
 	lockkey_result = header.find('.//{*}Ticket').get('lockkey')
 	
@@ -287,7 +291,10 @@ async def handle_oim(req: web.Request) -> web.Response:
 			'owsns': owsns,
 		}, status = 500)
 	oim_run_id = oim_run_id.replace('{', '').replace('}', '')
-	if ('X-Message-Info','Received','From','To','Subject','X-OIM-originatingSource','X-OIMProxy','Message-ID','X-OriginalArrivalTime','Date','Return-Path') in oim_mime.keys():
+	if (
+		'X-Message-Info', 'Received', 'From', 'To', 'Subject', 'X-OIM-originatingSource', 'X-OIMProxy', 'Message-ID',
+		'X-OriginalArrivalTime', 'Date', 'Return-Path'
+	) in oim_mime.keys():
 		return render(req, 'msn:oim/Fault.invalidcontent.xml', {
 			'owsns': owsns,
 		}, status = 500)
@@ -325,7 +332,10 @@ async def handle_oim(req: web.Request) -> web.Response:
 		oim_body_normal = oim_body.strip()
 		oim_body_normal = base64.b64decode(oim_body_normal).decode('utf-8')
 		
-		backend.user_service.save_oim(bs, recipient_uuid, oim_run_id, host, oim_body_normal, True, from_friendly = friendlyname_str, from_friendly_charset = friendly_charset, headers = oim_headers, oim_proxy = oim_proxy_string)
+		backend.user_service.save_oim(
+			bs, recipient_uuid, oim_run_id, host, oim_body_normal, True, from_friendly = friendlyname_str,
+			from_friendly_charset = friendly_charset, headers = oim_headers, oim_proxy = oim_proxy_string,
+		)
 	except:
 		return render(req, 'msn:oim/Fault.invalidcontent.xml', {
 			'owsns': owsns,
@@ -624,7 +634,7 @@ def handle_document(req: web.Request, action: Any, type: str, storage_ns: str, u
 	from PIL import Image
 	
 	# get image data
-	name = find_element(action, 'Name')
+	#name = find_element(action, 'Name')
 	streamtype = find_element(action, 'DocumentStreamType')
 	
 	if streamtype == 'UserTileStatic':
@@ -702,10 +712,11 @@ def _extract_pp_credentials(auth_str: str) -> Optional[Tuple[str, str]]:
 
 def _login(req: web.Request, email: str, pwd: str, binary_secret: bool = False, lifetime: int = 30) -> Optional[str]:
 	backend: Backend = req.app['backend']
-	bsecret = None
 	uuid = backend.user_service.login(email, pwd)
 	if uuid is None: return None
-	return backend.auth_service.create_token('nb/login', (uuid, base64.b64encode(secrets.token_bytes(24)).decode('ascii') if binary_secret else None), lifetime = lifetime)
+	return backend.auth_service.create_token(
+		'nb/login', (uuid, base64.b64encode(secrets.token_bytes(24)).decode('ascii') if binary_secret else None), lifetime = lifetime,
+	)
 
 def _contact_is_favorite(user_detail: models.UserDetail, ctc: models.Contact) -> bool:
 	groups = user_detail._groups_by_uuid

@@ -1,11 +1,10 @@
 import io
 from abc import ABCMeta, abstractmethod
 import asyncio
-from typing import Dict, List, Tuple, Any, Optional, Callable, Iterable
+from typing import Dict, Tuple, Any, Optional, Callable, Iterable
 import binascii
 import struct
 import settings
-import time
 
 from core import error
 from util.misc import Logger, MultiDict
@@ -90,7 +89,9 @@ class YMSGEncoder:
 				payload_list.extend([k, SEP, v, SEP])
 		payload = b''.join(payload_list)
 		
-		# TODO: Yahoo!'s servers used to split large payloads into packet chunks, but there's little information on how it was exactly handled. Just drop packets if they're too big (for the length field to handle unfortunately) until we can find a solution.
+		# TODO: Yahoo!'s servers used to split large payloads into packet chunks,
+		# but there's little information on how it was exactly handled.
+		# Just drop packets if they're too big (for the length field to handle unfortunately) until we can find a solution.
 		
 		if len(payload) > 0xffff:
 			raise error.DataTooLargeToSend()
@@ -107,7 +108,7 @@ class YMSGEncoder:
 		
 		self._logger.info('<<<', service, status, session_id)
 		if kvs:
-			_truncated_kvs(self._logger, service, kvs)
+			_truncated_kvs(service, kvs)
 	
 	def flush(self) -> bytes:
 		data = self._buf.getvalue()
@@ -152,7 +153,7 @@ class YMSGDecoder:
 		self._data = self._data[e:]
 		self._i = 0
 		self.logger.info('>>>',  'YMSG{}'.format(str(y[1])), y[0], y[3], y[4])
-		_truncated_kvs(self.logger, y[0], y[5])
+		_truncated_kvs(y[0], y[5])
 		return y
 
 def _try_decode_ymsg(d: bytes, i: int) -> Tuple[DecodedYMSG, int]:
@@ -180,16 +181,19 @@ def _try_decode_ymsg(d: bytes, i: int) -> Tuple[DecodedYMSG, int]:
 		e += n
 	return ((YMSGService(service), version, vendor_id, YMSGStatus(status), session_id, kvs), e)
 
-def _truncated_kvs(logger: Logger, service: YMSGService, kvs: KVS) -> None:
+def _truncated_kvs(service: YMSGService, kvs: KVS) -> None:
 	restricted_keys = set()
 	
-	if service in (YMSGService.AuthResp,YMSGService.List):
+	if service in (YMSGService.AuthResp, YMSGService.List):
 		restricted_keys.add(b'59')
-	if service in (YMSGService.Message,YMSGService.MassMessage,YMSGService.ContactNew,YMSGService.FriendAdd,YMSGService.ContactDeny,YMSGService.ConfDecline,YMSGService.ConfMsg,YMSGService.P2PFileXfer,YMSGService.FileTransfer):
+	if service in (
+		YMSGService.Message, YMSGService.MassMessage, YMSGService.ContactNew, YMSGService.FriendAdd,
+		YMSGService.ContactDeny, YMSGService.ConfDecline, YMSGService.ConfMsg,YMSGService.P2PFileXfer, YMSGService.FileTransfer
+	):
 		restricted_keys.add(b'14')
-	if service in (YMSGService.ConfInvite,YMSGService.ConfAddInvite):
+	if service in (YMSGService.ConfInvite, YMSGService.ConfAddInvite):
 		restricted_keys.add(b'58')
-	if service in (YMSGService.P2PFileXfer,YMSGService.FileTransfer):
+	if service in (YMSGService.P2PFileXfer, YMSGService.FileTransfer):
 		restricted_keys.add(b'20')
 	
 	if settings.DEBUG and settings.DEBUG_YMSG:

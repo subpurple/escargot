@@ -1,7 +1,7 @@
-from typing import TYPE_CHECKING, Callable, Optional, Dict, Any, List
+from typing import TYPE_CHECKING, Optional, Dict, Any, List
 from abc import ABCMeta, abstractmethod
 
-from .models import User, Contact, Lst, OIM, GroupChat, GroupChatRole, MessageData, TextWithData, Substatus, LoginOption
+from .models import User, Contact, OIM, GroupChat, GroupChatRole, MessageData, TextWithData, Substatus, LoginOption
 from util.misc import MultiDict
 
 if TYPE_CHECKING:
@@ -30,13 +30,20 @@ class BackendEventHandler(metaclass = ABCMeta):
 		pass
 	
 	@abstractmethod
-	def on_presence_notification(self, ctc: Contact, on_contact_add: bool, old_substatus: Substatus, *, trid: Optional[str] = None, update_status: bool = True, update_info_other: bool = True, send_status_on_bl: bool = False, sess_id: Optional[int] = None, updated_phone_info: Optional[Dict[str, Any]] = None) -> None: pass
+	def on_presence_notification(
+		self, ctc: Contact, on_contact_add: bool, old_substatus: Substatus, *,
+		trid: Optional[str] = None, update_status: bool = True, update_info_other: bool = True,
+		send_status_on_bl: bool = False, sess_id: Optional[int] = None, updated_phone_info: Optional[Dict[str, Any]] = None,
+	) -> None: pass
 	
 	@abstractmethod
 	def on_presence_self_notification(self, old_substatus: Substatus, *, update_status: bool = True, update_info: bool = True) -> None: pass
 	
 	@abstractmethod
-	def on_chat_invite(self, chat: 'Chat', inviter: User, *, group_chat: bool = False, inviter_id: Optional[str] = None, invite_msg: str = '') -> None: pass
+	def on_chat_invite(
+		self, chat: 'Chat', inviter: User, *,
+		group_chat: bool = False, inviter_id: Optional[str] = None, invite_msg: str = '',
+	) -> None: pass
 	
 	@abstractmethod
 	def on_declined_chat_invite(self, chat: 'Chat', group_chat: bool = False) -> None: pass
@@ -81,7 +88,10 @@ class BackendEventHandler(metaclass = ABCMeta):
 	def msn_on_oim_deletion(self, oims_deleted: int) -> None:
 		pass
 	
-	def msn_on_uun_sent(self, sender: User, type: int, data: Optional[bytes], *, pop_id_sender: Optional[str] = None, pop_id: Optional[str] = None) -> None:
+	def msn_on_uun_sent(
+		self, sender: User, type: int, data: Optional[bytes], *,
+		pop_id_sender: Optional[str] = None, pop_id: Optional[str] = None,
+	) -> None:
 		pass
 	
 	def msn_on_notify_ab(self) -> None:
@@ -125,7 +135,10 @@ class ChatEventHandler(metaclass = ABCMeta):
 	def on_participant_left(self, cs_other: 'ChatSession', last_pop: bool) -> None: pass
 	
 	@abstractmethod
-	def on_chat_invite_declined(self, chat: 'Chat', invitee: User, *, invitee_id: Optional[str] = None, message: Optional[str] = None, group_chat: bool = False) -> None: pass
+	def on_chat_invite_declined(
+		self, chat: 'Chat', invitee: User, *,
+		invitee_id: Optional[str] = None, message: Optional[str] = None, group_chat: bool = False,
+	) -> None: pass
 	
 	@abstractmethod
 	def on_chat_updated(self) -> None: pass

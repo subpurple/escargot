@@ -1,7 +1,6 @@
 from typing import Tuple, Optional, Iterable, List, Any, Callable, Dict
 import asyncio
 import io
-import time
 
 from core.backend import Backend
 from core.models import GroupChatRole
@@ -167,7 +166,6 @@ class S2SCtrl:
 				self.send_numeric(Err.TooFewArguments, ':GRPCHAT {}'.format(ts))
 				return
 			
-			user_self = None
 			uuid = args[0]
 			role_num = args[1]
 			

@@ -1,5 +1,4 @@
-import asyncio
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 from aiohttp import web
 import json
 

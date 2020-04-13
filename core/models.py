@@ -1,7 +1,6 @@
 from datetime import datetime
-from typing import Dict, Optional, Callable, Set, List, Any, TypeVar
+from typing import Dict, Optional, Set, List, Any, TypeVar
 from enum import Enum, IntEnum, IntFlag
-import time
 
 class User:
 	__slots__ = ('id', 'uuid', 'email', 'verified', 'status', 'detail', 'settings', 'date_created')
@@ -15,7 +14,10 @@ class User:
 	settings: Dict[str, Any]
 	date_created: datetime
 	
-	def __init__(self, id: int, uuid: str, email: str, verified: bool, status: 'UserStatus', settings: Dict[str, Any], date_created: datetime) -> None:
+	def __init__(
+		self, id: int, uuid: str, email: str, verified: bool, status: 'UserStatus',
+		settings: Dict[str, Any], date_created: datetime,
+	) -> None:
 		self.id = id
 		self.uuid = uuid
 		self.email = email
@@ -37,7 +39,10 @@ class Contact:
 	pending: bool
 	detail: 'ContactDetail'
 	
-	def __init__(self, user: User, groups: Set['ContactGroupEntry'], lists: 'Lst', status: 'UserStatus', detail: 'ContactDetail', *, is_messenger_user: Optional[bool] = None, pending: Optional[bool] = None) -> None:
+	def __init__(
+		self, user: User, groups: Set['ContactGroupEntry'], lists: 'Lst', status: 'UserStatus', detail: 'ContactDetail', *,
+		is_messenger_user: Optional[bool] = None, pending: Optional[bool] = None,
+	) -> None:
 		self.head = user
 		self._groups = groups
 		self.lists = lists
@@ -95,7 +100,12 @@ def _is_blocking(blocker: User, blockee: User) -> bool:
 	return (blocker.settings.get('BLP', 'AL') == 'BL')
 
 class ContactDetail:
-	__slots__ = ('index_id', 'birthdate', 'anniversary', 'notes', 'first_name', 'middle_name', 'last_name', 'nickname', 'primary_email_type', 'personal_email', 'work_email', 'im_email', 'other_email', 'home_phone', 'work_phone', 'fax_phone', 'pager_phone', 'mobile_phone', 'other_phone', 'personal_website', 'business_website', 'locations')
+	__slots__ = (
+		'index_id', 'birthdate', 'anniversary', 'notes', 'first_name', 'middle_name', 'last_name',
+		'nickname', 'primary_email_type', 'personal_email', 'work_email', 'im_email', 'other_email',
+		'home_phone', 'work_phone', 'fax_phone', 'pager_phone', 'mobile_phone', 'other_phone',
+		'personal_website', 'business_website', 'locations',
+	)
 	
 	index_id: str
 	birthdate: Optional[datetime]
@@ -120,7 +130,15 @@ class ContactDetail:
 	business_website: Optional[str]
 	locations: Dict[str, 'ContactLocation']
 	
-	def __init__(self, index_id: str, *, birthdate: Optional[datetime] = None, anniversary: Optional[datetime] = None, notes: Optional[str] = None, first_name: Optional[str] = None, middle_name: Optional[str] = None, last_name: Optional[str] = None, nickname: Optional[str] = None, primary_email_type: Optional[str] = None, personal_email: Optional[str] = None, work_email: Optional[str] = None, im_email: Optional[str] = None, other_email: Optional[str] = None, home_phone: Optional[str] = None, work_phone: Optional[str] = None, fax_phone: Optional[str] = None, pager_phone: Optional[str] = None, mobile_phone: Optional[str] = None, other_phone: Optional[str] = None, personal_website: Optional[str] = None, business_website: Optional[str] = None):
+	def __init__(
+		self, index_id: str, *, birthdate: Optional[datetime] = None, anniversary: Optional[datetime] = None,
+		notes: Optional[str] = None, first_name: Optional[str] = None, middle_name: Optional[str] = None,
+		last_name: Optional[str] = None, nickname: Optional[str] = None, primary_email_type: Optional[str] = None,
+		personal_email: Optional[str] = None, work_email: Optional[str] = None, im_email: Optional[str] = None,
+		other_email: Optional[str] = None, home_phone: Optional[str] = None, work_phone: Optional[str] = None,
+		fax_phone: Optional[str] = None, pager_phone: Optional[str] = None, mobile_phone: Optional[str] = None,
+		other_phone: Optional[str] = None, personal_website: Optional[str] = None, business_website: Optional[str] = None,
+	):
 		self.index_id = index_id
 		self.birthdate = birthdate
 		self.anniversary = anniversary
@@ -167,7 +185,10 @@ class ContactLocation:
 	country: Optional[str]
 	zip_code: Optional[str]
 	
-	def __init__(self, type: str, *, name: Optional[str] = None, street: Optional[str] = None, city: Optional[str] = None, state: Optional[str] = None, country: Optional[str] = None, zip_code: Optional[str] = None) -> None:
+	def __init__(
+		self, type: str, *, name: Optional[str] = None, street: Optional[str] = None, city: Optional[str] = None,
+		state: Optional[str] = None, country: Optional[str] = None, zip_code: Optional[str] = None,
+	) -> None:
 		self.type = type
 		self.name = name
 		self.street = street
@@ -292,7 +313,10 @@ class TextWithData:
 		self.yahoo_utf8 = yahoo_utf8
 
 class GroupChat:
-	__slots__ = ('chat_id', 'name', 'owner_id', 'owner_uuid', 'owner_friendly', 'membership_access', 'request_membership_option', 'memberships')
+	__slots__ = (
+		'chat_id', 'name', 'owner_id', 'owner_uuid', 'owner_friendly', 'membership_access',
+		'request_membership_option', 'memberships',
+	)
 	
 	chat_id: str
 	name: str
@@ -303,7 +327,10 @@ class GroupChat:
 	request_membership_option: int
 	memberships: Dict[str, 'GroupChatMembership']
 	
-	def __init__(self, chat_id: str, name: str, owner_id: int, owner_uuid: str, owner_friendly: str, membership_access: int, request_membership_option: int) -> None:
+	def __init__(
+		self, chat_id: str, name: str, owner_id: int, owner_uuid: str, owner_friendly: str,
+		membership_access: int, request_membership_option: int,
+	) -> None:
 		self.chat_id = chat_id
 		self.name = name
 		self.owner_id = owner_id
@@ -314,7 +341,9 @@ class GroupChat:
 		self.memberships = {}
 
 class GroupChatMembership:
-	__slots__ = ('chat_id', 'head', 'role', 'state', 'blocking', 'inviter_uuid', 'inviter_email', 'inviter_name', 'invite_message')
+	__slots__ = (
+		'chat_id', 'head', 'role', 'state', 'blocking', 'inviter_uuid', 'inviter_email', 'inviter_name', 'invite_message',
+	)
 	
 	chat_id: str
 	head: User
@@ -326,7 +355,11 @@ class GroupChatMembership:
 	inviter_name: Optional[str]
 	invite_message: Optional[str]
 	
-	def __init__(self, chat_id: str, head: User, role: 'GroupChatRole', state: 'GroupChatState', *, blocking: bool = False, inviter_uuid: Optional[str] = None, inviter_email: Optional[str] = None, inviter_name: Optional[str] = None, invite_message: Optional[str] = None):
+	def __init__(
+		self, chat_id: str, head: User, role: 'GroupChatRole', state: 'GroupChatState', *,
+		blocking: bool = False, inviter_uuid: Optional[str] = None, inviter_email: Optional[str] = None,
+		inviter_name: Optional[str] = None, invite_message: Optional[str] = None,
+	):
 		self.chat_id = chat_id
 		self.head = head
 		self.role = role
@@ -338,7 +371,10 @@ class GroupChatMembership:
 		self.invite_message = invite_message
 
 class OIM:
-	__slots__ = ('uuid', 'run_id', 'from_email', 'from_friendly', 'from_friendly_encoding', 'from_friendly_charset', 'from_user_id', 'to_email', 'sent', 'origin_ip', 'oim_proxy', 'headers', 'message', 'utf8')
+	__slots__ = (
+		'uuid', 'run_id', 'from_email', 'from_friendly', 'from_friendly_encoding', 'from_friendly_charset',
+		'from_user_id', 'to_email', 'sent', 'origin_ip', 'oim_proxy', 'headers', 'message', 'utf8',
+	)
 	
 	uuid: str
 	run_id: str
@@ -355,7 +391,12 @@ class OIM:
 	message: str
 	utf8: bool
 	
-	def __init__(self, uuid: str, run_id: str, from_email: str, from_friendly: str, to_email: str, sent: datetime, message: str, utf8: bool, *, headers: Optional[Dict[str, str]] = None, from_friendly_encoding: Optional[str] = None, from_friendly_charset: Optional[str] = None, from_user_id: Optional[str] = None, origin_ip: Optional[str] = None, oim_proxy: Optional[str] = None) -> None:
+	def __init__(
+		self, uuid: str, run_id: str, from_email: str, from_friendly: str, to_email: str, sent: datetime,
+		message: str, utf8: bool, *, headers: Optional[Dict[str, str]] = None, from_friendly_encoding: Optional[str] = None,
+		from_friendly_charset: Optional[str] = None, from_user_id: Optional[str] = None, origin_ip: Optional[str] = None,
+		oim_proxy: Optional[str] = None,
+	) -> None:
 		self.uuid = uuid
 		self.run_id = run_id
 		self.from_email = from_email

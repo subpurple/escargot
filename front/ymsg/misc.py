@@ -1,12 +1,11 @@
-from typing import Optional, Tuple, Any, Iterable, Dict, List, ClassVar
-from urllib.parse import quote_plus
+from typing import Optional, Tuple, Any, Iterable, Dict, List
 from enum import IntEnum
-import time, binascii, struct
+import binascii, struct
 
-from util.misc import first_in_iterable, DefaultDict, MultiDict, arbitrary_encode, arbitrary_decode
+from util.misc import DefaultDict, MultiDict, arbitrary_encode
 
-from core.backend import Backend, BackendSession, Chat, ChatSession
-from core.models import User, Lst, Contact, Substatus, NetworkID
+from core.backend import Backend, BackendSession
+from core.models import Substatus
 
 import settings
 

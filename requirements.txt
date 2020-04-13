@@ -12,3 +12,4 @@ git+https://gitlab.com/valtron/devtls.git@0.1.0
 pytz
 cryptography
 mypy
+pylint
