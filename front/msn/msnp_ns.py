@@ -1645,7 +1645,7 @@ class MSNPCtrlNS(MSNPCtrl):
 			bs.me_update({ 'name': name })
 		self.send_reply('REA', trid, self._ser(), email, name)
 	
-	def _m_snd(self, trid: str, email: str, lcid: str, *args: str) -> None:
+	def _m_snd(self, trid: str, email: str, lcid: Optional[str] = None, *rest: Optional[str]) -> None:
 		# Send email about how to use MSN. Ignore it for now.
 		self.send_reply('SND', trid, 'OK')
 	
