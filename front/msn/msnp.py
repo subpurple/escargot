@@ -137,7 +137,7 @@ class MSNPReader:
 		self._i = 0
 		_truncated_log(self.logger, '>>>', m)
 		m = [unquote(x) for x in m]
-		if body is not None:
+		if body:
 			m.append(body)
 		return m
 	

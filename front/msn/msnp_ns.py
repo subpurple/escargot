@@ -1649,7 +1649,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		# Send email about how to use MSN. Ignore it for now.
 		self.send_reply('SND', trid, 'OK')
 	
-	def _m_sdc(self, trid: str, email: str, lcid: str, arg4: str, arg5: str, arg6: str, arg7: str, name: str, message: bytes) -> None:
+	def _m_sdc(self, trid: str, email: str, lcid: str, arg4: str, arg5: str, arg6: str, arg7: str, name: str, message: Optional[bytes] = None) -> None:
 		# Also sends email about how to use MSN, but with the ability to plug in your display name and a custom message. Ignore too.
 		if self.dialect < 5:
 			self.close()
