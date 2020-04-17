@@ -154,17 +154,10 @@ class MSNPCtrlSB(MSNPCtrl):
 			i = 1
 			for other_cs in tmp:
 				other_user = other_cs.user
-				if dialect >= 16:
-					capabilities = encode_capabilities_capabilitiesex(
-						((other_cs.bs.front_data.get('msn_capabilities') or 0) if other_cs.bs.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC),
-						other_cs.bs.front_data.get('msn_capabilitiesex') or 0,
-					)
-				else:
-					capabilities = str(
-						(other_cs.bs.front_data.get('msn_capabilities') or 0)
-						if other_cs.bs.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC
-					)
-				
+				capabilities = encode_capabilities_capabilitiesex(
+					((other_cs.bs.front_data.get('msn_capabilities') or 0) if other_cs.bs.front_data.get('msn') is True else MAX_CAPABILITIES_BASIC),
+					other_cs.bs.front_data.get('msn_capabilitiesex') or 0,
+				)
 				self.send_reply(
 					'IRO', trid, i, l, encode_email_pop(other_user.email, other_cs.bs.front_data.get('msn_pop_id')),
 					other_user.status.name, capabilities,
@@ -185,6 +178,8 @@ class MSNPCtrlSB(MSNPCtrl):
 				other_user = other_cs.user
 				extra = () # type: Tuple[Any, ...]
 				if dialect >= 12:
+					# Capability flags in IRO were technically introduced by MSNP13, but there are MSNP12 logs that show that they
+					# had been introduced in that protocol version by then
 					extra = (
 						(
 							(other_cs.bs.front_data.get('msn_capabilities') or 0)
@@ -320,6 +315,8 @@ class ChatEventHandler(event.ChatEventHandler):
 		else:
 			email = user.email
 		
+		# Capability flags in JOI were technically introduced by MSNP13, but there are MSNP12 logs that show that they
+		# had been introduced in that protocol version by then
 		if 12 <= ctrl.dialect <= 15:
 			extra = (
 				(
