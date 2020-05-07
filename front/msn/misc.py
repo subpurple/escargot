@@ -536,11 +536,7 @@ PRIVATEEPDATA_CLIENTTYPE_PAYLOAD = '<ClientType>{ct}</ClientType>'
 
 PRIVATEEPDATA_STATE_PAYLOAD = '<State>{state}</State>'
 
-SIGNEDTICKET = '''<?xml version="1.0" encoding="utf-16"?>
-<SignedTicket xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" ver="1" keyVer="1">
-	<Data>{}</Data>
-	<Sig>{}</Sig>
-</SignedTicket>'''
+SIGNEDTICKET = '''<?xml version="1.0" encoding="utf-16"?><SignedTicket xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" ver="1" keyVer="1"><Data>{}</Data><Sig>{}</Sig></SignedTicket>'''
 
 CIRCLETICKET = '''<?xml version="1.0" encoding="utf-16"?>
 <Ticket xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">{circles}
