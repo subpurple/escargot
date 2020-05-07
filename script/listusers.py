@@ -1,12 +1,16 @@
 from typing import Optional
 from datetime import datetime, timedelta
 from core import db
+from core.conn import Conn
+import settings
 
 def main(*, since: int = 60, verbose: bool = False) -> None:
 	online_since = datetime.utcnow() - timedelta(minutes = since)
 	total = 0
 	total_online = 0
-	with db.Session() as sess:
+	
+	conn = Conn(settings.DB)
+	with conn.session() as sess:
 		for u in sess.query(db.User).all():
 			total += 1
 			if verbose:

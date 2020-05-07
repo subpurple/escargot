@@ -1,5 +1,7 @@
-from typing import Set
+from typing import Set, Iterator, Any
 from core import db
+from core.conn import Conn
+import settings
 
 def main(*emails: str) -> None:
 	if not emails:
@@ -14,7 +16,8 @@ def main(*emails: str) -> None:
 		return
 	print("Deleting.")
 	
-	with db.Session() as sess:
+	conn = Conn(settings.DB)
+	with conn.session() as sess:
 		users = sess.query(db.User).filter(db.User.email.in_(emails))
 		ids = { u.id for u in users }
 		print("delete account", len(ids))
@@ -29,7 +32,7 @@ def main(*emails: str) -> None:
 			_remove_from_groupchat(sess, gc, ids)
 		sess.flush()
 
-def _remove_from_contacts(sess: db.Session, user: db.User, ids: Set[str]) -> bool:
+def _remove_from_contacts(sess: Any, user: db.User, ids: Set[str]) -> bool:
 	none_found = True
 	usercontacts = sess.query(db.UserContact).filter(db.UserContact.user_id == user.id, db.UserContact.contact_id.in_(ids))
 	if not usercontacts: return False
@@ -37,7 +40,7 @@ def _remove_from_contacts(sess: db.Session, user: db.User, ids: Set[str]) -> boo
 	print("contacts", user.email)
 	return True
 
-def _remove_from_groupchat(sess: db.Session, groupchat: db.GroupChat, ids: Set[str]) -> None:
+def _remove_from_groupchat(sess: Any, groupchat: db.GroupChat, ids: Set[str]) -> None:
 	chat_id = groupchat.chat_id
 	memberships = sess.query(db.GroupChatMembership).filter(db.GroupChatMembership.chat_id == chat_id, db.GroupChatMembership.member_id.in_(ids))
 	if not memberships: return

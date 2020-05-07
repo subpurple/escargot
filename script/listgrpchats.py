@@ -1,8 +1,11 @@
 from core import db
+from core.conn import Conn
+import settings
 
 def main(*, verbose: bool = False) -> None:
 	total = 0
-	with db.Session() as sess:
+	conn = Conn(settings.DB)
+	with conn.session() as sess:
 		for gc in sess.query(db.GroupChat).all():
 			total += 1
 			if verbose:

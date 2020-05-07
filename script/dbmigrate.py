@@ -2,6 +2,8 @@ from typing import Optional
 from sqlaltery import SQLAltery
 
 from core import db
+from core.conn import Conn
+import settings
 
 def diff() -> None:
 	salt = _get_salt()
@@ -14,7 +16,8 @@ def generate() -> None:
 
 def migrate(*, revision: Optional[int] = None, fake: bool = False) -> None:
 	salt = _get_salt()
-	with db.engine.connect() as conn:
+	conn_db = Conn(settings.DB)
+	with conn_db.engine.connect() as conn:
 		salt.migrate(conn, revision, fake = fake)
 
 def _get_salt() -> SQLAltery:

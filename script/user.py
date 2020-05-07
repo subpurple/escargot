@@ -2,10 +2,13 @@ import getpass
 from datetime import datetime
 
 from util import misc, hash
-from core.db import Session, User
+from core.db import User
+from core.conn import Conn
+import settings
 
 def main(email: str, *, oldmsn: bool = False, yahoo: bool = False) -> None:
-	with Session() as sess:
+	conn = Conn(settings.DB)
+	with conn.session() as sess:
 		user = sess.query(User).filter(User.email == email).one_or_none()
 		if user is None:
 			print("Creating new user...")

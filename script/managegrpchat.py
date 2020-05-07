@@ -1,8 +1,11 @@
 from core import db
+from core.conn import Conn
+import settings
 
 def main(id: str, action: str, *args: str) -> None:
 	memberships_to_add = []
-	with db.Session() as sess:
+	conn = Conn(settings.DB)
+	with conn.session() as sess:
 		gc = sess.query(db.GroupChat).filter(db.GroupChat.chat_id == id).one_or_none()
 		if gc is None:
 			print('Group chat {} does not exist'.format(id))

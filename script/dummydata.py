@@ -5,7 +5,9 @@ import time
 
 from util import misc
 from core.models import Lst, NetworkID
-from core.db import Base, Session, User, UserContact, GroupChat, GroupChatMembership, engine
+from core.db import Base, User, UserContact, GroupChat, GroupChatMembership
+from core.conn import Conn
+import settings
 
 from script.user import set_passwords
 
@@ -52,8 +54,9 @@ def main() -> None:
 		tables.append(u)
 		tables.extend(usercontacts_by_id_by_uuid[u.id].values())
 	
-	Base.metadata.create_all(engine)
-	with Session() as sess:
+	conn = Conn(settings.DB)
+	Base.metadata.create_all(conn.engine)
+	with conn.session() as sess:
 		sess.query(User).delete()
 		sess.query(UserContact).delete()
 		sess.query(GroupChat).delete()

@@ -1,4 +1,6 @@
 from core import db
+from core.conn import Conn
+import settings
 
 def main() -> None:
 	query = '''
@@ -7,7 +9,8 @@ def main() -> None:
 		GROUP BY DATE(u.date_created)
 		ORDER BY DATE(u.date_created)
 	'''
-	with db.Session() as sess:
+	conn = Conn(settings.DB)
+	with conn.session() as sess:
 		for date, count, zombies in sess.execute(query):
 			zombiebars = int(10 * (zombies / count + 0.04))
 			print("{:10} {:4} {}".format(str(date), count, ('*' * zombiebars + '.' * (10 - zombiebars))))

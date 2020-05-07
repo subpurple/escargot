@@ -1,5 +1,7 @@
 from typing import Set
 from core import db
+from core.conn import Conn
+import settings
 
 def main(*ids: str) -> None:
 	if not ids:
@@ -14,7 +16,8 @@ def main(*ids: str) -> None:
 		return
 	print("Deleting.")
 	
-	with db.Session() as sess:
+	conn = Conn(settings.DB)
+	with conn.session() as sess:
 		groupchats = sess.query(db.GroupChat).filter(db.GroupChat.chat_id.in_(ids))
 		groupchatmemberships = sess.query(db.GroupChatMembership).filter(db.GroupChatMembership.chat_id.in_(ids))
 		print("delete group chats", len(ids))
