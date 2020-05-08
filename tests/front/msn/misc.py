@@ -48,13 +48,14 @@ def _create_rps_response(nonce: bytes, bs_encoded: str) -> None:
 	bs = base64.b64decode(bs_encoded)
 	
 	result = b''
+	# TODO: Calculate actual cipher length
 	result += struct.pack('<IIIIIII', 28, 1, 0x6603, 0x8004, 8, 20, 72)
 	
 	key2 = generate_rps_key(bs, b'WS-SecureConversationSESSION KEY HASH')
 	key3 = generate_rps_key(bs, b'WS-SecureConversationSESSION KEY ENCRYPTION')
 	
 	response_hash = hmac.new(key2, nonce, sha1).digest()
-	response_cipher = encrypt_with_key_and_iv_tripledes_cbc(key3, iv, (nonce + b'\x08\x08\x08\x08\x08\x08\x08\x08'))
+	response_cipher = encrypt_with_key_and_iv_tripledes_cbc(key3, iv, nonce)
 	
 	result += iv + response_hash + response_cipher
 	
