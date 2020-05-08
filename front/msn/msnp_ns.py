@@ -253,7 +253,7 @@ class MSNPCtrlNS(MSNPCtrl):
 					self.close()
 					return
 				# https://web.archive.org/web/20100819015007/http://msnpiki.msnfanatic.com/index.php/MSNP15:SSO
-				self.rps_challenge = base64.b64encode(sha384(secrets.token_bytes(128)).digest())
+				self.rps_challenge = base64.b64encode(secrets.token_bytes(48))
 				
 				self.send_reply('GCF', 0, SHIELDS_MSNP13)
 				self.send_reply('USR', trid, authtype, 'S', 'MBI_KEY_OLD', self.rps_challenge.decode('utf-8'))
