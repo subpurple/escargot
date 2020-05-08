@@ -298,29 +298,22 @@ class MSNPCtrlNS(MSNPCtrl):
 							self.close()
 							return
 						
-						if (
-							struct.unpack('<I', response[0:4])[0] != 28
-							or struct.unpack('<I', response[4:8])[0] != 1
-							or struct.unpack('<I', response[8:12])[0] != 0x6603
-							or struct.unpack('<I', response[12:16])[0] != 0x8004
-							or struct.unpack('<I', response[16:20])[0] != 8
-							or struct.unpack('<I', response[20:24])[0] != 20
-							or struct.unpack('<I', response[24:28])[0] != 72
-						):
+						if struct.unpack('<IIIIII', response[:24]) != (28, 1, 0x6603, 0x8004, 8, 20):
 							self.send_reply(Err.AuthFail, trid)
 							self.close()
 							return
+						response_cipher_len = struct.unpack('<I', response[24:28])[0]
 						
 						response_payload = response[28:]
 						
-						if not len(response_payload) == (8+20+72):
+						if not len(response_payload) == (8+20+response_cipher_len):
 							self.send_reply(Err.AuthFail, trid)
 							self.close()
 							return
 						
 						response_iv = response_payload[0:8]
 						response_hash = response_payload[8:28]
-						response_cipher = response_payload[28:100]
+						response_cipher = response_payload[28:(28+response_cipher_len)]
 						
 						binarysecret_b64 = tpl[1]
 						
@@ -336,9 +329,7 @@ class MSNPCtrlNS(MSNPCtrl):
 						
 						response_hash_server = hmac.new(key2, self.rps_challenge, sha1).digest()
 						
-						response_cipher_server = encrypt_with_key_and_iv_tripledes_cbc(
-							key3, response_iv, (self.rps_challenge + b'\x08\x08\x08\x08\x08\x08\x08\x08'),
-						)
+						response_cipher_server = encrypt_with_key_and_iv_tripledes_cbc(key3, response_iv, self.rps_challenge)
 						
 						if response_hash != response_hash_server or response_cipher != response_cipher_server:
 							self.send_reply(Err.AuthFail, trid)

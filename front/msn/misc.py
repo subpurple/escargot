@@ -409,18 +409,28 @@ def generate_rps_key(key: bytes, msg: bytes) -> bytes:
 	
 	return (hash2[:20] + hash4[:4])
 
+DES3_BLOCK_SIZE = 8
+
 def encrypt_with_key_and_iv_tripledes_cbc(key: bytes, iv: bytes, msg: bytes) -> bytes:
 	from cryptography.hazmat.primitives.ciphers import Cipher
 	from cryptography.hazmat.primitives.ciphers.algorithms import TripleDES
 	from cryptography.hazmat.primitives.ciphers.modes import CBC
 	from cryptography.hazmat.backends import default_backend
 	
+	# Use PKCS5 padding
+	msg_padded = _pkcs5_pad_message_tripledes(msg)
 	tripledes_cbc_cipher = Cipher(TripleDES(key), mode = CBC(iv), backend = default_backend())
 	tripledes_cbc_encryptor = tripledes_cbc_cipher.encryptor()
 	
-	final = tripledes_cbc_encryptor.update(msg)
+	final = tripledes_cbc_encryptor.update(msg_padded)
 	final += tripledes_cbc_encryptor.finalize()
 	
+	return final
+
+def _pkcs5_pad_message_tripledes(msg: bytes) -> bytes:
+	final = msg
+	pad_value = DES3_BLOCK_SIZE - len(msg) % DES3_BLOCK_SIZE
+	final += bytes([pad_value]) * pad_value
 	return final
 
 def gen_mail_data(
