@@ -546,11 +546,12 @@ class Session(metaclass = ABCMeta):
 	def _on_close(self, **kwargs: Any) -> None: pass
 
 class BackendSession(Session):
-	__slots__ = ('backend', 'user', 'client', 'evt', 'front_data')
+	__slots__ = ('backend', 'user', 'client', 'chat_enabled', 'evt', 'front_data')
 	
 	backend: Backend
 	user: User
 	client: Client
+	chat_enabled: bool
 	evt: event.BackendEventHandler
 	front_data: Dict[str, Any]
 	
@@ -559,6 +560,7 @@ class BackendSession(Session):
 		self.backend = backend
 		self.user = user
 		self.client = client
+		self.chat_enabled = True
 		self.evt = evt
 		self.front_data = {}
 	
@@ -1369,6 +1371,7 @@ class ChatSession(Session):
 	
 	def invite(self, invitee: User, *, invite_msg: Optional[str] = None) -> None:
 		already_invited_sessions = [] # type: List[BackendSession]
+		disabled_sessions = [] # type: List[BackendSession]
 		
 		ctc_sessions = self.bs.backend.util_get_sessions_by_user(invitee)
 		roster = list(self.chat.get_roster())
@@ -1379,8 +1382,12 @@ class ChatSession(Session):
 					already_invited_sessions.append(ctc_sess)
 		for ctc_sess in ctc_sessions:
 			if ctc_sess in already_invited_sessions: continue
+			if not ctc_sess.chat_enabled:
+				disabled_sessions.append(ctc_sess)
+				continue
 			ctc_sess.evt.on_chat_invite(self.chat, self.user, invite_msg = invite_msg or '')
 		
+		if len(ctc_sessions) == len(disabled_sessions): raise error.ContactNotOnline()
 		if len(ctc_sessions) == len(already_invited_sessions): raise error.ContactAlreadyOnList()
 	
 	def send_message_to_everyone(self, data: MessageData) -> None:

@@ -1738,6 +1738,22 @@ class MSNPCtrlNS(MSNPCtrl):
 			extra += (1,)
 		self.send_reply('XFR', trid, dest, 'm1.escargot.log1p.xyz:1864', 'CKI', token, *extra)
 	
+	def _m_ims(self, trid: str, value: str) -> None:
+		#>>> IMS 28 ON/OFF
+		# Only used in WebTV clients; toggles whether `RNG`s can be received and `XFR`s can be sent
+		bs = self.bs
+		assert bs is not None
+		if value == 'ON':
+			bs.chat_enabled = True
+		elif value == 'OFF':
+			bs.chat_enabled = False
+		else:
+			# TODO: Proper response to bad `IMS`?
+			self.send_reply(Err.NotExpected, trid)
+			return
+		
+		self.send_reply('IMS', trid, '0', value)
+	
 	def _m_fqy(self, trid: str, data: bytes) -> None:
 		# "Federated query; Query contact's network types"
 		# https://web.archive.org/web/20100820020114/http://msnpiki.msnfanatic.com:80/index.php/Command:FQY
@@ -2038,7 +2054,7 @@ class BackendEventHandler(event.BackendEventHandler):
 		if dialect < 13:
 			if dialect < 10:
 				bs.me_contact_remove(user.uuid, Lst.PL)
-				m: Tuple[Any, ...] = ('ADD', 0, self.ctrl._ser(), Lst.RL.name, email, name)
+				m: Tuple[Any, ...] = ('ADD', 0, Lst.RL.name, self.ctrl._ser(), email, name)
 			else:
 				m = ('ADC', 0, Lst.RL.name, 'N={}'.format(email), 'F={}'.format(name))
 		else:
@@ -2065,7 +2081,7 @@ class BackendEventHandler(event.BackendEventHandler):
 		assert detail is not None
 		
 		if dialect < 13:
-			m: Tuple[Any, ...] = ('REM', 0, Lst.RL.name, email)
+			m: Tuple[Any, ...] = ('REM', 0, Lst.RL.name, self.ctrl._ser(), email)
 		else:
 			username, domain = email.split('@', 1)
 			rml_payload = '<ml><d n="{}"><c n="{}" t="1" l="{}" /></d></ml>'.format(
