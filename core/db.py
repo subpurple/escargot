@@ -45,12 +45,14 @@ class User(WithFrontData):
 	date_login = Col(sa.DateTime, nullable = True)
 	uuid = Col(sa.String, unique = True)
 	email = Col(sa.String)
+	username = Col(sa.String)
 	verified = Col(sa.Boolean)
 	name = Col(sa.String, nullable = True)
 	message = Col(sa.String)
 	password = Col(sa.String)
 	groups = Col(JSONType)
 	settings = Col(JSONType)
+	__table_args__ = (sa.Index('email_ci_index', sa.text('LOWER(email)'), unique = True), sa.Index('username_ci_index', sa.text('LOWER(username)'), unique = True))
 
 class UserContact(WithFrontData):
 	__tablename__ = 't_user_contact'

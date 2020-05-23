@@ -239,6 +239,9 @@ class Backend:
 	def util_get_uuid_from_email(self, email: str) -> Optional[str]:
 		return self.user_service.get_uuid(email)
 	
+	def util_get_uuid_from_username(self, username: str) -> Optional[str]:
+		return self.user_service.get_uuid_username(username)
+	
 	def util_set_sess_token(self, sess: 'BackendSession', token: str) -> None:
 		self._sc.set_nc_by_token(sess, token)
 	

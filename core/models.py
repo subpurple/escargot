@@ -3,11 +3,12 @@ from typing import Dict, Optional, Set, List, Any, TypeVar
 from enum import Enum, IntEnum, IntFlag
 
 class User:
-	__slots__ = ('id', 'uuid', 'email', 'verified', 'status', 'detail', 'settings', 'date_created')
+	__slots__ = ('id', 'uuid', 'email', 'username', 'verified', 'status', 'detail', 'settings', 'date_created')
 	
 	id: int
 	uuid: str
 	email: str
+	username: str
 	verified: bool
 	status: 'UserStatus'
 	detail: Optional['UserDetail']
@@ -15,12 +16,13 @@ class User:
 	date_created: datetime
 	
 	def __init__(
-		self, id: int, uuid: str, email: str, verified: bool, status: 'UserStatus',
+		self, id: int, uuid: str, email: str, username: str, verified: bool, status: 'UserStatus',
 		settings: Dict[str, Any], date_created: datetime,
 	) -> None:
 		self.id = id
 		self.uuid = uuid
 		self.email = email
+		self.username = username
 		self.verified = verified
 		# `status`: true status of user
 		self.status = status
@@ -372,13 +374,14 @@ class GroupChatMembership:
 
 class OIM:
 	__slots__ = (
-		'uuid', 'run_id', 'from_email', 'from_friendly', 'from_friendly_encoding', 'from_friendly_charset',
+		'uuid', 'run_id', 'from_email', 'from_username', 'from_friendly', 'from_friendly_encoding', 'from_friendly_charset',
 		'from_user_id', 'to_email', 'sent', 'origin_ip', 'oim_proxy', 'headers', 'message', 'utf8',
 	)
 	
 	uuid: str
 	run_id: str
 	from_email: str
+	from_username: str
 	from_friendly: str
 	from_friendly_encoding: str
 	from_friendly_charset: str
@@ -392,7 +395,7 @@ class OIM:
 	utf8: bool
 	
 	def __init__(
-		self, uuid: str, run_id: str, from_email: str, from_friendly: str, to_email: str, sent: datetime,
+		self, uuid: str, run_id: str, from_email: str, from_username: str, from_friendly: str, to_email: str, sent: datetime,
 		message: str, utf8: bool, *, headers: Optional[Dict[str, str]] = None, from_friendly_encoding: Optional[str] = None,
 		from_friendly_charset: Optional[str] = None, from_user_id: Optional[str] = None, origin_ip: Optional[str] = None,
 		oim_proxy: Optional[str] = None,

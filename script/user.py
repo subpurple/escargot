@@ -6,14 +6,19 @@ from core.db import User
 from core.conn import Conn
 import settings
 
-def main(email: str, *, oldmsn: bool = False, yahoo: bool = False) -> None:
+def main(email: str, username: str, *, oldmsn: bool = False, yahoo: bool = False) -> None:
 	conn = Conn(settings.DB)
 	with conn.session() as sess:
 		user = sess.query(User).filter(User.email == email).one_or_none()
 		if user is None:
+			user = sess.query(User).filter(User.username == username).one_or_none()
+			if user is not None:
+				print('User does not exist, but username is already taken. Exiting.')
+				return
+			
 			print("Creating new user...")
 			user = User(
-				uuid = misc.gen_uuid(), email = email, verified = False,
+				uuid = misc.gen_uuid(), email = email, username = username, verified = False,
 				name = email, message = '',
 				groups = {}, settings = {},
 			)

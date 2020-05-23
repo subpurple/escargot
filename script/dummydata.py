@@ -20,14 +20,14 @@ def main() -> None:
 		d = domain[0]
 		for i in range(1, 5 + 1):
 			name = "T{}{}".format(i, d)
-			user = create_user('{}@{}'.format(name.lower(), domain), '123456', name, "{} msg".format(name))
+			user = create_user('{}@{}'.format(name.lower(), domain), name.lower(), '123456', name, "{} msg".format(name))
 			user.id = len(U)
 			usercontacts_by_id_by_uuid[user.id] = {}
 			U.append(user)
 	
 	for i in range(5):
 		name = "Bot{}".format(i)
-		user = create_user('{}@bot.log1p.xyz'.format(name.lower()), '123456', name, "{} msg".format(name))
+		user = create_user('{}@bot.log1p.xyz'.format(name.lower()), name.lower(), '123456', name, "{} msg".format(name))
 		user.id = len(U)
 		usercontacts_by_id_by_uuid[user.id] = {}
 		U.append(user)
@@ -63,9 +63,9 @@ def main() -> None:
 		sess.query(GroupChatMembership).delete()
 		sess.add_all(tables)
 
-def create_user(email: str, pw: str, name: str, message: str) -> User:
+def create_user(email: str, username: str, pw: str, name: str, message: str) -> User:
 	user = User(
-		uuid = str(uuid4()), email = email, verified = True,
+		uuid = str(uuid4()), email = email, username = username, verified = True,
 		name = name, message = message,
 		groups = [], settings = {}
 	)

@@ -130,10 +130,11 @@ def build_p2p_msg_packet(bs: BackendSession, sess_id: int, p2p_dict: KVSType) ->
 	
 	p2p_conn_dict = MultiDict([
 		(b'4', p2p_dict.get(b'4') or b''),
-		(b'5', yahoo_id(user_to.email).encode('utf-8')),
+		(b'5', arbitrary_encode(user_to.username)),
 	])
 	
-	p2p_conn_dict.add(b'11', binascii.hexlify(struct.pack('!I', sess_id)).decode().upper().encode('utf-8'))
+	#p2p_conn_dict.add(b'11', binascii.hexlify(struct.pack('!I', sess_id)).decode().upper().encode('utf-8'))
+	p2p_conn_dict.add(b'11', b'0')
 	if p2p_dict.get(b'12') is not None: p2p_conn_dict.add(b'12', p2p_dict.get(b'12') or b'')
 	if p2p_dict.get(b'13') is not None: p2p_conn_dict.add(b'13', p2p_dict.get(b'13') or b'')
 	p2p_conn_dict.add(b'49', p2p_dict.get(b'49') or b'')
@@ -145,7 +146,7 @@ def build_ft_packet(bs: BackendSession, sess_id: int, xfer_dict: KVSType) -> Ite
 	user_to = bs.user
 	
 	ft_dict = MultiDict([
-		(b'5', yahoo_id(user_to.email).encode('utf-8')),
+		(b'5', arbitrary_encode(user_to.username)),
 		(b'4', xfer_dict.get(b'1') or xfer_dict.get(b'4') or b'')
 	])
 	
@@ -166,7 +167,9 @@ def build_ft_packet(bs: BackendSession, sess_id: int, xfer_dict: KVSType) -> Ite
 		
 		# For P2P messaging
 		if xfer_dict.get(b'2') is not None: ft_dict.add(b'2', xfer_dict.get(b'2') or b'')
-		if xfer_dict.get(b'11') is not None: ft_dict.add(b'11', binascii.hexlify(struct.pack('!I', sess_id)).decode().upper().encode('utf-8'))
+		if xfer_dict.get(b'11') is not None:
+			#ft_dict.add(b'11', binascii.hexlify(struct.pack('!I', sess_id)).decode().upper().encode('utf-8'))
+			ft_dict.add(b'11', b'0')
 		if xfer_dict.get(b'12') is not None: ft_dict.add(b'12', xfer_dict.get(b'12') or b'')
 		if xfer_dict.get(b'60') is not None: ft_dict.add(b'60', xfer_dict.get(b'60') or b'')
 		if xfer_dict.get(b'61') is not None: ft_dict.add(b'61', xfer_dict.get(b'61') or b'')
@@ -186,9 +189,9 @@ def build_http_ft_packet(bs: BackendSession, sender: str, url_path: str, upload_
 	user = bs.user
 	
 	yield (YMSGService.FileTransfer, YMSGStatus.BRB, MultiDict([
-		(b'1', yahoo_id(user.email).encode('utf-8')),
+		(b'1', arbitrary_encode(user.username)),
 		(b'5', arbitrary_encode(sender)),
-		(b'4', yahoo_id(user.email).encode('utf-8')),
+		(b'4', arbitrary_encode(user.username)),
 		(b'14', arbitrary_encode(message)),
 		(b'38', str(upload_time + 86400).encode('utf-8')),
 		(b'20', arbitrary_encode('http://{}{}'.format(settings.STORAGE_HOST, url_path))),
@@ -207,31 +210,3 @@ def split_to_chunks(s: str, count: int) -> List[str]:
 		i += count
 	
 	return final
-
-def yahoo_id(email: str) -> str:
-	email_parts = email.split('@', 1)
-	
-	if len(email_parts) == 2 and email_parts[1].startswith('yahoo.com'):
-		return email_parts[0]
-	else:
-		return email
-
-def yahoo_id_to_uuid(backend: Backend, yahoo_id: Optional[str]) -> Optional[str]:
-	if not yahoo_id:
-		return None
-	
-	email = None # type: Optional[str]
-	
-	# Fun fact about foreign Yahoo! email addresses: they're just relays to the same account name but with
-	# `@yahoo.com` instead of `@yahoo.*`. The server should check the address to add an entry for the `@yahoo.com`
-	# account, then they can be identified.
-	
-	if '@' in yahoo_id:
-		if not yahoo_id.endswith('@yahoo.com'):
-			email = yahoo_id
-		else:
-			return None
-	else:
-		email = '{}@yahoo.com'.format(yahoo_id)
-	
-	return backend.util_get_uuid_from_email(email)

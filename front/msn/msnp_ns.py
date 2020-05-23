@@ -1086,12 +1086,16 @@ class MSNPCtrlNS(MSNPCtrl):
 			return
 		
 		ctc_old = detail.contacts.get(contact_uuid)
+		ctc_old_lists = None
 		
 		lst = getattr(Lst, lst_name)
 		
 		if lst == Lst.RL and (dialect < 11 or (ctc_old is not None and not ctc_old.pending)):
 			self.close()
 			return
+		
+		if ctc_old is not None:
+			ctc_old_lists = ctc_old.lists
 		
 		try:
 			ctc, ctc_head = bs.me_contact_add(contact_uuid, lst, name = name, group_id = group_id)
@@ -1115,7 +1119,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		else:
 			self.send_reply('ADD', trid, lst_name, ser, ctc_head.email, name, group_id)
 		
-		if lst == Lst.FL and not group_id:
+		if lst == Lst.FL and (ctc_old_lists is not None and not ctc_old_lists & Lst.FL):
 			if self.syn_sent and dialect >= 5:
 				ctc_detail = ctc_head.detail
 				if ctc_detail is not None:

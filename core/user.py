@@ -2,6 +2,7 @@ from typing import Dict, Optional, List, Tuple, Any, TYPE_CHECKING
 from datetime import datetime
 from dateutil import parser as iso_parser
 from pathlib import Path
+from sqlalchemy import func
 import json
 
 from util.hash import hasher, hasher_md5, hasher_md5crypt
@@ -34,21 +35,21 @@ class UserService:
 	
 	def login(self, email: str, pwd: str) -> Optional[str]:
 		with self._conn.session() as sess:
-			dbuser = sess.query(DBUser).filter(DBUser.email == email).one_or_none()
+			dbuser = sess.query(DBUser).filter(func.lower(DBUser.email) == email.lower()).one_or_none()
 			if dbuser is None: return None
 			if not hasher.verify(pwd, dbuser.password): return None
 			return dbuser.uuid
 	
 	def msn_login_md5(self, email: str, md5_hash: str) -> Optional[str]:
 		with self._conn.session() as sess:
-			dbuser = sess.query(DBUser).filter(DBUser.email == email).one_or_none()
+			dbuser = sess.query(DBUser).filter(func.lower(DBUser.email) == email.lower()).one_or_none()
 			if dbuser is None: return None
 			if not hasher_md5.verify_hash(md5_hash, dbuser.get_front_data('msn', 'pw_md5') or ''): return None
 			return dbuser.uuid
 	
 	def msn_get_md5_salt(self, email: str) -> Optional[str]:
 		with self._conn.session() as sess:
-			dbuser = sess.query(DBUser).filter(DBUser.email == email).one_or_none()
+			dbuser = sess.query(DBUser).filter(func.lower(DBUser.email) == email.lower()).one_or_none()
 			if dbuser is None: return None
 			pw_md5 = dbuser.get_front_data('msn', 'pw_md5')
 		if pw_md5 is None: return None
@@ -74,7 +75,13 @@ class UserService:
 	
 	def get_uuid(self, email: str) -> Optional[str]:
 		with self._conn.session() as sess:
-			dbuser = sess.query(DBUser).filter(DBUser.email == email).one_or_none()
+			dbuser = sess.query(DBUser).filter(func.lower(DBUser.email) == email.lower()).one_or_none()
+			if dbuser is None: return None
+			return dbuser.uuid
+	
+	def get_uuid_username(self, username: str) -> Optional[str]:
+		with self._conn.session() as sess:
+			dbuser = sess.query(DBUser).filter(func.lower(DBUser.username) == username.lower()).one_or_none()
 			if dbuser is None: return None
 			return dbuser.uuid
 	
@@ -88,7 +95,7 @@ class UserService:
 			dbuser = sess.query(DBUser).filter(DBUser.uuid == uuid).one_or_none()
 			if dbuser is None: return None
 			status = UserStatus(dbuser.name, dbuser.message)
-			return User(dbuser.id, dbuser.uuid, dbuser.email, dbuser.verified, status, dbuser.settings, dbuser.date_created)
+			return User(dbuser.id, dbuser.uuid, dbuser.email, dbuser.username, dbuser.verified, status, dbuser.settings, dbuser.date_created)
 	
 	def get_detail(self, uuid: str) -> Optional[UserDetail]:
 		with self._conn.session() as sess:
@@ -153,7 +160,7 @@ class UserService:
 			return None
 		
 		oim = OIM(
-			json_oim['uuid'], json_oim['run_id'], json_oim['from'], json_oim['from_friendly']['friendly_name'],
+			json_oim['uuid'], json_oim['run_id'], json_oim['from'], json_oim['from_username'], json_oim['from_friendly']['friendly_name'],
 			user.email, iso_parser.parse(json_oim['sent']),
 			json_oim['message']['text'], json_oim['message']['utf8'],
 			headers = json_oim['headers'],
@@ -186,6 +193,7 @@ class UserService:
 		oim_json['uuid'] = oim_uuid
 		oim_json['run_id'] = run_id
 		oim_json['from'] = user.email
+		oim_json['from_username'] = user.username
 		oim_json['from_friendly'] = {
 			'friendly_name': from_friendly,
 			'encoding': (None if from_friendly is None else from_friendly_encoding),
@@ -205,7 +213,7 @@ class UserService:
 		oim_path.write_text(json.dumps(oim_json))
 		
 		oim = OIM(
-			oim_json['uuid'], oim_json['run_id'], oim_json['from'], oim_json['from_friendly']['friendly_name'],
+			oim_json['uuid'], oim_json['run_id'], oim_json['from'], oim_json['from_username'], oim_json['from_friendly']['friendly_name'],
 			user.email, iso_parser.parse(oim_json['sent']), oim_json['message']['text'], oim_json['message']['utf8'],
 			headers = oim_json['headers'], from_friendly_encoding = oim_json['from_friendly']['encoding'],
 			from_friendly_charset = oim_json['from_friendly']['charset'], from_user_id = oim_json['from_user_id'],

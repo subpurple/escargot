@@ -11,7 +11,7 @@ from core.models import Contact, Substatus
 import util.misc
 from util.hash import gen_salt
 from .ymsg_ctrl import _try_decode_ymsg
-from .misc import YMSGService, yahoo_id_to_uuid, yahoo_id
+from .misc import YMSGService
 import time
 
 YAHOO_TMPL_DIR = 'front/ymsg/tmpl'
@@ -161,7 +161,7 @@ def _gen_yab_record(ctc: Contact) -> str:
 		mphone = ' mphone="{}"'.format(ctc.detail.mobile_phone)
 	
 	return '<record userid="{yid}"{fname}{lname}{nname}{email}{hphone}{wphone}{mphone} dbid="{contact_id}"/>'.format(
-		yid = yahoo_id(ctc.head.email),
+		yid = ctc.head.username,
 		fname = fname or '', lname = lname or '', nname = nname or '',
 		email = email or '', hphone = hphone or '', wphone = wphone or '', mphone = mphone or '',
 		contact_id = ctc.detail.index_id,
@@ -268,11 +268,12 @@ async def handle_ft_http(req: web.Request) -> web.Response:
 	
 	yahoo_id_sender = util.misc.arbitrary_decode(ymsg_data.get(b'0') or b'')
 	(yahoo_id, bs) = _parse_cookies(req, backend)
-	if bs is None or yahoo_id is None or not yahoo_id_to_uuid(backend, yahoo_id):
+	if None in (bs,yahoo_id):
 		return web.HTTPInternalServerError(text = '')
+	assert bs is not None
 	
 	yahoo_id_recipient = util.misc.arbitrary_decode(ymsg_data.get(b'5') or b'')
-	recipient_uuid = yahoo_id_to_uuid(backend, yahoo_id_recipient)
+	recipient_uuid = backend.util_get_uuid_from_username(yahoo_id_recipient)
 	if recipient_uuid is None:
 		return web.HTTPInternalServerError(text = '')
 	recipient_head = backend._load_user_record(recipient_uuid)
