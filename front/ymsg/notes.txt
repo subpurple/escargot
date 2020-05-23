@@ -30,3 +30,23 @@ https://bitbucket.org/pidgin/main/src/soc.2006.msnp13/src/protocols/yahoo/
 --- Yahoo! Messenger client archives ---
 http://www.oldversion.com/windows/yahoo-messenger/
 
+
+------------------------------------------------------------------------------
+
+Return codes for YMSG service 0x7D1 (Protocol-level Failure; taken from Yahsmosis `YMSGLib.INI`):
+
+1004=Protocol Mismatch
+1005=Unknown Data/Invalid Field number
+1006=Incompatible software (or Cloaking)
+; ^ happens when sending the old packets (eg: when using cloak)
+1007=Invalid Protocol Version or Authorization
+1011=Cookies Expired or Invalid
+1013=Username format not acceptable.
+: ^ ?
+1014=Session expired or terminated
+; ^ occurs after 52
+1015=Session expired or invalid
+;^ occurs after 1011 or 42 or 1051
+1017=Authorized failed, a session was already active
+1020=Invalid VendorID?
+1051=Cookies Expired?

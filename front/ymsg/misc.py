@@ -51,6 +51,8 @@ class YMSGService(IntEnum):
 	# `static var YES_CHAT_PING = 161;` 161 = 0xA1
 	# Yahoo! Messenger 9.0's `desktopHub` SWF seems to list a lot of YMSG service codes and field defs in its code. :p
 	ChatPing = 0xA1
+	# Documented by the Yahsmosis project (https://www.autoitscript.com/forum/topic/142448-help-with-yahomosis/) - this appears to be used when a protocol-level error occurs (protocol version "cloaking", bad `Y`/`T` cookies, invalid Yahoo ID, invalid key/value pairs, etc.). Unsure what protocol version this was first placed into or how far back in the protocol version Yahoo's servers decided to send this on (A Wireshark capture indicates as far back as YMSG12)
+	ProtocolError = 0x07D1
 
 class YMSGStatus(IntEnum):
 	# Available/Client Request
