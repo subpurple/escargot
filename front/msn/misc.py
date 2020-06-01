@@ -694,6 +694,8 @@ class Err:
 	GroupZeroUnremovable = 230
 	XXLEmptyDomain = 240
 	XXLInvalidPayload = 241
+	ContactListUnavailable = 402
+	ContactListError = 403
 	InternalServerError = 500
 	CommandDisabled = 502
 	ChallengeResponseFailed = 540

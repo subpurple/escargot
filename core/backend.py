@@ -817,7 +817,7 @@ class BackendSession(Session):
 			ctc_new = self._remove_from_list(user, ctc.head, lst, group_id)
 		except Exception as ex:
 			raise ex
-		if lst & Lst.FL and ctc_new is None:
+		if lst & Lst.FL:
 			# Remove matching RL
 			self._remove_from_list(ctc.head, user, Lst.RL, None)
 			for sess_added in backend._sc.get_sessions_by_user(ctc.head):
@@ -912,8 +912,10 @@ class BackendSession(Session):
 				ctc.lists &= ~lst
 				if lst == Lst.FL:
 					ctc._groups = set()
+				if lst == Lst.RL and ctc.pending:
+					ctc.pending = False
 				updated = True
-		elif (lst == Lst.RL or lst == Lst.PL) and ctc.pending:
+		elif lst == Lst.PL and ctc.pending:
 			ctc.pending = False
 			updated = True
 		else:

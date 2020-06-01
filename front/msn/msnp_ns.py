@@ -162,10 +162,6 @@ class MSNPCtrlNS(MSNPCtrl):
 				return
 			if stage == 'I':
 				#>>> USR trid MD5 I email@example.com
-				if backend.maintenance_mode:
-					self.send_reply(Err.InternalServerError, trid)
-					self.close()
-					return
 				email = args[0]
 				if '@' not in email:
 					self.send_reply(Err.AuthFail, trid)
@@ -184,6 +180,11 @@ class MSNPCtrlNS(MSNPCtrl):
 			if stage == 'S':
 				#>>> USR trid MD5 S md5_hash
 				token = None # type: Optional[str]
+				if backend.maintenance_mode:
+					self.send_reply(Err.InternalServerError, trid)
+					self.close()
+					return
+				
 				md5_hash = args[0]
 				usr_email = self.usr_email
 				assert usr_email is not None
@@ -203,10 +204,6 @@ class MSNPCtrlNS(MSNPCtrl):
 				return
 			if stage == 'I':
 				#>>> USR trid TWN I email@example.com
-				if backend.maintenance_mode:
-					self.send_reply(Err.InternalServerError, trid)
-					self.close()
-					return
 				self.usr_email = args[0]
 				if '@' not in self.usr_email:
 					self.send_reply(Err.AuthFail, trid)
@@ -220,6 +217,11 @@ class MSNPCtrlNS(MSNPCtrl):
 				return
 			if stage == 'S':
 				#>>> USR trid TWN S auth_token
+				if backend.maintenance_mode:
+					self.send_reply(Err.InternalServerError, trid)
+					self.close()
+					return
+				
 				token = args[0]
 				if token[0:2] == 't=':
 					token = token[2:22]
@@ -243,10 +245,6 @@ class MSNPCtrlNS(MSNPCtrl):
 				return
 			if stage == 'I':
 				#>>> USR trid SSO I email@example.com
-				if backend.maintenance_mode:
-					self.send_reply(Err.InternalServerError, trid)
-					self.close()
-					return
 				self.usr_email = args[0]
 				if '@' not in self.usr_email:
 					self.send_reply(Err.AuthFail, trid)
@@ -261,6 +259,11 @@ class MSNPCtrlNS(MSNPCtrl):
 			if stage == 'S':
 				#>>> USR trid SSO S auth_token [b64_response; not included when MSIDCRL-patched clients login]
 				#>>> USR trid SSO S auth_token b64_response machineguid (MSNP >= 16)
+				if backend.maintenance_mode:
+					self.send_reply(Err.InternalServerError, trid)
+					self.close()
+					return
+				
 				token = args[0]
 				if token[0:2] == 't=':
 					token = token[2:22]
@@ -1153,6 +1156,9 @@ class MSNPCtrlNS(MSNPCtrl):
 			if self.dialect < 10:
 				contact_uuid = self.backend.util_get_uuid_from_email(usr)
 			else:
+				if not re.match(r'^[A-Fa-f0-9]{8,8}-([A-Fa-f0-9]{4,4}-){3,3}[A-Fa-f0-9]{12,12}', usr):
+					self.send_reply(Err.ContactListError, trid)
+					return
 				contact_uuid = usr
 		else:
 			#>>> REM 248 AL bob1@hotmail.com
