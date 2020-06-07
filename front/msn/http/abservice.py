@@ -767,7 +767,8 @@ def ab_ABGroupAdd(req: web.Request, header: Any, action: Any, bs: BackendSession
 		return web.HTTPInternalServerError()
 	
 	name = find_element(action, 'name')
-	#is_favorite = find_element(action, 'IsFavorite')
+	is_favorite = find_element(action, 'IsFavorite')
+	assert isinstance(is_favorite, bool) or is_favorite is None
 	
 	if name == '(No Group)':
 		return render(req, 'msn:abservice/Fault.groupalreadyexists.xml', {
@@ -779,12 +780,12 @@ def ab_ABGroupAdd(req: web.Request, header: Any, action: Any, bs: BackendSession
 			'action_str': 'ABGroupAdd',
 		}, status = 500)
 	
-	if detail.get_groups_by_name(name) is not None:
+	if detail.get_groups_by_name(name):
 		return render(req, 'msn:abservice/Fault.groupalreadyexists.xml', {
 			'action_str': 'ABGroupAdd',
 		}, status = 500)
 	
-	group = bs.me_group_add(name)
+	group = bs.me_group_add(name, is_favorite = is_favorite)
 	return render(req, 'msn:abservice/ABGroupAddResponse.xml', {
 		'cachekey': cachekey,
 		'host': settings.LOGIN_HOST,
@@ -835,7 +836,7 @@ def ab_ABGroupUpdate(req: web.Request, header: Any, action: Any, bs: BackendSess
 						'action_str': 'ABGroupUpdate',
 					}, status = 500)
 				
-				if detail.get_groups_by_name(name) is not None:
+				if detail.get_groups_by_name(name):
 					return render(req, 'msn:abservice/Fault.groupalreadyexists.xml', {
 						'action_str': 'ABGroupUpdate',
 					}, status = 500)

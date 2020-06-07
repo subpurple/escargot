@@ -661,7 +661,7 @@ class BackendSession(Session):
 		if notify_self:
 			self.backend._notify_self(self, old_substatus, update_status = notify_status, update_info = notify_info_other)
 	
-	def me_group_add(self, name: str) -> Group:
+	def me_group_add(self, name: str, *, is_favorite: Optional[bool] = None) -> Group:
 		if len(name) > MAX_GROUP_NAME_LENGTH:
 			raise error.GroupNameTooLong()
 		user = self.user
@@ -672,7 +672,7 @@ class BackendSession(Session):
 		groups = detail.get_groups_by_name(name)
 		if groups:
 			raise error.GroupAlreadyExists()
-		group = Group(_gen_group_id(detail), gen_uuid(), name, False)
+		group = Group(_gen_group_id(detail), gen_uuid(), name, is_favorite or False)
 		detail.insert_group(group)
 		self.backend._mark_modified(user)
 		return group
