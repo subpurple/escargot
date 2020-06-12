@@ -15,7 +15,7 @@ from core.models import (
 	MessageData, MessageType, UserStatus, LoginOption, OIM,
 )
 from core.client import Client
-from core.auth import AuthService
+from core.auth import AuthService, GenTokenStr
 
 from .ymsg_ctrl import YMSGCtrlBase
 from .misc import YMSGService, YMSGStatus, split_to_chunks
@@ -164,7 +164,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		assert bs is not None
 		user = bs.user
 		
-		self.t_cookie_token = (cached_t[4:24] if cached_y and cached_t else AuthService.GenTokenStr())
+		self.t_cookie_token = (cached_t[4:24] if cached_y and cached_t else GenTokenStr())
 		
 		bs.front_data['ymsg'] = True
 		bs.front_data['ymsg_private_chats'] = {}
@@ -963,7 +963,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 			list_reply_kvs.add(b'59', arbitrary_encode(cached_y))
 			list_reply_kvs.add(b'59', arbitrary_encode(cached_t))
 		else:
-			(y_cookie, t_cookie, cookie_expiry) = self._refresh_cookies()
+			(y_cookie, t_cookie, y_expiry, t_expiry) = self._refresh_cookies()
 			# <notice>
 			# can't use `yahooloopback.log1p.xyz` for cookies yet because that is intended for Switcher
 			# (Yahoo! sets the cookies on a static domain and it expects the cookie domain to encompass the domain it
@@ -971,12 +971,12 @@ class YMSGCtrlPager(YMSGCtrlBase):
 			# uncomment when development on Switcher is finished.
 			# 
 			#loopback_url = ('yahooloopback.log1p.xyz' if settings.DEBUG else settings.TARGET_HOST)
-			#list_reply_kvs.add(b'59', arbitrary_encode('Y\t{}; expires={}; path=/; domain={}'.format(y_cookie, cookie_expiry, loopback_url)))
-			#list_reply_kvs.add(b'59', arbitrary_encode('T\t{}; expires={}; path=/; domain={}'.format(t_cookie, cookie_expiry, loopback_url)))
+			#list_reply_kvs.add(b'59', arbitrary_encode('Y\t{}; expires={}; path=/; domain={}'.format(y_cookie, y_expiry, loopback_url)))
+			#list_reply_kvs.add(b'59', arbitrary_encode('T\t{}; expires={}; path=/; domain={}'.format(t_cookie, t_expiry, loopback_url)))
 			# 
 			# </notice>
-			list_reply_kvs.add(b'59', 'Y\t{}; expires={}; path=/; domain={}'.format(y_cookie, cookie_expiry, '.yahoo.com').encode('utf-8'))
-			list_reply_kvs.add(b'59', 'T\t{}; expires={}; path=/; domain={}'.format(t_cookie, cookie_expiry, '.yahoo.com').encode('utf-8'))
+			list_reply_kvs.add(b'59', 'Y\t{}; expires={}; path=/; domain={}'.format(y_cookie, y_expiry, '.yahoo.com').encode('utf-8'))
+			list_reply_kvs.add(b'59', 'T\t{}; expires={}; path=/; domain={}'.format(t_cookie, t_expiry, '.yahoo.com').encode('utf-8'))
 		
 		list_reply_kvs.add(b'59', b'C\tmg=1')
 		list_reply_kvs.add(b'3', arbitrary_encode(user.username))
@@ -1127,7 +1127,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		
 		return resp_6 == resp_6_server and resp_96 == resp_96_server
 	
-	def _refresh_cookies(self) -> Tuple[str, str, str]:
+	def _refresh_cookies(self) -> Tuple[str, str, str, str]:
 		# Creates the cookies if they don't exist
 		
 		assert self.t_cookie_token is not None
@@ -1137,19 +1137,16 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		
 		auth_service = self.backend.auth_service
 		
-		timestamp = time.time()
-		expiry = datetime.datetime.utcfromtimestamp(timestamp + 86400).strftime('%a, %d %b %Y %H:%M:%S GMT')
-		
 		y_cookie = Y_COOKIE_TEMPLATE.format(encodedname = _encode_yahoo_id(user.username))
 		t_cookie = T_COOKIE_TEMPLATE.format(token = self.t_cookie_token)
 		
-		auth_service.pop_token('ymsg/cookie', y_cookie)
-		auth_service.pop_token('ymsg/cookie', t_cookie)
+		try:
+			_, y_expiry = auth_service.create_token('ymsg/cookie', user.username, token = y_cookie, lifetime = 86400)
+			_, t_expiry = auth_service.create_token('ymsg/cookie', self.bs, token = t_cookie, lifetime = 86400)
+		except:
+			pass
 		
-		_ = auth_service.create_token('ymsg/cookie', user.username, token = y_cookie, lifetime = 86400)
-		_ = auth_service.create_token('ymsg/cookie', self.bs, token = t_cookie, lifetime = 86400)
-		
-		return (y_cookie, t_cookie, expiry)
+		return (y_cookie, t_cookie, _format_cookie_expiry(datetime.datetime.utcfromtimestamp(y_expiry)), _format_cookie_expiry(datetime.datetime.utcfromtimestamp(t_expiry)))
 
 Y_COOKIE_TEMPLATE = 'v=1&n=&l={encodedname}&p=&r=&lg=&intl=&np='
 T_COOKIE_TEMPLATE = 'z={token}&a=&sk={token}&ks={token}&kt=&ku=&d={token}'
@@ -1158,6 +1155,9 @@ YAHOO_HELPER_MSG = """\
 "YahooHelper" was a bot initially developed by Yahoo! to help guide new users using \
 Yahoo! Messenger for the first time and introduce them to its features. Escargot has \
 no current plans to reimplement this bot."""
+
+def _format_cookie_expiry(expiry: datetime.datetime) -> str:
+	return expiry.strftime('%a, %d %b %Y %H:%M:%S GMT')
 
 def _encode_yahoo_id(yahoo_id: str) -> str:
 	return ''.join(

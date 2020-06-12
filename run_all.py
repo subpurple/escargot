@@ -2,7 +2,7 @@ from typing import Any, Type
 from types import TracebackType
 import sys
 from core.conn import Conn
-from core.auth import AuthService
+from core.auth import AuthService, LoginAuthService
 from core.user import UserService
 from core.stats import Stats
 
@@ -18,8 +18,9 @@ def main(*, devmode: bool = False) -> None:
 	
 	user_service = UserService(Conn(settings.DB))
 	auth_service = AuthService()
+	login_auth_service = LoginAuthService(Conn(settings.DB))
 	stats_service = Stats(Conn(settings.STATS_DB))
-	backend = Backend(loop, user_service = user_service, auth_service = auth_service, stats_service = stats_service)
+	backend = Backend(loop, user_service = user_service, login_auth_service = login_auth_service, auth_service = auth_service, stats_service = stats_service)
 	http_app = http.register(loop, backend, devmode = devmode)
 	
 	if settings.ENABLE_FRONT_MSN:

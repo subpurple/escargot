@@ -56,7 +56,7 @@ def sharing_FindMembership(req: web.Request, header: Any, action: Any, bs: Backe
 		'user': user,
 		'detail': detail,
 		'Lst': models.Lst,
-		'lists': [models.Lst.AL, models.Lst.BL],
+		'lists': [models.Lst.AL, models.Lst.BL, models.Lst.RL],
 		'groupchats': backend.user_service.get_groupchat_batch(user),
 		'now': now_str,
 	})
@@ -89,11 +89,12 @@ def sharing_AddMember(req: web.Request, header: Any, action: Any, bs: BackendSes
 				if find_element(member, 'Type') == 'Circle' and find_element(member, 'State') == 'Accepted':
 					circle_id = find_element(member, 'CircleId')
 			if email is None and circle_id is None:
-				return web.HTTPInternalServerError()
+				return render(req, 'msn:sharing/Fault.userdoesnotexist.xml', status = 500)
 			if email is not None:
 				name = None
 				contact_uuid = backend.util_get_uuid_from_email(email)
-				assert contact_uuid is not None
+				if contact_uuid is None:
+					return render(req, 'msn:sharing/Fault.userdoesnotexist.xml', status = 500)
 				ctc = detail.contacts.get(contact_uuid)
 				if ctc is None:
 					name = email
@@ -104,7 +105,7 @@ def sharing_AddMember(req: web.Request, header: Any, action: Any, bs: BackendSes
 					pass
 			elif circle_id is not None:
 				if not (circle_id.startswith('00000000-0000-0000-0009-') and len(circle_id[24:]) == 12):
-					return web.HTTPInternalServerError()
+					return render(req, 'msn:sharing/Fault.userdoesnotexist.xml', status = 500)
 				chat_id = circle_id[-12:]
 				groupchat = backend.user_service.get_groupchat(chat_id)
 				if groupchat is None: return web.HTTPInternalServerError()

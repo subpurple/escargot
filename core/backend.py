@@ -7,7 +7,7 @@ from enum import IntFlag
 from util.misc import gen_uuid, first_in_iterable, run_loop, Runner, server_temp_cleanup
 
 from .user import UserService
-from .auth import AuthService
+from .auth import AuthService, LoginAuthService, GenTokenStr
 from .stats import Stats
 from .client import Client
 from .models import (
@@ -24,13 +24,14 @@ class Ack(IntFlag):
 
 class Backend:
 	__slots__ = (
-		'user_service', 'auth_service', 'loop', 'notify_maintenance', 'maintenance_mode', 'maintenance_mins',  '_stats', '_sc',
+		'user_service', 'auth_service', 'login_auth_service', 'loop', 'notify_maintenance', 'maintenance_mode', 'maintenance_mins',  '_stats', '_sc',
 		'_chats_by_id', '_cses_by_bs_by_groupchat_id', '_user_by_uuid', '_worklist_sync_db', '_worklist_sync_groupchats',
 		'_worklist_notify', '_worklist_notify_self', '_runners', '_linked', '_dev',
 	)
 	
 	user_service: UserService
 	auth_service: AuthService
+	login_auth_service: LoginAuthService
 	loop: asyncio.AbstractEventLoop
 	notify_maintenance: bool
 	maintenance_mode: bool
@@ -50,10 +51,11 @@ class Backend:
 	
 	def __init__(self,
 		loop: asyncio.AbstractEventLoop, *,
-		user_service: UserService, auth_service: AuthService, stats_service: Stats,
+		user_service: UserService, login_auth_service: LoginAuthService, auth_service: AuthService, stats_service: Stats,
 	) -> None:
 		self.user_service = user_service
 		self.auth_service = auth_service
+		self.login_auth_service = login_auth_service
 		self.loop = loop
 		self.notify_maintenance = False
 		self.maintenance_mode = False
@@ -77,6 +79,7 @@ class Backend:
 		if settings.DEBUG: print('Initialized group chats')
 		
 		loop.create_task(self._worker_sync_db())
+		loop.create_task(self._worker_remove_expired_login_tokens())
 		loop.create_task(self._worker_sync_groupchats())
 		loop.create_task(self._worker_clean_sessions())
 		loop.create_task(self._worker_sync_stats())
@@ -429,6 +432,17 @@ class Backend:
 				if detail is None: continue
 				batch.append((user, detail))
 			self.user_service.save_batch(batch)
+		except:
+			traceback.print_exc()
+	
+	async def _worker_remove_expired_login_tokens(self) -> None:
+		while True:
+			await asyncio.sleep(1)
+			self._remove_expired_login_tokens()
+	
+	def _remove_expired_login_tokens(self) -> None:
+		try:
+			self.login_auth_service.remove_expired()
 		except:
 			traceback.print_exc()
 	
@@ -1207,7 +1221,7 @@ class Chat:
 		self._stats = stats
 		
 		# 31 characters is all WLM 2009 will allow for chat IDs (RNG); otherwise the receiving end won't have the sender's messages display
-		self.add_id('main', backend.auth_service.GenTokenStr(trim = 31))
+		self.add_id('main', GenTokenStr(trim = 31))
 		if self.groupchat is None: return
 		
 		assert groupchat is not None

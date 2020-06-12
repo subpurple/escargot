@@ -506,11 +506,12 @@ async def handle_login(req: web.Request) -> web.Response:
 		token = None
 	else:
 		email, pwd = tmp
-		token = _login(req, email, pwd)
-	if token is None:
+		token_tpl = _login(req, email, pwd)
+	if token_tpl is None:
 		raise web.HTTPUnauthorized(headers = {
 			'WWW-Authenticate': '{}da-status=failed'.format(PP),
 		})
+	token, _, _ = token_tpl
 	return web.HTTPOk(headers = {
 		'Authentication-Info': '{}da-status=success,from-PP=\'{}\''.format(PP, token),
 	})
@@ -527,13 +528,14 @@ async def handle_not_rst(req: web.Request) -> web.Response:
 	
 	email = req.headers.get('X-User')
 	pwd = req.headers.get('X-Password')
-	token = _login(req, email, pwd, lifetime = 86400)
+	token_tpl = _login(req, email, pwd, lifetime = 86400)
 	headers = {
 		'Access-Control-Allow-Origin': '*',
 		'Access-Control-Allow-Methods': 'POST',
 		'Access-Control-Expose-Headers': 'X-Token',
 	}
-	if token is not None:
+	if token_tpl is not None:
+		token, _, _ = token_tpl
 		headers['X-Token'] = token
 	return web.HTTPOk(headers = headers)
 
@@ -554,14 +556,15 @@ async def handle_rst(req: web.Request, rst2: bool = False) -> web.Response:
 	
 	backend: Backend = req.app['backend']
 	
-	token = _login(req, email, pwd, binary_secret = True, lifetime = 86400)
+	token_tpl = _login(req, email, pwd, binary_secret = True, lifetime = 86400)
 	
 	uuid = backend.util_get_uuid_from_email(email)
 	
-	if token is not None and uuid is not None:
-		day_before_expiry = datetime.utcfromtimestamp((backend.auth_service.get_token_expiry('nb/login', token) or 0) - 86400)
+	if token_tpl is not None and uuid is not None:
+		token, expiry, bsecret = token_tpl
+		day_before_expiry = expiry - timedelta(days = 1)
 		timez = util.misc.date_format(day_before_expiry)
-		tomorrowz = util.misc.date_format((day_before_expiry + timedelta(days = 1)))
+		tomorrowz = util.misc.date_format(expiry)
 		time_5mz = util.misc.date_format((day_before_expiry + timedelta(minutes = 5)))
 		
 		# load PUID and CID
@@ -578,10 +581,6 @@ async def handle_rst(req: web.Request, rst2: bool = False) -> web.Response:
 		# get list of requested domains
 		domains = root.findall('.//{*}Address')
 		domains.remove('http://Passport.NET/tb') # ignore Passport token request
-		
-		tpl = backend.auth_service.get_token('nb/login', token) # type: Optional[Tuple[str, Optional[str]]]
-		assert tpl is not None
-		_, bsecret = tpl
 		
 		tmpl = req.app['jinja_env'].get_template('msn:RST/{}.token.xml'.format('RST2' if rst2 else 'RST'))
 		# collect tokens for requested domains
@@ -710,13 +709,14 @@ def _extract_pp_credentials(auth_str: str) -> Optional[Tuple[str, str]]:
 	pwd = auth['pwd']
 	return email, pwd
 
-def _login(req: web.Request, email: str, pwd: str, binary_secret: bool = False, lifetime: int = 30) -> Optional[str]:
+def _login(req: web.Request, email: str, pwd: str, binary_secret: bool = False, lifetime: int = 30) -> Optional[Tuple[str, datetime, Optional[str]]]:
 	backend: Backend = req.app['backend']
 	uuid = backend.user_service.login(email, pwd)
 	if uuid is None: return None
-	return backend.auth_service.create_token(
-		'nb/login', (uuid, base64.b64encode(secrets.token_bytes(24)).decode('ascii') if binary_secret else None), lifetime = lifetime,
-	)
+	bsecret = None
+	if binary_secret:
+		bsecret = base64.b64encode(secrets.token_bytes(24)).decode('ascii')
+	return (*backend.login_auth_service.create_token('nb/login', [uuid, bsecret], lifetime = lifetime), bsecret)
 
 def _contact_is_favorite(user_detail: models.UserDetail, ctc: models.Contact) -> bool:
 	groups = user_detail._groups_by_uuid

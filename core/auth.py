@@ -1,8 +1,46 @@
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Tuple, Any, Optional
 import bisect
 from time import time as time_builtin
+from datetime import datetime, timedelta
 from functools import total_ordering
 from util.hash import gen_salt
+
+from .db import LoginToken
+from .conn import Conn
+
+def GenTokenStr(trim: int = 20) -> str:
+	return gen_salt(trim)
+
+class LoginAuthService:
+	__slots__ = ('_conn',)
+	
+	_conn: Conn
+	
+	def __init__(self, conn: Conn) -> None:
+		self._conn = conn
+	
+	def create_token(self, purpose: str, data: List[Any], *, token: Optional[str] = None, lifetime: int = 30) -> Tuple[str, datetime]:
+		with self._conn.session() as sess:
+			logintoken = sess.query(LoginToken).filter(LoginToken.token == token, LoginToken.purpose == purpose).one_or_none()
+			assert logintoken is None
+			logintoken = LoginToken(
+				token = (GenTokenStr() if token is None else token), purpose = purpose,
+				data = data, expiry = datetime.utcnow() + timedelta(seconds = lifetime),
+			)
+			sess.add(logintoken)
+			
+			return logintoken.token, logintoken.expiry
+	
+	def get_token(self, purpose: str, token: str) -> Optional[List[Any]]:
+		with self._conn.session() as sess:
+			logintoken = sess.query(LoginToken).filter(LoginToken.token == token, LoginToken.purpose == purpose).one_or_none()
+			if logintoken is None: return None
+			if logintoken.expiry <= datetime.utcnow(): return None
+			return logintoken.data
+	
+	def remove_expired(self) -> None:
+		with self._conn.session() as sess:
+			sess.query(LoginToken).filter(LoginToken.expiry <= datetime.utcnow()).delete()
 
 class AuthService:
 	__slots__ = ('_time', '_ordered', '_bytoken', '_idxbase')
@@ -13,10 +51,6 @@ class AuthService:
 	_bytoken: Dict[str, int]
 	_idxbase: int
 	
-	@classmethod
-	def GenTokenStr(cls, *, trim: int = 20) -> str:
-		return gen_salt(trim)
-	
 	def __init__(self, *, time: Optional[Any] = None) -> None:
 		if time is None:
 			time = time_builtin
@@ -25,14 +59,14 @@ class AuthService:
 		self._bytoken = {}
 		self._idxbase = 0
 	
-	def create_token(self, purpose: str, data: Any, *, token: Optional[str] = None, lifetime: int = 30) -> str:
+	def create_token(self, purpose: str, data: Any, *, token: Optional[str] = None, lifetime: int = 30) -> Tuple[str, int]:
 		self._remove_expired()
-		td = TokenData(purpose, data, self._time() + lifetime, token = AuthService.GenTokenStr() if token is None else token)
+		td = TokenData(purpose, data, self._time() + lifetime, token = GenTokenStr() if token is None else token)
 		assert td.token not in self._bytoken
 		idx = bisect.bisect_left(self._ordered, td)
 		self._ordered.insert(idx, td)
 		self._bytoken[td.token] = idx + self._idxbase
-		return td.token
+		return td.token, td.expiry
 	
 	def pop_token(self, purpose: str, token: str) -> Optional[Any]:
 		self._remove_expired()
@@ -52,7 +86,7 @@ class AuthService:
 		if not td.validate(purpose, token, self._time()): return None
 		return td.data
 	
-	def get_token_expiry(self, purpose: str, token: str) -> Optional[int]:
+	def get_token_expiry(self, purpose: str, token: str) -> Optional[Any]:
 		self._remove_expired()
 		idx = self._bytoken.get(token)
 		if idx is None: return None

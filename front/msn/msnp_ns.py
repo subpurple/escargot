@@ -191,7 +191,7 @@ class MSNPCtrlNS(MSNPCtrl):
 				uuid = backend.user_service.msn_login_md5(usr_email, md5_hash)
 				if uuid is not None:
 					self.bs = backend.login(uuid, self.client, BackendEventHandler(self), option = LoginOption.BootOthers)
-					token = backend.auth_service.create_token('nb/login', (uuid, None), lifetime = 86400)
+					token, _ = backend.login_auth_service.create_token('nb/login', [uuid, None], lifetime = 86400)
 				self._util_usr_final(trid, token or '', None)
 				return
 		
@@ -228,7 +228,7 @@ class MSNPCtrlNS(MSNPCtrl):
 				usr_email = self.usr_email
 				assert usr_email is not None
 				if settings.DEBUG and settings.DEBUG_MSNP: print(F"Token: {token}")
-				tpl = backend.auth_service.pop_token('nb/login', token)
+				tpl = backend.login_auth_service.get_token('nb/login', token)
 				if tpl is not None:
 					uuid = tpl[0]
 					assert uuid is not None
@@ -270,7 +270,7 @@ class MSNPCtrlNS(MSNPCtrl):
 				usr_email = self.usr_email
 				assert usr_email is not None
 				if settings.DEBUG and settings.DEBUG_MSNP: print(F"Token: {token}")
-				tpl = backend.auth_service.get_token('nb/login', token)
+				tpl = backend.login_auth_service.get_token('nb/login', token)
 				option = None
 				
 				if tpl is not None:
@@ -1740,7 +1740,7 @@ class MSNPCtrlNS(MSNPCtrl):
 			self.send_reply(Err.NotAllowedWhileHDN, trid)
 			return
 		dialect = self.dialect
-		token = self.backend.auth_service.create_token('sb/xfr', (bs, dialect), lifetime = 120)
+		token, _ = self.backend.auth_service.create_token('sb/xfr', (bs, dialect), lifetime = 120)
 		extra = () # type: Tuple[Any, ...]
 		if dialect >= 13:
 			extra = ('U', 'messenger.msn.com')
@@ -2042,7 +2042,7 @@ class BackendEventHandler(event.BackendEventHandler):
 				extra = ('U', 'messenger.hotmail.com')
 			if dialect >= 14:
 				extra += (1,)
-			token = self.ctrl.backend.auth_service.create_token('sb/cal', (self.ctrl.bs, dialect, chat), lifetime = 120)
+			token, _ = self.ctrl.backend.auth_service.create_token('sb/cal', (self.ctrl.bs, dialect, chat), lifetime = 120)
 			self.ctrl.send_reply(
 				'RNG', chat.ids['main'], 'm1.escargot.log1p.xyz:1864', 'CKI', token, inviter.email, inviter.status.name, *extra,
 			)

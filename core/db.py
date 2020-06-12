@@ -120,6 +120,15 @@ class GroupChatMembership(Base):
 	inviter_name = Col(sa.String, nullable = True)
 	invite_message = Col(sa.String, nullable = True)
 
+class LoginToken(Base):
+	__tablename__ = 't_login_token'
+	
+	id = Col(sa.Integer, primary_key = True)
+	token = Col(sa.String)
+	purpose = Col(sa.String)
+	data = Col(JSONType)
+	expiry = Col(sa.DateTime)
+
 def _simplify_json_data(data: Any) -> Any:
 	if isinstance(data, dict):
 		d = {}

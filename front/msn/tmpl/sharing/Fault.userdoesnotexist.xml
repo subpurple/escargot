@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+	<soap:Body>
+		<soap:Fault>
+			<faultcode>soap:Client</faultcode>
+			<faultstring>User does not exist </faultstring>
+			<faultactor>http://www.msn.com/webservices/AddressBook/AddMember</faultactor>
+			<detail>
+				<errorcode xmlns="http://www.msn.com/webservices/AddressBook">UserDoesNotExist</errorcode>
+				<errorstring xmlns="http://www.msn.com/webservices/AddressBook">User does not exist </errorstring>
+				<machineName xmlns="http://www.msn.com/webservices/AddressBook">BY2ABCHWB346</machineName>
+				<additionalDetails>
+					<originalExceptionErrorMessage>
+						BY2ABCHSQLA110.ABCHA1100134..prc_ABRoleMappingAdd_W12R1:  Failed to execute stored procedure prc_ABRoleMappingAddInt.
+					</originalExceptionErrorMessage>
+				</additionalDetails>
+			</detail>
+		</soap:Fault>
+	</soap:Body>
+</soap:Envelope>
