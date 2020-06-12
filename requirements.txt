@@ -7,7 +7,7 @@ pillow
 MarkupSafe
 HLL
 funcli
-git+https://gitlab.com/valtron/sqlaltery.git@0.1.0
+git+https://gitlab.com/valtron/sqlaltery.git@v0.1.0
 git+https://gitlab.com/valtron/devtls.git@0.1.0
 pytz
 cryptography
