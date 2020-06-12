@@ -45,7 +45,7 @@ def test_msnp_commands(backend_with_data) -> None:
 	# Add "test2@example.com" to BL with `ADL`
 	nc1._m_adl('9', b'<ml><d n="example.com"><c n="test2" l="4" t="1" /></d></ml>')
 	w1.pop_message('ADL', '9', 'OK')
-	assert ctc.lists | Lst.BL
+	assert ctc.lists & Lst.BL
 	# Remove "test2@example.com" from BL with `RML`
 	nc1._m_rml('10', b'<ml><d n="example.com"><c n="test2" l="4" t="1" /></d></ml>')
 	w1.pop_message('RML', '10', 'OK')

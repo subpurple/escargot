@@ -21,7 +21,7 @@ def login_msnp(nc: MSNPCtrlNS, email: str, pop_id: str) -> User:
 	
 	uuid = nc.backend.user_service.get_uuid(email)
 	bsecret = base64.b64encode((b'\x00' * 24)).decode('ascii')
-	token = nc.backend.auth_service.create_token('nb/login', (uuid, bsecret))
+	token, _ = nc.backend.login_auth_service.create_token('nb/login', [uuid, bsecret])
 	nc._m_usr('3', 'SSO', 'S', token, _create_rps_response(nonce, bsecret), pop_id)
 	w.pop_message('USR', '3', 'OK', email, '1', '0')
 	

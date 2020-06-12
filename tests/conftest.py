@@ -4,24 +4,24 @@ import pytest
 from util.misc import gen_uuid
 from core import db, stats
 from core.conn import Conn
-from core.auth import AuthService
+from core.auth import AuthService, LoginAuthService
 from core.user import UserService
 from core.backend import Backend
 from core.models import User, Lst
 
 @pytest.fixture
 def backend_with_data(backend: Backend, conn: Conn) -> Backend:
-	def _make_user(email: str) -> db.User:
+	def _make_user(email: str, username: str) -> db.User:
 		return db.User(
 			uuid = gen_uuid(),
-			email = email, verified = True,
+			email = email, username = username, verified = True,
 			message = '', password = '',
 			groups = {}, settings = {},
 		)
 	
 	with conn.session() as sess:
-		u1 = _make_user('test1@example.com')
-		u2 = _make_user('test2@example.com')
+		u1 = _make_user('test1@example.com', 'test1')
+		u2 = _make_user('test2@example.com', 'test2')
 		sess.add_all([u1, u2])
 		sess.flush()
 		c1 = db.UserContact(
@@ -42,10 +42,11 @@ def backend_with_data(backend: Backend, conn: Conn) -> Backend:
 def backend(conn: Conn) -> Backend:
 	user_service = UserService(conn)
 	auth_service = AuthService()
+	login_auth_service = LoginAuthService(conn)
 	stats_service = stats.Stats(conn)
 	return Backend(
 		asyncio.get_event_loop(),
-		user_service = user_service, auth_service = auth_service,
+		user_service = user_service, auth_service = auth_service, login_auth_service = login_auth_service,
 		stats_service = stats_service,
 	)
 

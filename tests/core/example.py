@@ -18,8 +18,8 @@ from core import db, event, models
 def test_example(conn, backend):
 	state = TState(conn, backend)
 	
-	u1 = state.do_create_user('u1@example.com')
-	u2 = state.do_create_user('u2@example.com')
+	u1 = state.do_create_user('u1@example.com', 'u1')
+	u2 = state.do_create_user('u2@example.com', 'u2')
 	
 	s1 = u1.do_login()
 	s2 = u2.do_login()
@@ -47,12 +47,12 @@ class TState:
 		self._behs = []
 		self._cehs = []
 	
-	def do_create_user(self, email: str) -> 'TUser':
+	def do_create_user(self, email: str, username: str) -> 'TUser':
 		uuid = gen_uuid()
 		with self.conn.session() as sess:
 			db_user = db.User(
 				uuid = uuid,
-				email = email, verified = True,
+				email = email, username = username, verified = True,
 				message = '', password = '',
 				groups = {}, settings = {},
 			)
