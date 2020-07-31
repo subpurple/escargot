@@ -15,7 +15,7 @@ def backend_with_data(backend: Backend, conn: Conn) -> Backend:
 		return db.User(
 			uuid = gen_uuid(),
 			email = email, username = username, verified = True,
-			message = '', password = '',
+			friendly_name = email, message = '', password = '',
 			groups = {}, settings = {},
 		)
 	
@@ -26,12 +26,12 @@ def backend_with_data(backend: Backend, conn: Conn) -> Backend:
 		sess.flush()
 		c1 = db.UserContact(
 			user_id = u1.id, user_uuid = u1.uuid, contact_id = u2.id, uuid = u2.uuid,
-			name = u2.email, message = u2.message, lists = Lst.FL,
+			name = u2.email, lists = Lst.FL,
 			groups = {}, is_messenger_user = True, index_id = '0',
 		)
 		c2 = db.UserContact(
 			user_id = u2.id, user_uuid = u2.uuid, contact_id = u1.id, uuid = u1.uuid,
-			name = u1.email, message = u1.message, lists = Lst.FL,
+			name = u1.email, lists = Lst.FL,
 			groups = {}, is_messenger_user = True, index_id = '0',
 		)
 		sess.add_all([c1, c2])

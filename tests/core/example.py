@@ -53,7 +53,7 @@ class TState:
 			db_user = db.User(
 				uuid = uuid,
 				email = email, username = username, verified = True,
-				message = '', password = '',
+				friendly_name = email, message = '', password = '',
 				groups = {}, settings = {},
 			)
 			sess.add(db_user)

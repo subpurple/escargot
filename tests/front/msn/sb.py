@@ -35,7 +35,7 @@ def test_msnp_commands(backend_with_data):
 	user2 = misc.login_msnp(nc2, 'test2@example.com', '{00000000-0000-0000-0000-000000000000}')
 	nc2._m_chg('7', 'NLN', '0:0')
 	nc2.writer.pop_message('CHG', '7', 'NLN', '0:0')
-	nc2.writer.pop_message('NLN', 'NLN', '1:test1@example.com', ANY, ANY)
+	nc2.writer.pop_message('NLN', 'NLN', '1:test1@example.com', ANY, ANY, ANY)
 	nc2.writer.pop_message('UBX', '1:test1@example.com', ANY)
 	nc2.writer.pop_message('MSG', 'Hotmail', 'Hotmail', ANY)
 	
@@ -43,7 +43,7 @@ def test_msnp_commands(backend_with_data):
 	backend._handle_worklist_notify()
 	backend._worklist_notify.clear()
 	
-	nc1.writer.pop_message('NLN', 'NLN', '1:test2@example.com', ANY, ANY)
+	nc1.writer.pop_message('NLN', 'NLN', '1:test2@example.com', ANY, ANY, ANY)
 	nc1.writer.pop_message('UBX', '1:test2@example.com', ANY)
 	
 	# User 1 starts convo
@@ -61,7 +61,7 @@ def test_msnp_commands(backend_with_data):
 	# MSNP18 introduces `CAL`ing yourself to get other PoPs to join; do that
 	sc1._m_cal('1', 'test1@example.com')
 	sc1.writer.pop_message('CAL', '1', 'RINGING', ANY)
-	sc1.writer.pop_message('JOI', 'test1@example.com', ANY)
+	sc1.writer.pop_message('JOI', 'test1@example.com', ANY, ANY)
 	
 	sc1._m_cal('2', 'invalidhandle')
 	sc1.writer.pop_message(Err.InvalidUser2, '2')
@@ -72,7 +72,7 @@ def test_msnp_commands(backend_with_data):
 	sc1._m_cal('4', 'test2@example.com')
 	sc1.writer.pop_message('CAL', '4', 'RINGING', ANY)
 	
-	msg = nc2.writer.pop_message('RNG', ANY, ANY, 'CKI', ANY, user1.email, ANY, ANY, ANY)
+	msg = nc2.writer.pop_message('RNG', ANY, ANY, 'CKI', ANY, user1.email, ANY, ANY, ANY, ANY)
 	sbsess_id = msg[1]
 	token = msg[4]
 	
@@ -80,14 +80,14 @@ def test_msnp_commands(backend_with_data):
 	sc2 = MSNPCtrlSB(logger, 'test', backend)
 	sc2.writer = MSNPWriter()
 	sc2._m_ans('0', 'test2@example.com;{00000000-0000-0000-0000-000000000000}', token, sbsess_id)
-	sc2.writer.pop_message('IRO', '0', '1', '2', 'test1@example.com;{00000000-0000-0000-0000-000000000000}', ANY)
-	sc2.writer.pop_message('IRO', '0', '2', '2', 'test1@example.com', ANY)
+	sc2.writer.pop_message('IRO', '0', '1', '2', 'test1@example.com;{00000000-0000-0000-0000-000000000000}', ANY, ANY)
+	sc2.writer.pop_message('IRO', '0', '2', '2', 'test1@example.com', ANY, ANY)
 	sc2.writer.pop_message('ANS', '0', 'OK')
-	sc2.writer.pop_message('JOI', 'test2@example.com', ANY)
-	sc1.writer.pop_message('JOI', 'test2@example.com;{00000000-0000-0000-0000-000000000000}', ANY)
-	sc1.writer.pop_message('JOI', 'test2@example.com', ANY)
+	sc2.writer.pop_message('JOI', 'test2@example.com', ANY, ANY)
+	sc1.writer.pop_message('JOI', 'test2@example.com;{00000000-0000-0000-0000-000000000000}', ANY, ANY)
+	sc1.writer.pop_message('JOI', 'test2@example.com', ANY, ANY)
 	
 	# User 1 sends message
 	sc1._m_msg('5', 'A', b"\r\n\r\nmy message")
 	sc1.writer.pop_message('ACK', '5')
-	sc2.writer.pop_message('MSG', 'test1@example.com', b"\r\n\r\nmy message")
+	sc2.writer.pop_message('MSG', 'test1@example.com', ANY, b"\r\n\r\nmy message")
