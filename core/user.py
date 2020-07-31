@@ -15,7 +15,7 @@ from .db import (
 )
 from .models import (
 	User, Contact, ContactDetail, ContactLocation, ContactGroupEntry, UserStatus, UserDetail, GroupChat,
-	GroupChatMembership, GroupChatRole, GroupChatState, Group, OIM,
+	GroupChatMembership, GroupChatRole, GroupChatState, Group, RoamingInfo, OIM,
 )
 
 if TYPE_CHECKING:
@@ -94,7 +94,7 @@ class UserService:
 		with self._conn.session() as sess:
 			dbuser = sess.query(DBUser).filter(DBUser.uuid == uuid).one_or_none()
 			if dbuser is None: return None
-			status = UserStatus(dbuser.name, dbuser.message)
+			status = UserStatus(dbuser.friendly_name or dbuser.email)
 			return User(dbuser.id, dbuser.uuid, dbuser.email, dbuser.username, dbuser.verified, status, dbuser.settings, dbuser.date_created)
 	
 	def get_detail(self, uuid: str) -> Optional[UserDetail]:
@@ -110,7 +110,7 @@ class UserService:
 			for c in contacts:
 				ctc_head = self.get(c.uuid)
 				if ctc_head is None: continue
-				status = UserStatus(c.name, c.message)
+				status = UserStatus(c.name or ctc_head.email)
 				ctc_groups = { ContactGroupEntry(
 					ctc_head.uuid, group_entry['id'], group_entry['uuid'],
 				) for group_entry in c.groups }
@@ -136,6 +136,12 @@ class UserService:
 				)
 				detail.contacts[ctc.head.uuid] = ctc
 		return detail
+	
+	def get_roaming_info(self, user: User) -> Optional[RoamingInfo]:
+		with self._conn.session() as sess:
+			dbuser = sess.query(DBUser).filter(DBUser.id == user.id).one_or_none()
+			if dbuser is None: return None
+			return RoamingInfo(dbuser.name, dbuser.name_last_modified, dbuser.message, dbuser.message_last_modified)
 	
 	def get_oim_batch(self, user: User) -> List[OIM]:
 		tmp_oims = []
@@ -354,8 +360,7 @@ class UserService:
 				dbusercontacts_to_add = []
 				
 				dbuser = sess.query(DBUser).filter(DBUser.uuid == user.uuid).one()
-				dbuser.name = user.status.name
-				dbuser.message = _get_persisted_status_message(user.status)
+				dbuser.friendly_name = user.status.name
 				dbuser.groups = [{
 					'id': g.id, 'uuid': g.uuid,
 					'name': g.name, 'is_favorite': g.is_favorite,
@@ -371,14 +376,12 @@ class UserService:
 					dbusercontact = sess.query(DBUserContact).filter(
 						DBUserContact.user_id == user.id, DBUserContact.contact_id == c.head.id
 					).one_or_none()
-					status_message = _get_persisted_status_message(c.status)
 					if dbusercontact is None:
 						dbusercontact = DBUserContact(
 							user_id = user.id, contact_id = c.head.id, user_uuid = user.uuid, uuid = c.head.uuid, index_id = c.detail.index_id,
 						)
 					
 					dbusercontact.name = c.status.name
-					dbusercontact.message = status_message
 					dbusercontact.lists = c.lists
 					dbusercontact.groups = [{
 						'id': group.id, 'uuid': group.uuid,
@@ -415,11 +418,23 @@ class UserService:
 					dbusercontacts_to_add.append(dbusercontact)
 				if dbusercontacts_to_add:
 					sess.add_all(dbusercontacts_to_add)
-
-def _get_persisted_status_message(status: UserStatus) -> str:
-	if not status._persistent:
-		return ''
-	return status.message
+	
+	def save_single_roaming(self, user: User, to_save: Dict[str, Any]) -> None:
+		updated = False
+		
+		with self._conn.session() as sess:
+			dbuser = sess.query(DBUser).filter(DBUser.uuid == user.uuid).one()
+			if 'name' in to_save:
+				dbuser.name = to_save['name']
+				dbuser.name_last_modified = datetime.utcnow()
+				updated = True
+			if 'message' in to_save:
+				dbuser.message = to_save['message']
+				dbuser.message_last_modified = datetime.utcnow()
+				updated = True
+			
+			if updated:
+				sess.add(dbuser)
 
 def _get_oim_path(recipient_uuid: str) -> Path:
 	return Path('storage/oim') / recipient_uuid

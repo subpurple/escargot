@@ -66,7 +66,7 @@ def main() -> None:
 def create_user(email: str, username: str, pw: str, name: str, message: str) -> User:
 	user = User(
 		uuid = str(uuid4()), email = email, username = username, verified = True,
-		name = name, message = message,
+		name = name, friendly_name = name, message = message,
 		groups = [], settings = {}
 	)
 	set_passwords(user, pw, support_old_msn = True, support_yahoo = True)
@@ -105,7 +105,7 @@ def create_usercontact(user: User, user_contact: User) -> UserContact:
 	return UserContact(
 		user_id = user.id, user_uuid = user.uuid, contact_id = user_contact.id, uuid = user_contact.uuid,
 		index_id = str(len(usercontacts_by_id_by_uuid[user.id]) + 2),
-		name = user_contact.name, message = user_contact.message,
+		name = user_contact.friendly_name,
 		lists = Lst.Empty, groups = [], is_messenger_user = True,
 	)
 

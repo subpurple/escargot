@@ -25,7 +25,6 @@ OPS = [
 		Col('last_name', sa.String(), nullable = True),
 		Col('lists', sa.Integer()),
 		Col('locations', JSONType(), server_default='{}'),
-		Col('message', sa.String()),
 		Col('middle_name', sa.String(), nullable = True),
 		Col('mobile_phone', sa.String(), nullable = True),
 		Col('name', sa.String()),

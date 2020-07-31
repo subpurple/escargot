@@ -81,7 +81,7 @@
 			</annotations>
 		{%- endif -%}
 		<contactType>Regular</contactType>
-		<quickName>{{ ctc.status.name or ctc.head.email }}</quickName>
+		<quickName>{{ ctc.status.name }}</quickName>
 		{%- if ctc.detail.first_name -%}
 			<firstName>{{ ctc.detail.first_name }}</firstName>
 		{%- endif -%}
@@ -93,7 +93,7 @@
 		{%- endif -%}
 		<passportName>{{ ctc.head.email }}</passportName>
 		<IsPassportNameHidden>false</IsPassportNameHidden>
-		<displayName>{{ ctc.status.name or ctc.head.email }}</displayName>
+		<displayName>{{ ctc.status.name }}</displayName>
 		<puid>0</puid>
 		{%- if ctc._groups -%}
 			<groupIds>
@@ -192,12 +192,10 @@
 				{%- endif -%}
 			</annotations>
 			<contactType>Me</contactType>
-			<quickName>{{ user.status.name or user.email }}</quickName>
+			<quickName>{{ user.status.name }}</quickName>
 			<passportName>{{ user.email }}</passportName>
 			<IsPassportNameHidden>false</IsPassportNameHidden>
-			{%- if user.status.name -%}
-				<displayName>{{ user.status.name }}</displayName>
-			{%- endif -%}
+			<displayName>{{ user.status.name }}</displayName>
 			<puid>0</puid>
 			<CID>{{ cid_format(user.uuid, decimal = True) }}</CID>
 			<IsNotMobileVisible>false</IsNotMobileVisible>

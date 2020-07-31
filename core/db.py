@@ -47,8 +47,14 @@ class User(WithFrontData):
 	email = Col(sa.String)
 	username = Col(sa.String)
 	verified = Col(sa.Boolean)
+	# Roaming name - can be null and (in theory) stays constant to what the user sets it to
 	name = Col(sa.String, nullable = True)
-	message = Col(sa.String)
+	name_last_modified = Col(sa.DateTime, default = datetime.utcnow)
+	# Friendly name set during IM sessions. It cannot be null and is more prone to being overwritten than the roaming name
+	friendly_name = Col(sa.String)
+	# Roaming message
+	message = Col(sa.String, nullable = True)
+	message_last_modified = Col(sa.DateTime, default = datetime.utcnow)
 	password = Col(sa.String)
 	groups = Col(JSONType)
 	settings = Col(JSONType)
@@ -63,7 +69,6 @@ class UserContact(WithFrontData):
 	
 	uuid = Col(sa.String, sa.ForeignKey('t_user.uuid')) # = User(self.contact_id).uuid
 	name = Col(sa.String)
-	message = Col(sa.String)
 	lists = Col(sa.Integer)
 	pending = Col(sa.Boolean, default = False)
 	groups = Col(JSONType)

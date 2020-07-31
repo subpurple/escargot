@@ -1661,7 +1661,6 @@ def me_status_update(bs: BackendSession, status_new: YMSGStatus, *, message: str
 		substatus = YMSGStatus.ToSubstatus(status_new)
 	bs.me_update({
 		'message': message,
-		'message_temp': True,
 		'substatus': substatus,
 		'notify_status': True,
 		'notify_info': (True if message else False),

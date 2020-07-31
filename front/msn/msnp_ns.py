@@ -431,6 +431,13 @@ class MSNPCtrlNS(MSNPCtrl):
 		
 		if 16 <= dialect < 21:
 			# MSNP21 doesn't use this; unsure if 19/20 use it
+			
+			# https://pastebin.com/gECWthGE
+			# ```[01:59:46 DEBUG papyon.transport] <<< NLN NLN 1:andre-stein@hotmail.com '%20André%20Steinn 2688340284:2550273040 %3cmsnobj%20Creator%3d%22andre-stein%40hotmail.com%22%20Size%3d%225390%22%20Type%3d%223%22%20Location%3d%220%22%20Friendly%3d%22AAA%3d%22%20SHA1D%3d%22RZW585t5UbA8LqXWQVoT8nYbOYA%3d%22%20SHA1C%3d%227Ceck6FU1qeOgrWRsRxsFR8yh8g%3d%22%2f%3e```
+			# ```[01:59:47 DEBUG papyon.transport] <<< UBX 1:andre-stein@hotmail.com 1300```
+			#
+			# This seems to suggest data *was* sent in the initial UBX at some point (along with a status right before) - possibly related to MPoP. If we had more info to work with this could be possibly implemented.
+			
 			if dialect >= 18:
 				rst = ('1:' + user.email,) # type: Tuple[str, ...]
 			else:
@@ -470,7 +477,7 @@ class MSNPCtrlNS(MSNPCtrl):
 					cs = [c for c in contacts.values() if c.lists & lst]
 					if cs:
 						for i, c in enumerate(cs):
-							self.send_reply('LST', trid, lst.name, ser, i + 1, len(cs), c.head.email, c.status.name or c.head.email)
+							self.send_reply('LST', trid, lst.name, ser, i + 1, len(cs), c.head.email, c.status.name)
 							if dialect >= 5:
 								for bpr_setting in ('PHH','PHM','PHW','MOB'):
 									bpr_value = c.head.settings.get(bpr_setting)
@@ -2014,6 +2021,7 @@ class BackendEventHandler(event.BackendEventHandler):
 		if update_status or update_info_other:
 			for m in build_presence_notif(
 				trid, old_substatus, ctc.head, user, self.ctrl.dialect, self.ctrl.backend, self.ctrl.iln_sent, update_info_other,
+				update_status = update_status,
 			):
 				self.ctrl.send_reply(*m)
 			return

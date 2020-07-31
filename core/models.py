@@ -63,7 +63,7 @@ class Contact:
 		true_status = self.head.status
 		self.status.substatus = true_status.substatus
 		self.status.name = true_status.name
-		self.status.set_status_message(true_status.message)
+		self.status.message = true_status.message
 		self.status.media = true_status.media
 	
 	def is_in_group_id(self, group_id: str) -> bool:
@@ -200,28 +200,18 @@ class ContactLocation:
 		self.zip_code = zip_code
 
 class UserStatus:
-	__slots__ = ('substatus', 'name', '_message', '_persistent', 'media')
+	__slots__ = ('substatus', 'name', 'message', 'media')
 	
 	substatus: 'Substatus'
-	name: Optional[str]
-	_message: str
-	_persistent: bool
+	name: str
+	message: str
 	media: Optional[Any]
 	
-	def __init__(self, name: Optional[str], message: str = '') -> None:
+	def __init__(self, name: str) -> None:
 		self.substatus = Substatus.Offline
 		self.name = name
-		self._message = message
-		self._persistent = True
+		self.message = ''
 		self.media = None
-	
-	@property
-	def message(self) -> str:
-		return self._message
-	
-	def set_status_message(self, message: str, *, persistent: bool = True) -> None:
-		self._message = message
-		self._persistent = persistent
 	
 	def is_offlineish(self) -> bool:
 		return self.substatus.is_offlineish()
@@ -313,6 +303,21 @@ class TextWithData:
 	def __init__(self, text: str, yahoo_utf8: Any) -> None:
 		self.text = text
 		self.yahoo_utf8 = yahoo_utf8
+
+class RoamingInfo:
+	__slots__ = ('name', 'name_last_modified', 'message', 'message_last_modified')
+	
+	name: Optional[str]
+	name_last_modified: datetime
+	message: Optional[str]
+	message_last_modified: datetime
+	
+	def __init__(self, name: Optional[str], name_last_modified: datetime, message: Optional[str], message_last_modified: datetime) -> None:
+		self.name = name
+		self.name_last_modified = name_last_modified
+		self.message = message
+		self.message_last_modified = message_last_modified
+		
 
 class GroupChat:
 	__slots__ = (

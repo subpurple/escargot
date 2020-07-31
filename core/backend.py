@@ -588,6 +588,7 @@ class BackendSession(Session):
 	def me_update(self, fields: Dict[str, Any]) -> None:
 		user = self.user
 		
+		needs_mark_modified = False
 		needs_notify = False
 		notify_status = False
 		notify_info_other = False
@@ -598,7 +599,7 @@ class BackendSession(Session):
 		
 		if 'message' in fields:
 			if fields['message'] is not None:
-				user.status.set_status_message(fields['message'], persistent = not fields.get('message_temp'))
+				user.status.message = fields['message']
 				needs_notify = True
 				notify_info_other = True
 		if 'media' in fields:
@@ -610,6 +611,7 @@ class BackendSession(Session):
 			old_name = user.status.name
 			if fields['name'] != old_name:
 				user.status.name = fields['name']
+				needs_mark_modified = True
 				needs_notify = True
 				notify_status = True
 		if 'home_phone' in fields:
@@ -617,33 +619,44 @@ class BackendSession(Session):
 				del user.settings['PHH']
 			else:
 				user.settings['PHH'] = fields['home_phone']
+			needs_mark_modified = True
 			needs_notify = True
+			
 			updated_phone_info['PHH'] = fields['home_phone']
 		if 'work_phone' in fields:
 			if fields['work_phone'] is None and 'PHW' in user.settings:
 				del user.settings['PHW']
 			else:
 				user.settings['PHW'] = fields['work_phone']
+			needs_mark_modified = True
 			needs_notify = True
+			
 			updated_phone_info['PHW'] = fields['work_phone']
 		if 'mobile_phone' in fields:
 			if fields['mobile_phone'] is None and 'PHM' in user.settings:
 				del user.settings['PHM']
 			else:
 				user.settings['PHM'] = fields['mobile_phone']
+			needs_mark_modified = True
 			needs_notify = True
+			
 			updated_phone_info['PHM'] = fields['mobile_phone']
 		if 'blp' in fields:
 			user.settings['BLP'] = fields['blp']
+			needs_mark_modified = True
 			needs_notify = True
 			notify_status = True
 		if 'mob' in fields:
 			user.settings['MOB'] = fields['mob']
+			needs_mark_modified = True
 			needs_notify = True
+			
 			updated_phone_info['MOB'] = fields['mob']
 		if 'mbe' in fields:
 			user.settings['MBE'] = fields['mbe']
+			needs_mark_modified = True
 			needs_notify = True
+			
 			updated_phone_info['MBE'] = fields['mbe']
 		if 'substatus' in fields:
 			if old_substatus is not fields['substatus']:
@@ -660,12 +673,16 @@ class BackendSession(Session):
 			notify_info_other = fields['notify_info']
 		if 'gtc' in fields:
 			user.settings['GTC'] = fields['gtc']
+			needs_mark_modified = True
 		if 'rlp' in fields:
 			user.settings['RLP'] = fields['rlp']
+			needs_mark_modified = True
 		if 'mpop' in fields:
 			user.settings['MPOP'] = fields['mpop']
+			needs_mark_modified = True
 		
-		self.backend._mark_modified(user)
+		if needs_mark_modified:
+			self.backend._mark_modified(user)
 		if needs_notify and not user.status.substatus is Substatus.Offline:
 			self.backend._sync_contact_statuses(user)
 			self.backend._notify_contacts(
@@ -869,7 +886,7 @@ class BackendSession(Session):
 		updated = False
 		
 		if ctc_head.uuid not in contacts:
-			contacts[ctc_head.uuid] = Contact(ctc_head, set(), Lst.Empty, UserStatus(name), ContactDetail(_gen_contact_id(detail)))
+			contacts[ctc_head.uuid] = Contact(ctc_head, set(), Lst.Empty, UserStatus(name or ctc_head.email), ContactDetail(_gen_contact_id(detail)))
 			updated = True
 		ctc = contacts[ctc_head.uuid]
 		

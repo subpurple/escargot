@@ -19,7 +19,7 @@ from core.models import User, OIM, Substatus, NetworkID, GroupChatState, GroupCh
 def build_presence_notif(
 	trid: Optional[str], old_substatus: Optional[Substatus], ctc_head: User, user_me: User,
 	dialect: int, backend: Backend, iln_sent: bool, update_info: bool, *,
-	self_presence: bool = False, groupchat: Optional['GroupChat'] = None, groupchat_owner: bool = False,
+	self_presence: bool = False, update_status: bool = True, groupchat: Optional['GroupChat'] = None, groupchat_owner: bool = False,
 ) -> Iterable[Tuple[Any, ...]]:
 	detail = user_me.detail
 	assert detail is not None
@@ -157,7 +157,7 @@ def build_presence_notif(
 		
 	assert ctc_sess is not None
 	
-	if status.substatus is not old_substatus:
+	if status.substatus is not old_substatus or update_status:
 		msn_status = MSNStatus.FromSubstatus(status.substatus)
 		
 		if trid and dialect < 18: frst = ('ILN', trid) # type: Tuple[Any, ...]

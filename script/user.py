@@ -19,7 +19,7 @@ def main(email: str, username: str, *, oldmsn: bool = False, yahoo: bool = False
 			print("Creating new user...")
 			user = User(
 				uuid = misc.gen_uuid(), email = email, username = username, verified = False,
-				name = email, message = '',
+				friendly_name = email,
 				groups = {}, settings = {},
 			)
 		else:

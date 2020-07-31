@@ -60,10 +60,14 @@
 							</DocumentStream>
 						</DocumentStreams>
 					</Photo>
-					<PersonalStatus>{{ user.status.message }}</PersonalStatus>
-					<PersonalStatusLastModified>{{ now }}</PersonalStatusLastModified>
-					<DisplayName>{{ user.status.name }}</DisplayName>
-					<DisplayNameLastModified>{{ now }}</DisplayNameLastModified>
+					{%- if roaming_info.message -%}
+						<PersonalStatus>{{ roaming_info.message }}</PersonalStatus>
+						<PersonalStatusLastModified>{{ date_format(roaming_info.message_last_modified) }}</PersonalStatusLastModified>
+					{%- endif -%}
+					{%- if roaming_info.name -%}
+						<DisplayName>{{ roaming_info.name }}</DisplayName>
+						<DisplayNameLastModified>{{ date_format(roaming_info.name_last_modified) }}</DisplayNameLastModified>
+					{%- endif -%}
 					<StaticUserTilePublicURL>https://{{ host }}/storage/usertile/{{ user.uuid }}/static</StaticUserTilePublicURL>
 				</ExpressionProfile>
 			</GetProfileResult>

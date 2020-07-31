@@ -73,6 +73,7 @@ async def handle_posttest(req: web.Request) -> web.Response:
 	return web.Response(status = 200)
 
 async def handle_storageservice(req: web.Request) -> web.Response:
+	backend = req.app['backend']
 	header, action, bs, token = await preprocess_soap(req)
 	assert bs is not None
 	soapaction = (req.headers.get('SOAPAction') or '')
@@ -87,6 +88,9 @@ async def handle_storageservice(req: web.Request) -> web.Response:
 	cid = cid_format(user.uuid)
 	
 	if action_str == 'GetProfile':
+		roaming_info = backend.user_service.get_roaming_info(user)
+		assert roaming_info is not None
+		
 		storage_path = _get_storage_path(user.uuid)
 		files = None
 		if storage_path.exists() and storage_path.is_dir():
@@ -115,6 +119,7 @@ async def handle_storageservice(req: web.Request) -> web.Response:
 			'mime': mime,
 			'size_static': image_size,
 			'size_small': image_thumb_size,
+			'roaming_info': roaming_info,
 			'host': settings.STORAGE_HOST,
 		})
 	if action_str == 'FindDocuments':
@@ -126,7 +131,69 @@ async def handle_storageservice(req: web.Request) -> web.Response:
 			'pptoken1': token,
 		})
 	if action_str == 'UpdateProfile':
-		# TODO: UpdateProfile
+		delete_psm = False
+		delete_name = False
+		
+		# TODO: More properties?
+		
+		# Update to roaming name/message
+		# ```
+		# <UpdateProfile xmlns="http://www.msn.com/webservices/storage/w10">
+		#   <profile>
+		#     <ResourceID>862d987eb60b7a63!106</ResourceID>
+		#     <ExpressionProfile>
+		#       <FreeText>Update</FreeText>
+		#       <DisplayName>Society is betrayal</DisplayName>
+		#       <PersonalStatus>Prosperity is the best medicine. :)</PersonalStatus>
+		#     </ExpressionProfile>
+		#   </profile>
+		# </UpdateProfile>
+		# ```
+		
+		# Remove roaming message
+		# ```
+		# <UpdateProfile xmlns="http://www.msn.com/webservices/storage/w10">
+		#   <profile>
+		#     <ResourceID>bb4542ce2eacdbde!106</ResourceID>
+		#     <ExpressionProfile>
+		#       <FreeText>Update</FreeText>
+		#       <DisplayName>%walkingphas3r%</DisplayName>
+		#       <Flags>0</Flags>
+		#     </ExpressionProfile>
+		#   </profile>
+		#   <profileAttributesToDelete>
+		#     <ExpressionProfileAttributes>
+		#       <PersonalStatus>true</PersonalStatus>
+		#     </ExpressionProfileAttributes>
+		#   </profileAttributesToDelete>
+		# </UpdateProfile>
+		# ```
+		
+		expression_profile = find_element(action, 'ExpressionProfile')
+		name = find_element(expression_profile, 'DisplayName')
+		message = find_element(expression_profile, 'PersonalStatus')
+		
+		attributes_to_delete = find_element(action, 'profileAttributesToDelete/ExpressionProfileAttributes')
+		if attributes_to_delete is not None:
+			# `PersonalStatus` and `DisplayName` is the only known attribute that has the ability to be deleted
+			delete_psm = find_element(attributes_to_delete, 'PersonalStatus') or False
+			assert isinstance(delete_psm, bool)
+			delete_name = find_element(attributes_to_delete, 'DisplayName') or False
+			assert isinstance(delete_name, bool)
+		
+		name = find_element(action, 'DisplayName')
+		message = find_element(action, 'PersonalStatus')
+		
+		if name:
+			backend.user_service.save_single_roaming(user, { 'name': name })
+		if message and not delete_psm:
+			backend.user_service.save_single_roaming(user, { 'message': message })
+		
+		if delete_psm:
+			backend.user_service.save_single_roaming(user, { 'message': '' })
+		if delete_name:
+			backend.user_service.save_single_roaming(user, { 'name': '' })
+		
 		return render(req, 'msn:storageservice/UpdateProfileResponse.xml', {
 			'storage_ns': storage_ns,
 			'cachekey': cachekey,
