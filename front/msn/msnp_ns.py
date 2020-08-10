@@ -15,7 +15,7 @@ import time
 from util.misc import Logger, gen_uuid, date_format, MultiDict
 import settings
 
-from core import event
+from core import event, error
 from core.backend import Backend, BackendSession, Chat, ChatSession
 from core.models import (
 	Substatus, Lst, NetworkID, User, Group, GroupChat, GroupChatRole, GroupChatState,
@@ -904,6 +904,9 @@ class MSNPCtrlNS(MSNPCtrl):
 						if contact_uuid is not None:
 							try:
 								ctc, _ = bs.me_contact_add(contact_uuid, lsts, name = email)
+							except error.ListIsFull:
+								self.send_reply(Err.ListLimitReached, trid)
+								return
 							except Exception:
 								pass
 							

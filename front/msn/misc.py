@@ -683,6 +683,7 @@ class Err:
 	InvalidUser = 205
 	DuplicateSession = 207
 	InvalidUser2 = 208
+	ListLimitReached = 210
 	PrincipalOnList = 215
 	PrincipalNotOnList = 216
 	PrincipalNotOnline = 217
@@ -737,4 +738,6 @@ class Err:
 			return cls.AuthFail
 		if isinstance(exc, error.NotAllowedWhileHDN):
 			return cls.NotAllowedWhileHDN
+		if isinstance(exc, error.ListIsFull):
+			return cls.ListLimitReached
 		raise ValueError("Exception not convertible to MSNP error") from exc

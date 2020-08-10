@@ -346,27 +346,39 @@ class Backend:
 			for cs_other in chat.get_roster():
 				cs_other.bs.evt.on_groupchat_updated(groupchat)
 	
-	def util_change_groupchat_membership_role(self, groupchat: GroupChat, user_other: User, role: GroupChatRole) -> None:
-		if user_other.uuid not in groupchat.memberships: raise error.MemberNotInGroupChat()
+	def util_change_groupchat_membership_role(self, groupchat: GroupChat, user_other: User, role: GroupChatRole, user_self: Optional[User]) -> None:
+		if user_other.uuid not in groupchat.memberships or (user_self is not None and user_self.uuid not in groupchat.memberships): raise error.MemberNotInGroupChat()
 		
 		chat = self.chat_get('persistent', groupchat.chat_id)
 		
 		membership = groupchat.memberships[user_other.uuid]
+		membership_self = None
+		
+		if user_self is not None:
+			assert role is GroupChatRole.Admin
+			membership_self = groupchat.memberships[user_self.uuid]
 		
 		old_role = membership.role
 		if old_role == GroupChatRole.StatePendingOutbound:
 			raise error.GroupChatMemberIsPending()
-		if old_role == GroupChatRole.Admin and len(list(self.util_get_groupchat_memberships_by_role(groupchat, GroupChatRole.Admin))) < 2:
-			raise error.MemberDoesntHaveSufficientGroupChatRole()
+		if membership_self is not None:
+			if membership_self.role != GroupChatRole.Admin or old_role == GroupChatRole.Admin:
+				raise error.MemberDoesntHaveSufficientGroupChatRole()
 		membership.role = role
+		if membership_self is not None:
+			membership_self.role = GroupChatRole.Member
 		
 		if old_role is not membership.role:
 			self._mark_groupchat_modified(groupchat)
 			
 			if chat is not None:
 				for cs_other in chat.get_roster():
-					if cs_other.user is user_other:
-						role_user = membership.role
+					if cs_other.user is user_other or (user_self is not None and cs_other.user is user_self):
+						role_user = None
+						if (user_self is not None and cs_other.user is user_self) and membership_self is not None:
+							role_user = membership_self.role
+						elif cs_other.user is user_other:
+							role_user = membership.role
 						if role_user is not None:
 							cs_other.bs.evt.on_groupchat_role_updated(groupchat.chat_id, role_user)
 					else:
@@ -791,6 +803,10 @@ class BackendSession(Session):
 		old_ctc = detail.contacts.get(ctc_head.uuid)
 		if old_ctc is not None:
 			old_lists = old_ctc.lists
+			for lst2 in [Lst.FL, Lst.AL, Lst.BL, Lst.RL]:
+				if old_lists & lst2:
+					if len(detail.get_contacts_by_list(lst2)) >= LST_LIMITS[lst2]:
+						raise error.ListIsFull()
 		ctc = self._add_to_list(user, ctc_head, lst, name, group_id, nickname = nickname)
 		if lst & Lst.FL:
 			# FL needs a matching RL on the contact
@@ -1475,3 +1491,11 @@ def _gen_contact_id(detail: UserDetail) -> str:
 	return s
 
 MAX_GROUP_NAME_LENGTH = 61
+
+# TODO: PL
+LST_LIMITS = {
+	Lst.FL: 1000,
+	Lst.AL: 1500,
+	Lst.BL: 1200,
+	Lst.RL: 1200,
+}

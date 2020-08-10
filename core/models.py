@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Dict, Optional, Set, List, Any, TypeVar
+from typing import Dict, Optional, Set, List, Tuple, Any, TypeVar
 from enum import Enum, IntEnum, IntFlag
 
 class User:
@@ -227,6 +227,9 @@ class UserDetail:
 		self._groups_by_id = {}
 		self._groups_by_uuid = {}
 		self.contacts = {}
+	
+	def get_contacts_by_list(self, lst: 'Lst') -> Tuple[Contact, ...]:
+		return tuple([ctc for ctc in self.contacts.values() if ctc.lists & lst])
 	
 	def insert_group(self, grp: 'Group') -> None:
 		self._groups_by_id[grp.id] = grp

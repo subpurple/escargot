@@ -152,6 +152,10 @@
 				<url>http://profile.live.com/details</url>
 				<SiteId>73625</SiteId>
 			</EditMyProfile>
+			<Import>
+				<url>http://cid-%1!16.16I64X!.profile.live.com/connect/?partner=Messenger</url>
+				<SiteId>73625</SiteId>
+			</Import>
 			<MessengerInvite>
 				<url>http://cid-%1.profile.live.com/connect/send.aspx?email=%2</url>
 				<urlcid>http://cid-%1.profile.live.com/connect/send.aspx?cid=%2</urlcid>

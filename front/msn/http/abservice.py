@@ -101,6 +101,8 @@ def sharing_AddMember(req: web.Request, header: Any, action: Any, bs: BackendSes
 				
 				try:
 					bs.me_contact_add(contact_uuid, lst, name = name)
+				except error.ListIsFull:
+					return web.HTTPInternalServerError()
 				except:
 					pass
 			elif circle_id is not None:
@@ -318,6 +320,9 @@ def ab_ABContactAdd(req: web.Request, header: Any, action: Any, bs: BackendSessi
 	if add_ctc:
 		try:
 			bs.me_contact_add(contact_uuid, models.Lst.FL, name = email, nickname = nickname)
+		except error.ListIsFull:
+			# TODO
+			return web.HTTPInternalServerError()
 		except:
 			pass
 	

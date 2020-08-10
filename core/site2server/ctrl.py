@@ -166,6 +166,7 @@ class S2SCtrl:
 				self.send_numeric(Err.TooFewArguments, ':GRPCHAT {}'.format(ts))
 				return
 			
+			user_self = None
 			uuid = args[0]
 			role_num = args[1]
 			
@@ -174,9 +175,18 @@ class S2SCtrl:
 				self.send_numeric(Err.UserNotInDB, ':GRPCHAT {}'.format(ts))
 				return
 			
+			if len(args) >= 3:
+				uuid_self = args[2]
+				user_self = backend._load_user_record(uuid_self)
+				if user_self is None:
+					self.send_numeric(Err.UserNotInDB, ':{}'.format(ts))
+					return
+			
 			try:
 				role = GroupChatRole(int(role_num))
-				backend.util_change_groupchat_membership_role(groupchat, user, role)
+				if user_self is not None and role is not GroupChatRole.Admin: raise ValueError()
+				
+				backend.util_change_groupchat_membership_role(groupchat, user, role, user_self)
 			except ValueError:
 				self.send_numeric(Err.GroupChatRoleInvalid, ':GRPCHAT {}'.format(ts))
 				return

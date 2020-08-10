@@ -260,7 +260,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		# filling that out in the "Yahoo! ID" section of the contact add dialog). Treat as is.
 		contact_uuid = backend.util_get_uuid_from_username(contact_yahoo_id)
 		if contact_uuid is None:
-			add_request_response.add(b'66', b'3')
+			add_request_response.add(b'66', b'3') # User doesn't exist in database
 			self.send_reply(YMSGService.FriendAdd, YMSGStatus.BRB, self.sess_id, add_request_response)
 			return
 		
@@ -279,7 +279,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 				if contact._groups:
 					for group_other in contact._groups.copy():
 						if detail._groups_by_id[group_other.id].name == buddy_group:
-							add_request_response.add(b'66', b'2')
+							add_request_response.add(b'66', b'2') # Contact already in group
 							self.send_reply(YMSGService.FriendAdd, YMSGStatus.BRB, self.sess_id, add_request_response)
 							return
 				else:
@@ -300,10 +300,19 @@ class YMSGCtrlPager(YMSGCtrlBase):
 		ctc_head = self.backend._load_user_record(contact_uuid)
 		assert ctc_head is not None
 		
-		contact_new = bs.me_contact_add(
-			ctc_head.uuid, Lst.FL | Lst.AL, message = (TextWithData(message, utf8) if message is not None else None),
-			adder_id = yahoo_id, needs_notify = True,
-		)[0]
+		try:
+			contact_new = bs.me_contact_add(
+				ctc_head.uuid, Lst.FL | Lst.AL, message = (TextWithData(message, utf8) if message is not None else None),
+				adder_id = yahoo_id, needs_notify = True,
+			)[0]
+		except error.ListIsFull:
+			add_request_response.add(b'66', b'6') # Contact list full
+			self.send_reply(YMSGService.FriendAdd, YMSGStatus.BRB, self.sess_id, add_request_response)
+			return
+		except:
+			add_request_response.add(b'66', b'1') # General failure
+			self.send_reply(YMSGService.FriendAdd, YMSGStatus.BRB, self.sess_id, add_request_response)
+			return
 		
 		if (contact_new is not None and contact is None) or (old_lists is not None and (not old_lists & Lst.FL and not old_lists & Lst.BL)):
 			contact_struct = MultiDict([
@@ -313,7 +322,7 @@ class YMSGCtrlPager(YMSGCtrlBase):
 			
 			self.send_reply(YMSGService.ContactNew, YMSGStatus.BRB, self.sess_id, contact_struct)
 			
-		add_request_response.add(b'66', b'0')
+		add_request_response.add(b'66', b'0') # Success
 		self.send_reply(YMSGService.FriendAdd, YMSGStatus.BRB, self.sess_id, add_request_response)
 		try:
 			# TODO: Moving/copying contacts to groups

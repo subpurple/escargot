@@ -73,5 +73,8 @@ class CantLeaveGroupChat(ClientError):
 class MemberNotInGroupChat(ClientError):
 	pass
 
+class ListIsFull(ClientError):
+	pass
+
 class DataTooLargeToSend(ServerError):
 	pass
