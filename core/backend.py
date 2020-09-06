@@ -1497,5 +1497,6 @@ LST_LIMITS = {
 	Lst.FL: 1000,
 	Lst.AL: 1500,
 	Lst.BL: 1200,
-	Lst.RL: 1200,
+	# TODO: How to handle RL limits?
+	#Lst.RL: 1200,
 }
