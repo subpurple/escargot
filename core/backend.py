@@ -803,7 +803,7 @@ class BackendSession(Session):
 		old_ctc = detail.contacts.get(ctc_head.uuid)
 		if old_ctc is not None:
 			old_lists = old_ctc.lists
-			for lst2 in [Lst.FL, Lst.AL, Lst.BL, Lst.RL]:
+			for lst2 in [Lst.FL, Lst.AL, Lst.BL]:
 				if old_lists & lst2:
 					if len(detail.get_contacts_by_list(lst2)) >= LST_LIMITS[lst2]:
 						raise error.ListIsFull()
