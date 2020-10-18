@@ -8,7 +8,7 @@ class JSONType(types.TypeDecorator): # type: ignore
 	
 	def load_dialect_impl(self, dialect: Any) -> Any:
 		if dialect.name == 'postgresql':
-			t = postgresql.JSONB()
+			t = postgresql.JSON()
 		else:
 			t = types.TEXT()
 		return dialect.type_descriptor(t)
