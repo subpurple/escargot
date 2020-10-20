@@ -4,19 +4,12 @@
 			<ExpiresInDays>0</ExpiresInDays>
 		</Config>
 		<DisablePhoneDialer>1</DisablePhoneDialer>
-		<Logitech>
-			<PreRollEnabled>0</PreRollEnabled>
-			<PremiumAVConfigServer>http://escargot.pokeacer.xyz/config/stunlocate.sxml</PremiumAVConfigServer>
-			<WebcamConfigServer>http://escargot.pokeacer.xyz/config/stunlocate.sxml</WebcamConfigServer>
-		</Logitech>
 		<MinFlashPlayer BuildNumber="60" MajorVersion="7" MinorVersion="0"></MinFlashPlayer>
 		<Relay>
 			<Enabled>0</Enabled>
 			<MaxCallLength>0</MaxCallLength>
 		</Relay>
 		<TrustedDomains>
-			<domain name="wink.messengergeek.com"/>
-			<domain name="messengergeek.com"/>
 			<domain name="escargot.log1p.xyz"/>
 		</TrustedDomains>
 		<ErrorResponseTable>
@@ -82,7 +75,7 @@
 			<TextAdServer>http://m1.escargot.log1p.xyz/etc/text-ad-service</TextAdServer>
 		</AdMainConfig>
 		<AppDirConfig>
-			<AppDirPageURL>http://msn-app-directory.escargot.log1p.xyz/AppDirectory/Directory.aspx?L=en-US</AppDirPageURL>
+			<AppDirPageURL>http://msn-app-directory.escargot.log1p.xyz/AppDirectory/Directory.aspx?L=en-us</AppDirPageURL>
 			<AppDirSeviceURL>http://msn-app-directory.escargot.log1p.xyz/AppDirectory/AppDirectory.asmx</AppDirSeviceURL>
 			<AppDirVersionURL>http://msn-app-directory.escargot.log1p.xyz/AppDirectory/GetAppdirVersion.aspx</AppDirVersionURL>
 		</AppDirConfig>

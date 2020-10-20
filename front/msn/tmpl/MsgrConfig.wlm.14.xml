@@ -11,11 +11,6 @@
 		</P2PConfig>
 		<DisablePhoneDialer>1</DisablePhoneDialer>
 		<GetItemVersionForUnknown>false</GetItemVersionForUnknown>
-		<Logitech>
-			<PremiumAVConfigServer>http://mplocate.spotlife.net/locate.sxml</PremiumAVConfigServer>
-			<PreRollEnabled>0</PreRollEnabled>
-			<WebcamConfigServer>http://mlocate.spotlife.net/locate.sxml</WebcamConfigServer>
-		</Logitech>
 		<MinFlashPlayer BuildNumber="28" MajorVersion="9" MinorVersion="0" />
 		<Relay>
 			<Enabled>0</Enabled>
@@ -26,8 +21,6 @@
 			<Server ZombieServerDetectDelay="900" ZombieServerDetectResumeDelay="900" ZombieServerDetectConnectDelay="900" ZombieServerDetectLongDelay="900" />
 		</Contacts>
 		<TrustedDomains>
-			<domain name="wink.messengergeek.com" />
-			<domain name="messengergeek.com" />
 			<domain name="escargot.log1p.xyz" />
 		</TrustedDomains>
 		<ErrorResponseTable>
@@ -132,7 +125,7 @@
 			<TextAdServer>https://m1.escargot.log1p.xyz/etc/text-ad-service</TextAdServer>
 		</AdMainConfig>
 		<AppDirConfig>
-			<AppDirPageURL>https://msn-app-directory.escargot.log1p.xyz/AppDirectory/Directory.aspx?L=en-US</AppDirPageURL>
+			<AppDirPageURL>https://msn-app-directory.escargot.log1p.xyz/AppDirectory/Directory.aspx?L=en-us</AppDirPageURL>
 			<AppDirSeviceURL>https://msn-app-directory.escargot.log1p.xyz/AppDirectory/AppDirectory.asmx</AppDirSeviceURL>
 			<AppDirVersionURL>https://msn-app-directory.escargot.log1p.xyz/AppDirectory/GetAppdirVersion.aspx</AppDirVersionURL>
 		</AppDirConfig>
