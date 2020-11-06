@@ -115,13 +115,15 @@ async def handle_sysboard_action(req: web.Request) -> web.Response:
 		return web.HTTPUnauthorized()
 	
 	system_msg = (None if body.get('sysmsg') is None else body.get('sysmsg'))
+	mt_mins_header = req.headers.get('X-Maintenance-Minutes')
 	
-	if req.headers.get('X-Maintenance-Minutes') is not None:
+	if mt_mins_header:
 		if system_msg is not None:
 			return web.HTTPInternalServerError()
 		
+		assert mt_mins_header
 		try:
-			mt_mins = int(req.headers.get('X-Maintenance-Minutes'))
+			mt_mins_header = int(mt_mins_header)
 		except ValueError:
 			return web.HTTPInternalServerError()
 		
