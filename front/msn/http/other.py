@@ -526,9 +526,10 @@ def _get_msgr_config(req: web.Request, body: Optional[bytes]) -> str:
 	result = None # type: Optional[str]
 	
 	if query.get('ver') is not None:
-		if re.match(r'[^\d\.]', query.get('ver')):
+		if re.match(r'[^\d\.]', query.get('ver') or ''):
 			return 'INVALID_VER'
 		
+		assert query.get('ver') is not None
 		config_ver = query.get('ver').split('.', 4)
 		if 8 <= int(config_ver[0]) <= 9:
 			with open(TMPL_DIR + '/MsgrConfig.wlm.8.xml') as fh:

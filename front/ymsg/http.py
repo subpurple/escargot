@@ -361,13 +361,13 @@ def _parse_cookies(
 	cookies = req.cookies
 	
 	if None in (y,t):
-		y_cookie = cookies.get('Y') or ''
-		t_cookie = cookies.get('T') or ''
+		y_cookie = cookies.get('Y')
+		t_cookie = cookies.get('T')
 	else:
 		y_cookie = y
 		t_cookie = t
 	
-	return (backend.auth_service.get_token('ymsg/cookie', y_cookie), backend.auth_service.get_token('ymsg/cookie', t_cookie))
+	return (backend.auth_service.get_token('ymsg/cookie', y_cookie or ''), backend.auth_service.get_token('ymsg/cookie', t_cookie or ''))
 
 def render(req: web.Request, tmpl_name: str, ctxt: Optional[Dict[str, Any]] = None, status: int = 200) -> web.Response:
 	if tmpl_name.endswith('.xml'):

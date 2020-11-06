@@ -69,7 +69,7 @@ async def handle_http_gateway(req: web.Request) -> web.Response:
 		
 		# Create new GatewaySession
 		server_type = query.get('Server')
-		server_ip = query.get('IP')
+		server_ip = query.get('IP') or ''
 		session_id = gen_uuid()
 		
 		logger = Logger('GW-{}'.format(server_type), session_id, settings.DEBUG_MSNP)
