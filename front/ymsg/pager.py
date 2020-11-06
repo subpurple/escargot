@@ -973,19 +973,10 @@ class YMSGCtrlPager(YMSGCtrlBase):
 			list_reply_kvs.add(b'59', arbitrary_encode(cached_t))
 		else:
 			(y_cookie, t_cookie, y_expiry, t_expiry) = self._refresh_cookies()
-			# <notice>
-			# can't use `yahooloopback.log1p.xyz` for cookies yet because that is intended for Switcher
-			# (Yahoo! sets the cookies on a static domain and it expects the cookie domain to encompass the domain it
-			# sets the cookie to, if the cookie domain doesn't match the domain of the URL Yahoo! uses, then it won't use the cookies).
-			# uncomment when development on Switcher is finished.
-			# 
-			#loopback_url = ('yahooloopback.log1p.xyz' if settings.DEBUG else settings.TARGET_HOST)
-			#list_reply_kvs.add(b'59', arbitrary_encode('Y\t{}; expires={}; path=/; domain={}'.format(y_cookie, y_expiry, loopback_url)))
-			#list_reply_kvs.add(b'59', arbitrary_encode('T\t{}; expires={}; path=/; domain={}'.format(t_cookie, t_expiry, loopback_url)))
-			# 
-			# </notice>
-			list_reply_kvs.add(b'59', 'Y\t{}; expires={}; path=/; domain={}'.format(y_cookie, y_expiry, '.yahoo.com').encode('utf-8'))
-			list_reply_kvs.add(b'59', 'T\t{}; expires={}; path=/; domain={}'.format(t_cookie, t_expiry, '.yahoo.com').encode('utf-8'))
+			
+			domain = ('yahooloopback.log1p.xyz' if settings.DEBUG else settings.TARGET_HOST)
+			list_reply_kvs.add(b'59', arbitrary_encode('Y\t{}; expires={}; path=/; domain={}'.format(y_cookie, y_expiry, domain)))
+			list_reply_kvs.add(b'59', arbitrary_encode('T\t{}; expires={}; path=/; domain={}'.format(t_cookie, t_expiry, domain)))
 		
 		list_reply_kvs.add(b'59', b'C\tmg=1')
 		list_reply_kvs.add(b'3', arbitrary_encode(user.username))

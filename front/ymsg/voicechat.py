@@ -7,7 +7,7 @@ def register(backend: Backend) -> None:
 	from util.misc import ProtocolRunner
 	
 	# TODO: Implement UDP ports
-	# https://imfreedom.org/wiki/Yahoo#Network
+	# https://wiki.imfreedom.org/index.php/Yahoo#Network
 	backend.add_runner(ProtocolRunner('0.0.0.0', 5000, ListenerVoiceChat))
 	backend.add_runner(ProtocolRunner('0.0.0.0', 5001, ListenerVoiceChat))
 
