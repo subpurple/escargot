@@ -568,7 +568,7 @@ async def handle_nexus(req: web.Request) -> web.Response:
 	})
 
 async def handle_login(req: web.Request) -> web.Response:
-	tmp = _extract_pp_credentials(req.headers.get('Authorization'))
+	tmp = _extract_pp_credentials(req.headers.get('Authorization') or '')
 	if tmp is None:
 		token = None
 	else:
@@ -593,8 +593,8 @@ async def handle_not_rst(req: web.Request) -> web.Response:
 			'Access-Control-Max-Age': str(86400),
 		})
 	
-	email = req.headers.get('X-User')
-	pwd = req.headers.get('X-Password')
+	email = req.headers.get('X-User') or ''
+	pwd = req.headers.get('X-Password') or ''
 	token_tpl = _login(req, email, pwd, lifetime = 86400)
 	headers = {
 		'Access-Control-Allow-Origin': '*',
@@ -764,7 +764,7 @@ async def handle_debug(req: web.Request) -> web.Response:
 	return render(req, 'msn:debug.html')
 
 def _extract_pp_credentials(auth_str: str) -> Optional[Tuple[str, str]]:
-	if auth_str is None:
+	if not auth_str:
 		return None
 	assert auth_str.startswith(PP)
 	auth = {}

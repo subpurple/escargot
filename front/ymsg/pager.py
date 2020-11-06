@@ -8,6 +8,7 @@ import struct
 
 from util.misc import Logger, gen_uuid, MultiDict, arbitrary_decode, arbitrary_encode
 
+import settings
 from core import event, error
 from core.backend import Backend, BackendSession, Chat, ChatSession
 from core.models import (

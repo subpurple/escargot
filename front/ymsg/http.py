@@ -361,8 +361,8 @@ def _parse_cookies(
 	cookies = req.cookies
 	
 	if None in (y,t):
-		y_cookie = cookies.get('Y')
-		t_cookie = cookies.get('T')
+		y_cookie = cookies.get('Y') or ''
+		t_cookie = cookies.get('T') or ''
 	else:
 		y_cookie = y
 		t_cookie = t
