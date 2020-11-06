@@ -123,7 +123,7 @@ async def handle_sysboard_action(req: web.Request) -> web.Response:
 		
 		assert mt_mins_header
 		try:
-			mt_mins_header = int(mt_mins_header)
+			mt_mins = int(mt_mins_header)
 		except ValueError:
 			return web.HTTPInternalServerError()
 		
