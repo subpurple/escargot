@@ -48,7 +48,7 @@ Contributions are welcome via MR (Merge Requests). You don't need to request pro
 - then patch the following registry values:
 	- `HKEY_CURRENT_USER\SOFTWARE\Yahoo\Pager\socket server` -> `localhost`
 	- `HKEY_CURRENT_USER\SOFTWARE\Yahoo\Pager\Host Name` -> `localhost`
-	- `HKEY_CURRENT_USER\SOFTWARE\Yahoo\Pager\FileTransfer\Server Name` -> `localhost`
+	- `HKEY_CURRENT_USER\SOFTWARE\Yahoo\Pager\FileTransfer\Server Name` -> `yahooloopback.log1p.xyz`
 
 - and also, in your `HOSTS`, add `127.0.0.1 yahooloopback.log1p.xyz`
 
