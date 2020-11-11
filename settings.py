@@ -27,6 +27,8 @@ ENABLE_FRONT_API = False
 ENABLE_FRONT_BOT = False
 ENABLE_FRONT_DEVBOTS = False
 
+SERVICE_KEYS = [] # type: ignore
+
 try:
 	from settings_local import *
 except ImportError as ex:
