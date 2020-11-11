@@ -490,7 +490,7 @@ async def handle_textad(req: web.Request) -> web.Response:
 	return web.HTTPOk(content_type = 'text/xml', text = textad)
 
 async def handle_portal(req: web.Request) -> web.Response:
-	return web.HTTPFound('https://escargot.log1p.xyz/etc/escargot-today')
+	return web.HTTPFound('https://escargot.log1p.xyz/etc/today-msn')
 
 async def handle_msn_redirect(req: web.Request) -> web.Response:
 	i = req.match_info['i']
@@ -503,13 +503,14 @@ async def handle_msn_redirect(req: web.Request) -> web.Response:
 	return web.HTTPFound('http://g.msn.com{}'.format(req.path_qs))
 
 async def handle_tabs(req: web.Request) -> web.Response:
-	#return web.HTTPFound('http://escargot.log1p.xyz/etc/tabs')
-	with open(TMPL_DIR + '/svcs_tabs.xml') as fh:
-		tabs_resp = fh.read()
-	with open(TMPL_DIR + '/tabs.xml') as fh:
-		config_tabs = fh.read()
+	return web.HTTPFound('http://escargot.log1p.xyz/etc/tabs')
 	
-	return web.HTTPOk(content_type = 'text/xml', text = tabs_resp.format(tabs = config_tabs))
+	#with open(TMPL_DIR + '/svcs_tabs.xml') as fh:
+	#	tabs_resp = fh.read()
+	#with open(TMPL_DIR + '/tabs.xml') as fh:
+	#	config_tabs = fh.read()
+	#
+	#return web.HTTPOk(content_type = 'text/xml', text = tabs_resp.format(tabs = config_tabs))
 
 async def handle_msgrconfig(req: web.Request) -> web.Response:
 	if req.method == 'POST':

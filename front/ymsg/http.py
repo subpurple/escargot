@@ -190,7 +190,8 @@ async def handle_placeholder(req: web.Request) -> web.Response:
 	return render(req, 'ymsg:placeholders/generic.html')
 
 async def handle_chat_notice(req: web.Request) -> web.Response:
-	return render(req, 'ymsg:placeholders/generic.html')
+	#return render(req, 'ymsg:placeholders/generic.html')
+	return web.HTTPFound('http://escargot.log1p.xyz/etc/yahoo-chat-pane')
 
 async def handle_rd_yahoo(req: web.Request) -> web.Response:
 	return web.HTTPFound(req.query_string.replace(' ', '+'))
