@@ -302,8 +302,9 @@ def ab_ABContactAdd(req: web.Request, header: Any, action: Any, bs: BackendSessi
 	if annotations:
 		for annotation in annotations:
 			name = find_element(annotation, 'Name')
-			if name not in _ANNOTATION_NAMES:
-				return web.HTTPInternalServerError()
+			# There might be more annotations we aren't aware of, comment out strict checking for now
+			#if name not in _ANNOTATION_NAMES:
+			#	return web.HTTPInternalServerError()
 			value = find_element(annotation, 'Value')
 			if name is 'AB.NickName':
 				nickname = value
@@ -400,9 +401,10 @@ def ab_ABContactUpdate(req: web.Request, header: Any, action: Any, bs: BackendSe
 		if not properties_changed:
 			return web.HTTPInternalServerError()
 		properties_changed = str(properties_changed).strip().split(' ')
-		for contact_property in properties_changed:
-			if contact_property not in _CONTACT_PROPERTIES:
-				return web.HTTPInternalServerError()
+		# We also aren't aware of all changeable contact properties. Comment out for now to avoid conflict with unknown queries
+		#for contact_property in properties_changed:
+		#	if contact_property not in _CONTACT_PROPERTIES:
+		#		return web.HTTPInternalServerError()
 		
 		for contact_property in properties_changed:
 			if contact_property == 'Anniversary':
@@ -500,8 +502,8 @@ def ab_ABContactUpdate(req: web.Request, header: Any, action: Any, bs: BackendSe
 				annotations = contact_info.findall('.//{*}annotations/{*}Annotation')
 				for annotation in annotations:
 					name = find_element(annotation, 'Name')
-					if name not in _ANNOTATION_NAMES:
-						return web.HTTPInternalServerError()
+					#if name not in _ANNOTATION_NAMES:
+					#	return web.HTTPInternalServerError()
 					value = find_element(annotation, 'Value')
 					value = bool_to_str(value) if isinstance(value, bool) else str(find_element(annotation, 'Value'))
 					
@@ -547,6 +549,19 @@ def ab_ABContactUpdate(req: web.Request, header: Any, action: Any, bs: BackendSe
 				property = find_element(contact_info, 'lastName')
 				ctc.detail.last_name = property
 				updated = True
+			# TODO: `ContactQuickName`
+			# <ABContactUpdate xmlns="http://www.msn.com/webservices/AddressBook">
+			#   <abId>00000000-0000-0000-0000-000000000000</abId>
+			#   <contacts>
+			#     <Contact xmlns="http://www.msn.com/webservices/AddressBook">
+			#        <contactId>074606e9-00c5-4ccc-ba6c-b638c4b1547f</contactId>
+			#        <contactInfo>
+			#           <quickName>BobRoss 1</quickName>
+			#        </contactInfo>
+			#        <propertiesChanged>ContactQuickName</propertiesChanged>
+			#     </Contact>
+			#   </contacts>
+			# </ABContactUpdate>
 			if contact_property == 'MiddleName':
 				assert ctc is not None
 				property = find_element(contact_info, 'MiddleName')
@@ -825,9 +840,9 @@ def ab_ABGroupUpdate(req: web.Request, header: Any, action: Any, bs: BackendSess
 		if not properties_changed:
 			return web.HTTPInternalServerError()
 		properties_changed = str(properties_changed).strip().split(' ')
-		for contact_property in properties_changed:
-			if contact_property not in _CONTACT_PROPERTIES:
-				return web.HTTPInternalServerError()
+		#for contact_property in properties_changed:
+		#	if contact_property not in _CONTACT_PROPERTIES:
+		#		return web.HTTPInternalServerError()
 		for contact_property in properties_changed:
 			if contact_property == 'GroupName':
 				name = str(find_element(group_info, 'name'))
@@ -1385,12 +1400,12 @@ def ab_UpdateDynamicItem(req: web.Request, header: Any, action: Any, bs: Backend
 	# TODO: UpdateDynamicItem
 	return unknown_soap(req, header, action, expected = True)
 
-_CONTACT_PROPERTIES = (
-	'Comment', 'DisplayName', 'ContactType', 'ContactFirstName', 'ContactLastName', 'MiddleName', 'Anniversary',
-	'ContactBirthDate', 'ContactEmail', 'ContactLocation', 'ContactWebSite', 'ContactPrimaryEmailType', 'ContactPhone', 'GroupName',
-	'IsMessengerEnabled', 'IsMessengerUser', 'IsFavorite', 'HasSpace',
-	'Annotation', 'Capability', 'MessengerMemberInfo',
-)
+#_CONTACT_PROPERTIES = (
+#	'Comment', 'DisplayName', 'ContactType', 'ContactFirstName', 'ContactLastName', 'MiddleName', 'Anniversary',
+#	'ContactBirthDate', 'ContactEmail', 'ContactLocation', 'ContactWebSite', 'ContactPrimaryEmailType', 'ContactPhone', 'GroupName',
+#	'IsMessengerEnabled', 'IsMessengerUser', 'IsFavorite', 'HasSpace',
+#	'Annotation', 'Capability', 'MessengerMemberInfo',
+#)
 
 _CONTACT_PHONE_PROPERTIES = (
 	'Number',
@@ -1404,12 +1419,12 @@ _CONTACT_LOCATION_PROPERTIES = (
 	'Name', 'Street', 'City', 'State', 'Country', 'PostalCode',
 )
 
-_ANNOTATION_NAMES = (
-	'MSN.IM.InviteMessage', 'MSN.IM.MPOP', 'MSN.IM.BLP', 'MSN.IM.GTC', 'MSN.IM.RoamLiveProperties',
-	'MSN.IM.MBEA', 'MSN.IM.BuddyType', 'MSN.IM.HasSharedFolder', 'AB.NickName', 'AB.Profession', 'AB.Spouse',
-	'AB.JobTitle', 'Live.Locale', 'Live.Profile.Expression.LastChanged',
-	'Live.Passport.Birthdate', 'Live.Favorite.Order',
-)
+#_ANNOTATION_NAMES = (
+#	'MSN.IM.InviteMessage', 'MSN.IM.MPOP', 'MSN.IM.BLP', 'MSN.IM.GTC', 'MSN.IM.RoamLiveProperties',
+#	'MSN.IM.MBEA', 'MSN.IM.BuddyType', 'MSN.IM.HasSharedFolder', 'AB.NickName', 'AB.Profession', 'AB.Spouse',
+#	'AB.JobTitle', 'Live.Locale', 'Live.Profile.Expression.LastChanged',
+#	'Live.Passport.Birthdate', 'Live.Favorite.Order',
+#)
 
 class GTCAnnotation(IntEnum):
 	Empty = 0
