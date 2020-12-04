@@ -649,10 +649,9 @@ async def handle_rst(req: web.Request, rst2: bool = False) -> web.Response:
 		
 		# get list of requested domains
 		domains = root.findall('.//{*}Address')
-		domains.remove('http://Passport.NET/tb') # ignore Passport token request
 		
 		tmpl = req.app['jinja_env'].get_template('msn:RST/{}.token.xml'.format('RST2' if rst2 else 'RST'))
-		# collect tokens for requested domains
+		# collect tokens for requested domains, ignore Passport token request
 		tokenxmls = [tmpl.render(
 			i = i + 1,
 			domain = domain,
@@ -660,7 +659,7 @@ async def handle_rst(req: web.Request, rst2: bool = False) -> web.Response:
 			tomorrowz = tomorrowz,
 			pptoken1 = token,
 			binarysecret = bsecret,
-		) for i, domain in enumerate(domains)]
+		) for i, domain in enumerate(domains) if domain != 'http://Passport.NET/tb']
 		
 		tmpl = req.app['jinja_env'].get_template('msn:RST/{}.xml'.format('RST2' if rst2 else 'RST'))
 		return web.HTTPOk(
