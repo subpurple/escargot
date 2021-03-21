@@ -1756,7 +1756,7 @@ class MSNPCtrlNS(MSNPCtrl):
 			extra = ('U', 'messenger.msn.com')
 		if dialect >= 14:
 			extra += (1,)
-		self.send_reply('XFR', trid, dest, 'm1.escargot.log1p.xyz:1864', 'CKI', token, *extra)
+		self.send_reply('XFR', trid, dest, settings.TARGET_HOST + ':1864', 'CKI', token, *extra)
 	
 	def _m_ims(self, trid: str, value: str) -> None:
 		#>>> IMS 28 ON/OFF
@@ -2055,7 +2055,7 @@ class BackendEventHandler(event.BackendEventHandler):
 				extra += (1,)
 			token, _ = self.ctrl.backend.auth_service.create_token('sb/cal', (self.ctrl.bs, dialect, chat), lifetime = 120)
 			self.ctrl.send_reply(
-				'RNG', chat.ids['main'], 'm1.escargot.log1p.xyz:1864', 'CKI', token, inviter.email, inviter.status.name, *extra,
+				'RNG', chat.ids['main'], settings.TARGET_HOST + ':1864', 'CKI', token, inviter.email, inviter.status.name, *extra,
 			)
 	
 	def on_declined_chat_invite(self, chat: Chat, group_chat: bool = False) -> None:
