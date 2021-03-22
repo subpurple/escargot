@@ -158,7 +158,7 @@ class MSNPCtrlNS(MSNPCtrl):
 				self.close()
 				return
 			if self.bs:
-				self.send_reply(Err.InvalidUser, trid)
+				self.send_reply(Err.DuplicateSession, trid)
 				return
 			if stage == 'I':
 				#>>> USR trid MD5 I email@example.com
