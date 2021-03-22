@@ -55,7 +55,7 @@ class TLSContext:
 def exists_and_valid(p_crt: Path, p_key: Path) -> bool:
 	if not p_crt.exists(): return False
 	if not p_key.exists(): return False
-	backend = default_backend()
+	backend = default_backend() # type: ignore
 	with p_crt.open('rb') as fh:
 		crt = x509.load_pem_x509_certificate(fh.read(), backend)
 	

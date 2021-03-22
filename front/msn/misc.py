@@ -419,8 +419,8 @@ def encrypt_with_key_and_iv_tripledes_cbc(key: bytes, iv: bytes, msg: bytes) -> 
 	
 	# Use PKCS5 padding
 	msg_padded = _pkcs5_pad_message_tripledes(msg)
-	tripledes_cbc_cipher = Cipher(TripleDES(key), mode = CBC(iv), backend = default_backend())
-	tripledes_cbc_encryptor = tripledes_cbc_cipher.encryptor()
+	tripledes_cbc_cipher = Cipher(TripleDES(key), mode = CBC(iv), backend = default_backend()) # type: ignore
+	tripledes_cbc_encryptor = tripledes_cbc_cipher.encryptor() # type: ignore
 	
 	final = tripledes_cbc_encryptor.update(msg_padded)
 	final += tripledes_cbc_encryptor.finalize()

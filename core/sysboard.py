@@ -2,6 +2,7 @@ import asyncio
 from typing import Any, Dict, Optional
 from aiohttp import web
 from datetime import datetime
+import ssl
 import jinja2
 
 from core.backend import Backend
@@ -15,6 +16,7 @@ SYSBOARD_COOKIE_NAME = 'ESB'
 def register(loop: asyncio.AbstractEventLoop, backend: Backend, *, devmode: bool = False) -> web.Application:
 	from util.misc import AIOHTTPRunner
 	
+	ssl_context: Optional[ssl.SSLContext]
 	if devmode:
 		from devtls import DevTLS
 		sysboard_host = '0.0.0.0'

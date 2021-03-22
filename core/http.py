@@ -1,6 +1,7 @@
 import asyncio
 from typing import Any, Dict, Optional
 from aiohttp import web
+import ssl
 import jinja2
 
 from core.backend import Backend
@@ -9,6 +10,7 @@ import settings
 def register(loop: asyncio.AbstractEventLoop, backend: Backend, *, devmode: bool = False) -> web.Application:
 	from util.misc import AIOHTTPRunner
 	
+	ssl_context: Optional[ssl.SSLContext]
 	if devmode:
 		from devtls import DevTLS
 		http_host = '0.0.0.0'

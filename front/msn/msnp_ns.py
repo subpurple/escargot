@@ -389,7 +389,9 @@ class MSNPCtrlNS(MSNPCtrl):
 			assert machineguid is not None
 			bs.front_data['msn_pop_id'] = normalize_pop_id(machineguid).lower()
 		
-		bs.front_data['msn_circleticket_sig'] = rsa.generate_private_key(public_exponent = 65537, key_size = 2048, backend = default_backend())
+		bs.front_data['msn_circleticket_sig'] = rsa.generate_private_key(
+			public_exponent = 65537, key_size = 2048, backend = default_backend(), # type: ignore
+		)
 		
 		user = bs.user
 		
