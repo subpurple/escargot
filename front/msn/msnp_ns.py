@@ -551,7 +551,7 @@ class MSNPCtrlNS(MSNPCtrl):
 					lists |= Lst.PL
 					if lists & Lst.RL:
 						lists &= ~Lst.RL
-				self.send_reply('LST', 'N={}'.format(c.head.email), 'F={}'.format(c.status.name or c.head.email), 'C={}'.format(c.head.uuid),
+				self.send_reply('LST', 'N={}'.format(c.head.email), 'F={}'.format(c.status.name or c.head.email), ('C={}'.format(c.head.uuid) if c.lists & Lst.FL else None),
 					int(lists), (None if dialect < 12 else '1'), ','.join([group.uuid for group in c._groups.copy()])
 				)
 				for bpr_setting in ('PHH','PHM','PHW','MOB'):
