@@ -376,7 +376,7 @@ class MSNPCtrlNS(MSNPCtrl):
 		bs = self.bs
 		dialect = self.dialect
 		
-		if bs is None:
+		if bs is None or bs.user.email != self.usr_email:
 			self.send_reply(Err.AuthFail, trid)
 			self.close()
 			return
