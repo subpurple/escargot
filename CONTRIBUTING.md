@@ -15,7 +15,7 @@ Contributions are welcome via MR (Merge Requests). You don't need to request pro
 	DEBUG = True
 	DEBUG_MSNP = True
 	DEBUG_HTTP_REQUEST = True
-	TARGET_HOST = 127.0.0.1 # This is used for the XFR and RNG commands, change this if not testing on the same machine
+	TARGET_HOST = "127.0.0.1" # This is used for the XFR and RNG commands, change this if not testing on the same machine
 	```
 	- if you want to enable support for other frontends, set the following options:
 		- YMSG:
