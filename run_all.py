@@ -29,6 +29,9 @@ def main(*, devmode: bool = False) -> None:
 	if settings.ENABLE_FRONT_YMSG:
 		import front.ymsg
 		front.ymsg.register(loop, backend, http_app, devmode = devmode)
+	if settings.ENABLE_FRONT_OSCAR:
+		import front.oscar
+		front.oscar.register(loop, backend)
 	if settings.ENABLE_FRONT_IRC:
 		import front.irc
 		front.irc.register(loop, backend, devmode = devmode)
