@@ -76,7 +76,7 @@ async def handle_insider_ycontent(req: web.Request) -> web.Response:
 						edit_mode = False
 						
 						if yab_set or yab_received: continue
-						if req.query.get('ee') is '1' and req.query.get('ow') is '1':
+						if req.query.get('ee') == '1' and req.query.get('ow') == '1':
 							edit_mode = True
 						
 						if edit_mode:

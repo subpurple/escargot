@@ -306,7 +306,7 @@ def ab_ABContactAdd(req: web.Request, header: Any, action: Any, bs: BackendSessi
 			#if name not in _ANNOTATION_NAMES:
 			#	return web.HTTPInternalServerError()
 			value = find_element(annotation, 'Value')
-			if name is 'AB.NickName':
+			if name == 'AB.NickName':
 				nickname = value
 	
 	add_ctc = False
@@ -574,7 +574,7 @@ def ab_ABContactUpdate(req: web.Request, header: Any, action: Any, bs: BackendSe
 				if property not in (None,-1):
 					property = str(property)
 					property = datetime.strptime(property, '%Y/%m/%d')
-				if property is -1:
+				if property == -1:
 					property = None
 				ctc.detail.anniversary = property
 				updated = True

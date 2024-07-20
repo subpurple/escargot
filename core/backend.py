@@ -1335,7 +1335,7 @@ class Chat:
 		for cs_other in self.get_roster():
 			if self.groupchat is not None:
 				if self.groupchat.memberships[cs.user.uuid].blocking and cs_other.user is not cs.user: continue
-			if cs_other is cs and cs.origin is 'yahoo': continue
+			if cs_other is cs and cs.origin == 'yahoo': continue
 			cs_other.evt.on_participant_joined(cs, first_pop, initial_join)
 	
 	def send_participant_declined(
@@ -1359,7 +1359,7 @@ class Chat:
 			first_pop = True
 		
 		for cs_other in self.get_roster():
-			if cs_other is cs and cs.origin is 'yahoo': continue
+			if cs_other is cs and cs.origin == 'yahoo': continue
 			if self.groupchat is not None:
 				if self.groupchat.memberships[cs.user.uuid].blocking and cs_other.user is not cs.user and not send_on_bl: continue
 			if cs.bs.user.status.substatus is Substatus.Offline and cs_other.user is cs.user: continue

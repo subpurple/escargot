@@ -428,7 +428,7 @@ def messagedata_from_msnp(sender: User, sender_pop_id: Optional[str], ack: str, 
 			id_start = body.index('ID:') + 3
 			id_end = body.index('\r\n', id_start)
 			id = body[id_start:id_end].strip()
-			if id is '1':
+			if id == '1':
 				type = MessageType.Nudge
 				text = ''
 			else:

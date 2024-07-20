@@ -512,9 +512,9 @@ def _encode_friendly(friendlyname: str, charset: str, encoding: str, *, space: b
 	data_encoded = None
 	
 	data = friendlyname.encode(charset)
-	if encoding is 'B':
+	if encoding == 'B':
 		data_encoded = base64.b64encode(data)
-	elif encoding is 'Q':
+	elif encoding == 'Q':
 		data_encoded = quopri_encode(data)
 	if data_encoded is None:
 		return None
