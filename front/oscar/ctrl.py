@@ -12,9 +12,9 @@ class OSCARCtrl:
     backend: Backend
     closed: bool
 
-    sequence: int
+    sequence: int = random.randint(0x0000, 0xFFFF)
 	
-    def __init__(self, logger: Logger, via: str, backend: Backend) -> None:
+    def __init__(self, logger: Logger, backend: Backend) -> None:
         self.logger = logger
         self.transport = None
         self.backend = backend
@@ -28,12 +28,14 @@ class OSCARCtrl:
         self.logger.info('Data:', data.hex())
 
     def send_reply(self, frame: int, data: bytes) -> None:
-        if sequence == 0xFFFF:
-            sequence = 0x0000
+        if self.sequence == 0xFFFF:
+            self.sequence = 0x0000
         else:
-            sequence += 1
+            self.sequence += 1
         
-        self.transport.write(struct.pack('>BBHH', 0x2A, frame, sequence, data))
+        packet = struct.pack('>BBHH', 0x2A, frame, self.sequence, len(data)) + data
+        self.logger.info('Sending:', packet.hex())
+        self.transport.write(packet)
 
     def close(self, **kwargs: Any) -> None:
         pass
