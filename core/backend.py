@@ -1430,7 +1430,7 @@ class ChatSession(Session):
 		for cs_other in roster:
 			if cs_other.bs in already_invited_sessions: continue
 			for ctc_sess in ctc_sessions:
-				if cs_other.bs is ctc_sess and self.origin is not 'yahoo':
+				if cs_other.bs is ctc_sess and self.origin != 'yahoo':
 					already_invited_sessions.append(ctc_sess)
 		for ctc_sess in ctc_sessions:
 			if ctc_sess in already_invited_sessions: continue

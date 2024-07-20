@@ -438,7 +438,7 @@ async def preprocess_soap_rsi(req: web.Request) -> Tuple[Any, Any, Optional[Back
 	root = parse_xml(body)
 	
 	token_tag = root.find('.//{*}PassportCookie/{*}*[1]')
-	if get_tag_localname(token_tag) is not 't':
+	if get_tag_localname(token_tag) != 't':
 		token = None
 	token = token_tag.text
 	if token is not None:
