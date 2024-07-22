@@ -72,8 +72,13 @@ class OSCARCtrl:
         self.transport.write(packet)
 
     # TODO(subpurple): include flags and request id
-    def send_snac(self, foodgroup: int, subgroup: int, data: bytes):
-        self.send_specific_frame(0x02, struct.pack('>HHHL', foodgroup, subgroup, 0, 0) + data)
+    def send_snac(self, foodgroup: int, subgroup: int, data: bytes | list[TLV]) -> None:
+        snac_header = struct.pack('>HHHL', foodgroup, subgroup, 0, 0)
+
+        if isinstance(data, bytes):
+            self.send_specific_frame(0x02, snac_header + data)
+        else:
+            self.send_specific_frame(0x02, snac_header + encode_tlvs(data))
 
     def on_connect(self) -> None:
         self.send_specific_frame(0x01, bytearray.fromhex('00 00 00 01'.replace(' ', '')))
@@ -90,7 +95,6 @@ class OSCARCtrl:
                                                            0x0001,  # OSERVICE
                                                            0x0005  # ADVERT
                                                            ))
-                return
 
     def on_data_frame(self, foodgroup: int, subgroup: int, flags: int, request_id: int, snac_data: bytes) -> None:
         # TODO(subpurple): care about the flags and request id
@@ -105,7 +109,7 @@ class OSCARCtrl:
                 self.send_snac(0x0017, 0x0007, struct.pack('>H', 10) + key.encode())
 
             case (0x0017, 0x0002):
-                self.logger.info('>>> BUCP_LOGIN_REQUEST')
+                self.logger.info('>>> BUCP__LOGIN_REQUEST')
 
                 tlvs = decode_tlvs(snac_data)
 
@@ -123,7 +127,7 @@ class OSCARCtrl:
                 # TODO(subpurple): actually authorize the user
                 if True:
                     self.logger.info('<<< BUCP__LOGIN_RESPONSE (authorized)')
-                    self.send_snac(0x0017, 0x0003, encode_tlvs([
+                    self.send_snac(0x0017, 0x0003, [
                         TLV(0x0005, settings.TARGET_HOST.encode()),     # BOS address
                         TLV(0x0006, os.urandom(256)),                   # BOS authorization cookie
                         TLV(0x0011, email.encode()),                    # User's e-mail address
@@ -131,7 +135,7 @@ class OSCARCtrl:
                         TLV(0x0054, password_change_url.encode()),      # Password change URL
                         TLV(0x008E, b'\0'),                             # Unknown
                         TLV(0x0001, screen_name.encode())               # Screen name
-                    ]))
+                    ])
                 else:
                     self.logger.info('<<< BUCP__LOGIN_RESPONSE (unauthorized)')
 
@@ -141,11 +145,11 @@ class OSCARCtrl:
                             if error_code == 0x0001 \
                             else "http://www.aim.aol.com/errors/MISMATCH_PASSWD.html"
 
-                    self.send_snac(0x0017, 0x0003, encode_tlvs([
+                    self.send_snac(0x0017, 0x0003, [
                         TLV(0x0008, struct.pack('>H', error_code)),
                         TLV(0x0004, error_url.encode()),
                         TLV(0x0001, screen_name.encode())
-                    ]))
+                    ])
 
             case _:
                 self.logger.info('Recieved unknown SNAC with foodgroup:', hex(foodgroup), 'and subgroup:',
@@ -153,10 +157,10 @@ class OSCARCtrl:
                 self.logger.info('Data:', snac_data.hex())
 
     def on_error_frame(self, data: bytes) -> None:
-        pass
+        self.logger.info('Recieved error frame with:', data.hex())
 
     def on_signoff_frame(self, data: bytes) -> None:
-        pass
+        self.logger.info('Recieved signoff frame with:', data.hex())
 
     def close(self, **kwargs: Any) -> None:
         pass
