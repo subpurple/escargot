@@ -17,9 +17,13 @@ class TLV:
     type: int
     data: bytes
 
-    def __init__(self, type: int, data: bytes):
+    def __init__(self, type: int, data: bytes | str):
         self.type = type
-        self.data = data
+
+        if isinstance(data, str):
+            self.data = data.encode()
+        else:
+            self.data = data
 
 
 def decode_tlvs(data: bytes) -> list[TLV]:
@@ -128,13 +132,13 @@ class OSCARCtrl:
                 if True:
                     self.logger.info('<<< BUCP__LOGIN_RESPONSE (authorized)')
                     self.send_snac(0x0017, 0x0003, [
-                        TLV(0x0005, settings.TARGET_HOST.encode()),     # BOS address
+                        TLV(0x0005, settings.TARGET_HOST),              # BOS address
                         TLV(0x0006, os.urandom(256)),                   # BOS authorization cookie
-                        TLV(0x0011, email.encode()),                    # User's e-mail address
+                        TLV(0x0011, email),                             # User's e-mail address
                         TLV(0x0013, struct.pack('>H', 1)),              # Registration status
-                        TLV(0x0054, password_change_url.encode()),      # Password change URL
+                        TLV(0x0054, password_change_url),               # Password change URL
                         TLV(0x008E, b'\0'),                             # Unknown
-                        TLV(0x0001, screen_name.encode())               # Screen name
+                        TLV(0x0001, screen_name)                        # Screen name
                     ])
                 else:
                     self.logger.info('<<< BUCP__LOGIN_RESPONSE (unauthorized)')
@@ -147,8 +151,8 @@ class OSCARCtrl:
 
                     self.send_snac(0x0017, 0x0003, [
                         TLV(0x0008, struct.pack('>H', error_code)),
-                        TLV(0x0004, error_url.encode()),
-                        TLV(0x0001, screen_name.encode())
+                        TLV(0x0004, error_url),
+                        TLV(0x0001, screen_name)
                     ])
 
             case _:
