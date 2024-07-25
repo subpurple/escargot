@@ -1,69 +1,42 @@
 import asyncio
-import os
 import random
 import struct
-import settings
 
-from array import array
-from core.backend import Backend
-from dataclasses import dataclass
-from html import escape
 from typing import Optional, Any
 from util.misc import Logger
+from .misc import OSCARClient, SNACMessage, decode_tlvs, find_tlv, foodgroups
+
+foodgroup_versions: {int, int} = {
+    0x0001: 4,  # OSERVICE
+    0x0002: 1,  # LOCATE
+    0x0003: 1,  # BUDDY
+    0x0004: 1,  # ICBM
+    0x0006: 1,  # INVITE
+    0x0008: 1,  # POPUP
+    0x0009: 1,  # BOS
+    0x000A: 1,  # USER_LOOKUP
+    0x000B: 1,  # STATS
+    0x000C: 1,  # TRANSLATE
+    0x0013: 6,  # FEEDBAG
+    0x0015: 2,  # ICQ
+    0x0022: 1,  # PLUGIN
+    0x0024: 1,  # UNNAMED (possibly NACHOS?)
+    0x0025: 1  # MDIR
+}
 
 
-@dataclass
-class TLV:
-    type: int
-    data: bytes
-
-    def __init__(self, type: int, data: bytes | str):
-        self.type = type
-
-        if isinstance(data, str):
-            self.data = data.encode()
-        else:
-            self.data = data
-
-
-def decode_tlvs(data: bytes) -> list[TLV]:
-    tlvs = []
-
-    while len(data) > 4:
-        type, length = struct.unpack('>HH', data[0:4])
-        value = data[4:length + 4]
-
-        tlvs.append(TLV(type, value))
-        data = data[length + 4:]
-
-    return tlvs
-
-
-def encode_tlvs(tlvs: list[TLV]) -> bytes:
-    data = b''
-    for tlv in tlvs:
-        data += struct.pack('>HH', tlv.type, len(tlv.data)) + tlv.data
-
-    return data
-
-
-def find_tlv(tlvs: list[TLV], type: int):
-    for tlv in tlvs:
-        if tlv.type == type:
-            return tlv
-
-    return None
-
-
+# TODO(subpurple): as the foodgroups are no longer handled just in this file, might want to combine this and entry
 class OSCARCtrl:
     logger: Logger
     transport: Optional[asyncio.WriteTransport]
+    client: OSCARClient
 
     sequence: int = random.randint(0x0000, 0xFFFF)
 
     def __init__(self, logger: Logger) -> None:
         self.logger = logger
         self.transport = None
+        self.client = OSCARClient(self)
 
     def send_specific_frame(self, frame: int, data: bytes) -> None:
         if self.sequence == 0xFFFF:
@@ -72,17 +45,10 @@ class OSCARCtrl:
             self.sequence += 1
 
         packet = struct.pack('>BBHH', 0x2A, frame, self.sequence, len(data)) + data
-        # self.logger.info('<<< Sending:', packet.hex())
         self.transport.write(packet)
 
-    # TODO(subpurple): include flags and request id
-    def send_snac(self, foodgroup: int, subgroup: int, data: bytes | list[TLV]) -> None:
-        snac_header = struct.pack('>HHHL', foodgroup, subgroup, 0, 0)
-
-        if isinstance(data, bytes):
-            self.send_specific_frame(0x02, snac_header + data)
-        else:
-            self.send_specific_frame(0x02, snac_header + encode_tlvs(data))
+    def send_snac(self, msg: SNACMessage) -> None:
+        self.send_specific_frame(0x02, msg.marshal())
 
     def on_connect(self) -> None:
         self.send_specific_frame(0x01, bytearray.fromhex('00 00 00 01'.replace(' ', '')))
@@ -94,71 +60,35 @@ class OSCARCtrl:
 
             # TODO(subpurple): check the BOS cookie
             if find_tlv(tlvs, 0x0006):
+                # NINA also sends OSERVICE__WELL_KNOWN_URLS right after (should we?)
                 self.logger.info('<<< OSERVICE__HOST_ONLINE')
-                self.send_snac(0x0001, 0x0003, struct.pack('>HH',
-                                                           0x0001,  # OSERVICE
-                                                           0x0005  # ADVERT
-                                                           ))
 
-    def on_data_frame(self, foodgroup: int, subgroup: int, flags: int, request_id: int, snac_data: bytes) -> None:
-        # TODO(subpurple): care about the flags and request id
+                msg = SNACMessage(0x0001, 0x0003)
 
-        match (foodgroup, subgroup):
-            case (0x0017, 0x0006):
-                self.logger.info('>>> BUCP__CHALLENGE_REQUEST')
+                for foodgroup in foodgroup_versions.keys():
+                    msg.add_u16(foodgroup_versions[foodgroup])
 
-                key = str(int.from_bytes(os.urandom(4)))
+                self.send_snac(msg)
 
-                self.logger.info('<<< BUCP__CHALLENGE_RESPONSE (key:', key + ')')
-                self.send_snac(0x0017, 0x0007, struct.pack('>H', 10) + key.encode())
+    def on_data_frame(self, message: SNACMessage) -> None:
+        found = False
 
-            case (0x0017, 0x0002):
-                self.logger.info('>>> BUCP__LOGIN_REQUEST')
+        for value, cls in foodgroups.items():
+            if value == message.foodgroup:
+                if not hasattr(cls, 'logger'):
+                    cls.logger = self.logger
 
-                tlvs = decode_tlvs(snac_data)
+                if message.subgroup in cls.subgroups:
+                    found = True
 
-                screen_name_tlv = find_tlv(tlvs, 0x0001)
-                hashed_pw_tlv = find_tlv(tlvs, 0x0025)
+                    func = cls.subgroups[message.subgroup]
 
-                screen_name = screen_name_tlv.data.decode()
+                    # TODO(subpurple): pass real context that isn't just None
+                    func(cls, self.client, None, message)
 
-                self.logger.info('>>> Screen Name:', screen_name)
-                self.logger.info('>>> Password (hashed):', hashed_pw_tlv.data)
-
-                email = f'{screen_name}@aol.com'
-                password_change_url = f'http://aim.aol.com/redirects/password/change_password.adp?ScreenName={escape(screen_name)}&ccode=us&lang=en'
-
-                # TODO(subpurple): actually authorize the user
-                if True:
-                    self.logger.info('<<< BUCP__LOGIN_RESPONSE (authorized)')
-                    self.send_snac(0x0017, 0x0003, [
-                        TLV(0x0005, settings.TARGET_HOST),              # BOS address
-                        TLV(0x0006, os.urandom(256)),                   # BOS authorization cookie
-                        TLV(0x0011, email),                             # User's e-mail address
-                        TLV(0x0013, struct.pack('>H', 1)),              # Registration status
-                        TLV(0x0054, password_change_url),               # Password change URL
-                        TLV(0x008E, b'\0'),                             # Unknown
-                        TLV(0x0001, screen_name)                        # Screen name
-                    ])
-                else:
-                    self.logger.info('<<< BUCP__LOGIN_RESPONSE (unauthorized)')
-
-                    error_code = 0x0001  # 0x0001 = Unregistered Screenname, 0x0005 = Mismatched Password
-                    error_url = \
-                        "http://www.aim.aol.com/errors/UNREGISTERED_SCREENNAME.html" \
-                            if error_code == 0x0001 \
-                            else "http://www.aim.aol.com/errors/MISMATCH_PASSWD.html"
-
-                    self.send_snac(0x0017, 0x0003, [
-                        TLV(0x0008, struct.pack('>H', error_code)),
-                        TLV(0x0004, error_url),
-                        TLV(0x0001, screen_name)
-                    ])
-
-            case _:
-                self.logger.info('Recieved unknown SNAC with foodgroup:', hex(foodgroup), 'and subgroup:',
-                                 hex(subgroup))
-                self.logger.info('Data:', snac_data.hex())
+        if not found:
+            self.logger.info(f'>>> Unknown SNAC({message.foodgroup},{message.subgroup})')
+            self.logger.info(message.data.hex())
 
     def on_error_frame(self, data: bytes) -> None:
         self.logger.info('Recieved error frame with:', data.hex())

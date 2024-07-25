@@ -4,9 +4,10 @@ import settings
 
 from core.backend import Backend
 from .ctrl import OSCARCtrl
-from typing import Optional, Callable, Dict
+from typing import Optional, Callable
 from threading import Thread
 from util.misc import Logger, ProtocolRunner
+from .misc import SNACMessage
 
 
 def register(loop: asyncio.AbstractEventLoop, backend: Backend) -> None:
@@ -67,10 +68,9 @@ class ListenerOSCAR(asyncio.Protocol):
                         if len(data) < 10:
                             return
 
-                        foodgroup, subgroup, flags, request_id = struct.unpack('>HHHL', data[:10])
-                        snac_data = data[10:]
-
-                        self.controller.on_data_frame(foodgroup, subgroup, flags, request_id, snac_data)
+                        msg = SNACMessage()
+                        msg.unmarshal(data)
+                        self.controller.on_data_frame(msg)
 
                     # ERROR
                     case 0x03:
