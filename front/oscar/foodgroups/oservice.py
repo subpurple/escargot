@@ -32,8 +32,8 @@ class BOSFoodgroup:
         response_msg_2 = SNACMessage(0x0001, 0x0007, 0x0000, 0x0000, bytes.fromhex(data2.replace(' ', '')))
 
         self.logger.info('>>> OSERVICE__RATE_PARAMS_REPLY (2)')
-        client.send_snac(response_msg)
-        client.send_snac(response_msg_2)
+        #client.send_snac(response_msg)
+        #client.send_snac(response_msg_2)
 
     @Subgroup(0x0008)
     def rate_add_param_sub(self, client: OSCARClient, context: OSCARContext, message: SNACMessage) -> None:
