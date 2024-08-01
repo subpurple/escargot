@@ -4,20 +4,20 @@ from util.misc import Logger
 
 
 @Foodgroup(0x0001)
-class BOSFoodgroup:
+class OSERVICEFoodgroup:
     logger: Logger
 
     @Subgroup(0x0017)
     def client_versions(self, client: OSCARClient, context: OSCARContext, message: SNACMessage) -> None:
         self.logger.info('>>> OSERVICE__CLIENT_VERSIONS')
 
-        response_msg = SNACMessage(0x0001, 0x0018)
-        for foodgroup, version in foodgroup_versions.items():
-            response_msg.add_u16(foodgroup)
-            response_msg.add_u16(version)
+        response_msg = SNACMessage(0x0001, 0x0018, 0x0000, 0x000, message.data)
+        # for foodgroup, version in foodgroup_versions.items():
+        #     response_msg.add_u16(foodgroup)
+        #     response_msg.add_u16(version)
 
-        print(response_msg.data.hex())
-        self.logger.info('<<< OSERVICE__HOST_VERSIONS')
+        # print(response_msg.data.hex())
+        # self.logger.info('<<< OSERVICE__HOST_VERSIONS')
         client.send_snac(response_msg)
 
     @Subgroup(0x0006)
@@ -31,15 +31,14 @@ class BOSFoodgroup:
         response_msg = SNACMessage(0x0001, 0x0007, 0x0000, 0x0000, bytes.fromhex(data.replace(' ', '')))
         response_msg_2 = SNACMessage(0x0001, 0x0007, 0x0000, 0x0000, bytes.fromhex(data2.replace(' ', '')))
 
-        self.logger.info('>>> OSERVICE__RATE_PARAMS_REPLY (2)')
-        #client.send_snac(response_msg)
-        #client.send_snac(response_msg_2)
+        self.logger.info('<<< OSERVICE__RATE_PARAMS_REPLY (2)')
+        client.send_snac(response_msg)
+        client.send_snac(response_msg_2)
 
     @Subgroup(0x0008)
     def rate_add_param_sub(self, client: OSCARClient, context: OSCARContext, message: SNACMessage) -> None:
-        self.logger.info('<<< OSERVICE__RATE_ADD_PARAM_SUB')
-        self.logger.info(message.data.hex())
+        self.logger.info('>>> OSERVICE__RATE_ADD_PARAM_SUB')
 
     @Subgroup(0x000E)
     def user_info_query(self, client: OSCARClient, context: OSCARContext, message: SNACMessage) -> None:
-        self.logger.info('<<< OSERVICE__USER_INFO_QUERY')
+        self.logger.info('>>> OSERVICE__USER_INFO_QUERY')

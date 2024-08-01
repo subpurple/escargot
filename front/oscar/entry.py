@@ -11,23 +11,29 @@ from .misc import SNACMessage
 
 
 def register(loop: asyncio.AbstractEventLoop, backend: Backend) -> None:
-    backend.add_runner(ProtocolRunner('0.0.0.0', 5190, ListenerOSCAR, args=['OS', OSCARCtrl]))
+    backend.add_runner(ProtocolRunner('0.0.0.0', 5190, ListenerOSCAR, args=['OS', backend, OSCARCtrl]))
 
 
 class ListenerOSCAR(asyncio.Protocol):
     logger: Logger
+    backend: Backend
     controller: OSCARCtrl
     transport: Optional[asyncio.WriteTransport]
 
     buffer: bytes = b''
     data_thread: Thread = None
 
-    def __init__(self, logger_prefix: str, controller_factory: Callable[[Logger, str], OSCARCtrl]) -> None:
+    def __init__(self,
+                 logger_prefix: str,
+                 backend: Backend,
+                 controller_factory: Callable[[Logger, str, Backend], OSCARCtrl]) -> None:
         super().__init__()
 
         self.logger = Logger(logger_prefix, self, settings.DEBUG_OSCAR)
-        self.controller = controller_factory(self.logger)
+        self.backend = backend
+        self.controller = controller_factory(self.logger, 'direct', backend)
         self.controller.close_callback = self._on_close
+        self.transport = None
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
         self.controller.transport = transport
@@ -39,6 +45,10 @@ class ListenerOSCAR(asyncio.Protocol):
         self.logger.log_disconnect()
 
     def data_received(self, packet: bytes) -> None:
+        if self.backend.maintenance_mode:
+            self.transport.close()
+            return
+
         self.buffer += packet
 
         if self.data_thread is None or not self.data_thread.is_alive():

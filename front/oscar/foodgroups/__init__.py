@@ -1,1 +1,6 @@
-__all__ = ['bos', 'bucp', 'icbm', 'locate']
+__all__ = [
+    'oservice',
+    'bucp',
+    'icbm',
+    'locate'
+]
