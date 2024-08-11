@@ -4,14 +4,20 @@ import random
 import struct
 import settings
 
-from core.backend import Backend
+from array import array
+from core.backend import Backend, BackendSession
+from core.client import Client
+from core.models import LoginOption
 from itertools import cycle
-from typing import Optional, Any
+from typing import Optional, Callable
 from util.misc import Logger
 from urllib.parse import quote
-from .misc import OSCARClient, SNACMessage, TLV, encode_tlvs, decode_tlvs, find_tlv, foodgroups
 
-authorize = False
+from .misc.backend import BackendEventHandler
+from .misc.snac import OSCARClient, OSCARContext, SNACMessage, foodgroups
+from .misc.tlv import TLV, marshal_tlvs, unmarshal_tlvs, find_tlv
+
+bos_cookies: array[{bytes, OSCARContext}] = []
 foodgroup_versions: {int, int} = {
     0x0001: 4,  # OSERVICE
     0x0002: 1,  # LOCATE
@@ -27,33 +33,42 @@ foodgroup_versions: {int, int} = {
     0x0015: 2,  # ICQ
     0x0022: 1,  # PLUGIN
     0x0024: 1,  # UNNAMED (possibly NACHOS?)
-    0x0025: 1  # MDIR
+    0x0025: 1   # MDIR
 }
 
-
-# Thanks https://homework.nwsnet.de/releases/9b1a/!
-#
-# TODO(subpurple): there is a different roasting chars for the Java client - implement those
-def roast(password: bytes,
-          key: bytes = b'\xF3\x26\x81\xC4\x39\x86\xDB\x92\x71\xA3\xB9\xE6\x53\x7A\x95\x7C') -> bytes:
-    chars = cycle(key)
-    return bytes(byte ^ next(chars) for byte in password)
+pw_change_url_format = 'http://aim.aol.com/redirects/password/change_password.adp?ScreenName={}&ccode=us&lang=en'
 
 
 # TODO(subpurple): as the foodgroups are no longer handled just in this file, might want to combine this and entry
 class OSCARCtrl:
     logger: Logger
-    backend: Backend
     transport: Optional[asyncio.WriteTransport]
-    client: OSCARClient
 
+    close_callback: Optional[Callable[[], None]]
+    closed: bool
+
+    backend: Backend
+    bs: Optional[BackendSession]
+
+    client: Client
+
+    oscarClient: OSCARClient
+    context: OSCARContext
     sequence: int = random.randint(0x0000, 0xFFFF)
 
     def __init__(self, logger: Logger, via: str, backend: Backend) -> None:
         self.logger = logger
         self.transport = None
+
+        self.close_callback = None
+        self.closed = False
+
         self.backend = backend
-        self.client = OSCARClient(self)
+        self.bs = None
+        self.client = Client('oscar', '?', via)
+
+        self.context = OSCARContext(self.backend, self.client)
+        self.oscarClient = OSCARClient(self)
 
     def send_specific_frame(self, frame: int, data: bytes) -> None:
         if self.sequence == 0xFFFF:
@@ -66,36 +81,52 @@ class OSCARCtrl:
             data
         ])
 
-        # self.logger.info('>>> Frame:', frame)
-        # self.logger.info('>>> Sequence:', self.sequence)
-        # self.logger.info('>>> Data:', data.hex())
-        # self.logger.info('>>>', packet.hex())
-
         self.transport.write(packet)
 
     def send_snac(self, msg: SNACMessage) -> None:
         self.send_specific_frame(0x02, msg.marshal())
 
     def on_connect(self) -> None:
-        self.send_specific_frame(0x01, bytearray.fromhex('00 00 00 01'.replace(' ', '')))
+        self.send_specific_frame(0x01, struct.pack('>L', 1))
 
     def on_signon_frame(self, data: bytes) -> None:
         if len(data) > 4:
-            tlvs = decode_tlvs(data[4:])
+            global foodgroup_versions
+            global bos_cookies
 
-            # TODO(subpurple): check the BOS cookie
-            if find_tlv(tlvs, 0x0006):
-                # NINA also sends OSERVICE__WELL_KNOWN_URLS right after (should we?)
-                self.logger.info('<<< OSERVICE__HOST_ONLINE')
+            tlvs = unmarshal_tlvs(data[4:])
 
-                msg = SNACMessage(0x0001, 0x0003)
+            if (cookie_tlv := find_tlv(tlvs, 0x0006)) is not None:
+                found = False
 
-                for foodgroup in foodgroup_versions.keys():
-                    msg.add_u16(foodgroup_versions[foodgroup])
+                for i, d in enumerate(bos_cookies):
+                    for cookie, context in d.items():
+                        if cookie == cookie_tlv.data:
+                            self.logger.info('>>> Found BOS cookie')
 
-                self.send_snac(msg)
+                            self.context = context
+                            self.context.backend = self.backend
 
-            # TODO(subpurple): actually authorize the user
+                            self.bs = self.context.bs
+                            self.bs.client = self.client
+                            self.bs.backend = self.backend
+
+                            bos_cookies.pop(i)
+                            found = True
+
+                if found:
+                    # NINA also sends OSERVICE__WELL_KNOWN_URLS right after (should we?)
+                    self.logger.info('<<< OSERVICE__HOST_ONLINE')
+
+                    msg = SNACMessage(0x0001, 0x0003)
+
+                    for foodgroup in foodgroup_versions.keys():
+                        msg.write_u16(foodgroup)
+
+                    self.send_snac(msg)
+                else:
+                    self.logger.info('invalid BOS cookie given')
+
             else:
                 self.logger.info('>>> Using FLAP-level authentication')
 
@@ -121,40 +152,55 @@ class OSCARCtrl:
 
                 screen_name = screen_name_tlv.data.decode()
                 roasted_pw = roasted_pw_tlv.data
-                unroasted_pw = roast(roasted_pw).decode()
 
                 self.logger.info('>>> Screen Name:', screen_name)
-                self.logger.info('>>> Password (roasted):', roasted_pw)
-                self.logger.info('>>> Password (unroasted):', unroasted_pw)
+                self.logger.info('>>> Password (roasted):', roasted_pw.hex())
 
-                email = f'{screen_name}@aol.com'
-                password_change_url = f'http://aim.aol.com/redirects/password/change_password.adp?ScreenName={quote(screen_name)}&ccode=us&lang=en'
+                context = self.context
+                error_code, error_url = None, None
 
-                global authorize
-                if authorize:
+                if (uuid := context.backend.util_get_uuid_from_username(screen_name)) is None:
+                    error_code = 0x0001
+                    error_url = 'http://www.aim.aol.com/errors/UNREGISTERED_SCREENNAME.html'
+
+                    self.logger.info('>>> Unregistered screenname')
+                elif not context.backend.user_service.aim_login_flap(screen_name, roasted_pw):
+                    error_code = 0x0005
+                    error_url = 'http://www.aim.aol.com/errors/MISMATCH_PASSWD.html'
+
+                    self.logger.info('>>> Incorrect password')
+
+                if error_code is None:
                     self.logger.info('>>>', screen_name, 'logged in!')
-                    self.send_specific_frame(0x04, encode_tlvs([
-                        TLV(0x0001, screen_name),                       # Screen name
-                        TLV(0x0005, f'{settings.TARGET_HOST}:5190'),    # BOS address
-                        TLV(0x0006, os.urandom(256)),                   # BOS authorization cookie
-                        TLV(0x0011, email),                             # User's e-mail address
-                        TLV(0x0013, struct.pack('>H', 1)),              # Registration status
-                        TLV(0x0054, password_change_url),               # Password change URL
-                        TLV(0x008E, b'\0'),                             # Unknown
+
+                    context.bs = context.backend.login(uuid,
+                                                       context.client,
+                                                       BackendEventHandler(self),
+                                                       option=LoginOption.NotifyOthers)
+                    context.user = context.bs.user
+
+                    bos_cookie = os.urandom(256)
+                    bos_cookies.append({bos_cookie: self.context})
+
+                    screen_name = context.user.username
+                    email = context.user.email
+
+                    self.logger.info('Screen Name (normalized):', screen_name)
+                    self.logger.info('E-mail:', email)
+
+                    self.send_specific_frame(0x04, marshal_tlvs([
+                        TLV(0x0001, screen_name),                               # Screen name
+                        TLV(0x0005, f'{settings.TARGET_HOST}:5190'),            # BOS address
+                        TLV(0x0006, bos_cookie),                                # BOS authorization cookie
+                        TLV(0x0011, email),                                     # User's e-mail address
+                        TLV(0x0013, struct.pack('>H', 1)),                      # Registration status
+                        TLV(0x0054, pw_change_url_format.format(screen_name)),  # Password change URL
+                        TLV(0x008E, b'\0'),                                     # Unknown
                     ]))
                 else:
                     self.logger.info('>>> Incorrect username or password')
 
-                    # Error codes used here:
-                    #   - 0x0001: Unregistered Screenname
-                    #   - 0x0005: Mismatched Password
-                    error_code = 0x0001
-                    error_url = \
-                        'http://www.aim.aol.com/errors/UNREGISTERED_SCREENNAME.html' \
-                            if error_code == 0x0001 \
-                            else 'http://www.aim.aol.com/errors/MISMATCH_PASSWD.html'
-
-                    self.send_specific_frame(0x04, encode_tlvs([
+                    self.send_specific_frame(0x04, marshal_tlvs([
                         TLV(0x0001, screen_name),                    # Screen name
                         TLV(0x0008, struct.pack('>H', error_code)),  # Error code
                         TLV(0x0004, error_url),                      # Error URL
@@ -162,6 +208,11 @@ class OSCARCtrl:
 
     def on_data_frame(self, message: SNACMessage) -> None:
         found = False
+
+        # kick client off if we haven't authenticated and client is trying to access something outside of BUCP
+        if message.foodgroup != 0x0017 and self.bs is None:
+            self.close()
+            return
 
         for value, cls in foodgroups.items():
             if value == message.foodgroup:
@@ -172,19 +223,22 @@ class OSCARCtrl:
                     found = True
 
                     func = cls.subgroups[message.subgroup]
-
-                    # TODO(subpurple): pass real context that isn't just None
-                    func(cls, self.client, None, message)
+                    func(cls, self.oscarClient, self.context, message)
 
         if not found:
-            self.logger.info(f'>>> Unknown SNAC({message.foodgroup},{message.subgroup})')
+            self.logger.info(f'>>> Unknown SNAC({hex(message.foodgroup)},{hex(message.subgroup)})')
             self.logger.info(message.data.hex())
 
     def on_error_frame(self, data: bytes) -> None:
         self.logger.info('>>> Recieved error frame with:', data.hex())
 
     def on_signoff_frame(self, data: bytes) -> None:
-        self.logger.info('>>> Recieved signoff frame with:', data.hex())
+        self.logger.info('>>> Recieved signoff frame')
 
-    def close(self, **kwargs: Any) -> None:
-        pass
+    def close(self) -> None:
+        if self.closed:
+            return
+        self.closed = True
+
+        if self.close_callback:
+            self.close_callback()

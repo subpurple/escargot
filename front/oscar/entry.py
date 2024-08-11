@@ -3,11 +3,12 @@ import struct
 import settings
 
 from core.backend import Backend
-from .ctrl import OSCARCtrl
 from typing import Optional, Callable
 from threading import Thread
 from util.misc import Logger, ProtocolRunner
-from .misc import SNACMessage
+
+from .ctrl import OSCARCtrl
+from .misc.snac import SNACMessage
 
 
 def register(loop: asyncio.AbstractEventLoop, backend: Backend) -> None:
@@ -41,7 +42,7 @@ class ListenerOSCAR(asyncio.Protocol):
         self.logger.log_connect()
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
-        # self.controller.close()
+        self.controller.close()
         self.logger.log_disconnect()
 
     def data_received(self, packet: bytes) -> None:

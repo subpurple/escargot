@@ -1,6 +1,9 @@
 __all__ = [
     'oservice',
-    'bucp',
+    'locate',
+    'buddy',
     'icbm',
-    'locate'
+    'bos',
+    'feedbag',
+    'bucp'
 ]
