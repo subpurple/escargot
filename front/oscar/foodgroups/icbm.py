@@ -1,5 +1,6 @@
-from ..misc.snac import OSCARClient, OSCARContext, SNACMessage, Foodgroup, Subgroup
 from util.misc import Logger
+
+from ..misc.snac import OSCARClient, OSCARContext, SNACMessage, Foodgroup, Subgroup
 
 
 @Foodgroup(0x0004)
@@ -9,7 +10,7 @@ class ICBMFoodgroup:
     @Subgroup(0x0002)
     def add_paramenters(self, client: OSCARClient, context: OSCARContext, message: SNACMessage) -> None:
         self.logger.info('>>> ICBM__ADD_PARAMENTERS (not implemented)')
-        self.logger.info(message.data.hex())
+        self.logger.info('>>>', message.data.hex())
 
     @Subgroup(0x0004)
     def parameter_query(self, client: OSCARClient, context: OSCARContext, message: SNACMessage) -> None:

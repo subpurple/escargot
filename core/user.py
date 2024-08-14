@@ -42,14 +42,12 @@ class UserService:
             if not hasher.verify(pwd, dbuser.password): return None
             return dbuser.uuid
 
-
     def msn_login_md5(self, email: str, md5_hash: str) -> Optional[str]:
         with self._conn.session() as sess:
             dbuser = sess.query(DBUser).filter(func.lower(DBUser.email) == email.lower()).one_or_none()
             if dbuser is None: return None
             if not hasher_md5.verify_hash(md5_hash, dbuser.get_front_data('msn', 'pw_md5') or ''): return None
             return dbuser.uuid
-
 
     def msn_get_md5_salt(self, email: str) -> Optional[str]:
         with self._conn.session() as sess:
@@ -74,34 +72,19 @@ class UserService:
     def aim_get_md5_salt(self, username: str) -> Optional[str]:
         with self._conn.session() as sess:
             dbuser = sess.query(DBUser).filter(func.lower(DBUser.username) == username.lower()).one_or_none()
-            if dbuser is None:
-                return None
-
+            if dbuser is None: return None
             pw_md5_salt = dbuser.get_front_data('aim', 'pw_md5_salt')
-
-            if pw_md5_salt is None:
-                return None
-
-            return pw_md5_salt
+            return pw_md5_salt or ''
 
     def aim_login_md5(self, username: str, md5_hash: bytes) -> bool:
         with self._conn.session() as sess:
             dbuser = sess.query(DBUser).filter(func.lower(DBUser.username) == username.lower()).one_or_none()
-            if dbuser is None:
-                return False
-
+            if dbuser is None: return False
             new = dbuser.get_front_data('aim', 'pw_md5_new') or ''
             old = dbuser.get_front_data('aim', 'pw_md5_old') or ''
-
-            if hasher_md5bucp.verify_hash(md5_hash, new):
-                print("new hash used")
-                return True
-
-            if hasher_md5bucp.verify_hash(md5_hash, old):
-                print("old hash used")
-                return True
-
-            return False
+        if hasher_md5bucp.verify_hash(md5_hash, new): return True
+        if hasher_md5bucp.verify_hash(md5_hash, old): return True
+        return False
 
     def aim_login_flap(self, username: str, roasted_pwd: bytes) -> bool:
         roasting_chars = b'\xF3\x26\x81\xC4\x39\x86\xDB\x92\x71\xA3\xB9\xE6\x53\x7A\x95\x7C'
@@ -112,14 +95,9 @@ class UserService:
 
         with self._conn.session() as sess:
             dbuser = sess.query(DBUser).filter(func.lower(DBUser.username) == username.lower()).one_or_none()
-            if dbuser is None:
-                return False
-
+            if dbuser is None: return False
             unroasted = roast(roasted_pwd, roasting_chars)
-            if not hasher.verify(unroasted.decode(), dbuser.password):
-                return False
-
-            return True
+            return hasher.verify(unroasted.decode(), dbuser.password)
 
     def update_date_login(self, uuid: str) -> None:
         with self._conn.session() as sess:

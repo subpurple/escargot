@@ -1,9 +1,9 @@
 import struct
 
-from ..misc.snac import OSCARClient, OSCARContext, SNACMessage, Foodgroup, Subgroup
-from ..misc.tlv import TLV
 from util.misc import Logger
 
+from ..misc.snac import OSCARClient, OSCARContext, SNACMessage, Foodgroup, Subgroup
+from ..misc.tlv import TLV
 
 @Foodgroup(0x0002)
 class LocateFoodgroup:
@@ -42,11 +42,11 @@ class LocateFoodgroup:
         client.send_snac(response_msg)
 
     @Subgroup(0x0004)
-    def set_info(self, client: OSCARClient, context: OSCARContext, message: SNACMessage):
+    def set_info(self, client: OSCARClient, context: OSCARContext, message: SNACMessage) -> None:
         self.logger.info('>>> LOCATE__SET_INFO (not implemented)')
-        self.logger.info(message.data.hex())
+        self.logger.info('>>>', message.data.hex())
 
     @Subgroup(0x000B)
-    def get_dir_info(self, client: OSCARClient, context: OSCARContext, message: SNACMessage):
+    def get_dir_info(self, client: OSCARClient, context: OSCARContext, message: SNACMessage) -> None:
         self.logger.info('>>> LOCATE__GET_DIR_INFO (not implemented)')
-        self.logger.info(message.data.hex())
+        self.logger.info('>>>', message.data.hex())

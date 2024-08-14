@@ -11,7 +11,7 @@ class TLV:
     type: int
     data: bytes
 
-    def __init__(self, type: int, data: bytes | str):
+    def __init__(self, type: int, data: bytes | str = b''):
         self.type = type
 
         if isinstance(data, str):

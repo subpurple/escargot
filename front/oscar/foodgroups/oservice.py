@@ -1,11 +1,11 @@
 import struct
 import time
 
-from ..ctrl import foodgroup_versions
-from ..misc.snac import OSCARClient, OSCARContext, SNACMessage, Foodgroup, Subgroup
-from ..misc.tlv import TLV
 from util.misc import Logger
 
+from ..misc.backend import FOODGROUP_VERSIONS
+from ..misc.snac import OSCARClient, OSCARContext, SNACMessage, Foodgroup, Subgroup
+from ..misc.tlv import TLV
 
 @Foodgroup(0x0001)
 class OSERVICEFoodgroup:
@@ -16,7 +16,7 @@ class OSERVICEFoodgroup:
         self.logger.info('>>> OSERVICE__CLIENT_VERSIONS')
 
         response_msg = SNACMessage(0x0001, 0x0018, 0x0000, 0x0000)
-        for foodgroup, version in foodgroup_versions.items():
+        for foodgroup, version in FOODGROUP_VERSIONS.items():
             response_msg.write_u16(foodgroup)
             response_msg.write_u16(version)
 
@@ -102,9 +102,6 @@ class OSERVICEFoodgroup:
     def user_info_query(self, client: OSCARClient, context: OSCARContext, message: SNACMessage) -> None:
         self.logger.info('>>> OSERVICE__USER_INFO_QUERY')
 
-        self.logger.info('>>> Client screen name:', context.bs.user.username)
-        self.logger.info('>>> Client IP:', client.get_ip())
-
         response_msg = SNACMessage(0x0001, 0x000F)
         response_msg.write_string_u8(context.bs.user.username)  # Screen name
         response_msg.write_u16(0)                               # Warning level
@@ -113,7 +110,11 @@ class OSERVICEFoodgroup:
         date_login = context.bs.user.date_login
 
         date_created_unix = int(time.mktime(date_created.timetuple()))
-        date_login_unix = int(time.mktime(date_login.timetuple()))
+        date_login_unix = int(time.mktime(date_login.timetuple())) if date_login else 0
+
+        self.logger.info('Date created:', date_created)
+        self.logger.info('Date logged in:', date_login if date_login else 'Never')
+        self.logger.info('Client IP:', client.get_ip())
 
         response_msg.write_tlv_block([
             TLV(0x0001, struct.pack('>L', 0x0010)),             # User class (0x0010 = OSERVICE__USER_FLAG_OSCAR_FREE)
@@ -127,7 +128,7 @@ class OSERVICEFoodgroup:
         client.send_snac(response_msg)
 
     @Subgroup(0x0011)
-    def idle_notification(self, client: OSCARClient, context: OSCARContext, message: SNACMessage):
+    def idle_notification(self, client: OSCARClient, context: OSCARContext, message: SNACMessage) -> None:
         self.logger.info('>>> OSERVICE__IDLE_NOTIFICATION')
 
         idle_time = message.read_u32()
@@ -137,11 +138,11 @@ class OSERVICEFoodgroup:
             self.logger.info(context.bs.user.username, 'has been idle for', str(idle_time), 'seconds')
 
     @Subgroup(0x0002)
-    def client_online(self, client: OSCARClient, context: OSCARContext, message: SNACMessage):
+    def client_online(self, client: OSCARClient, context: OSCARContext, message: SNACMessage) -> None:
         self.logger.info('>>> OSERVICE__CLIENT_ONLINE (not implemented)')
-        self.logger.info(message.data.hex())
+        self.logger.info('>>>', message.data.hex())
 
     @Subgroup(0x0004)
-    def service_request(self, client: OSCARClient, context: OSCARContext, message: SNACMessage):
+    def service_request(self, client: OSCARClient, context: OSCARContext, message: SNACMessage) -> None:
         self.logger.info('>>> OSERVICE__SERVICE_REQUEST (not implemented)')
-        self.logger.info(message.data.hex())
+        self.logger.info('>>>', message.data.hex())

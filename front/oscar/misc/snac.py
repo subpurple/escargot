@@ -7,7 +7,7 @@ from core.models import User
 from dataclasses import dataclass
 from typing import Optional, Callable, Any
 
-from .tlv import TLV, marshal_tlvs
+from .tlv import TLV, marshal_tlvs, unmarshal_tlvs
 
 foodgroups = {}
 
@@ -112,12 +112,12 @@ class Foodgroup:
 
     def __init__(self, value) -> None:
         self.value = value
+        self.cls = None
 
     def __call__(self, *args) -> None:
         self.cls = args[0]
 
-        instance = self.cls()
-        foodgroups[self.value] = instance
+        foodgroups[self.value] = self.cls()
 
 
 class Subgroup:
@@ -125,11 +125,12 @@ class Subgroup:
 
     value: int
     mode: str
-    func: Callable
+    func: Optional[Callable]
 
     def __init__(self, value) -> None:
         self.value = value
         self.mode = 'decorating'
+        self.func = None
 
     def __call__(self, *args) -> Any:
         if self.mode == 'decorating':
@@ -175,10 +176,10 @@ class OSCARContext:
     client: Client
 
     # These slots are equivalent to .bs.* and only exist for the sake of convenience
-    user: User
+    user: Optional[User]
 
     def __init__(self, backend: Backend, client: Client) -> None:
         self.backend = backend
         self.bs = None
-        self.user = None
         self.client = client
+        self.user = None
